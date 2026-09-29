@@ -74,7 +74,15 @@ Assets are pre-compressed with brotli/gzip at build time (1.26 MB → 363 KB) an
 
 ### Deploy
 
-DEPLOY_PLACEHOLDER
+Tested from a clean clone with `docker compose` (Everloom + Caddy, IP-only mode with `tls internal`):
+
+- `/api/health` answers through Caddy over HTTPS; the container reports healthy.
+- Response headers include HSTS, the Content-Security-Policy, `nosniff` and `X-Frame-Options: DENY`.
+- Built assets are served brotli-compressed (main script 82 KB on the wire).
+- API routes return 401 without a session; the session cookie is `HttpOnly; Secure; SameSite=Strict`.
+- `--migrate-only` and `--reset-password` work inside the container.
+
+In this sandbox the image was built with an extra CA certificate for the build network's proxy; the repository's `Dockerfile` is otherwise identical and needs nothing extra on a normal VPS. The installer's interactive steps (Docker install, DNS prompt, cron) were not run here.
 
 ## Suggested next steps
 
