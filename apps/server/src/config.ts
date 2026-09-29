@@ -1,5 +1,6 @@
 import { randomBytes } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 
 export interface Config {
@@ -60,7 +61,8 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     allowPrivateNetwork: env.EVERLOOM_ALLOW_PRIVATE_NETWORK !== '0',
     backupRetention: Number(env.EVERLOOM_BACKUP_RETENTION ?? 14),
     logLevel: env.LOG_LEVEL ?? 'warn',
-    importRoots: (env.EVERLOOM_IMPORT_ROOTS ?? '/').split(':').filter(Boolean),
+    // Folders the SillyTavern importer may read. Docker sets /import; otherwise the home folder.
+    importRoots: (env.EVERLOOM_IMPORT_ROOTS ?? os.homedir()).split(':').filter(Boolean),
     ...overrides,
   };
   mkdirSync(cfg.mediaDir, { recursive: true });

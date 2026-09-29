@@ -1,9 +1,10 @@
 import type { Npc, Op, ScheduleSlot } from '@everloom/engine';
 import { currentSlot, findDuplicateNpcs, relationshipLabel } from '@everloom/engine';
-import { ArrowLeftRight, Contact, Lock, LockOpen, Merge, Plus, Search, Trash2, UserPlus, Users, X } from 'lucide-react';
+import { ArrowLeftRight, Contact, Lock, LockOpen, Merge, Plus, Search, Sparkles, Trash2, UserPlus, Users, X } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { post } from '@/lib/api';
+import { useImageGen } from '@/lib/imagegen';
 import { useCharacters } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
 import { Avatar, Badge, Button, confirm, EmptyState, Field, Icon, IconButton, Input, Select, Sheet, Textarea, ToggleRow } from '@/ui';
@@ -149,6 +150,7 @@ export default function Npcs({ arg }: { arg?: string }) {
 function NpcEditor({ npc, onClose }: { npc: Npc | null; onClose: () => void }) {
   const { state: s, apply, chat } = useGame();
   const navigate = useNavigate();
+  const gen = useImageGen();
   const [d, setD] = useState<Npc | null>(null);
   const [lastId, setLastId] = useState<string | null>(null);
   if (npc && npc.id !== lastId) {
@@ -242,6 +244,23 @@ function NpcEditor({ npc, onClose }: { npc: Npc | null; onClose: () => void }) {
     >
       {d && npc ? (
         <div className="flex flex-col gap-4">
+          <div className="flex items-center gap-3">
+            <Avatar src={npc.portrait ? `/media/${npc.portrait}` : undefined} name={npc.name} size="lg" />
+            <Button
+              size="sm"
+              variant="secondary"
+              icon={Sparkles}
+              loading={gen.busy === 'npc'}
+              onClick={async () => {
+                // Portrait uses the saved appearance; save edits first if any.
+                if (d.appearance !== npc.appearance) await apply({ type: 'npc.set', id: npc.id, patch: { appearance: d.appearance } } as Op, { quiet: true });
+                const r = await gen.run({ kind: 'npc', chatId: chat.id, npcId: npc.id });
+                if (r) await apply({ type: 'npc.set', id: npc.id, patch: { portrait: r.id } } as Op, { quiet: true });
+              }}
+            >
+              Draw portrait
+            </Button>
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <Field label="Name" htmlFor="npn">
               <Input id="npn" value={d.name} onChange={(e) => set({ name: e.target.value })} />

@@ -1045,7 +1045,7 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
   }
 }
 
-const ACTIVITY_RATES: Record<string, { hours: number; perHour: Record<string, number>; bars?: Record<string, number>; xpPerHour?: number; payPerHour?: number; label: string }> = {
+export const ACTIVITY_RATES: Record<string, { hours: number; perHour: Record<string, number>; bars?: Record<string, number>; xpPerHour?: number; payPerHour?: number; label: string }> = {
   sleep: { hours: 8, perHour: { energy: 14, hunger: -2 }, bars: { hp: 4, mp: 5, ap: 5 }, label: 'Slept' },
   nap: { hours: 1, perHour: { energy: 10 }, bars: { ap: 5 }, label: 'Napped' },
   rest: { hours: 1, perHour: { energy: 6 }, bars: { hp: 5, ap: 8 }, label: 'Rested' },

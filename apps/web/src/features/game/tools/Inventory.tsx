@@ -1,13 +1,14 @@
 import type { Item, ItemCategory, Op } from '@everloom/engine';
 import { defaultEffects, isUsable } from '@everloom/engine';
-import { Backpack, LayoutGrid, List, Plus, Search } from 'lucide-react';
+import { Backpack, LayoutGrid, List, Plus, Search, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { cx } from '@/lib/format';
+import { useImageGen } from '@/lib/imagegen';
 import { stagger, t } from '@/lib/motion';
 import { Badge, Button, confirm, Dialog, EmptyState, Field, Icon, IconButton, Input, Select, Sheet, Textarea } from '@/ui';
 import { useGame } from '../context';
-import { itemIcon } from '../icons';
+import { ItemGlyph } from '../ItemGlyph';
 import { NoCampaign, ToolSheet } from './ToolSheet';
 
 const CATEGORIES: ItemCategory[] = ['food', 'drink', 'weapon', 'armor', 'clothing', 'accessory', 'key', 'tool', 'material', 'consumable', 'medicine', 'book', 'container', 'quest', 'valuable', 'misc'];
@@ -33,8 +34,8 @@ function ItemTile({ it, onOpen, index }: { it: Item; onOpen: () => void; index: 
   return (
     <motion.button initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={stagger(index)} onClick={onOpen} className="pressable group flex flex-col items-center gap-1.5 rounded-md p-1.5 text-center hover:bg-surface-2">
       <motion.span key={pop} initial={pop ? { scale: 0.85 } : false} animate={{ scale: 1 }} transition={t.reward} className="relative flex aspect-square w-full items-center justify-center rounded-md bg-surface-2 group-hover:bg-surface-3">
-        <Icon icon={itemIcon(it.icon)} size={28} strokeWidth={1.4} className="text-fg-2" />
-        {it.qty > 1 ? <span className="absolute bottom-1 right-1.5 text-[11px] font-semibold tabular-nums text-fg">{it.qty}</span> : null}
+        <ItemGlyph icon={it.icon} size={28} strokeWidth={1.4} className="text-fg-2" />
+        {it.qty > 1 ? <span className="absolute bottom-1 right-1.5 text-xs font-semibold tabular-nums text-fg">{it.qty}</span> : null}
         {it.equipped ? <span className="absolute left-1.5 top-1.5 h-1.5 w-1.5 rounded-full bg-accent" aria-label="Equipped" /> : null}
       </motion.span>
       <span className="line-clamp-2 w-full text-xs leading-4 text-fg">{it.name}</span>
@@ -44,6 +45,7 @@ function ItemTile({ it, onOpen, index }: { it: Item; onOpen: () => void; index: 
 
 export default function Inventory() {
   const { state: s, apply } = useGame();
+  const gen = useImageGen();
   const [cat, setCat] = useState<string>('all');
   const [q, setQ] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
@@ -100,7 +102,7 @@ export default function Inventory() {
           <div className="no-scrollbar flex gap-2 overflow-x-auto">
             {equipped.map((e) => (
               <button key={e.id} onClick={() => setOpenId(e.id)} className="pressable flex h-11 flex-none items-center gap-2 rounded-md bg-surface-2 pl-2 pr-3 text-sm">
-                <Icon icon={itemIcon(e.icon)} size={18} className="text-fg-2" />
+                <ItemGlyph icon={e.icon} size={18} className="text-fg-2" />
                 {e.name}
                 <span className="text-xs text-fg-3">{e.slot}</span>
               </button>
@@ -120,7 +122,7 @@ export default function Inventory() {
             {filtered.map((x) => (
               <button key={x.id} onClick={() => setOpenId(x.id)} className="pressable flex min-h-14 items-center gap-3 py-2 text-left">
                 <span className="flex h-10 w-10 flex-none items-center justify-center rounded-md bg-surface-2">
-                  <Icon icon={itemIcon(x.icon)} className="text-fg-2" />
+                  <ItemGlyph icon={x.icon} className="text-fg-2" />
                 </span>
                 <span className="min-w-0 flex-1">
                   <span className="block truncate text-sm font-medium">{x.name}</span>
@@ -142,8 +144,22 @@ export default function Inventory() {
         {it ? (
           <div className="flex flex-col gap-4">
             <div className="flex items-center gap-4">
-              <span className="flex h-20 w-20 flex-none items-center justify-center rounded-lg bg-surface-2">
-                <Icon icon={itemIcon(it.icon)} size={40} strokeWidth={1.3} className="text-fg-2" />
+              <span className="flex flex-none flex-col items-center gap-1.5">
+                <span className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-lg bg-surface-2">
+                  <ItemGlyph icon={it.icon} size={it.icon.startsWith('media:') ? 80 : 40} strokeWidth={1.3} className="text-fg-2" />
+                </span>
+                <Button
+                  size="sm"
+                  variant="quiet"
+                  icon={Sparkles}
+                  loading={gen.busy === 'item'}
+                  onClick={async () => {
+                    const r = await gen.run({ kind: 'item', itemName: [it.name, it.desc].filter(Boolean).join(' — ').slice(0, 120) });
+                    if (r) await act([{ type: 'item.update', name: it.id, icon: `media:${r.id}` } as Op]);
+                  }}
+                >
+                  Draw
+                </Button>
               </span>
               <div className="min-w-0 text-sm text-fg-2">
                 {it.desc ? <p className="text-fg">{it.desc}</p> : null}
@@ -216,7 +232,7 @@ export default function Inventory() {
                   <div className="flex flex-col">
                     {contents.map((c) => (
                       <button key={c.id} onClick={() => setOpenId(c.id)} className="pressable flex min-h-11 items-center gap-2 text-left text-sm">
-                        <Icon icon={itemIcon(c.icon)} size={18} className="text-fg-2" />
+                        <ItemGlyph icon={c.icon} size={18} className="text-fg-2" />
                         <span className="flex-1">{c.name}</span>
                         <span className="text-fg-2">×{c.qty}</span>
                       </button>

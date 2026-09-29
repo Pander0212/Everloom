@@ -65,11 +65,12 @@ function List({ groups, active, onRun, columns }: { groups: ReturnType<typeof us
                 key={c.id}
                 data-cmd={c.id}
                 onClick={() => onRun(c)}
+                aria-label={c.badge ? `${c.label}, ${c.badge} new` : undefined}
                 className={cx('pressable flex min-h-11 items-center gap-3 rounded-md px-2 text-left text-sm', active === c.id ? 'bg-surface-2 dark:bg-surface-3' : 'hover:bg-surface-2')}
               >
                 <Icon icon={c.icon} className="flex-none text-fg-2" />
                 <span className="flex-1 truncate">{c.label}</span>
-                {c.badge ? <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-[11px] font-semibold text-accent-fg">{c.badge}</span> : null}
+                {c.badge ? <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-accent px-1.5 text-xs font-semibold text-accent-fg">{c.badge}</span> : null}
               </button>
             ))}
           </div>

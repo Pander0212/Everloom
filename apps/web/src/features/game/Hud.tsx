@@ -12,7 +12,7 @@ function Mini({ label, value, max, tone }: { label: string; value: number; max: 
   const pct = max > 0 ? Math.max(0, Math.min(1, value / max)) : 0;
   return (
     <span className="flex min-w-[64px] flex-col gap-1" title={`${label} ${Math.round(value)}/${max}`}>
-      <span className="flex items-baseline justify-between gap-1.5 text-[11px] leading-none">
+      <span className="flex items-baseline justify-between gap-1.5 text-xs leading-none">
         <span className="font-medium text-fg-2">{label}</span>
         <span className="tabular-nums text-fg">{Math.round(value)}</span>
       </span>
@@ -28,7 +28,7 @@ export function HudItems({ s, pinned }: { s: CampaignState; pinned: string[] }) 
   const loc = s.currentLocationId ? s.locations[s.currentLocationId] : null;
   const out: React.ReactNode[] = [];
   for (const id of pinned) {
-    if (id === 'time') out.push(<span key={id} className="text-sm font-medium tabular-nums text-fg">{formatClock(s.time.minutes, cal)}</span>);
+    if (id === 'time') out.push(<span key={id} className="whitespace-nowrap text-sm font-medium tabular-nums text-fg">{formatClock(s.time.minutes, cal)}</span>);
     else if (id === 'date') out.push(<span key={id} className="text-xs text-fg-2">{formatDate(s.time.minutes, cal, '{mon} {day}')}</span>);
     else if (id === 'weather')
       out.push(
@@ -39,7 +39,7 @@ export function HudItems({ s, pinned }: { s: CampaignState; pinned: string[] }) 
       );
     else if (id === 'location' && loc)
       out.push(
-        <span key={id} className="flex min-w-0 max-w-[140px] items-center gap-1 text-xs text-fg-2">
+        <span key={id} className="flex max-w-[140px] items-center gap-1 text-xs text-fg-2">
           <Icon icon={MapPin} size={14} className="flex-none" />
           <span className="truncate">{loc.name}</span>
         </span>,
@@ -76,7 +76,7 @@ export function Hud() {
   if (!state) return null;
   const pinned = settings.data?.hud.pinned ?? ['time', 'weather', 'location', 'hp', 'hunger', 'energy'];
   return (
-    <button onClick={() => open('status')} aria-label="Status" className={cx('pressable no-scrollbar flex w-full flex-none items-center gap-4 overflow-x-auto px-4 py-2 hairline-b text-left')}>
+    <button onClick={() => open('status')} aria-label="Status" className={cx('pressable no-scrollbar flex w-full flex-none items-center gap-4 overflow-x-auto px-4 py-2 hairline-b text-left [&>*]:flex-none')}>
       <HudItems s={state} pinned={pinned} />
     </button>
   );

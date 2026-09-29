@@ -56,7 +56,7 @@ function SideItem({ item }: { item: (typeof NAV)[number] }) {
 function TabItem({ item }: { item: (typeof NAV)[number] }) {
   const active = useActive(item.to, item.end);
   return (
-    <NavLink to={item.to} end={item.end} className={cx('pressable relative flex flex-1 flex-col items-center justify-center gap-0.5 pt-1 text-[11px] font-medium', active ? 'text-fg' : 'text-fg-3')}>
+    <NavLink to={item.to} end={item.end} className={cx('pressable relative flex flex-1 flex-col items-center justify-center gap-0.5 pt-1 text-xs font-medium', active ? 'text-fg' : 'text-fg-3')}>
       {active ? <motion.span layoutId="tab-active" className="absolute top-0 h-0.5 w-8 rounded-full bg-accent" transition={t.indicator} /> : null}
       <Icon icon={item.icon} size={22} />
       {item.label}

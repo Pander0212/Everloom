@@ -9,6 +9,7 @@ services:
         required: false
     environment:
       EVERLOOM_DATA_DIR: /data
+      EVERLOOM_IMPORT_ROOTS: /import
       PORT: 8787
     volumes:
       - ./data:/data

@@ -1,11 +1,12 @@
 import { EMOTIONS, type CardData, type CharacterDTO, type CharacterGame } from '@everloom/engine';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, BookOpen, Copy, Download, FileJson, ImagePlus, MessageSquare, MoreHorizontal, Plus, Star, Trash2, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, Copy, Download, FileJson, ImagePlus, MessageSquare, MoreHorizontal, Plus, Sparkles, Star, Trash2, Wand2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Page } from '@/app/Shell';
 import { del, download, patch, post, upload } from '@/lib/api';
 import { relativeTime } from '@/lib/format';
+import { useImageGen } from '@/lib/imagegen';
 import { useCharacter, useChats, useConnections, useLorebooks } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
 import { NewChatSheet } from '@/features/chats/NewChatSheet';
@@ -26,6 +27,7 @@ export default function CharacterEditor() {
   const [tab, setTab] = useState('profile');
   const [saving, setSaving] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
+  const portraitGen = useImageGen();
 
   useEffect(() => {
     if (q.data) setDraft({ card: structuredClone(q.data.card), game: structuredClone(q.data.game ?? {}) });
@@ -56,6 +58,15 @@ export default function CharacterEditor() {
     } finally {
       setSaving(false);
     }
+  };
+  const drawPortrait = async () => {
+    // Save pending edits first so the prompt uses the latest description.
+    if (draft.card.description !== c.card.description) await patch(`/api/characters/${c.id}`, { card: { description: draft.card.description } }).catch(() => {});
+    const r = await portraitGen.run({ kind: 'portrait', characterId: c.id, apply: true });
+    if (!r) return;
+    qc.setQueryData(['character', c.id], (x: any) => ({ ...x, avatar: r.url }));
+    await qc.invalidateQueries({ queryKey: ['character', c.id] });
+    await qc.invalidateQueries({ queryKey: ['characters'] });
   };
   const setAvatar = async (f: File) => {
     try {
@@ -118,9 +129,14 @@ export default function CharacterEditor() {
           <Avatar src={c.avatar} name={draft.card.name} size="xl" shape="rounded" />
         </div>
         <div className="flex flex-col gap-2">
-          <FileButton accept="image/png,image/jpeg,image/webp" onFiles={(f) => setAvatar(f[0])} variant="secondary" size="sm" icon={ImagePlus}>
-            Change image
-          </FileButton>
+          <div className="flex flex-wrap gap-2">
+            <FileButton accept="image/png,image/jpeg,image/webp" onFiles={(f) => setAvatar(f[0])} variant="secondary" size="sm" icon={ImagePlus}>
+              Change image
+            </FileButton>
+            <Button variant="secondary" size="sm" icon={Sparkles} loading={portraitGen.busy === 'portrait'} onClick={drawPortrait}>
+              Draw portrait
+            </Button>
+          </div>
           <p className="text-xs text-fg-2">~{tokensApprox(draft.card.description + draft.card.personality + draft.card.scenario + draft.card.mes_example)} tokens in the definition</p>
         </div>
       </div>
@@ -296,6 +312,28 @@ function GameFields({ game, setGame, characterId }: { game: CharacterGame; setGa
   const conns = useConnections();
   const llms = (conns.data ?? []).filter((x) => ['openai', 'anthropic', 'gemini', 'textgen'].includes(x.provider));
   const [uploading, setUploading] = useState<string | null>(null);
+  const gen = useImageGen();
+  const [batch, setBatch] = useState(false);
+  const drawExpression = async (emotion: string, current: Record<string, string>) => {
+    setUploading(emotion);
+    const r = await gen.run({ kind: 'expression', characterId, emotion }, emotion);
+    setUploading(null);
+    if (!r) return null;
+    const next = { ...current, [emotion]: r.id };
+    setGame({ expressions: next });
+    return next;
+  };
+  const drawMissing = async () => {
+    setBatch(true);
+    let cur = { ...(game.expressions ?? {}) };
+    for (const e of EMOTIONS) {
+      if (cur[e]) continue;
+      const next = await drawExpression(e, cur);
+      if (!next) break;
+      cur = next;
+    }
+    setBatch(false);
+  };
   const setExpression = async (emotion: string, f: File) => {
     setUploading(emotion);
     try {
@@ -338,7 +376,10 @@ function GameFields({ game, setGame, characterId }: { game: CharacterGame; setGa
       </div>
       <div>
         <p className="text-sm font-medium">Expressions</p>
-        <p className="mt-0.5 text-xs text-fg-2">Sprites shown in Stage mode. The reply's mood picks one; neutral is the fallback.</p>
+        <p className="mt-0.5 text-xs text-fg-2">Sprites shown in Stage mode. The reply's mood picks one; neutral is the fallback. Drawn sprites are saved with the card when you save.</p>
+        <Button variant="secondary" size="sm" icon={Wand2} className="mt-2" loading={batch} disabled={!!uploading && !batch} onClick={drawMissing}>
+          Draw missing expressions
+        </Button>
         <div className="mt-3 grid grid-cols-3 gap-3 sm:grid-cols-5">
           {EMOTIONS.map((e) => {
             const id = game.expressions?.[e];
@@ -350,9 +391,12 @@ function GameFields({ game, setGame, characterId }: { game: CharacterGame; setGa
                 </div>
                 <div className="flex items-center justify-between">
                   <span className="truncate text-xs capitalize text-fg-2">{e}</span>
-                  <FileButton accept="image/*" onFiles={(f) => setExpression(e, f[0])} variant="quiet" size="sm" className="!px-1.5" aria-label={`Upload ${e} sprite`}>
-                    {id ? 'Replace' : 'Add'}
-                  </FileButton>
+                  <span className="flex">
+                    <IconButton size="sm" icon={Sparkles} label={`Draw ${e} sprite`} disabled={!!uploading} onClick={() => drawExpression(e, game.expressions ?? {})} />
+                    <FileButton accept="image/*" onFiles={(f) => setExpression(e, f[0])} variant="quiet" size="sm" className="!px-1.5" aria-label={`Upload ${e} sprite`}>
+                      {id ? 'Replace' : 'Add'}
+                    </FileButton>
+                  </span>
                 </div>
               </div>
             );

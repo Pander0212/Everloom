@@ -7,6 +7,8 @@ import { IconButton } from '@/ui';
 export interface ComposerProps {
   busy: boolean;
   enterToSend: boolean;
+  /** Arrow keys on an empty box swipe the last reply. */
+  onSwipeKey?: (dir: -1 | 1) => void;
   stt: boolean;
   placeholder: string;
   onSend: (text: string) => void;
@@ -20,7 +22,7 @@ export interface ComposerProps {
 
 type SR = { start: () => void; stop: () => void; onresult: (e: any) => void; onend: () => void; onerror: (e: any) => void; continuous: boolean; interimResults: boolean; lang: string };
 
-export function Composer({ busy, enterToSend, stt, placeholder, onSend, onStop, onMenu, accessory, value, onChange }: ComposerProps) {
+export function Composer({ busy, enterToSend, onSwipeKey, stt, placeholder, onSend, onStop, onMenu, accessory, value, onChange }: ComposerProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const [listening, setListening] = useState(false);
   const recog = useRef<SR | null>(null);
@@ -70,6 +72,9 @@ export function Composer({ busy, enterToSend, stt, placeholder, onSend, onStop, 
             if (e.key === 'Enter' && !e.shiftKey && (enterToSend || e.metaKey || e.ctrlKey)) {
               e.preventDefault();
               submit();
+            } else if ((e.key === 'ArrowLeft' || e.key === 'ArrowRight') && !value && onSwipeKey && !e.altKey && !e.metaKey && !e.ctrlKey) {
+              e.preventDefault();
+              onSwipeKey(e.key === 'ArrowLeft' ? -1 : 1);
             }
           }}
           rows={1}

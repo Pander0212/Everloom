@@ -19,7 +19,7 @@ export interface TestClient {
 
 export async function createTestApp(): Promise<BuiltApp & { dataDir: string; cleanup: () => Promise<void> }> {
   const dataDir = mkdtempSync(path.join(os.tmpdir(), 'everloom-test-'));
-  const cfg = loadConfig({ dataDir, webDir: path.join(dataDir, 'no-web'), logLevel: 'error' });
+  const cfg = loadConfig({ dataDir, webDir: path.join(dataDir, 'no-web'), logLevel: 'error', importRoots: [os.tmpdir()] });
   const built = await buildApp(cfg, { logger: false });
   return {
     ...built,

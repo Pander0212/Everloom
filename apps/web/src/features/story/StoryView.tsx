@@ -202,6 +202,10 @@ export default function StoryView() {
       }}
       onStop={() => void stop(id)}
       onMenu={() => setMenuOpen(true)}
+      onSwipeKey={(dir) => {
+        const last = list[list.length - 1];
+        if (last && last.role === 'assistant' && !busy) void actions.onSwipe(last, dir);
+      }}
       accessory={
         group ? (
           <div className="no-scrollbar mb-2 flex gap-1.5 overflow-x-auto">

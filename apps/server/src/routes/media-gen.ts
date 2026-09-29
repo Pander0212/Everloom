@@ -121,7 +121,8 @@ export function registerMedia(app: FastifyInstance, ctx: AppContext) {
         applied = `expression:${emo}`;
       } else if (b.kind === 'background' && b.chatId) {
         const chat = getChat(ctx, o, b.chatId);
-        updateChat(ctx, o, b.chatId, { metadata: { ...chat.metadata, background: row.id } });
+        const updated = updateChat(ctx, o, b.chatId, { metadata: { ...chat.metadata, background: row.id } });
+        ctx.bus.publish(o, 'chat.updated', { chat: updated }, req.clientId);
         applied = 'background';
       }
     }

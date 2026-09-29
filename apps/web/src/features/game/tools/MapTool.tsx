@@ -117,7 +117,11 @@ export default function MapTool({ arg }: { arg?: string }) {
   const initialParent = useMemo(() => {
     if (!s) return null;
     if (arg && s.locations[arg]) return s.locations[arg].parentId ?? null;
-    return s.currentLocationId ? s.locations[s.currentLocationId]?.parentId ?? null : null;
+    const cur = s.currentLocationId ? s.locations[s.currentLocationId] : null;
+    if (!cur) return null;
+    // Standing in a town with charted streets: open inside it. Otherwise show the neighbourhood.
+    const hasInside = Object.values(s.locations).some((l) => l.parentId === cur.id);
+    return hasInside ? cur.id : cur.parentId ?? null;
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const [parentId, setParentId] = useState<string | null>(initialParent);
   const [selected, setSelected] = useState<string | null>(arg ?? null);
