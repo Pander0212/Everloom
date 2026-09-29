@@ -246,6 +246,51 @@ export function insertMemory(ctx: AppContext, owner: string, scope: MemScope, an
   return toMemory(ctx.db.prepare('SELECT * FROM mem_items WHERE id = ?').get(id));
 }
 
+/**
+ * Permanently remove memories. Whatever was built from them goes too: a scene memory a beat was
+ * folded into (its other beats unfold again) and any summary covering them (unless the player
+ * edited it), so nothing that is gone can come back through a summary.
+ */
+export function purgeItems(ctx: AppContext, ids: string[]) {
+  if (!ids.length) return;
+  const all = new Set(ids);
+  const parent = ctx.db.prepare('SELECT folded_into FROM mem_items WHERE id = ?');
+  for (const id of ids) {
+    const r = parent.get(id) as { folded_into: string | null } | undefined;
+    if (r?.folded_into) all.add(r.folded_into);
+  }
+  ctx.db.transaction(() => {
+    for (const id of all) {
+      ctx.db.prepare('UPDATE mem_items SET folded_into = NULL WHERE folded_into = ?').run(id);
+      ctx.db.prepare('DELETE FROM mem_fts WHERE item_id = ?').run(id);
+      ctx.db.prepare('DELETE FROM mem_vectors WHERE item_id = ?').run(id);
+      ctx.db.prepare('DELETE FROM mem_heard WHERE memory_id = ?').run(id);
+      ctx.db.prepare('DELETE FROM mem_items WHERE id = ?').run(id);
+    }
+    purgeSummariesCovering(ctx, [...all]);
+  })();
+}
+
+function purgeSummariesCovering(ctx: AppContext, ids: string[]) {
+  let frontier = ids;
+  const seen = new Set<string>();
+  while (frontier.length) {
+    const next: string[] = [];
+    for (const id of frontier) {
+      const rows = ctx.db.prepare("SELECT id FROM mem_summaries WHERE edited = 0 AND covers LIKE ?").all(`%"${id}"%`) as Array<{ id: string }>;
+      for (const r of rows) if (!seen.has(r.id)) {
+        seen.add(r.id);
+        next.push(r.id);
+      }
+    }
+    for (const id of next) {
+      ctx.db.prepare('DELETE FROM mem_summaries WHERE id = ?').run(id);
+      ctx.db.prepare('DELETE FROM mem_fts WHERE item_id = ?').run(id);
+    }
+    frontier = next;
+  }
+}
+
 /** Remove the rows a source wrote for one message+swipe (re-tracking must be idempotent). */
 export function deleteAnchored(ctx: AppContext, messageId: string, swipeId: number | null, sources: string[]) {
   const marks = sources.map(() => '?').join(',');
@@ -253,13 +298,7 @@ export function deleteAnchored(ctx: AppContext, messageId: string, swipeId: numb
   const args = swipeId === null ? [messageId, ...sources] : [messageId, swipeId, ...sources];
   const ids = (ctx.db.prepare(`SELECT id FROM mem_items WHERE message_id = ? AND ${swipe} AND source IN (${marks})`).all(...args) as Array<{ id: string }>).map((r) => r.id);
   ctx.db.transaction(() => {
-    for (const id of ids) {
-      ctx.db.prepare('UPDATE mem_items SET folded_into = NULL WHERE folded_into = ?').run(id);
-      ctx.db.prepare('DELETE FROM mem_fts WHERE item_id = ?').run(id);
-      ctx.db.prepare('DELETE FROM mem_vectors WHERE item_id = ?').run(id);
-      ctx.db.prepare('DELETE FROM mem_heard WHERE memory_id = ?').run(id);
-    }
-    ctx.db.prepare(`DELETE FROM mem_items WHERE message_id = ? AND ${swipe} AND source IN (${marks})`).run(...args);
+    purgeItems(ctx, ids);
     const factIds = (ctx.db.prepare(`SELECT id FROM mem_facts WHERE message_id = ? AND ${swipe} AND source IN (${marks})`).all(...args) as Array<{ id: string }>).map((r) => r.id);
     for (const id of factIds) ctx.db.prepare('DELETE FROM mem_fts WHERE item_id = ?').run(id);
     ctx.db.prepare(`DELETE FROM mem_facts WHERE message_id = ? AND ${swipe} AND source IN (${marks})`).run(...args);
@@ -404,6 +443,44 @@ export function factHasEvidence(fact: { about: string; value: string; text?: str
   return shared >= 2;
 }
 
+/** Model-proposed facts through the evidence firewall and the versioning rules. */
+export function writeModelFacts(
+  ctx: AppContext,
+  owner: string,
+  scope: MemScope,
+  state: CampaignState | null,
+  anchor: Anchor,
+  source: string,
+  facts: TurnFactInput[],
+  names: { player: string; characters: Array<{ id: string; name: string }> },
+  evidence: string,
+  gameTime: number,
+): TurnWriteResult['facts'] {
+  const res = { inserted: 0, superseded: 0, conflicts: 0, refreshed: 0, rejected: 0 };
+  const existing = loadMemoryState(ctx, owner, scope).facts;
+  for (const f of facts) {
+    if (!f?.about || !f.key || !f.value) continue;
+    if (!factHasEvidence(f, evidence)) {
+      res.rejected++;
+      continue;
+    }
+    const id = normalizeName(f.about) === 'world' ? 'world' : personId(state, f.about, names);
+    if (!id) {
+      res.rejected++;
+      continue;
+    }
+    const name = id === 'world' ? 'World' : nameOfPerson(state, id, names);
+    const w = writeFact(ctx, owner, scope, anchor, source, { entityId: id, entityName: name, key: f.key, value: f.value, text: f.text || `${name}: ${f.key} is ${f.value}`, changed: !!f.changed, cite: evidence.slice(0, 200) }, gameTime, existing);
+    if (!w) continue;
+    if (w.action === 'insert') res.inserted++;
+    else if (w.action === 'supersede') res.superseded++;
+    else if (w.action === 'conflict') res.conflicts++;
+    else res.refreshed++;
+    if (w.action !== 'refresh') existing.push(w.row);
+  }
+  return res;
+}
+
 /** Write what the tracker pass read from one turn: beats (the scene event) and standing facts. */
 export function writeTurnMemory(
   ctx: AppContext,
@@ -437,27 +514,7 @@ export function writeTurnMemory(
       insertMemory(ctx, owner, scope, anchor, 'turn', { text, participants: about.length ? about : present.filter((p) => p !== PLAYER), witnesses, locationId: loc, gameTime: now, importance, secret: !!m.private });
       res.memories++;
     }
-    const existing = loadMemoryState(ctx, owner, scope).facts;
-    for (const f of input.facts.slice(0, 6)) {
-      if (!f?.about || !f.key || !f.value) continue;
-      if (!factHasEvidence(f, turnText)) {
-        res.facts.rejected++;
-        continue;
-      }
-      const id = normalizeName(f.about) === 'world' ? 'world' : resolve(f.about);
-      if (!id) {
-        res.facts.rejected++;
-        continue;
-      }
-      const name = id === 'world' ? 'World' : nameOfPerson(state, id, names);
-      const w = writeFact(ctx, owner, scope, anchor, 'turn', { entityId: id, entityName: name, key: f.key, value: f.value, text: f.text || `${name}: ${f.key} is ${f.value}`, changed: !!f.changed, cite: turnText.slice(0, 200) }, now, existing);
-      if (!w) continue;
-      if (w.action === 'insert') res.facts.inserted++;
-      else if (w.action === 'supersede') res.facts.superseded++;
-      else if (w.action === 'conflict') res.facts.conflicts++;
-      else res.facts.refreshed++;
-      if (w.action !== 'refresh') existing.push(w.row);
-    }
+    res.facts = writeModelFacts(ctx, owner, scope, state, anchor, 'turn', input.facts.slice(0, 6), names, turnText, now);
   })();
   return res;
 }
@@ -642,13 +699,7 @@ export function updateMemory(ctx: AppContext, owner: string, id: string, patch: 
 
 export function deleteMemory(ctx: AppContext, owner: string, id: string) {
   getMemory(ctx, owner, id);
-  ctx.db.transaction(() => {
-    ctx.db.prepare('UPDATE mem_items SET folded_into = NULL WHERE folded_into = ?').run(id);
-    ctx.db.prepare('DELETE FROM mem_heard WHERE memory_id = ?').run(id);
-    ctx.db.prepare('DELETE FROM mem_fts WHERE item_id = ?').run(id);
-    ctx.db.prepare('DELETE FROM mem_vectors WHERE item_id = ?').run(id);
-    ctx.db.prepare('DELETE FROM mem_items WHERE id = ?').run(id);
-  })();
+  purgeItems(ctx, [id]);
 }
 
 /** Settle a fact conflict: keep the old claim, take the new one, or keep both as separate truths. */
@@ -708,13 +759,21 @@ export function forkMemory(ctx: AppContext, owner: string, from: MemScope, to: M
         .run(id, owner, to.campaignId, to.chatId, f.message_id ? messageMap.get(f.message_id) : null, f.swipe_id, f.source, f.entity_id, f.entity_name, f.key, f.value, f.text, f.status, f.supersedes ? factMap.get(f.supersedes) ?? null : null, f.conflicts_with ? factMap.get(f.conflicts_with) ?? null : null, f.cite, f.game_time, f.seq, f.created_at, f.updated_at);
       index(ctx, owner, to, id, 'fact', f.text);
     }
-    for (const s of (ctx.db.prepare(`SELECT * FROM mem_summaries WHERE owner_id = ? AND ${w.sql}`).all(owner, ...w.args) as any[]).filter(keep)) {
+    const sums = (ctx.db.prepare(`SELECT * FROM mem_summaries WHERE owner_id = ? AND ${w.sql}`).all(owner, ...w.args) as any[]).filter(keep);
+    for (const s of sums) idMap.set(s.id, newId('ms_'));
+    for (const s of sums) {
       const covers = json<string[]>(s.covers, []).map((c) => idMap.get(c) ?? c);
-      const id = newId('ms_');
+      const id = idMap.get(s.id)!;
       ctx.db
         .prepare('INSERT INTO mem_summaries (id, owner_id, campaign_id, chat_id, level, title, text, from_time, to_time, covers, importance, message_id, swipe_id, edited, seq, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
         .run(id, owner, to.campaignId, to.chatId, s.level, s.title, s.text, s.from_time, s.to_time, JSON.stringify(covers), s.importance, s.message_id ? messageMap.get(s.message_id) : null, s.swipe_id, s.edited, s.seq, s.created_at, s.updated_at);
       index(ctx, owner, to, id, 'summary', s.text);
+    }
+    // The chronicler's reading position carries over for the messages the branch kept.
+    const cs = ctx.db.prepare('SELECT runs FROM chronicle_state WHERE chat_id = ?').get(from.chatId) as { runs: string } | undefined;
+    if (cs && to.chatId) {
+      const runs = json<Array<{ messageId: string }>>(cs.runs, []).filter((r) => messageMap.has(r.messageId)).map((r) => ({ ...r, messageId: messageMap.get(r.messageId)! }));
+      ctx.db.prepare('INSERT OR REPLACE INTO chronicle_state (chat_id, owner_id, watermark_seq, runs, updated_at) VALUES (?, ?, 0, ?, ?)').run(to.chatId, owner, JSON.stringify(runs), Date.now());
     }
   })();
 }
@@ -747,29 +806,30 @@ export function deleteSummary(ctx: AppContext, owner: string, id: string) {
 
 /** A swipe was deleted: its rows go, and later swipes' rows shift down one (like op_log). */
 export function memOnSwipeDeleted(ctx: AppContext, messageId: string, swipeId: number) {
-  for (const t of ['mem_items', 'mem_facts', 'mem_heard', 'mem_summaries']) {
-    const ids = (ctx.db.prepare(`SELECT id FROM ${t} WHERE message_id = ? AND swipe_id = ?`).all(messageId, swipeId) as Array<{ id: string }>).map((r) => r.id);
-    for (const id of ids) ctx.db.prepare('DELETE FROM mem_fts WHERE item_id = ?').run(id);
-    ctx.db.prepare(`DELETE FROM ${t} WHERE message_id = ? AND swipe_id = ?`).run(messageId, swipeId);
-    ctx.db.prepare(`UPDATE ${t} SET swipe_id = swipe_id - 1 WHERE message_id = ? AND swipe_id > ?`).run(messageId, swipeId);
-  }
+  ctx.db.transaction(() => {
+    purgeItems(ctx, (ctx.db.prepare('SELECT id FROM mem_items WHERE message_id = ? AND swipe_id = ?').all(messageId, swipeId) as Array<{ id: string }>).map((r) => r.id));
+    for (const t of ['mem_facts', 'mem_heard', 'mem_summaries']) {
+      const ids = (ctx.db.prepare(`SELECT id FROM ${t} WHERE message_id = ? AND swipe_id = ?`).all(messageId, swipeId) as Array<{ id: string }>).map((r) => r.id);
+      for (const id of ids) ctx.db.prepare('DELETE FROM mem_fts WHERE item_id = ?').run(id);
+      if (t === 'mem_summaries') purgeSummariesCovering(ctx, ids);
+      ctx.db.prepare(`DELETE FROM ${t} WHERE message_id = ? AND swipe_id = ?`).run(messageId, swipeId);
+    }
+    for (const t of ['mem_items', 'mem_facts', 'mem_heard', 'mem_summaries']) ctx.db.prepare(`UPDATE ${t} SET swipe_id = swipe_id - 1 WHERE message_id = ? AND swipe_id > ?`).run(messageId, swipeId);
+  })();
 }
 
 /** Messages were deleted: everything they caused goes with them. */
 export function memOnMessagesDeleted(ctx: AppContext, messageIds: string[]) {
   if (!messageIds.length) return;
   const ph = messageIds.map(() => '?').join(',');
-  for (const t of ['mem_items', 'mem_facts', 'mem_summaries']) {
-    const ids = (ctx.db.prepare(`SELECT id FROM ${t} WHERE message_id IN (${ph})`).all(...messageIds) as Array<{ id: string }>).map((r) => r.id);
-    for (const id of ids) {
-      ctx.db.prepare('DELETE FROM mem_fts WHERE item_id = ?').run(id);
-      ctx.db.prepare('DELETE FROM mem_vectors WHERE item_id = ?').run(id);
-      if (t === 'mem_items') {
-        ctx.db.prepare('UPDATE mem_items SET folded_into = NULL WHERE folded_into = ?').run(id);
-        ctx.db.prepare('DELETE FROM mem_heard WHERE memory_id = ?').run(id);
-      }
+  ctx.db.transaction(() => {
+    purgeItems(ctx, (ctx.db.prepare(`SELECT id FROM mem_items WHERE message_id IN (${ph})`).all(...messageIds) as Array<{ id: string }>).map((r) => r.id));
+    for (const t of ['mem_facts', 'mem_summaries']) {
+      const ids = (ctx.db.prepare(`SELECT id FROM ${t} WHERE message_id IN (${ph})`).all(...messageIds) as Array<{ id: string }>).map((r) => r.id);
+      for (const id of ids) ctx.db.prepare('DELETE FROM mem_fts WHERE item_id = ?').run(id);
+      if (t === 'mem_summaries') purgeSummariesCovering(ctx, ids);
+      ctx.db.prepare(`DELETE FROM ${t} WHERE message_id IN (${ph})`).run(...messageIds);
     }
-    ctx.db.prepare(`DELETE FROM ${t} WHERE message_id IN (${ph})`).run(...messageIds);
-  }
-  ctx.db.prepare(`DELETE FROM mem_heard WHERE message_id IN (${ph})`).run(...messageIds);
+    ctx.db.prepare(`DELETE FROM mem_heard WHERE message_id IN (${ph})`).run(...messageIds);
+  })();
 }

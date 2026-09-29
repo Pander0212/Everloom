@@ -14,6 +14,7 @@ export interface MockControl {
   trackerOps: unknown[] | null;
   trackerMemories: unknown[] | null;
   trackerFacts: unknown[] | null;
+  chronicle: unknown;
   story: string | null;
   delayMs: number;
   failNext: number;
@@ -21,7 +22,7 @@ export interface MockControl {
   calls: Array<{ path: string; model: string; kind: string; body: any }>;
 }
 
-const control: MockControl = { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] };
+const control: MockControl = { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, chronicle: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] };
 let takes = 0;
 let brokenServed = false;
 
@@ -76,6 +77,8 @@ function classify(messages: any[]): string {
   const all = messages.map((m) => String(m.content)).join('\n');
   if (/bookkeeper for a roleplay game/i.test(sys)) return 'tracker';
   if (/summarize stories/i.test(sys)) return 'summary';
+  if (/chronicler of a roleplay story/i.test(sys)) return 'chronicle';
+  if (/condense story memories/i.test(sys)) return 'consolidate';
   if (/connection test/i.test(sys)) return 'test';
   if (/helper companion/i.test(sys)) return 'helper';
   if (/map designer/i.test(sys)) return 'map';
@@ -93,6 +96,19 @@ function answerFor(kind: string, messages: any[]): string {
       return trackerAnswer(all);
     case 'summary':
       return JSON.stringify({ summary: 'Anala met Iris at the bar; Tobias arrived late and mentioned the Ravens need a singer.', facts: ['Tobias leads a band called the Ravens.'] });
+    case 'chronicle':
+      if (control.chronicle) return typeof control.chronicle === 'string' ? control.chronicle : JSON.stringify(control.chronicle);
+      return JSON.stringify({
+        memories: [/Tobias/.test(all) ? { text: 'Tobias asked Anala to sing for the Ravens.', about: ['Tobias', 'Anala'], importance: 2 } : { text: 'Anala and Iris talked quietly at the bar.', about: ['Iris'], importance: 1 }],
+        facts: [],
+        summary: 'Anala spent the evening at the bar with Iris.',
+      });
+    case 'consolidate': {
+      // One summary per group, built from the group's first line so tests can see which is which.
+      const out: Record<string, { title: string; text: string }> = {};
+      for (const m of all.matchAll(/^\[(\w+)\] \((\w+)\)\n- (.*)$/gm)) out[m[1]] = { title: `${m[2]} ${m[1]}`, text: `In short: ${m[3]}` };
+      return JSON.stringify({ summaries: out });
+    }
     case 'test':
       return 'ready';
     case 'helper':
@@ -159,7 +175,7 @@ export function createMockLlm() {
     if (p === '/__control') {
       Object.assign(control, body);
       if (body.reset) {
-        Object.assign(control, { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] });
+        Object.assign(control, { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, chronicle: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] });
         takes = 0;
         brokenServed = false;
       }

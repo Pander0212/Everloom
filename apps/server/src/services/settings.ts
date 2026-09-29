@@ -50,6 +50,8 @@ export function updateSettings(ctx: AppContext, owner: string, patch: Partial<Se
   // Choosing a profile sets all of its switches at once.
   const profile = p.world?.profile;
   if (profile && profile !== 'custom' && WORLD_PROFILES[profile as keyof typeof WORLD_PROFILES]) p.world = { ...p.world, ...WORLD_PROFILES[profile as keyof typeof WORLD_PROFILES], profile };
+  // Flipping a single switch makes the setup custom.
+  else if (!profile && p.world && Object.keys(p.world).some((k) => k in WORLD_PROFILES.balanced)) p.world = { ...p.world, profile: 'custom' };
   const next = merge(storedSettings(ctx, owner), p);
   ctx.db
     .prepare("INSERT INTO settings (owner_id, key, value) VALUES (?, 'app', ?) ON CONFLICT(owner_id, key) DO UPDATE SET value = excluded.value")

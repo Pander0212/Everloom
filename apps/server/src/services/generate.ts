@@ -8,7 +8,7 @@ import { streamChat, type ResolvedConnection } from '../llm/providers.js';
 import { deleteEntriesFor, rebuildCampaign, realtimeTick } from './campaigns.js';
 import { getChat, getGroup, getMessage, insertMessage, listMessages, updateChat, writeSwipes } from './chats.js';
 import { connectionForRole } from './connections.js';
-import { shouldSummarize, summarizeChat } from './memory.js';
+import { afterTurn } from './chronicle.js';
 import { buildPrompt, loadPromptContext, type GenType, type PromptContext } from './prompt.js';
 import { countTokens } from './tokens.js';
 import { applyTracked, runTrackerPass } from './tracker.js';
@@ -282,7 +282,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
         void runTrackerPass(ctx, owner, chatId, messageId, input.origin).catch(() => {});
       }
     }
-    if (shouldSummarize(ctx, owner, chatId)) void summarizeChat(ctx, owner, chatId).catch(() => {});
+    afterTurn(ctx, owner, chatId);
   } finally {
     active.delete(chatId);
   }

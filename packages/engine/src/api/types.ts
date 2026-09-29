@@ -242,7 +242,7 @@ export interface WorldSettings {
 }
 
 export const WORLD_PROFILES: Record<Exclude<WorldProfile, 'custom'>, Omit<WorldSettings, 'profile' | 'recallLimit' | 'sceneBudget'>> = {
-  cheap: { memory: true, semantic: false, hearsay: true, chronicler: false, chronicleEvery: 30, consolidate: false, consolidateEvery: 4, social: false, socialEvery: 4, preRead: false, intent: true, pulse: true, threads: true, threadSeeding: false, dice: true },
+  cheap: { memory: true, semantic: false, hearsay: true, chronicler: true, chronicleEvery: 30, consolidate: false, consolidateEvery: 4, social: false, socialEvery: 4, preRead: false, intent: true, pulse: true, threads: true, threadSeeding: false, dice: true },
   balanced: { memory: true, semantic: true, hearsay: true, chronicler: true, chronicleEvery: 20, consolidate: true, consolidateEvery: 3, social: true, socialEvery: 3, preRead: false, intent: true, pulse: true, threads: true, threadSeeding: true, dice: true },
   max: { memory: true, semantic: true, hearsay: true, chronicler: true, chronicleEvery: 10, consolidate: true, consolidateEvery: 2, social: true, socialEvery: 1, preRead: true, intent: true, pulse: true, threads: true, threadSeeding: true, dice: true },
 };

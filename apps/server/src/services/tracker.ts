@@ -91,7 +91,7 @@ async function doRun(ctx: AppContext, owner: string, chatId: string, messageId: 
 }
 
 /** The chat's character cards (group members or the one character). */
-function chatCharacterIds(ctx: AppContext, owner: string, chat: ReturnType<typeof getChat>): Array<{ id: string; name: string }> {
+export function chatCharacterIds(ctx: AppContext, owner: string, chat: ReturnType<typeof getChat>): Array<{ id: string; name: string }> {
   if (chat.groupId) {
     try {
       const g = getGroup(ctx, owner, chat.groupId);
@@ -105,7 +105,7 @@ function chatCharacterIds(ctx: AppContext, owner: string, chat: ReturnType<typeo
   return ref ? [ref] : [];
 }
 
-function playerName(ctx: AppContext, owner: string, chat: ReturnType<typeof getChat>): string {
+export function playerName(ctx: AppContext, owner: string, chat: ReturnType<typeof getChat>): string {
   try {
     return (chat.personaId ? getPersona(ctx, owner, chat.personaId) : defaultPersona(ctx, owner))?.name ?? 'You';
   } catch {

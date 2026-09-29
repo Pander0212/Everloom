@@ -5,7 +5,7 @@ import { HttpError, owner, type AppContext } from '../context.js';
 import * as camp from '../services/campaigns.js';
 import * as chats from '../services/chats.js';
 import { generate, isGenerating, lastPromptFor, previewPrompt, stopGeneration } from '../services/generate.js';
-import { summarizeChat } from '../services/memory.js';
+import { runChronicler, runConsolidation } from '../services/chronicle.js';
 import { indexDoc } from '../services/search.js';
 import { getSettings } from '../services/settings.js';
 import { runTrackerPass } from '../services/tracker.js';
@@ -77,7 +77,13 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
     return chats.importChat(ctx, owner(req), q.characterId, text);
   });
   app.get('/api/chats/:id/search', async (req) => chats.searchMessages(ctx, owner(req), (req.params as any).id, String((req.query as any).q ?? '')));
-  app.post('/api/chats/:id/summarize', async (req) => summarizeChat(ctx, owner(req), (req.params as any).id, { force: !!(req.body as any)?.force }));
+  // "Update memory now": read everything unread (even the newest messages), then fold.
+  app.post('/api/chats/:id/summarize', async (req) => {
+    const id = (req.params as any).id;
+    const r = await runChronicler(ctx, owner(req), id, { force: true });
+    const c = await runConsolidation(ctx, owner(req), id, { useModel: getSettings(ctx, owner(req)).world.consolidate });
+    return { ...r, ok: r.ok || c.scenes + c.days + c.chapters > 0, consolidated: c };
+  });
   app.get('/api/chats/:id/memories', async (req) => {
     const chat = chats.getChat(ctx, owner(req), (req.params as any).id);
     return ctx.db.prepare("SELECT id, text, pinned, created_at AS createdAt FROM memories WHERE owner_id = ? AND kind = 'fact' AND (chat_id = ? OR character_id = ?) ORDER BY pinned DESC, updated_at DESC").all(owner(req), chat.id, chat.characterId);

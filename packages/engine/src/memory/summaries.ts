@@ -68,19 +68,22 @@ export function groupByDay<T extends { fromTime: number }>(items: T[]): Map<numb
 }
 
 /**
- * The STORY SO FAR for the scene block: chapter summaries, then day summaries not yet inside a
- * chapter, then milestones not covered by any summary. Over budget, the oldest ordinary lines go
- * first; a line carrying a milestone is never dropped (it is shortened instead).
+ * The STORY SO FAR for the scene block: chapter summaries, then every day or scene summary not
+ * folded into a chapter, then milestones not covered by any summary. Over budget, the oldest
+ * ordinary lines go first; a line carrying a milestone is never dropped (it is shortened instead).
  */
 export function storySoFar(summaries: SummaryItem[], milestones: MemoryItem[], maxChars = 1600): string[] {
-  const chapters = summaries.filter((s) => s.level === 'chapter').sort((a, b) => a.fromTime - b.fromTime);
-  const lastChapterEnd = chapters.length ? chapters[chapters.length - 1].toTime : -Infinity;
-  const days = summaries.filter((s) => s.level === 'day' && s.fromTime > lastChapterEnd).sort((a, b) => a.fromTime - b.fromTime);
-  const covered = new Set([...chapters, ...days].flatMap((s) => s.covers));
+  const order = (a: SummaryItem, b: SummaryItem) => a.fromTime - b.fromTime || a.seq - b.seq;
+  const chapters = summaries.filter((s) => s.level === 'chapter').sort(order);
+  const inChapter = new Set(chapters.flatMap((c) => c.covers));
+  const rest = summaries.filter((s) => s.level !== 'chapter' && !inChapter.has(s.id)).sort(order);
+  const covered = new Set([...chapters, ...rest].flatMap((s) => s.covers));
+  // A chapter covers summaries, which cover memories: follow one level down.
+  for (const c of chapters) for (const id of c.covers) for (const s of summaries) if (s.id === id) for (const m of s.covers) covered.add(m);
   const loose = milestones.filter((m) => !covered.has(m.id)).sort((a, b) => a.seq - b.seq);
   const lines: Array<{ text: string; keep: boolean }> = [
     ...chapters.map((c) => ({ text: c.text, keep: c.importance >= 3 })),
-    ...days.map((d) => ({ text: d.text, keep: d.importance >= 3 })),
+    ...rest.map((d) => ({ text: d.text, keep: d.importance >= 3 })),
     ...loose.map((m) => ({ text: m.text, keep: true })),
   ];
   const cost = () => lines.reduce((n, l) => n + l.text.length, 0);
