@@ -36,7 +36,10 @@ In your DNS provider, add an **A record** for the name you want (for example `rp
 
 > Using Cloudflare? Set the record to **DNS only** (grey cloud) while installing so the certificate can be issued. You can turn the proxy on afterwards with SSL mode **Full (strict)**.
 
-No domain? The installer can run in **IP-only mode** with a self-signed certificate. Your browser will show a warning you have to accept once, and installing to the home screen works less well.
+No domain? Two options:
+
+- **Free hostname (recommended):** services like [sslip.io](https://sslip.io) turn your IP into a hostname — for `203.0.113.5` enter `203-0-113-5.sslip.io` as the domain. It needs no sign-up and gets a real certificate, so there's no browser warning and home-screen install works. (These shared services sometimes hit certificate rate limits; a free [DuckDNS](https://www.duckdns.org) subdomain is a reliable alternative.)
+- **IP-only mode:** leave the domain empty. You get a self-signed certificate: open `https://your-ip` (no port needed) and accept the browser warning once (Chrome: *Advanced → Proceed*; Safari: *Show Details → visit this website*). Home-screen install works less well.
 
 ### 2. Run the installer
 
@@ -206,6 +209,8 @@ Layout: `packages/engine` (formats, prompt assembly, World Info, the determinist
 ## Troubleshooting
 
 **The site doesn't load / certificate errors.** Check the DNS record points to this server (`dig +short rp.example.com`), ports 80/443 are open, and nothing else uses them. See `docker compose logs caddy`. With Cloudflare, use DNS-only until the certificate is issued.
+
+**`https://your-ip` doesn't load in IP-only mode.** Update (`git pull && docker compose restart caddy`) — older versions couldn't answer HTTPS requests made to a bare IP address. Also check port 443 is open (`sudo ufw allow 443/tcp`, and your provider's firewall panel). HTTPS uses the normal port, so the address is just `https://your-ip`.
 
 **502 Bad Gateway.** Everloom isn't running or is still starting: `docker compose ps` and `docker compose logs everloom`.
 

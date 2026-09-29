@@ -1,5 +1,11 @@
 # EVERLOOM_DOMAIN is your domain (automatic Let's Encrypt HTTPS) or the server IP.
 # In IP-only mode install.sh sets EVERLOOM_TLS="tls internal" (self-signed certificate).
+{
+	# Browsers send no server name (SNI) when connecting by IP address; without this,
+	# Caddy can't pick the certificate and IP-only mode fails the TLS handshake.
+	default_sni {$EVERLOOM_DOMAIN}
+}
+
 {$EVERLOOM_DOMAIN} {
 	{$EVERLOOM_TLS}
 	encode zstd gzip
