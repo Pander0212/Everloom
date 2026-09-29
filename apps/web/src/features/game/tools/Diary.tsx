@@ -1,14 +1,15 @@
 import { formatDate } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { Anchor, Bird, BookHeart, Camera, Cat, ChevronLeft, ChevronRight, Coffee, Crown, Feather, Flame, Flower2, Heart, ImagePlus, Key, Leaf, Moon, Music, Pencil, Plus, Snowflake, Sparkles, Star, Sun, Trash2, Umbrella, Wand2, X, type LucideIcon } from 'lucide-react';
+import { Anchor, Bird, Bold, BookHeart, Italic, Quote, Camera, Cat, ChevronLeft, ChevronRight, Coffee, Crown, Feather, Flame, Flower2, Heart, ImagePlus, Key, Leaf, Moon, Music, Pencil, Plus, Snowflake, Sparkles, Star, Sun, Trash2, Umbrella, Wand2, X, type LucideIcon } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { del, get, post, put, upload } from '@/lib/api';
 import { cx } from '@/lib/format';
+import { renderStory } from '@/lib/render';
 import { useImageGen } from '@/lib/imagegen';
 import { t } from '@/lib/motion';
 import { toastError } from '@/lib/store';
-import { Button, confirm, EmptyState, Field, FileButton, Icon, IconButton, Input, Popover, Textarea } from '@/ui';
+import { Button, confirm, EmptyState, Field, FileButton, Icon, IconButton, Input, Popover, Textarea, useMedia } from '@/ui';
 import { useGame } from '../context';
 import { NoCampaign, ToolSheet } from './ToolSheet';
 
@@ -42,9 +43,14 @@ export default function Diary() {
   const [dir, setDir] = useState(1);
   const [editing, setEditing] = useState<{ id: string | null; title: string; content: Content } | null>(null);
   const [drafting, setDrafting] = useState(false);
+  // Landscape screens show an open book: two pages side by side.
+  const spread = useMedia('(orientation: landscape) and (min-width: 700px)');
   if (!s) return <ToolSheet title="Diary"><NoCampaign /></ToolSheet>;
   const list = entries.data ?? [];
-  const cur = page !== null ? list[page] : null;
+  const step = spread ? 2 : 1;
+  const first = page !== null ? page - (page % step) : null;
+  const cur = first !== null ? list[first] : null;
+  const facing = spread && first !== null ? list[first + 1] ?? null : null;
   const turn = (to: number) => {
     setDir(to > (page ?? 0) ? 1 : -1);
     setPage(to);
@@ -80,16 +86,17 @@ export default function Diary() {
   return (
     <ToolSheet
       title="Diary"
-      description={cur ? `Page ${cur.number} of ${list.length}` : `${list.length} ${list.length === 1 ? 'page' : 'pages'}`}
+      size={spread ? 'full' : 'lg'}
+      description={cur ? (facing ? `Pages ${cur.number}–${facing.number} of ${list.length}` : `Page ${cur.number} of ${list.length}`) : `${list.length} ${list.length === 1 ? 'page' : 'pages'}`}
       headerActions={cur ? <IconButton icon={Pencil} label="Edit page" onClick={() => setEditing({ id: cur.id, title: cur.title, content: { ...empty(), ...cur.content } })} /> : null}
       footer={
         cur ? (
           <>
-            <IconButton icon={ChevronLeft} label="Previous page" disabled={page === 0} onClick={() => turn(page! - 1)} />
+            <IconButton icon={ChevronLeft} label="Previous page" disabled={!first} onClick={() => turn(first! - step)} />
             <Button variant="ghost" className="flex-1" onClick={() => setPage(null)}>
               All pages
             </Button>
-            <IconButton icon={ChevronRight} label="Next page" disabled={page === list.length - 1} onClick={() => turn(page! + 1)} />
+            <IconButton icon={ChevronRight} label="Next page" disabled={first! + step > list.length - 1} onClick={() => turn(first! + step)} />
           </>
         ) : (
           <>
@@ -106,8 +113,9 @@ export default function Diary() {
       {cur ? (
         <div className="relative overflow-hidden">
           <AnimatePresence mode="wait" initial={false} custom={dir}>
-            <motion.div key={cur.id} initial={{ opacity: 0, x: dir * 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: dir * -40 }} transition={t.base}>
+            <motion.div key={cur.id} initial={{ opacity: 0, x: dir * 40 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: dir * -40 }} transition={t.base} className={cx(spread && 'grid grid-cols-2 gap-4')}>
               <Page entry={cur} calendar={s.meta.calendar} />
+              {spread ? facing ? <Page entry={facing} calendar={s.meta.calendar} /> : <div className="rounded-md bg-surface-2/60" aria-hidden="true" /> : null}
             </motion.div>
           </AnimatePresence>
         </div>
@@ -137,7 +145,7 @@ export default function Diary() {
 function Page({ entry, calendar }: { entry: Entry; calendar: Parameters<typeof formatDate>[1] }) {
   const c = entry.content;
   return (
-    <article className="relative min-h-[60dvh] rounded-md bg-surface-2 px-5 pb-8 pt-6 shadow-1 sm:px-8">
+    <article className="relative min-h-[60dvh] min-w-0 rounded-md bg-surface-2 px-5 pb-8 pt-6 shadow-1 sm:px-8">
       {c.stickers.map((st, i) => {
         const I = STICKERS[st.icon] ?? Star;
         return <I key={i} aria-hidden="true" className="pointer-events-none absolute text-accent-text opacity-80" size={28} strokeWidth={1.5} style={{ left: `${st.x}%`, top: `${st.y}%`, transform: `translate(-50%, -50%) rotate(${st.rot}deg)` }} />;
@@ -155,7 +163,7 @@ function Page({ entry, calendar }: { entry: Entry; calendar: Parameters<typeof f
           ))}
         </div>
       ) : null}
-      <div className="mt-4 whitespace-pre-wrap font-serif text-[17px] leading-7 text-fg">{c.text}</div>
+      <div className="diary-text mt-4 font-serif text-[17px] leading-7 text-fg" dangerouslySetInnerHTML={{ __html: renderStory(c.text) }} />
     </article>
   );
 }
@@ -167,6 +175,21 @@ function Editor({ value, onCancel, onSaved }: { value: { id: string | null; titl
   const [title, setTitle] = useState(value.title);
   const [c, setC] = useState<Content>(value.content);
   const [saving, setSaving] = useState(false);
+  const textRef = useRef<HTMLTextAreaElement>(null);
+  /** Wrap the selection (or insert at the cursor) with markdown markers. */
+  const wrap = (before: string, after = before) => {
+    const el = textRef.current;
+    const start = el?.selectionStart ?? c.text.length;
+    const end = el?.selectionEnd ?? c.text.length;
+    const lineStart = after === '' ? c.text.lastIndexOf('\n', start - 1) + 1 : start;
+    const next = after === '' ? c.text.slice(0, lineStart) + before + c.text.slice(lineStart) : c.text.slice(0, start) + before + c.text.slice(start, end) + after + c.text.slice(end);
+    setC({ ...c, text: next.slice(0, 20000) });
+    requestAnimationFrame(() => {
+      el?.focus();
+      const caret = after === '' ? end + before.length : end + before.length;
+      el?.setSelectionRange(caret, caret);
+    });
+  };
   const addPhoto = (mediaId: string) => setC((x) => ({ ...x, photos: [...x.photos, { mediaId, caption: '', rot: tilt(mediaId, 4) }].slice(0, 12) }));
   const addSticker = (icon: string) =>
     setC((x) => {
@@ -235,8 +258,19 @@ function Editor({ value, onCancel, onSaved }: { value: { id: string | null; titl
         <Field label="Mood" htmlFor="di-mood">
           <Input id="di-mood" value={c.mood ?? ''} onChange={(e) => setC({ ...c, mood: e.target.value })} maxLength={30} placeholder="hopeful" />
         </Field>
-        <Field label="Entry" htmlFor="di-text">
-          <Textarea id="di-text" value={c.text} onChange={(e) => setC({ ...c, text: e.target.value })} maxLength={20000} maxRows={20} className="min-h-40 font-serif text-[16px] leading-7" />
+        <Field
+          label="Entry"
+          htmlFor="di-text"
+          hint="**bold**, *italic*, > a quote, - a list."
+          trailing={
+            <span className="flex gap-0.5">
+              <IconButton size="sm" icon={Bold} label="Bold" onClick={() => wrap('**')} />
+              <IconButton size="sm" icon={Italic} label="Italic" onClick={() => wrap('*')} />
+              <IconButton size="sm" icon={Quote} label="Quote" onClick={() => wrap('> ', '')} />
+            </span>
+          }
+        >
+          <Textarea ref={textRef} id="di-text" value={c.text} onChange={(e) => setC({ ...c, text: e.target.value })} maxLength={20000} maxRows={20} className="min-h-40 font-serif text-[16px] leading-7" />
         </Field>
         <section>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-3">Photos</h3>

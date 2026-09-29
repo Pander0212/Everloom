@@ -114,3 +114,37 @@ describe('phone, helper and diary', () => {
     expect((await client.req('DELETE', `/api/diary/${saved.json.id}`)).status).toBe(200);
   });
 });
+
+describe('media references', () => {
+  it('deleting a picture clears the avatar, sprite and background that used it', async () => {
+    const { client, chat, characterId } = await setup();
+    const p = await client.req('POST', '/api/images/generate', { kind: 'portrait', characterId, apply: true });
+    const e = await client.req('POST', '/api/images/generate', { kind: 'expression', characterId, emotion: 'joy', apply: true });
+    await client.req('PATCH', `/api/chats/${chat.id}`, { metadata: { background: p.json.id } });
+    await client.req('DELETE', `/api/media/${p.json.id}`);
+    await client.req('DELETE', `/api/media/${e.json.id}`);
+    const ch = (await client.req('GET', `/api/characters/${characterId}`)).json;
+    expect(ch.avatar).toBeNull();
+    expect(ch.game.expressions?.joy).toBeUndefined();
+    expect((await client.req('GET', `/api/chats/${chat.id}`)).json.metadata.background).toBeUndefined();
+    expect((await client.req('GET', `/media/${p.json.id}`)).status).toBe(404);
+  });
+});
+
+describe('op ordering', () => {
+  it("the player's edit on a message beats the model's bookkeeping that lands later", async () => {
+    const { client } = await setup();
+    const ch = await client.req('POST', '/api/characters', { card: { name: 'Tess', first_mes: 'Tess waves.' } });
+    const chat = (await client.req('POST', '/api/chats', { characterId: ch.json.id })).json;
+    const { appendOps, rebuildCampaign } = await import('../src/services/campaigns.js');
+    const msgs = (await client.req('GET', `/api/chats/${chat.id}/messages`)).json;
+    const last = msgs[msgs.length - 1];
+    const owner = (client.built.ctx.db.prepare('SELECT id FROM users').get() as { id: string }).id;
+    await client.req('POST', `/api/campaigns/${chat.campaignId}/ops`, { chatId: chat.id, ops: [{ type: 'npc.upsert', name: 'Tobias', title: 'Drummer' }] });
+    appendOps(client.built.ctx, owner, chat.campaignId, { chatId: chat.id, messageId: last.id, swipeId: last.swipeId, source: 'ai', ops: [{ type: 'npc.upsert', name: 'Tobias', title: 'Band leader' } as any] });
+    const title = () => (Object.values(rebuildCampaign(client.built.ctx, owner, chat.campaignId).npcs)[0] as any).title;
+    const live = (await client.req('GET', `/api/campaigns/${chat.campaignId}`)).json.state;
+    expect((Object.values(live.npcs)[0] as any).title).toBe('Drummer');
+    expect(title()).toBe('Drummer');
+  });
+});

@@ -1,16 +1,16 @@
 import { EMOTIONS, type CardData, type CharacterDTO, type CharacterGame } from '@everloom/engine';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, BookOpen, Copy, Download, FileJson, ImagePlus, MessageSquare, MoreHorizontal, Plus, Sparkles, Star, Trash2, Wand2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Page } from '@/app/Shell';
-import { del, download, patch, post, upload } from '@/lib/api';
+import { del, download, get, patch, post, upload } from '@/lib/api';
 import { relativeTime } from '@/lib/format';
 import { useImageGen } from '@/lib/imagegen';
 import { useCharacter, useChats, useConnections, useLorebooks } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
 import { NewChatSheet } from '@/features/chats/NewChatSheet';
-import { Avatar, Button, confirm, EmptyState, Field, FileButton, IconButton, Input, ListRow, Menu, Select, Spinner, TabPanel, Tabs, Textarea } from '@/ui';
+import { Avatar, Button, confirm, EmptyState, Field, FileButton, IconButton, Input, ListRow, Menu, Select, Sheet, Spinner, TabPanel, Tabs, Textarea } from '@/ui';
 
 type Draft = { card: CardData; game: CharacterGame };
 
@@ -150,6 +150,7 @@ export default function CharacterEditor() {
           { value: 'prompts', label: 'Prompts' },
           { value: 'lore', label: 'Lore' },
           { value: 'game', label: 'Game' },
+          { value: 'gallery', label: 'Gallery' },
           { value: 'chats', label: 'Chats' },
         ]}
       >
@@ -243,12 +244,118 @@ export default function CharacterEditor() {
           <GameFields game={draft.game} setGame={setGame} characterId={c.id} />
         </TabPanel>
 
+        <TabPanel value="gallery" className="pt-5">
+          <CharacterGallery characterId={c.id} name={draft.card.name} />
+        </TabPanel>
+
         <TabPanel value="chats" className="pt-3">
           <CharacterChats characterId={c.id} onNew={() => setChatOpen(true)} />
         </TabPanel>
       </Tabs>
       <NewChatSheet open={chatOpen} onOpenChange={setChatOpen} characterId={c.id} />
     </Page>
+  );
+}
+
+interface MediaItem {
+  id: string;
+  url: string;
+  kind: string;
+  meta: { prompt?: string; emotion?: string };
+  createdAt: number;
+}
+
+/** Every image made for or uploaded to this character: portraits, sprites, drawings. */
+function CharacterGallery({ characterId, name }: { characterId: string; name: string }) {
+  const qc = useQueryClient();
+  const key = ['media', 'character', characterId];
+  const media = useQuery({ queryKey: key, queryFn: () => get<MediaItem[]>('/api/media', { characterId }) });
+  const gen = useImageGen();
+  const [prompt, setPrompt] = useState('');
+  const [open, setOpen] = useState<MediaItem | null>(null);
+  const list = media.data ?? [];
+  return (
+    <div className="flex flex-col gap-4">
+      <div className="flex gap-2">
+        <Input aria-label="Describe a picture" placeholder={`${name} reading by the window…`} value={prompt} onChange={(e) => setPrompt(e.target.value)} maxLength={600} className="min-w-0 flex-1" />
+        <Button
+          variant="secondary"
+          icon={Sparkles}
+          loading={gen.busy === 'portrait'}
+          onClick={async () => {
+            const r = await gen.run({ kind: 'portrait', characterId, prompt: prompt.trim() || undefined });
+            if (r) {
+              setPrompt('');
+              await qc.invalidateQueries({ queryKey: key });
+            }
+          }}
+        >
+          Draw
+        </Button>
+      </div>
+      {list.length ? (
+        <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
+          {list.map((m) => (
+            <button key={m.id} onClick={() => setOpen(m)} className="pressable relative aspect-[3/4] overflow-hidden rounded-md bg-surface-2" aria-label={m.meta.emotion ? `${m.meta.emotion} sprite` : 'Open image'}>
+              <img src={m.url} alt="" loading="lazy" className="h-full w-full object-cover object-top" />
+            </button>
+          ))}
+        </div>
+      ) : (
+        <EmptyState icon={ImagePlus} title="No pictures yet" body="Portraits, sprites and drawings of this character collect here." />
+      )}
+      <Sheet
+        open={!!open}
+        onOpenChange={(o) => !o && setOpen(null)}
+        title="Picture"
+        description={open?.meta.prompt ? undefined : open ? relativeTime(open.createdAt) : undefined}
+        size="md"
+        footer={
+          open ? (
+            <>
+              <IconButton
+                icon={Trash2}
+                label="Delete picture"
+                onClick={async () => {
+                  if (!(await confirm({ title: 'Delete this picture?', description: 'If it is used as the avatar or a sprite, that spot becomes empty.', confirmLabel: 'Delete', danger: true }))) return;
+                  try {
+                    await del(`/api/media/${open.id}`);
+                    setOpen(null);
+                    await qc.invalidateQueries({ queryKey: key });
+                    await qc.invalidateQueries({ queryKey: ['character', characterId] });
+                  } catch (e) {
+                    toastError(e);
+                  }
+                }}
+              />
+              <Button
+                variant="primary"
+                className="flex-1"
+                onClick={async () => {
+                  try {
+                    const updated = await patch<CharacterDTO>(`/api/characters/${characterId}`, { avatar: open.id });
+                    qc.setQueryData(['character', characterId], updated);
+                    await qc.invalidateQueries({ queryKey: ['characters'] });
+                    toast({ title: 'Avatar updated', tone: 'success' });
+                  } catch (e) {
+                    toastError(e);
+                  }
+                }}
+              >
+                Use as avatar
+              </Button>
+            </>
+          ) : undefined
+        }
+      >
+        {open ? (
+          <div className="flex flex-col gap-3">
+            <img src={open.url} alt="" className="max-h-[60dvh] w-full rounded-md object-contain" />
+            {open.meta.prompt ? <p className="text-xs text-fg-2">{open.meta.prompt}</p> : null}
+          </div>
+        ) : null}
+      </Sheet>
+    </div>
   );
 }
 

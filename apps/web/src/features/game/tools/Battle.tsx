@@ -47,7 +47,7 @@ function Setup() {
                 </option>
               ))}
             </Select>
-            <Select aria-label="How many" value={r.count} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, count: Number(e.target.value) } : x)))} className="w-16">
+            <Select aria-label="How many" value={r.count} onChange={(e) => setRows(rows.map((x, j) => (j === i ? { ...x, count: Number(e.target.value) } : x)))} className="w-20">
               {[1, 2, 3, 4].map((n) => (
                 <option key={n} value={n}>
                   ×{n}
@@ -119,6 +119,7 @@ function Fight({ battle: b }: { battle: BattleT }) {
 
   return (
     <ToolSheet
+      size="full"
       title={outcome ?? `Battle · Round ${b.round}`}
       description={outcome ? undefined : myTurn ? 'Your move' : `${actor?.name ?? '…'} is acting`}
       footer={

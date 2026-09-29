@@ -16,7 +16,7 @@
   --border-strong: #cdcac2;
   --text: #18191b;
   --text-2: #595c62;
-  --text-3: #8b8e94;
+  --text-3: #63666c;
   --accent: #cf912f;
   --accent-hover: #c2852a;
   --accent-fg: #1b1203;
@@ -63,7 +63,7 @@
   --border-strong: #34373d;
   --text: #ecedee;
   --text-2: #a2a5ab;
-  --text-3: #71747b;
+  --text-3: #8a8d94;
   --accent: #e1a94f;
   --accent-hover: #ecb660;
   --accent-fg: #1b1203;
@@ -608,4 +608,77 @@
   .atmo-layer {
     display: none;
   }
+}
+
+/* ------------------------------------------------------------------ map style presets
+   Modern uses the base palette. Fantasy leans parchment-and-ink; sci-fi goes cool slate. */
+[data-map-style='fantasy'] {
+  --map-water: #bccfd0;
+  --map-land: #efe4c8;
+  --map-sand: #e7d3a7;
+  --map-forest: #c9d4ab;
+  --map-hill: #ddcca5;
+  --map-block: #e6d8b8;
+  --map-road: #a8926a;
+  --map-line: #8a7552;
+}
+[data-map-style='scifi'] {
+  --map-water: #c3cfd8;
+  --map-land: #e3e7ea;
+  --map-sand: #d9dee2;
+  --map-forest: #cfd9d6;
+  --map-hill: #d4d9de;
+  --map-park: #cdd8d4;
+  --map-block: #d8dde2;
+  --map-floor: #e2e6ea;
+  --map-room: #f3f5f7;
+  --map-road: #8f9aa5;
+  --map-line: #75818c;
+  --map-grid: rgb(70 90 110 / 0.14);
+}
+:root[data-theme='dark'] [data-map-style='fantasy'] {
+  --map-water: #141b1d;
+  --map-land: #28251d;
+  --map-sand: #302b1e;
+  --map-forest: #212719;
+  --map-hill: #2e2a20;
+  --map-block: #2d2a22;
+  --map-road: #54482f;
+  --map-line: #6b5c3e;
+}
+:root[data-theme='dark'] [data-map-style='scifi'] {
+  --map-water: #0f171d;
+  --map-land: #1d2126;
+  --map-sand: #22272c;
+  --map-forest: #1a2224;
+  --map-hill: #22272d;
+  --map-park: #1a2324;
+  --map-block: #242a30;
+  --map-floor: #181c20;
+  --map-room: #232930;
+  --map-road: #3b4652;
+  --map-line: #4f5c69;
+  --map-grid: rgb(160 200 230 / 0.06);
+}
+
+/* Diary page text (sanitized markdown). */
+.diary-text p + p,
+.diary-text ul,
+.diary-text ol,
+.diary-text blockquote {
+  margin-top: 0.75em;
+}
+.diary-text blockquote {
+  border-left: 2px solid var(--accent);
+  padding-left: 12px;
+  color: var(--text-2);
+  font-style: italic;
+}
+.diary-text ul {
+  list-style: disc;
+  padding-left: 1.25em;
+}
+.diary-text ol {
+  list-style: decimal;
+  padding-left: 1.25em;
 }

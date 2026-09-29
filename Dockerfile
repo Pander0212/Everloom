@@ -10,6 +10,7 @@ RUN npm ci --no-audit --no-fund
 COPY tsconfig.base.json ./
 COPY packages packages
 COPY apps apps
+COPY scripts scripts
 RUN npm run build -w apps/web && npm run build -w apps/server
 RUN npm prune --omit=dev --no-audit --no-fund
 

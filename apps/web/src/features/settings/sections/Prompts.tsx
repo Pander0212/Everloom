@@ -6,7 +6,7 @@ import { del, download, get, post, put, upload } from '@/lib/api';
 import { cx } from '@/lib/format';
 import { usePresets } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
-import { Badge, Button, confirm, Field, FileButton, IconButton, Input, Menu, Select, Sheet, Switch, Textarea, ToggleRow } from '@/ui';
+import { Badge, Button, confirm, Dialog, Field, FileButton, IconButton, Input, Menu, Select, Sheet, Switch, Textarea, ToggleRow } from '@/ui';
 import { Section, useSettingsPatch } from '../common';
 
 const MARKER_HINT: Record<string, string> = {
@@ -33,6 +33,7 @@ export default function PromptsSection() {
   const [draft, setDraft] = useState<PromptPreset | null>(null);
   const [editBlock, setEditBlock] = useState<number | null>(null);
   const [saving, setSaving] = useState(false);
+  const [renaming, setRenaming] = useState<string | null>(null);
 
   useEffect(() => {
     const base = active?.preset ?? def.data;
@@ -77,12 +78,17 @@ export default function PromptsSection() {
       toastError(e);
     }
   };
-  const rename = async () => {
-    if (!active) return;
-    const name = window.prompt('Preset name', active.name)?.trim();
-    if (!name) return;
-    await put(`/api/presets/${active.id}`, { name, preset: draft });
-    await qc.invalidateQueries({ queryKey: ['presets'] });
+  const rename = () => active && setRenaming(active.name);
+  const commitRename = async () => {
+    const name = renaming?.trim();
+    if (!active || !name) return;
+    try {
+      await put(`/api/presets/${active.id}`, { name, preset: draft });
+      await qc.invalidateQueries({ queryKey: ['presets'] });
+      setRenaming(null);
+    } catch (e) {
+      toastError(e);
+    }
   };
   const remove = async () => {
     if (!active || !(await confirm({ title: `Delete ${active.name}?`, confirmLabel: 'Delete', danger: true }))) return;
@@ -98,6 +104,25 @@ export default function PromptsSection() {
 
   return (
     <>
+      <Dialog
+        open={renaming !== null}
+        onOpenChange={(o) => !o && setRenaming(null)}
+        title="Rename preset"
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRenaming(null)}>
+              Cancel
+            </Button>
+            <Button variant="primary" disabled={!renaming?.trim()} onClick={commitRename}>
+              Rename
+            </Button>
+          </>
+        }
+      >
+        <Field label="Name" htmlFor="preset-name">
+          <Input id="preset-name" autoFocus value={renaming ?? ''} maxLength={120} onChange={(e) => setRenaming(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && commitRename()} />
+        </Field>
+      </Dialog>
       <Section
         title="Preset"
         description="Presets decide what goes into the prompt, and in what order. SillyTavern chat-completion presets import directly."

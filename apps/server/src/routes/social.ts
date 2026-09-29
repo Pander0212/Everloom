@@ -93,7 +93,8 @@ async function npcText(ctx: AppContext, ownerId: string, s: CampaignState, npcId
     .join('\n');
   const convo = history.slice(-12).map((m) => `${m.from_player ? s.player.name : npc.name}: ${m.text}`).join('\n');
   const user = reason ? `${convo ? `Earlier texts:\n${convo}\n\n` : ''}Start a new conversation. Reason: ${reason}.` : `Texts so far:\n${convo}\n\nReply to the last message.`;
-  const text = await utilityText(ctx, ownerId, system, user, { maxTokens: 160, temperature: 0.9 });
+  // Texts are in-character writing, so they come from the Main model.
+  const text = await utilityText(ctx, ownerId, system, user, { maxTokens: 160, temperature: 0.9, role: 'main' });
   return text.replace(/^["“]|["”]$/g, '').replace(new RegExp(`^${npc.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}:\\s*`, 'i'), '').trim().slice(0, 600) || '…';
 }
 

@@ -132,6 +132,8 @@ export default function MapTool({ arg }: { arg?: string }) {
   const viewRef = useRef(view);
   viewRef.current = view;
   const stopAnim = useRef<(() => void) | null>(null);
+  /** Until the player pans or zooms, keep the scene framed as the panel settles or resizes. */
+  const touched = useRef(false);
 
   // A parent that disappeared (removed, undo) falls back to the root.
   const parent = parentId && s ? s.locations[parentId] ?? null : null;
@@ -142,6 +144,7 @@ export default function MapTool({ arg }: { arg?: string }) {
   const flyTo = useCallback(
     (target: View) => {
       stopAnim.current?.();
+      touched.current = true;
       if (reduce) {
         setView(target);
         return;
@@ -158,10 +161,14 @@ export default function MapTool({ arg }: { arg?: string }) {
   );
 
   // Frame the scene when the level changes: centre on the player's branch if it's here.
-  useEffect(() => {
+  const frame = () => {
     if (!scene) return;
     const target = arg && scene.nodes.find((n) => n.id === arg);
     setView(target ? focusView(target.x, target.y, 2) : fitView(scene.nodes, scene.nodes.find((n) => n.current || n.containsCurrent)));
+  };
+  useEffect(() => {
+    touched.current = false;
+    frame();
   }, [effectiveParent]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Reframe when places are added or removed at this level.
@@ -238,8 +245,10 @@ export default function MapTool({ arg }: { arg?: string }) {
           view={view}
           setView={(v) => {
             stopAnim.current?.();
+            touched.current = true;
             setView(clampView(v));
           }}
+          onMeasure={() => !touched.current && frame()}
           placing={placing}
           selected={selected}
           onNode={(n) => {
@@ -313,7 +322,9 @@ function MapCanvas({
   onPlace,
   onZoom,
   onRecenter,
+  onMeasure,
 }: {
+  onMeasure: () => void;
   scene: MapScene;
   view: View;
   setView: (v: View) => void;
@@ -339,9 +350,11 @@ function MapCanvas({
       const r = el.getBoundingClientRect();
       if (!r.width || !r.height) return;
       const scale = Math.max(r.width, r.height) / 1000;
+      const changed = Math.abs(vis.w - r.width / scale) > 1 || Math.abs(vis.h - r.height / scale) > 1;
       vis.w = r.width / scale;
       vis.h = r.height / scale;
       setPx(scale);
+      if (changed) onMeasure();
     };
     measure();
     const ro = new ResizeObserver(measure);
@@ -438,6 +451,7 @@ function MapCanvas({
   return (
     <div
       ref={box}
+      data-map-style={scene.style}
       className={cx('relative min-h-0 flex-1 touch-none select-none overflow-hidden', placing && 'cursor-crosshair')}
       style={{ background: BASE_FILL[scene.base] }}
       onPointerDown={onDown}
@@ -486,7 +500,7 @@ function MapCanvas({
                 className="cursor-pointer"
                 role="button"
                 tabIndex={0}
-                aria-label={`${n.name}${n.current ? ', you are here' : n.containsCurrent ? ', you are inside' : ''}${n.discovered ? '' : ', unexplored'}`}
+                aria-label={n.discovered || n.current ? `${n.name}${n.current ? ', you are here' : n.containsCurrent ? ', you are inside' : ''}` : 'Unknown place, unexplored'}
                 data-testid="map-node"
                 onClick={(e) => {
                   // While placing, let the tap fall through to the canvas.
@@ -524,7 +538,7 @@ function MapCanvas({
                   strokeLinejoin="round"
                   style={{ fontFamily: 'var(--font-sans)' }}
                 >
-                  {n.discovered ? n.name : `${n.name}?`}
+                  {n.discovered || n.current ? n.name : 'Unknown'}
                 </text>
               </g>
             );
@@ -593,13 +607,15 @@ function NodeSheet({ loc, state: s, onClose, onEnter, onTravel }: { loc: Locatio
   const siblings = Object.values(s.locations).filter((l) => l.parentId === loc.parentId && l.id !== loc.id);
   const orgs = Object.values(s.orgs).filter((o) => o.mainLocationId === loc.id || o.influence.some((i) => i.locationId === loc.id));
   const cur = s.meta.currency;
+  const known = loc.discovered || here;
+  const nameOf = (l: Location | undefined) => (l ? (l.discovered || l.id === s.currentLocationId ? l.name : 'Unknown place') : 'Unknown place');
 
   return (
     <Sheet
       open
       onOpenChange={(o) => !o && onClose()}
-      title={loc.name}
-      description={[loc.kind !== 'other' ? loc.kind[0].toUpperCase() + loc.kind.slice(1) : null, LEVEL_LABEL[loc.level]].filter(Boolean).join(' · ')}
+      title={known ? loc.name : 'Unknown place'}
+      description={known ? [loc.kind !== 'other' ? loc.kind[0].toUpperCase() + loc.kind.slice(1) : null, LEVEL_LABEL[loc.level]].filter(Boolean).join(' · ') : LEVEL_LABEL[loc.level]}
       headerActions={<IconButton icon={Pencil} label="Edit place" onClick={() => setEditing(true)} />}
       footer={
         <>
@@ -631,8 +647,14 @@ function NodeSheet({ loc, state: s, onClose, onEnter, onTravel }: { loc: Locatio
           {loc.locked ? <Badge>Locked</Badge> : null}
           {children.length ? <Badge>{children.length} inside</Badge> : null}
         </div>
-        {loc.description ? <p className="text-sm leading-6 text-fg">{loc.description}</p> : <p className="text-sm text-fg-3">No description yet.</p>}
-        {loc.customs ? (
+        {!known ? (
+          <p className="text-sm text-fg-2">You haven’t been here yet. Travel there to find out what it is.</p>
+        ) : loc.description ? (
+          <p className="text-sm leading-6 text-fg">{loc.description}</p>
+        ) : (
+          <p className="text-sm text-fg-3">No description yet.</p>
+        )}
+        {known && loc.customs ? (
           <div>
             <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-fg-3">Customs</h3>
             <p className="text-sm text-fg-2">{loc.customs}</p>
@@ -673,13 +695,13 @@ function NodeSheet({ loc, state: s, onClose, onEnter, onTravel }: { loc: Locatio
           </div>
         ) : null}
 
-        {people.length ? (
+        {known && people.length ? (
           <div>
             <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-fg-3">People here</h3>
             <p className="text-sm text-fg-2">{people.map((p) => p.name).join(', ')}</p>
           </div>
         ) : null}
-        {orgs.length ? (
+        {known && orgs.length ? (
           <div>
             <h3 className="mb-1 text-xs font-semibold uppercase tracking-wide text-fg-3">Organizations</h3>
             <p className="text-sm text-fg-2">{orgs.map((o) => o.name).join(', ')}</p>
@@ -696,7 +718,7 @@ function NodeSheet({ loc, state: s, onClose, onEnter, onTravel }: { loc: Locatio
                   <li key={r.id} className="flex items-center gap-2 text-sm">
                     <Icon icon={Route} size={16} className="text-fg-3" />
                     <span className="flex-1">
-                      {other?.name ?? 'Unknown'} <span className="text-fg-3">· {r.mode}{r.minutes ? ` · ${fmtMinutes(r.minutes)}` : ''}</span>
+                      {nameOf(other)} <span className="text-fg-3">· {r.mode}{r.minutes ? ` · ${fmtMinutes(r.minutes)}` : ''}</span>
                     </span>
                   </li>
                 );
@@ -711,7 +733,7 @@ function NodeSheet({ loc, state: s, onClose, onEnter, onTravel }: { loc: Locatio
                 <option value="">Add a path to…</option>
                 {siblings.map((l) => (
                   <option key={l.id} value={l.id}>
-                    {l.name}
+                    {nameOf(l)}
                   </option>
                 ))}
               </Select>

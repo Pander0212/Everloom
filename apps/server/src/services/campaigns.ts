@@ -76,7 +76,14 @@ function linkedMessages(ctx: AppContext, owner: string, campaignId: string) {
     .all(campaignId, owner) as Array<{ id: string; chatId: string; swipeId: number; createdAt: number; seq: number }>;
 }
 
-/** Order entries by the story position of their anchor message, then creation order. */
+/**
+ * For one message, the model's bookkeeping comes first and the player's own edits last,
+ * so a manual correction always wins over what the model read from that message.
+ */
+const SOURCE_RANK: Record<string, number> = { ai: 0, sim: 1, system: 2, helper: 3, user: 4 };
+const rank = (s: string) => SOURCE_RANK[s] ?? 2;
+
+/** Order entries by the story position of their anchor message, then source, then creation order. */
 function orderedActive(ctx: AppContext, owner: string, campaignId: string) {
   const rows = entriesFor(ctx, campaignId);
   const msgs = linkedMessages(ctx, owner, campaignId);
@@ -98,8 +105,8 @@ function orderedActive(ctx: AppContext, owner: string, campaignId: string) {
   // Within one chat the message order decides; across linked chats, message creation time does.
   active.sort((a, b) => {
     if (a.messageId === null || b.messageId === null) return (a.messageId === null ? 0 : 1) - (b.messageId === null ? 0 : 1) || a.seq - b.seq;
-    if (a.chatId === b.chatId) return a.anchorKey[1] - b.anchorKey[1] || a.seq - b.seq;
-    return a.anchorKey[0] - b.anchorKey[0] || a.seq - b.seq;
+    if (a.chatId === b.chatId) return a.anchorKey[1] - b.anchorKey[1] || (a.messageId === b.messageId ? rank(a.source) - rank(b.source) : 0) || a.seq - b.seq;
+    return a.anchorKey[0] - b.anchorKey[0] || (a.messageId === b.messageId ? rank(a.source) - rank(b.source) : 0) || a.seq - b.seq;
   });
   return active.map((e, i) => ({ ...e, seq: i + 1 }));
 }
@@ -143,6 +150,13 @@ export function appendOps(ctx: AppContext, owner: string, campaignId: string, in
   // Incremental apply is only valid when the anchor is at the end of the story.
   const msgs = linkedMessages(ctx, owner, campaignId);
   const anchor = input.messageId ? msgs.find((m) => m.id === input.messageId) : undefined;
+  // A model entry arriving after the player's edits on the same message goes underneath them.
+  if (input.messageId && anchor && !needsRebuild) {
+    const outranked = ctx.db
+      .prepare('SELECT source FROM op_log WHERE campaign_id = ? AND message_id = ?')
+      .all(campaignId, input.messageId) as Array<{ source: string }>;
+    if (outranked.some((e) => rank(e.source) > rank(input.source))) needsRebuild = true;
+  }
   if (input.messageId && anchor) {
     const later = ctx.db
       .prepare('SELECT COUNT(*) AS n FROM op_log o JOIN messages m ON m.id = o.message_id WHERE o.campaign_id = ? AND ((m.chat_id = ? AND m.seq > ?) OR (m.chat_id != ? AND m.created_at > ?))')

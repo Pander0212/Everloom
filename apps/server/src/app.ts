@@ -92,6 +92,8 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
       root: cfg.webDir,
       wildcard: false,
       index: false,
+      // Serves the .br/.gz files written at build time when the browser accepts them.
+      preCompressed: true,
       setHeaders(res, file) {
         const name = path.basename(file);
         if (name === 'index.html' || name === 'sw.js' || name === 'manifest.webmanifest' || name.startsWith('workbox-')) res.header('cache-control', 'no-cache');

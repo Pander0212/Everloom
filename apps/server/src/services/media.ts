@@ -98,7 +98,24 @@ export function deleteMedia(ctx: AppContext, owner: string, id: string) {
   } catch {
     /* already gone */
   }
-  ctx.db.prepare('DELETE FROM media WHERE id = ? AND owner_id = ?').run(id, owner);
+  ctx.db.transaction(() => {
+    ctx.db.prepare('DELETE FROM media WHERE id = ? AND owner_id = ?').run(id, owner);
+    // Drop references so nothing points at a missing file.
+    ctx.db.prepare('UPDATE characters SET avatar = NULL WHERE owner_id = ? AND avatar = ?').run(owner, id);
+    ctx.db.prepare('UPDATE personas SET avatar = NULL WHERE owner_id = ? AND avatar = ?').run(owner, id);
+    ctx.db.prepare("UPDATE chats SET metadata = json_remove(metadata, '$.background') WHERE owner_id = ? AND json_extract(metadata, '$.background') = ?").run(owner, id);
+    const rows = ctx.db.prepare('SELECT id, game FROM characters WHERE owner_id = ? AND instr(game, ?) > 0').all(owner, id) as Array<{ id: string; game: string }>;
+    for (const r of rows) {
+      try {
+        const game = JSON.parse(r.game);
+        for (const [k, v] of Object.entries(game.expressions ?? {})) if (v === id) delete game.expressions[k];
+        if (Array.isArray(game.gallery)) game.gallery = game.gallery.filter((g: string) => g !== id);
+        ctx.db.prepare('UPDATE characters SET game = ? WHERE id = ?').run(JSON.stringify(game), r.id);
+      } catch {
+        /* leave malformed rows alone */
+      }
+    }
+  })();
 }
 
 export function listMedia(ctx: AppContext, owner: string, filter: { kind?: string; characterId?: string } = {}) {

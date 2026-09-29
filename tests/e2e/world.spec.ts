@@ -60,15 +60,22 @@ test.describe('world', () => {
     await expect(page.getByTestId('map-canvas')).toBeVisible();
     await expect(page.getByRole('button', { name: /Northcrest, you are here/ })).toBeVisible();
     await page.getByRole('button', { name: 'Expand with AI' }).click();
-    await expect(page.getByRole('button', { name: 'Old Pier, unexplored' })).toBeVisible();
-    await page.getByRole('button', { name: 'Old Pier, unexplored' }).click();
+    // New places stay unknown (no spoilers) until visited.
+    await expect(page.getByRole('button', { name: 'Unknown place, unexplored' })).toHaveCount(2);
+    await page.getByRole('button', { name: 'Unknown place, unexplored' }).first().click();
+    await expect(page.getByText('You haven’t been here yet.')).toBeVisible();
     await expect(page.getByRole('radiogroup', { name: 'Travel mode' })).toBeVisible();
     await page.getByRole('button', { name: 'Travel here' }).click();
-    await expect.poll(async () => {
-      const s = await state(page, chat.campaignId);
-      return s.locations[s.currentLocationId]?.name;
-    }).toBe('Old Pier');
-    await expect(page.getByRole('button', { name: /Old Pier, you are here/ })).toBeVisible();
+    let arrived = '';
+    await expect
+      .poll(async () => {
+        const s = await state(page, chat.campaignId);
+        arrived = s.locations[s.currentLocationId]?.name;
+        return arrived;
+      })
+      .toMatch(/^(Lantern Row|Old Pier)$/);
+    await expect(page.getByRole('button', { name: `${arrived}, you are here` })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Unknown place, unexplored' })).toHaveCount(1);
 
     // Place a landmark by tapping the map.
     await page.getByRole('button', { name: 'Place landmark' }).click();

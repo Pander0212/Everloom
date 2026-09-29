@@ -17,7 +17,6 @@ export interface Config {
   forceSecureCookies: boolean;
   trustProxy: boolean;
   /** Allow outbound calls to private network addresses (local LLMs on the same VPS). */
-  allowPrivateNetwork: boolean;
   backupRetention: number;
   logLevel: string;
   /** Restricts which directories the SillyTavern importer may read. */
@@ -58,7 +57,6 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     secretKey,
     forceSecureCookies: env.EVERLOOM_SECURE_COOKIES === '1',
     trustProxy: env.EVERLOOM_TRUST_PROXY !== '0',
-    allowPrivateNetwork: env.EVERLOOM_ALLOW_PRIVATE_NETWORK !== '0',
     backupRetention: Number(env.EVERLOOM_BACKUP_RETENTION ?? 14),
     logLevel: env.LOG_LEVEL ?? 'warn',
     // Folders the SillyTavern importer may read. Docker sets /import; otherwise the home folder.

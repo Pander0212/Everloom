@@ -71,12 +71,14 @@ export function HudItems({ s, pinned }: { s: CampaignState; pinned: string[] }) 
 
 /** Thin, tappable HUD strip. Tap opens the full status sheet. */
 export function Hud() {
-  const { state, open } = useGame();
+  const { state, open, chat } = useGame();
   const settings = useSettings();
-  if (!state) return null;
+  // Hold the strip's space while the campaign loads so the story doesn't jump down.
+  if (!state) return chat.campaignId ? <div className="h-11 flex-none hairline-b" aria-hidden="true" /> : null;
   const pinned = settings.data?.hud.pinned ?? ['time', 'weather', 'location', 'hp', 'hunger', 'energy'];
   return (
-    <button onClick={() => open('status')} aria-label="Status" className={cx('pressable no-scrollbar flex w-full flex-none items-center gap-4 overflow-x-auto px-4 py-2 hairline-b text-left [&>*]:flex-none')}>
+    <button onClick={() => open('status')} className={cx('pressable no-scrollbar flex h-11 w-full flex-none items-center gap-4 overflow-x-auto px-4 py-2 hairline-b text-left [&>*]:flex-none')}>
+      <span className="sr-only">Status:</span>
       <HudItems s={state} pinned={pinned} />
     </button>
   );
