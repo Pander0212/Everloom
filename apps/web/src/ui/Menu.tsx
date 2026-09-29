@@ -22,7 +22,7 @@ export function Menu({ trigger, items, align = 'end' }: { trigger: ReactNode; it
           align={align}
           sideOffset={6}
           collisionPadding={12}
-          className="z-[70] min-w-[200px] rounded-md bg-surface p-1 shadow-3 outline-none data-[state=open]:animate-[tooltip-in_140ms_var(--ease-out)] dark:bg-surface-2"
+          className="z-[70] max-h-[var(--radix-dropdown-menu-content-available-height)] min-w-[200px] overflow-y-auto rounded-md bg-surface p-1 shadow-3 outline-none data-[state=open]:animate-[tooltip-in_140ms_var(--ease-out)] dark:bg-surface-2"
         >
           {items.map((it, i) => (
             <div key={i}>

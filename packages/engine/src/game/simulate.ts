@@ -14,7 +14,7 @@ export interface Change {
   label: string;
   delta?: number;
   text?: string;
-  kind?: 'item' | 'time' | 'tracker' | 'bar' | 'currency' | 'xp' | 'text' | 'level';
+  kind?: 'item' | 'time' | 'tracker' | 'drift' | 'bar' | 'currency' | 'xp' | 'text' | 'level';
 }
 
 const MAX_LOG = 200;
@@ -80,7 +80,7 @@ function driftVitals(s: CampaignState, from: number, to: number, changes: Change
     const before = t.value;
     t.value = clamp(t.value + t.perHour * hours, 0, t.max);
     const delta = Math.round((t.value - before) * 10) / 10;
-    if (delta) changes.push({ key: `tracker:${t.id}`, label: t.label, delta, kind: 'tracker' });
+    if (delta) changes.push({ key: `drift:${t.id}`, label: t.label, delta, kind: 'drift' });
   }
   for (const eff of Object.values(s.player.status)) {
     const end = eff.expiresAt == null ? to : Math.min(to, eff.expiresAt);

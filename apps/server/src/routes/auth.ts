@@ -50,7 +50,7 @@ export function registerAuth(app: FastifyInstance, ctx: AppContext) {
     const needsAuth = url.startsWith('/api/') || url.startsWith('/media/');
     if (!needsAuth) return;
     req.clientId = String(req.headers['x-client-id'] ?? '').slice(0, 64) || undefined;
-    if (url.startsWith('/api/auth/') && !burst.take(req.ip)) {
+    if (url.startsWith('/api/auth/') && req.method === 'POST' && !burst.take(req.ip)) {
       throw new HttpError(429, 'Too many requests, slow down');
     }
     const token = req.cookies?.[SESSION_COOKIE];

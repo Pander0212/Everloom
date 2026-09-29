@@ -1,0 +1,14 @@
+# EVERLOOM_DOMAIN is your domain (automatic Let's Encrypt HTTPS) or the server IP.
+# In IP-only mode install.sh sets EVERLOOM_TLS="tls internal" (self-signed certificate).
+{$EVERLOOM_DOMAIN} {
+	{$EVERLOOM_TLS}
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	reverse_proxy everloom:8787 {
+		# Keep streaming responses (SSE) flowing without buffering.
+		flush_interval -1
+	}
+}

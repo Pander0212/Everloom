@@ -1,0 +1,42 @@
+# Everloom + Caddy (automatic HTTPS). Configure via .env (written by install.sh).
+services:
+  everloom:
+    build: .
+    image: everloom:latest
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      EVERLOOM_DATA_DIR: /data
+      PORT: 8787
+    volumes:
+      - ./data:/data
+      # Optional: let the SillyTavern importer read an existing install (read-only).
+      - ${SILLYTAVERN_DIR:-./data/empty-st}:/import/sillytavern:ro
+    expose:
+      - "8787"
+    networks: [internal]
+
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    depends_on: [everloom]
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      EVERLOOM_DOMAIN: ${EVERLOOM_DOMAIN:-localhost}
+      EVERLOOM_TLS: ${EVERLOOM_TLS:-}
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    networks: [internal]
+
+networks:
+  internal: {}
+
+volumes:
+  caddy_data: {}
+  caddy_config: {}

@@ -30,7 +30,9 @@ type Listener = () => void;
 const authListeners = new Set<Listener>();
 export function onAuthRequired(fn: Listener) {
   authListeners.add(fn);
-  return () => authListeners.delete(fn);
+  return () => {
+    authListeners.delete(fn);
+  };
 }
 
 export interface ApiOptions {

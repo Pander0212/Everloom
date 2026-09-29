@@ -63,11 +63,13 @@ export function summarizeChanges(changes: Change[], max = 8): string[] {
     if (c.text && !texts.includes(c.text)) texts.push(c.text);
   }
   const out: string[] = [];
-  const order: Array<Change['kind']> = ['item', 'time', 'currency', 'xp', 'bar', 'tracker'];
+  const order: Array<Change['kind']> = ['item', 'time', 'currency', 'xp', 'bar', 'tracker', 'drift'];
   const list = [...merged.values()].sort((a, b) => order.indexOf(a.kind) - order.indexOf(b.kind));
   for (const c of list) {
     const d = c.delta ?? 0;
     if (Math.abs(d) < 0.5 && c.kind !== 'time') continue;
+    // Background drift (hunger rising over time…) is only worth mentioning when it adds up.
+    if (c.kind === 'drift' && Math.abs(d) < 5) continue;
     switch (c.kind) {
       case 'item':
         out.push(`${d > 0 ? '+' : '−'}${Math.abs(d)} ${c.label}`);
