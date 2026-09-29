@@ -1,31 +1,14 @@
-import { buildNewGameState, extractJson, freeSpot, generateMapScene, locationPath, type NewGameConfig, type Op } from '@everloom/engine';
+import { buildNewGameState, freeSpot, generateMapScene, locationPath, type NewGameConfig, type Op } from '@everloom/engine';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
-import { completeChat } from '../llm/providers.js';
 import { appendOps, getState, setBaseState } from '../services/campaigns.js';
 import { getChat } from '../services/chats.js';
-import { connectionForRole } from '../services/connections.js';
 import { generate } from '../services/generate.js';
+import { utilityJson } from '../services/utility.js';
 import { parse } from '../util/validate.js';
 import { registerMedia } from './media-gen.js';
 import { registerSocial } from './social.js';
-
-async function utilityJson<T>(ctx: AppContext, ownerId: string, system: string, user: string, maxTokens = 1200): Promise<T> {
-  const conn = connectionForRole(ctx, ownerId, 'utility');
-  if (!conn) throw new HttpError(400, 'Add a connection first');
-  const r = await completeChat(conn, {
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: user },
-    ],
-    overrides: { temperature: 0.8, max_tokens: maxTokens, reasoning: false, stop: [] },
-    signal: AbortSignal.timeout(90_000),
-  });
-  const j = extractJson<T>(r.text);
-  if (!j.ok) throw new HttpError(502, 'The model did not return usable JSON. Try again.');
-  return j.value as T;
-}
 
 export function registerGameExtras(app: FastifyInstance, ctx: AppContext) {
   /** Ask the utility model for new places inside the given location (unexplored until visited). */
@@ -46,13 +29,15 @@ export function registerGameExtras(app: FastifyInstance, ctx: AppContext) {
     );
     const kinds = new Set(['city', 'town', 'village', 'district', 'building', 'room', 'wilds', 'road', 'station', 'dock', 'landmark', 'shop', 'service', 'danger', 'interior', 'home']);
     const ops: Op[] = [];
+    const taken: Array<{ x: number; y: number }> = [];
     for (const n of (data.nodes ?? []).slice(0, b.count)) {
       if (!n?.name || existing.includes(n.name)) continue;
-      const pos = freeSpot(state, b.parentId, n.name);
+      const pos = freeSpot(state, b.parentId, n.name, taken);
+      taken.push(pos);
       ops.push({
         type: 'location.upsert',
         name: String(n.name).slice(0, 80),
-        parent: parent?.name ?? null,
+        parent: parent?.id ?? null,
         level: scene.level,
         kind: kinds.has(String(n.kind)) ? n.kind : 'other',
         description: String(n.description ?? '').slice(0, 500),

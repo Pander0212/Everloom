@@ -14,3 +14,4 @@ export * from './Toggle';
 export * from './Tooltip';
 export * from './useMedia';
 export * from './FileButton';
+export * from './Popover';

@@ -16,6 +16,8 @@ import * as personas from '../services/personas.js';
 import * as presets from '../services/presets.js';
 import { ensureEmbeddings } from '../services/semantic.js';
 import { getSettings, updateSettings } from '../services/settings.js';
+import { testImageConnection } from '../media/imagegen.js';
+import { listVoices } from '../media/tts.js';
 import { parse } from '../util/validate.js';
 
 const connectionInput = z.object({
@@ -56,7 +58,19 @@ export function registerLibrary(app: FastifyInstance, ctx: AppContext) {
     conns.deleteConnection(ctx, owner(req), (req.params as any).id);
     return { ok: true };
   });
-  app.post('/api/connections/:id/test', async (req) => testConnection(conns.resolveConnection(ctx, owner(req), (req.params as any).id)));
+  app.post('/api/connections/:id/test', async (req) => {
+    const conn = conns.resolveConnection(ctx, owner(req), (req.params as any).id);
+    if (conn.provider.startsWith('img-')) return testImageConnection(conn);
+    if (conn.provider.startsWith('tts-')) {
+      try {
+        const voices = await listVoices(conn);
+        return { ok: true, message: `${voices.length} voices available` };
+      } catch (e) {
+        return { ok: false, message: (e as Error).message };
+      }
+    }
+    return testConnection(conn);
+  });
   app.get('/api/connections/:id/models', async (req) => ({ models: await listModels(conns.resolveConnection(ctx, owner(req), (req.params as any).id)) }));
 
   // ---------------- media

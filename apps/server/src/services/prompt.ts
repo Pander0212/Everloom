@@ -183,6 +183,8 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     const recent = visible.slice(-3).map(textOf).join('\n');
     const relevant = search(ctx, owner, recent, { campaignId: chat.campaignId, kinds: ['fact', 'runin', 'diary', 'memory'], limit: 6 }).map((h) => (h.title ? `${h.title}: ${h.body}` : h.body));
     gameState = buildGameStateBlock(state, { budgetTokens: settings.tracker.injectBudget, relevantFacts: relevant, countTokens, recentText: recent });
+    const texts = recentPhoneTexts(ctx, owner, chat.campaignId!, state);
+    if (texts) gameState = gameState ? `${gameState}\n${texts}` : texts;
   }
 
   const extraRules: string[] = [];
@@ -239,4 +241,16 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     wiActivated: wi.activated.map((e) => ({ world: e.world, uid: e.uid, comment: e.comment || e.key.join(', ') })),
     wiTimed: wi.timed,
   };
+}
+
+/** The last few phone texts from the past two game days, so the story knows what was said off-screen. */
+function recentPhoneTexts(ctx: AppContext, owner: string, campaignId: string, state: CampaignState): string {
+  const since = state.time.minutes - 2 * 1440;
+  const rows = ctx.db
+    .prepare('SELECT npc_id, from_player, text, game_time FROM phone_messages WHERE owner_id = ? AND campaign_id = ? AND (game_time IS NULL OR game_time >= ?) ORDER BY created_at DESC LIMIT 6')
+    .all(owner, campaignId, since) as Array<{ npc_id: string; from_player: number; text: string }>;
+  if (!rows.length) return '';
+  const who = (id: string) => state.npcs[id]?.name ?? 'Someone';
+  const lines = rows.reverse().map((r) => `- ${r.from_player ? `${state.player.name} → ${who(r.npc_id)}` : `${who(r.npc_id)} → ${state.player.name}`}: ${r.text.slice(0, 240)}`);
+  return `[Recent phone texts]\n${lines.join('\n')}`;
 }

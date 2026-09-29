@@ -370,9 +370,9 @@ function addRoutes(state: CampaignState, nodes: MapNode[], roads: MapScene['road
 }
 
 /** Find a free spot for a new node near the centre, away from existing nodes (deterministic). */
-export function freeSpot(state: CampaignState, parentId: string | null, name: string): { x: number; y: number } {
+export function freeSpot(state: CampaignState, parentId: string | null, name: string, taken: Array<{ x: number; y: number }> = []): { x: number; y: number } {
   const rng = createRng(seedFrom(state.meta.seed, 'spot', parentId ?? 'root', name));
-  const siblings = Object.values(state.locations).filter((l) => (l.parentId ?? null) === parentId);
+  const siblings: Array<{ x: number; y: number }> = [...Object.values(state.locations).filter((l) => (l.parentId ?? null) === parentId), ...taken];
   let best = { x: 500, y: 500, d: -1 };
   for (let i = 0; i < 40; i++) {
     const x = 120 + rng.next() * 760;

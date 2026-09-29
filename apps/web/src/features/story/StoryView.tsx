@@ -319,7 +319,16 @@ export default function StoryView() {
                     </div>
                   </div>
                 ) : null}
-                {!list.length ? <p className="py-16 text-center text-sm text-fg-2">Say something to begin.</p> : null}
+                {!list.length ? (
+                  <div className="flex flex-col items-center gap-3 py-16 text-center">
+                    <p className="text-sm text-fg-2">Say something to begin.</p>
+                    {c.campaignId && !busy ? (
+                      <Button variant="secondary" icon={Sparkles} onClick={() => document.dispatchEvent(new CustomEvent('everloom:tool', { detail: 'newgame' }))}>
+                        Set up a new game
+                      </Button>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
             </div>
             <AnimatePresence>

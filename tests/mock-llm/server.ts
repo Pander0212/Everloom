@@ -74,6 +74,7 @@ function classify(messages: any[]): string {
   if (/connection test/i.test(sys)) return 'test';
   if (/helper companion/i.test(sys)) return 'helper';
   if (/map designer/i.test(sys)) return 'map';
+  if (/diary entry/i.test(sys)) return 'diary';
   if (/text message/i.test(sys) || /phone/i.test(sys)) return 'phone';
   if (/game designer/i.test(all)) return 'wizard';
   return 'story';
@@ -93,6 +94,8 @@ function answerFor(kind: string, messages: any[]): string {
       return JSON.stringify({ reply: 'Here is a potion idea for you.', ops: [{ type: 'item.add', name: 'Minor Healing Potion', qty: 1, category: 'consumable' }] });
     case 'map':
       return JSON.stringify({ nodes: [{ name: 'Lantern Row', kind: 'district', description: 'A lane of paper lanterns.' }, { name: 'Old Pier', kind: 'dock', description: 'Creaking boards over dark water.' }] });
+    case 'diary':
+      return JSON.stringify({ title: 'Rain and lanterns', text: 'Today Iris poured me tea and Tobias talked about the Ravens. I think I might sing.', mood: 'hopeful' });
     case 'phone':
       return 'hey, you still up? rehearsal was a mess lol';
     case 'wizard':

@@ -33,6 +33,9 @@ export interface ConnectionParams {
   image_model?: string;
   image_size?: string;
   workflow?: unknown;
+  steps?: number;
+  cfg_scale?: number;
+  sampler?: string;
   negative_prompt?: string;
   embeddings_model?: string;
 }
@@ -91,7 +94,7 @@ function num(v: unknown): number | undefined {
 
 // ---------------------------------------------------------------- OpenAI-compatible
 
-function openaiHeaders(conn: ResolvedConnection): Record<string, string> {
+export function openaiHeaders(conn: ResolvedConnection): Record<string, string> {
   const h: Record<string, string> = { 'content-type': 'application/json', ...(conn.params.headers ?? {}) };
   if (conn.apiKey) h.authorization = `Bearer ${conn.apiKey}`;
   if (/openrouter\.ai/.test(conn.baseUrl)) {
