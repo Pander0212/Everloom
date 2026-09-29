@@ -24,13 +24,13 @@ export function isBusy(chatId: string) {
 }
 
 /** Returns the impersonated text for 'impersonate', otherwise null. */
-export async function generate(chatId: string, type: GenType, opts: { text?: string; characterId?: string | null } = {}): Promise<string | null> {
+export async function generate(chatId: string, type: GenType, opts: { text?: string; characterId?: string | null; target?: string | null } = {}): Promise<string | null> {
   if (useGen.getState().chatId) return null;
   const controller = new AbortController();
   useGen.setState({ chatId, messageId: null, swipeId: 0, type, text: '', reasoning: '', controller });
   let result: string | null = null;
   try {
-    for await (const ev of streamPost<GenerateEvent>(`/api/chats/${chatId}/generate`, { type, text: opts.text, characterId: opts.characterId }, controller.signal)) {
+    for await (const ev of streamPost<GenerateEvent>(`/api/chats/${chatId}/generate`, { type, text: opts.text, characterId: opts.characterId, target: opts.target }, controller.signal)) {
       switch (ev.type) {
         case 'user':
           if (ev.message) upsertMessage(ev.message);

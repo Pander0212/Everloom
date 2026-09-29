@@ -36,6 +36,8 @@ export interface GenerateInput {
   text?: string;
   /** Group chats: force this member to speak. */
   characterId?: string | null;
+  /** Who the user's line is aimed at (target selector). */
+  target?: string | null;
   origin?: string;
 }
 
@@ -149,6 +151,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       history: promptHistory,
       maxContext,
       maxResponse,
+      finalInstruction: input.target ? `[${pc.userName} is addressing ${input.target}. ${input.target} should be the one to respond.]` : undefined,
     });
     lastPrompts.set(chatId, {
       at: Date.now(),

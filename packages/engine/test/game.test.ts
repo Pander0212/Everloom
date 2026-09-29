@@ -354,3 +354,30 @@ describe('activities and injection', () => {
     expect(tiny.length).toBeLessThan(block.length);
   });
 });
+
+describe('direct editing ops', () => {
+  it('merges NPCs, keeping memberships and relationships', () => {
+    let s = apply(base(), [
+      { type: 'npc.upsert', name: 'Tobias', org: 'The Ravens' } as Op,
+      { type: 'relationship.delta', name: 'Tobias', affection: 5 } as Op,
+    ], 'user').state;
+    // Simulate a duplicate the AI created before dedupe existed.
+    s = { ...s, npcs: { ...s.npcs, npc_moreno: { ...s.npcs.npc_tobias, id: 'npc_moreno', name: 'Tobias Moreno', role: 'Band leader', orgs: [], aliases: [] } } };
+    const r = applyOps(s, [{ type: 'npc.merge', into: 'npc_tobias', from: 'npc_moreno' } as Op], { source: 'user' });
+    expect(r.errors).toEqual([]);
+    expect(Object.keys(r.state.npcs)).toEqual(['npc_tobias']);
+    const t = r.state.npcs.npc_tobias;
+    expect(t.name).toBe('Tobias Moreno');
+    expect(t.aliases).toContain('Tobias');
+    expect(t.role).toBe('Band leader');
+    expect(Object.values(r.state.orgs)[0].members.map((m) => m.npcId)).toEqual(['npc_tobias']);
+    expect(Object.values(r.state.relationships)[0].npcId).toBe('npc_tobias');
+  });
+  it('npc.set is user-only and edits schedules', () => {
+    const s = apply(base(), [{ type: 'npc.upsert', name: 'Iris' } as Op], 'user').state;
+    expect(validateOps([{ type: 'npc.set', id: 'npc_iris', patch: { role: 'x' } }]).ok).toHaveLength(0);
+    const r = applyOps(s, [{ type: 'npc.set', id: 'npc_iris', patch: { role: 'Bartender', schedule: [{ days: [], from: 600, to: 1200, activity: 'Working', locationId: null }] } } as Op], { source: 'user' });
+    expect(r.state.npcs.npc_iris.role).toBe('Bartender');
+    expect(r.state.npcs.npc_iris.schedule[0].activity).toBe('Working');
+  });
+});

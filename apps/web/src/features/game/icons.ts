@@ -1,0 +1,40 @@
+import {
+  Apple, Axe, Backpack, BookOpen, Boxes, CakeSlice, Coins, Cross, Crosshair, Crown, CupSoda, Drumstick, FlaskConical, Flower2, Footprints, Gem, Key, Milk, Package, Shield, Shirt, Smartphone, Soup, Sparkles, Star, Sword, Target, Wand, Wine, Wrench, Croissant,
+  type LucideIcon,
+} from 'lucide-react';
+
+export const ITEM_ICONS: Record<string, LucideIcon> = {
+  cup: CupSoda,
+  bottle: Milk,
+  wine: Wine,
+  apple: Apple,
+  bread: Croissant,
+  drumstick: Drumstick,
+  cake: CakeSlice,
+  soup: Soup,
+  sword: Sword,
+  axe: Axe,
+  bow: Target,
+  wand: Wand,
+  crosshair: Crosshair,
+  shield: Shield,
+  crown: Crown,
+  shirt: Shirt,
+  footprints: Footprints,
+  gem: Gem,
+  key: Key,
+  flask: FlaskConical,
+  cross: Cross,
+  book: BookOpen,
+  smartphone: Smartphone,
+  coins: Coins,
+  backpack: Backpack,
+  wrench: Wrench,
+  boxes: Boxes,
+  flower: Flower2,
+  star: Star,
+  package: Package,
+  sparkles: Sparkles,
+};
+
+export const itemIcon = (key: string): LucideIcon => ITEM_ICONS[key] ?? Package;

@@ -145,6 +145,37 @@ export const OpSchemas = {
     rumor: shortText.optional(),
     secret: shortText.optional(),
   }),
+  'npc.set': z.object({
+    type: z.literal('npc.set'),
+    id: z.string().max(80),
+    patch: z
+      .object({
+        name: name.optional(),
+        aliases: z.array(name).max(20).optional(),
+        role: shortText.optional(),
+        title: shortText.optional(),
+        age: int.min(0).max(10000).nullable().optional(),
+        locationId: z.string().max(80).nullable().optional(),
+        appearance: text.optional(),
+        personality: text.optional(),
+        notes: text.optional(),
+        rumors: z.array(shortText).max(50).optional(),
+        secrets: z.array(shortText).max(50).optional(),
+        orgs: z.array(z.object({ orgId: z.string().max(80), rank: shortText })).max(20).optional(),
+        status: z.enum(['alive', 'dead', 'missing']).optional(),
+        phone: z.boolean().optional(),
+        locked: z.boolean().optional(),
+        characterId: z.string().max(80).nullable().optional(),
+        portrait: z.string().max(80).nullable().optional(),
+        birthday: z.object({ month: int.min(0).max(23), day: int.min(1).max(60) }).nullable().optional(),
+        schedule: z
+          .array(z.object({ id: z.string().max(40).optional(), days: z.array(int.min(0).max(13)).max(14), from: int.min(0).max(1439), to: int.min(0).max(1439), activity: shortText, locationId: z.string().max(80).nullable() }))
+          .max(24)
+          .optional(),
+      })
+      .strict(),
+  }),
+  'npc.merge': z.object({ type: z.literal('npc.merge'), into: z.string().max(80), from: z.string().max(80) }),
   'npc.move': z.object({ type: z.literal('npc.move'), name, location: name.nullable() }),
   'npc.remove': z.object({ type: z.literal('npc.remove'), name }),
   'npc.schedule': z.object({
@@ -196,6 +227,8 @@ export const OpSchemas = {
     desc: text.optional(),
   }),
   'databank.add': z.object({ type: z.literal('databank.add'), text: shortText, title: shortText.optional(), tags: z.array(z.string().max(40)).max(12).optional() }),
+  'databank.update': z.object({ type: z.literal('databank.update'), id: z.string().max(80), text: shortText.optional(), title: shortText.optional(), tags: z.array(z.string().max(40)).max(12).optional() }),
+  'quest.remove': z.object({ type: z.literal('quest.remove'), title: name }),
   'databank.remove': z.object({ type: z.literal('databank.remove'), id: z.string().max(80) }),
   'relationship.delta': z.object({
     type: z.literal('relationship.delta'),
@@ -283,7 +316,7 @@ export type OpOf<K extends OpType> = z.infer<(typeof OpSchemas)[K]>;
 
 /** Op types the tracker model / helper may emit. */
 export const AI_OP_TYPES: OpType[] = (Object.keys(OpSchemas) as OpType[]).filter(
-  (t) => !['patch', 'battle.action', 'meta.update', 'world.seen', 'phone.read', 'databank.remove', 'location.remove'].includes(t),
+  (t) => !['patch', 'battle.action', 'meta.update', 'world.seen', 'phone.read', 'databank.remove', 'databank.update', 'location.remove', 'npc.set', 'npc.merge', 'quest.remove'].includes(t),
 );
 
 export const OpSchema = z.discriminatedUnion(

@@ -11,3 +11,4 @@ tests/e2e/.artifacts/
 coverage/
 .DS_Store
 *.tsbuildinfo
+.sandbox-ca.crt

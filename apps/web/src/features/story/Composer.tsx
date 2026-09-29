@@ -1,9 +1,8 @@
-import type { LucideIcon } from 'lucide-react';
-import { ArrowUp, FastForward, Mic, MicOff, Plus, Square, Theater, UserRoundPen, Wand2 } from 'lucide-react';
+import { ArrowUp, Mic, MicOff, Plus, Square, Theater } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { cx } from '@/lib/format';
 import { toast } from '@/lib/store';
-import { IconButton, Menu, type MenuItem } from '@/ui';
+import { IconButton } from '@/ui';
 
 export interface ComposerProps {
   busy: boolean;
@@ -12,10 +11,7 @@ export interface ComposerProps {
   placeholder: string;
   onSend: (text: string) => void;
   onStop: () => void;
-  onContinue: () => void;
-  onImpersonate: () => Promise<string | null>;
-  onSuggest?: () => Promise<string | null>;
-  extraItems?: MenuItem[];
+  onMenu: () => void;
   /** Chips above the input (target selector, emotes…). */
   accessory?: React.ReactNode;
   value: string;
@@ -24,7 +20,7 @@ export interface ComposerProps {
 
 type SR = { start: () => void; stop: () => void; onresult: (e: any) => void; onend: () => void; onerror: (e: any) => void; continuous: boolean; interimResults: boolean; lang: string };
 
-export function Composer({ busy, enterToSend, stt, placeholder, onSend, onStop, onContinue, onImpersonate, onSuggest, extraItems = [], accessory, value, onChange }: ComposerProps) {
+export function Composer({ busy, enterToSend, stt, placeholder, onSend, onStop, onMenu, accessory, value, onChange }: ComposerProps) {
   const ref = useRef<HTMLTextAreaElement>(null);
   const [listening, setListening] = useState(false);
   const recog = useRef<SR | null>(null);
@@ -61,37 +57,11 @@ export function Composer({ busy, enterToSend, stt, placeholder, onSend, onStop, 
     r.start();
     setListening(true);
   };
-  const items: MenuItem[] = [
-    { label: 'Continue the reply', icon: FastForward, onSelect: onContinue, disabled: busy },
-    {
-      label: 'Write my next line',
-      icon: UserRoundPen,
-      disabled: busy,
-      onSelect: async () => {
-        const t = await onImpersonate();
-        if (t) onChange(t);
-      },
-    },
-    ...(onSuggest
-      ? [
-          {
-            label: 'Suggest an action',
-            icon: Wand2 as LucideIcon,
-            disabled: busy,
-            onSelect: async () => {
-              const t = await onSuggest();
-              if (t) onChange(t);
-            },
-          },
-        ]
-      : []),
-    ...extraItems,
-  ];
   return (
     <div className="mx-auto w-full max-w-[760px] px-3 pb-[calc(var(--safe-bottom)+8px)] pt-2 sm:px-4">
       {accessory}
       <div className="flex items-end gap-1.5 rounded-lg bg-surface-2 p-1.5 transition-shadow focus-within:shadow-[0_0_0_2px_var(--accent-soft)]">
-        <Menu align="start" trigger={<IconButton icon={Plus} label="More actions" />} items={items} />
+        <IconButton icon={Plus} label="Actions and tools" onClick={onMenu} />
         <textarea
           ref={ref}
           value={value}

@@ -108,7 +108,7 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
   // ---------------- generation
   app.post('/api/chats/:id/generate', async (req, reply) => {
     const b = parse(
-      z.object({ type: z.enum(['normal', 'swipe', 'regenerate', 'continue', 'impersonate']).default('normal'), text: z.string().max(100_000).optional(), characterId: z.string().nullable().optional() }),
+      z.object({ type: z.enum(['normal', 'swipe', 'regenerate', 'continue', 'impersonate']).default('normal'), text: z.string().max(100_000).optional(), characterId: z.string().nullable().optional(), target: z.string().max(120).nullable().optional() }),
       req.body,
     );
     const chatId = (req.params as any).id;

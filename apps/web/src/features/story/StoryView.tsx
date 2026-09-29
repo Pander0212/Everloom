@@ -1,6 +1,6 @@
 import type { MessageDTO } from '@everloom/engine';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowLeft, BookText, Brain, MoreHorizontal, NotebookPen, Search, ScrollText } from 'lucide-react';
+import { ArrowDown, ArrowLeft, BookText, Brain, FastForward, History, MoreHorizontal, NotebookPen, Search, ScrollText, Sparkles, UserRoundPen } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
@@ -17,6 +17,8 @@ import { Message, type MessageActions } from './Message';
 import { ChatInfoSheet, InspectorSheet, MemorySheet, NoteSheet, SearchSheet } from './sheets';
 import { speak } from './tts';
 import { GameLayer } from '@/features/game/GameLayer';
+import type { Command } from '@/features/game/CommandMenu';
+import { ComposerChips } from '@/features/game/ComposerChips';
 
 const Stage = lazy(() => import('@/features/game/Stage'));
 
@@ -39,6 +41,8 @@ export default function StoryView() {
   const [sheet, setSheet] = useState<null | 'inspector' | 'search' | 'note' | 'memory' | 'info'>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
   const [speaker, setSpeaker] = useState<string | null>(null);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [target, setTarget] = useState<string | null>(null);
   const scroller = useRef<HTMLDivElement>(null);
   const [stuck, setStuck] = useState(true);
 
@@ -92,7 +96,7 @@ export default function StoryView() {
 
   const run = async (type: Parameters<typeof generate>[1], text?: string) => {
     setStuck(true);
-    const r = await generate(id, type, { text, characterId: speaker });
+    const r = await generate(id, type, { text, characterId: speaker, target: type === 'normal' && text ? target : null });
     if (settings.data?.chat.autoTts && type !== 'impersonate') {
       const last = qc.getQueryData<MessageDTO[]>(qk.messages(id))?.at(-1);
       if (last?.role === 'assistant') void speak(last.swipes[last.swipeId]?.text ?? '', { settings: settings.data, voice: character.data?.game.voice?.voice, speed: character.data?.game.voice?.speed }).catch(() => {});
@@ -197,8 +201,7 @@ export default function StoryView() {
         void run('normal', text.trim() || undefined);
       }}
       onStop={() => void stop(id)}
-      onContinue={() => void run('continue')}
-      onImpersonate={() => run('impersonate')}
+      onMenu={() => setMenuOpen(true)}
       accessory={
         group ? (
           <div className="no-scrollbar mb-2 flex gap-1.5 overflow-x-auto">
@@ -215,15 +218,32 @@ export default function StoryView() {
               );
             })}
           </div>
+        ) : c.campaignId ? (
+          <ComposerChips campaign={campaign.data ?? null} target={target} setTarget={setTarget} setComposer={setComposer} composer={composer} chatId={id} busy={busy} />
         ) : null
       }
-      extraItems={[
-        { label: "Author's note", icon: NotebookPen, onSelect: () => setSheet('note'), separatorBefore: true },
-        { label: 'Memory', icon: Brain, onSelect: () => setSheet('memory') },
-        { label: 'Prompt inspector', icon: ScrollText, onSelect: () => setSheet('inspector') },
-      ]}
     />
   );
+
+  const quick: Command[] = [
+    { id: 'continue', label: 'Continue the reply', icon: FastForward, group: 'Quick', keywords: 'more', run: () => void run('continue') },
+    {
+      id: 'impersonate',
+      label: 'Write my next line',
+      icon: UserRoundPen,
+      group: 'Quick',
+      keywords: 'impersonate',
+      run: async () => {
+        const t2 = await run('impersonate');
+        if (t2) setComposer(String(t2));
+      },
+    },
+    ...(c.campaignId ? [{ id: 'newgame', label: 'New game setup', icon: Sparkles, group: 'Quick' as const, keywords: 'wizard start campaign', run: () => document.dispatchEvent(new CustomEvent('everloom:tool', { detail: 'newgame' })) }] : []),
+    ...(c.campaignId ? [{ id: 'log', label: 'Meanwhile… (world log)', icon: History, group: 'Quick' as const, keywords: 'events news digest', run: () => document.dispatchEvent(new CustomEvent('everloom:tool', { detail: 'log' })) }] : []),
+    { id: 'note', label: "Author's note", icon: NotebookPen, group: 'Quick', run: () => setSheet('note') },
+    { id: 'memory', label: 'Memory', icon: Brain, group: 'Quick', keywords: 'summary', run: () => setSheet('memory') },
+    { id: 'inspector', label: 'Prompt inspector', icon: ScrollText, group: 'Quick', keywords: 'tokens debug', run: () => setSheet('inspector') },
+  ];
 
   const renderMessage = (m: MessageDTO) => {
     const live = streams[m.id];
@@ -270,7 +290,7 @@ export default function StoryView() {
         />
       </header>
 
-      <GameLayer chat={c} campaign={campaign.data ?? null} busy={busy} onRun={run} setComposer={setComposer}>
+      <GameLayer chat={c} campaign={campaign.data ?? null} busy={busy} onRun={run} setComposer={setComposer} menuOpen={menuOpen} setMenuOpen={setMenuOpen} quick={quick}>
         {mode === 'stage' ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center"><Spinner /></div>}>
             <Stage chat={c} messages={list} campaign={campaign.data ?? null} busy={busy} actions={actions} streamText={gen.chatId === id ? gen.text : null} streamingId={gen.messageId} composer={composerEl} />

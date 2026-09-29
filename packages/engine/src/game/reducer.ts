@@ -604,6 +604,61 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       npc.lastSeenAt = s.time.minutes;
       return;
     }
+    case 'npc.set': {
+      const npc = s.npcs[op.id];
+      if (!npc) throw new OpError('Unknown NPC');
+      const { schedule, ...rest } = op.patch;
+      Object.assign(npc, Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)));
+      if (schedule) npc.schedule = schedule.map((sl, i) => ({ id: sl.id ?? `slot_${i + 1}`, days: sl.days, from: sl.from, to: sl.to, activity: sl.activity, locationId: sl.locationId }));
+      if (op.patch.orgs) {
+        for (const org of Object.values(s.orgs)) {
+          const want = op.patch.orgs.find((o) => o.orgId === org.id);
+          const has = org.members.find((m) => m.npcId === npc.id);
+          if (want && !has) org.members.push({ npcId: npc.id, name: npc.name, rank: want.rank });
+          else if (want && has) has.rank = want.rank;
+          else if (!want && has) org.members = org.members.filter((m) => m.npcId !== npc.id);
+        }
+      }
+      return;
+    }
+    case 'npc.merge': {
+      const into = s.npcs[op.into];
+      const from = s.npcs[op.from];
+      if (!into || !from || into.id === from.id) throw new OpError('Pick two different NPCs');
+      const longer = from.name.length > into.name.length ? from.name : into.name;
+      const aliases = new Set([...into.aliases, ...from.aliases, into.name, from.name]);
+      aliases.delete(longer);
+      into.name = longer;
+      into.aliases = [...aliases];
+      for (const k of ['role', 'title', 'appearance', 'personality'] as const) if (!into[k] || into[k] === 'NPC') into[k] = from[k];
+      if (from.notes) into.notes = into.notes ? `${into.notes}\n${from.notes}` : from.notes;
+      into.age ??= from.age;
+      into.locationId ??= from.locationId;
+      into.characterId ??= from.characterId;
+      into.portrait ??= from.portrait;
+      into.rumors = [...new Set([...into.rumors, ...from.rumors])];
+      into.secrets = [...new Set([...into.secrets, ...from.secrets])];
+      into.knownRumors = [...new Set([...into.knownRumors, ...from.knownRumors])];
+      for (const o of from.orgs) if (!into.orgs.some((x) => x.orgId === o.orgId)) into.orgs.push(o);
+      if (!into.schedule.length) into.schedule = from.schedule;
+      into.phone = into.phone || from.phone;
+      for (const org of Object.values(s.orgs)) {
+        for (const m of org.members) if (m.npcId === from.id) m.npcId = into.id;
+        const seen = new Set<string>();
+        org.members = org.members.filter((m) => (m.npcId ? (seen.has(m.npcId) ? false : (seen.add(m.npcId), true)) : true));
+        if (org.leaderNpcId === from.id) org.leaderNpcId = into.id;
+      }
+      for (const r of Object.values(s.relationships)) if (r.npcId === from.id) r.npcId = into.id;
+      for (const m of Object.values(s.party)) if (m.npcId === from.id) m.npcId = into.id;
+      for (const e of Object.values(s.events)) if (e.npcId === from.id) e.npcId = into.id;
+      if (s.phone.unread[from.id]) {
+        s.phone.unread[into.id] = (s.phone.unread[into.id] ?? 0) + s.phone.unread[from.id];
+        delete s.phone.unread[from.id];
+      }
+      delete s.npcs[from.id];
+      changes.push({ key: `npc:${into.id}`, label: into.name, text: `Merged into ${into.name}`, kind: 'text' });
+      return;
+    }
     case 'npc.move': {
       const npc = findNpc(s, op.name)?.npc;
       if (!npc) throw new OpError(`Unknown NPC "${op.name}"`);
@@ -768,6 +823,21 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       const id = `fact_${nextCounter(s.counters, 'fact')}`;
       s.databank[id] = { id, title: op.title ?? '', text: op.text, tags: op.tags ?? [], at: s.time.minutes, source: ctx.source };
       changes.push({ key: `fact:${id}`, label: 'Fact', text: 'New fact learned', kind: 'text' });
+      return;
+    }
+    case 'databank.update': {
+      const f = s.databank[op.id];
+      if (!f) throw new OpError('Unknown fact');
+      if (op.text !== undefined) f.text = op.text;
+      if (op.title !== undefined) f.title = op.title;
+      if (op.tags !== undefined) f.tags = op.tags;
+      return;
+    }
+    case 'quest.remove': {
+      const idx = Object.fromEntries(Object.values(s.quests).map((q) => [q.id, { id: q.id, name: q.title }]));
+      const q = findExact(idx, op.title) ?? findFuzzy(idx, op.title);
+      if (!q) throw new OpError(`Unknown quest "${op.title}"`);
+      delete s.quests[q.id];
       return;
     }
     case 'databank.remove':
