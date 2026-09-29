@@ -6,6 +6,7 @@ import { HttpError, type AppContext } from '../context.js';
 import { json } from '../db/index.js';
 import { newId } from '../security/crypto.js';
 import { createCampaign, deleteEntriesFor, forkCampaign, onMessagesDeleted, onSwipeDeleted, rebuildCampaign } from './campaigns.js';
+import { deleteAnchored, forkMemory, memOnMessagesDeleted, memOnSwipeDeleted } from './mem.js';
 import { getCharacter } from './characters.js';
 import { defaultPersona, getPersona } from './personas.js';
 import { getSettings } from './settings.js';
@@ -248,8 +249,9 @@ export function branchChat(ctx: AppContext, owner: string, chatId: string, messa
   if (chat.campaignId) {
     const cid = forkCampaign(ctx, owner, chat.campaignId, chatId, newChatId, map);
     ctx.db.prepare('UPDATE chats SET campaign_id = ? WHERE id = ?').run(cid, newChatId);
+    forkMemory(ctx, owner, { campaignId: chat.campaignId, chatId }, { campaignId: cid, chatId: newChatId }, map);
     rebuildCampaign(ctx, owner, cid);
-  }
+  } else forkMemory(ctx, owner, { campaignId: null, chatId }, { campaignId: null, chatId: newChatId }, map);
   return getChat(ctx, owner, newChatId);
 }
 
@@ -280,8 +282,10 @@ export function updateMessage(
     .prepare('UPDATE messages SET swipes = ?, hidden = ?, bookmarked = ?, extra = ?, updated_at = ? WHERE id = ?')
     .run(JSON.stringify(swipes), (patch.hidden ?? m.hidden) ? 1 : 0, (patch.bookmarked ?? m.bookmarked) ? 1 : 0, JSON.stringify({ ...m.extra, ...(patch.extra ?? {}) }), Date.now(), id);
   if (textChanged) {
+    // The model's reading of the old text is taken back for good (the edited text is tracked again).
     const chat = getChat(ctx, owner, m.chatId);
     if (chat.campaignId) deleteEntriesFor(ctx, chat.campaignId, id, m.swipeId, ['ai']);
+    deleteAnchored(ctx, id, m.swipeId, ['turn', 'sim']);
   }
   return { message: getMessage(ctx, owner, id), textChanged };
 }
@@ -307,6 +311,7 @@ export function deleteSwipe(ctx: AppContext, owner: string, id: string, swipeId:
   const nextId = Math.min(swipes.length - 1, swipeId <= m.swipeId ? Math.max(0, m.swipeId - (swipeId < m.swipeId ? 1 : 0)) : m.swipeId);
   writeSwipes(ctx, id, swipes, nextId);
   const chat = getChat(ctx, owner, m.chatId);
+  memOnSwipeDeleted(ctx, id, swipeId);
   if (chat.campaignId) {
     onSwipeDeleted(ctx, chat.campaignId, id, swipeId);
     rebuildCampaign(ctx, owner, chat.campaignId);
@@ -323,6 +328,7 @@ export function deleteMessages(ctx: AppContext, owner: string, id: string, andAf
     : [{ id: m.id, seq: m.seq }]) as Array<{ id: string; seq: number }>;
   ctx.db.transaction(() => {
     onMessagesDeleted(ctx, owner, m.chatId, rows, chat.campaignId);
+    memOnMessagesDeleted(ctx, rows.map((r) => r.id));
     const ph = rows.map(() => '?').join(',');
     ctx.db.prepare(`DELETE FROM messages WHERE id IN (${ph})`).run(...rows.map((r) => r.id));
   })();

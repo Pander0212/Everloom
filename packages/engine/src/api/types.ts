@@ -188,7 +188,7 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark';
   motion: 'full' | 'reduced';
   textSize: 'small' | 'medium' | 'large';
-  roles: { main: string | null; utility: string | null; embeddings: string | null; tts: string | null; image: string | null };
+  roles: { main: string | null; utility: string | null; background: string | null; embeddings: string | null; tts: string | null; image: string | null };
   activePresetId: string | null;
   defaultPersonaId: string | null;
   tracker: { mode: 'off' | 'inline' | 'separate'; injectBudget: number; injectState: boolean };
@@ -201,7 +201,51 @@ export interface Settings {
   backups: { nightly: boolean; retention: number; hour: number };
   helper: { visible: boolean; name: string };
   atmosphere: { enabled: boolean; particles: boolean };
+  world: WorldSettings;
 }
+
+export type WorldProfile = 'cheap' | 'balanced' | 'max' | 'custom';
+
+/** World engine switches. Every one that costs a model call can be turned off. */
+export interface WorldSettings {
+  profile: WorldProfile;
+  /** Record memories and facts in the tracker pass (same call, no extra cost). */
+  memory: boolean;
+  /** Embedding similarity in recall (needs an embeddings connection; one small call per turn). */
+  semantic: boolean;
+  /** Player memories recalled per scene. */
+  recallLimit: number;
+  /** Token budget for the scene block. */
+  sceneBudget: number;
+  /** Off-screen gossip between people standing together (no model call). */
+  hearsay: boolean;
+  /** Read the chat in batches for memories the turn-by-turn pass missed (background call). */
+  chronicler: boolean;
+  chronicleEvery: number;
+  /** Fold finished scenes into one memory and days into summaries (background call; plain text fallback when off). */
+  consolidate: boolean;
+  consolidateEvery: number;
+  /** What off-screen people do to each other (background call). */
+  social: boolean;
+  socialEvery: number;
+  /** A model read of the player's message before the reply (movement, time, dice). Adds latency. */
+  preRead: boolean;
+  /** Understand "I go to the market" before the reply (no model call). */
+  intent: boolean;
+  /** Random events with a pity timer (no model call). */
+  pulse: boolean;
+  /** Off-screen storylines (heartbeats are free; seeding new ones is a background call). */
+  threads: boolean;
+  threadSeeding: boolean;
+  /** Skill checks with real odds (no model call unless the pre-read proposes them). */
+  dice: boolean;
+}
+
+export const WORLD_PROFILES: Record<Exclude<WorldProfile, 'custom'>, Omit<WorldSettings, 'profile' | 'recallLimit' | 'sceneBudget'>> = {
+  cheap: { memory: true, semantic: false, hearsay: true, chronicler: false, chronicleEvery: 30, consolidate: false, consolidateEvery: 4, social: false, socialEvery: 4, preRead: false, intent: true, pulse: true, threads: true, threadSeeding: false, dice: true },
+  balanced: { memory: true, semantic: true, hearsay: true, chronicler: true, chronicleEvery: 20, consolidate: true, consolidateEvery: 3, social: true, socialEvery: 3, preRead: false, intent: true, pulse: true, threads: true, threadSeeding: true, dice: true },
+  max: { memory: true, semantic: true, hearsay: true, chronicler: true, chronicleEvery: 10, consolidate: true, consolidateEvery: 2, social: true, socialEvery: 1, preRead: true, intent: true, pulse: true, threads: true, threadSeeding: true, dice: true },
+};
 
 export interface GenerateEvent {
   type: 'start' | 'delta' | 'reasoning' | 'done' | 'error' | 'user';

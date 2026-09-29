@@ -132,6 +132,9 @@ function newNpc(s: CampaignState, name: string, ctx: ApplyContext): Npc {
     firstSeenAt: s.time.minutes,
     lastSeenAt: s.time.minutes,
     portrait: null,
+    outfit: null,
+    goals: [],
+    unconscious: false,
   };
   return s.npcs[id];
 }
@@ -148,6 +151,8 @@ function relationshipFor(s: CampaignState, name: string, ctx: ApplyContext): Rel
     npcId: npc?.id ?? null,
     affection: 0,
     trust: 0,
+    desire: 0,
+    tension: 0,
     label: 'Acquaintance',
     memories: [],
   };
@@ -861,7 +866,7 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       const dup = Object.values(s.databank).find((f) => f.text.trim().toLowerCase() === op.text.trim().toLowerCase());
       if (dup) return;
       const id = `fact_${nextCounter(s.counters, 'fact')}`;
-      s.databank[id] = { id, title: op.title ?? '', text: op.text, tags: op.tags ?? [], at: s.time.minutes, source: ctx.source };
+      s.databank[id] = { id, title: op.title ?? '', text: op.text, tags: op.tags ?? [], at: s.time.minutes, source: ctx.source, kind: 'fact', trend: null, status: 'active' };
       changes.push({ key: `fact:${id}`, label: 'Fact', text: 'New fact learned', kind: 'text' });
       return;
     }
@@ -952,6 +957,7 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
         stats: { atk: 8 + level, def: 6 + level, spd: 9 + level, mag: 7 + level },
         equipment: {},
         skills: [],
+        sovereign: false,
       };
       changes.push({ key: `party:${id}`, label: npc.name, text: `${npc.name} joined the party`, kind: 'text' });
       return;

@@ -11,6 +11,7 @@ import { registerAuth } from './routes/auth.js';
 import { registerChats } from './routes/chats.js';
 import { registerEvents } from './routes/events.js';
 import { registerGame } from './routes/game.js';
+import { registerMemory } from './routes/memory.js';
 import { registerLibrary } from './routes/library.js';
 import { registerSystem } from './routes/system.js';
 
@@ -84,6 +85,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerLibrary(app, ctx);
   registerChats(app, ctx);
   registerGame(app, ctx);
+  registerMemory(app, ctx);
   registerSystem(app, ctx);
 
   const indexFile = path.join(cfg.webDir, 'index.html');

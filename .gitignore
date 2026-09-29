@@ -12,3 +12,6 @@ coverage/
 .DS_Store
 *.tsbuildinfo
 .sandbox-ca.crt
+
+# World Engine source: private, contains AGPL/GPL-derived files. Local reference only, never committed.
+docs/reference/world-engine/source/

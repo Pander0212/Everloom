@@ -30,3 +30,5 @@ export * from './api/types.js';
 export * from './game/emotion.js';
 export * from './game/mapgen.js';
 export * from './game/newgame.js';
+export * from './memory/index.js';
+export * from './game/scene.js';

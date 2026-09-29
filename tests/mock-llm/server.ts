@@ -12,6 +12,8 @@ import http from 'node:http';
 export interface MockControl {
   trackerMode: 'valid' | 'messy' | 'broken-once' | 'garbage' | 'empty';
   trackerOps: unknown[] | null;
+  trackerMemories: unknown[] | null;
+  trackerFacts: unknown[] | null;
   story: string | null;
   delayMs: number;
   failNext: number;
@@ -19,7 +21,7 @@ export interface MockControl {
   calls: Array<{ path: string; model: string; kind: string; body: any }>;
 }
 
-const control: MockControl = { trackerMode: 'valid', trackerOps: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] };
+const control: MockControl = { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] };
 let takes = 0;
 let brokenServed = false;
 
@@ -47,7 +49,10 @@ function trackerAnswer(prompt: string): string {
     if (/Iris/.test(story)) ops.push({ type: 'relationship.delta', name: 'Iris', affection: 2, trust: 1 });
     if (/wolf/i.test(story)) ops.push({ type: 'battle.start', enemies: [{ name: 'Wolf', level: 1 }] });
   }
-  const json = JSON.stringify({ ops });
+  const memories: any[] = control.trackerMemories ? [...control.trackerMemories] : [];
+  const facts: any[] = control.trackerFacts ? [...control.trackerFacts] : [];
+  if (!control.trackerMemories && /Tobias/.test(story)) memories.push({ text: 'Tobias said the Ravens need a singer by Friday.', about: ['Tobias'], importance: 2 });
+  const json = JSON.stringify({ ops, memories, facts });
   switch (control.trackerMode) {
     case 'messy':
       return 'Sure! Here are the changes:\n```json\n' + json.replace(/"type"/g, "'type'").replace(/\]\}$/, ',]}') + '\n```\nLet me know if you need more.';
@@ -154,7 +159,7 @@ export function createMockLlm() {
     if (p === '/__control') {
       Object.assign(control, body);
       if (body.reset) {
-        Object.assign(control, { trackerMode: 'valid', trackerOps: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] });
+        Object.assign(control, { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] });
         takes = 0;
         brokenServed = false;
       }

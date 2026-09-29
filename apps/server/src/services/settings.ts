@@ -1,11 +1,11 @@
-import { DEFAULT_WI_SETTINGS, type Settings } from '@everloom/engine';
+import { DEFAULT_WI_SETTINGS, WORLD_PROFILES, type Settings } from '@everloom/engine';
 import type { AppContext } from '../context.js';
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   motion: 'full',
   textSize: 'medium',
-  roles: { main: null, utility: null, embeddings: null, tts: null, image: null },
+  roles: { main: null, utility: null, background: null, embeddings: null, tts: null, image: null },
   activePresetId: null,
   defaultPersonaId: null,
   tracker: { mode: 'separate', injectBudget: 600, injectState: true },
@@ -18,6 +18,7 @@ export const DEFAULT_SETTINGS: Settings = {
   backups: { nightly: true, retention: 14, hour: 4 },
   helper: { visible: true, name: 'Pip' },
   atmosphere: { enabled: true, particles: true },
+  world: { profile: 'balanced', recallLimit: 6, sceneBudget: 1100, ...WORLD_PROFILES.balanced },
 };
 
 function merge<T>(base: T, patch: any): T {
@@ -30,23 +31,30 @@ function merge<T>(base: T, patch: any): T {
   return out;
 }
 
-export function getSettings(ctx: AppContext, owner: string): Settings {
+function storedSettings(ctx: AppContext, owner: string): Record<string, unknown> {
   const row = ctx.db.prepare("SELECT value FROM settings WHERE owner_id = ? AND key = 'app'").get(owner) as { value: string } | undefined;
-  let stored = {};
   try {
-    stored = row ? JSON.parse(row.value) : {};
+    return row ? JSON.parse(row.value) : {};
   } catch {
-    stored = {};
+    return {};
   }
-  return merge(DEFAULT_SETTINGS, stored);
+}
+
+/** Defaults deep-merged with only what the user changed, so a new default reaches everyone who never touched it. */
+export function getSettings(ctx: AppContext, owner: string): Settings {
+  return merge(DEFAULT_SETTINGS, storedSettings(ctx, owner));
 }
 
 export function updateSettings(ctx: AppContext, owner: string, patch: Partial<Settings>): Settings {
-  const next = merge(getSettings(ctx, owner), patch);
+  const p: any = patch ? { ...patch } : {};
+  // Choosing a profile sets all of its switches at once.
+  const profile = p.world?.profile;
+  if (profile && profile !== 'custom' && WORLD_PROFILES[profile as keyof typeof WORLD_PROFILES]) p.world = { ...p.world, ...WORLD_PROFILES[profile as keyof typeof WORLD_PROFILES], profile };
+  const next = merge(storedSettings(ctx, owner), p);
   ctx.db
     .prepare("INSERT INTO settings (owner_id, key, value) VALUES (?, 'app', ?) ON CONFLICT(owner_id, key) DO UPDATE SET value = excluded.value")
     .run(owner, JSON.stringify(next));
-  return next;
+  return merge(DEFAULT_SETTINGS, next);
 }
 
 export function getKv<T>(ctx: AppContext, owner: string, key: string, fallback: T): T {

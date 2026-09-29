@@ -12,6 +12,8 @@ import { shouldSummarize, summarizeChat } from './memory.js';
 import { buildPrompt, loadPromptContext, type GenType, type PromptContext } from './prompt.js';
 import { countTokens } from './tokens.js';
 import { applyTracked, runTrackerPass } from './tracker.js';
+import { deleteAnchored } from './mem.js';
+import { recordCall } from './calls.js';
 
 const active = new Map<string, AbortController>();
 const lastPrompts = new Map<string, unknown>();
@@ -138,6 +140,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       writeSwipes(ctx, target.id, swipes, swipeIndex);
       if (chat.campaignId) {
         deleteEntriesFor(ctx, chat.campaignId, target.id, swipeIndex, ['ai']);
+        deleteAnchored(ctx, target.id, swipeIndex, ['turn', 'sim']);
         rebuildCampaign(ctx, owner, chat.campaignId, input.origin);
       }
       promptHistory = history.slice(0, -1);
@@ -163,6 +166,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       budget: built.assembled.budget,
       trimmedHistory: built.assembled.trimmedHistory,
       worldInfo: built.wiActivated,
+      scene: built.scene ? { text: built.scene.text, tokens: built.scene.tokens, dropped: built.scene.dropped } : null,
     });
     chat = updateChat(ctx, owner, chatId, { metadata: { wiTimed: built.wiTimed, vars: built.macros.vars as Record<string, string> } });
 
@@ -203,6 +207,8 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       };
       writeSwipes(ctx, messageId, swipes, swipeIndex);
     };
+    const t0 = performance.now();
+    let firstTokenMs: number | null = null;
     try {
       for await (const chunk of streamChat(conn, {
         messages: built.assembled.messages,
@@ -212,6 +218,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
         signal: controller.signal,
       })) {
         if (chunk.text) {
+          if (firstTokenMs === null) firstTokenMs = performance.now() - t0;
           text += chunk.text;
           emit({ type: 'delta', messageId, text: chunk.text });
         }
@@ -232,6 +239,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
     } catch (e) {
       if (!controller.signal.aborted) error = (e as Error).message;
     }
+    recordCall(ctx, owner, conn, { chatId, messageId: messageId ?? null, purpose: input.type === 'impersonate' ? 'impersonate' : input.instruction ? 'opening scene' : 'reply', role: 'main' }, { ms: performance.now() - t0, tokensIn: built.assembled.totalTokens, tokensOut: countTokens(text), ok: !error, error: error ?? null, firstTokenMs });
 
     if (input.type === 'impersonate') {
       if (error) emit({ type: 'error', error });
@@ -269,7 +277,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
     // 7. Game state + memory (after the reply is safely stored)
     if (chat.campaignId && pc.settings.tracker.mode !== 'off') {
       if (inline) {
-        if (inline.ok.length || inline.found) applyTracked(ctx, owner, chat.campaignId, chatId, messageId, swipeIndex, inline.ok, 'ai', input.origin);
+        if (inline.ok.length || inline.found) applyTracked(ctx, owner, chat.campaignId, chatId, messageId, swipeIndex, inline.ok, 'ai', input.origin, inline);
       } else {
         void runTrackerPass(ctx, owner, chatId, messageId, input.origin).catch(() => {});
       }
@@ -296,6 +304,7 @@ export async function previewPrompt(ctx: AppContext, owner: string, chatId: stri
     budget: built.assembled.budget,
     trimmedHistory: built.assembled.trimmedHistory,
     worldInfo: built.wiActivated,
+    scene: built.scene ? { text: built.scene.text, tokens: built.scene.tokens, dropped: built.scene.dropped } : null,
   };
 }
 

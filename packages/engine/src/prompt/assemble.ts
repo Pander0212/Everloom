@@ -4,6 +4,7 @@
  */
 import { estimateTokens } from '../util/text.js';
 import { expandMacros, type MacroContext } from './macros.js';
+import { NARRATOR_CONTRACT } from '../game/scene.js';
 
 export type Role = 'system' | 'user' | 'assistant';
 
@@ -33,6 +34,8 @@ export interface PromptBlock {
   injection?: { mode: 'relative' | 'depth'; depth: number };
   /** For system/main block: let character system_prompt override. */
   overridable?: 'main' | 'postHistory';
+  /** Only include this block when the game-state block is present (e.g. the narrator contract). */
+  withGameState?: boolean;
 }
 
 export interface PromptPreset {
@@ -68,6 +71,7 @@ export const DEFAULT_PRESET: PromptPreset = {
     { id: 'charPersonality', name: 'Character personality', kind: 'marker', marker: 'charPersonality', role: 'system', content: '', enabled: true },
     { id: 'scenario', name: 'Scenario', kind: 'marker', marker: 'scenario', role: 'system', content: '', enabled: true },
     { id: 'memory', name: 'Memory', kind: 'marker', marker: 'memory', role: 'system', content: '', enabled: true },
+    { id: 'worldContract', name: 'World state rules', kind: 'text', role: 'system', enabled: true, withGameState: true, content: NARRATOR_CONTRACT },
     { id: 'gameState', name: 'Game state', kind: 'marker', marker: 'gameState', role: 'system', content: '', enabled: true },
     { id: 'worldInfoAfter', name: 'World info (after)', kind: 'marker', marker: 'worldInfoAfter', role: 'system', content: '', enabled: true },
     { id: 'dialogueExamples', name: 'Example dialogue', kind: 'marker', marker: 'dialogueExamples', role: 'system', content: '', enabled: true },
@@ -191,6 +195,7 @@ export function assemblePrompt(input: AssemblyInput): AssembledPrompt {
 
   for (const block of preset.blocks) {
     if (!block.enabled) continue;
+    if (block.withGameState && !input.gameState) continue;
     let content = '';
     if (block.kind === 'text') {
       content = block.content;

@@ -77,7 +77,7 @@ export function resolveConnection(ctx: AppContext, owner: string, id: string): R
   return { id: r.id, name: r.name, provider: r.provider, baseUrl: r.base_url, model: r.model, apiKey, params: json(r.params, {}) };
 }
 
-export type Role = 'main' | 'utility' | 'embeddings' | 'tts' | 'image';
+export type Role = 'main' | 'utility' | 'background' | 'embeddings' | 'tts' | 'image';
 
 /** Resolve a role to a connection. Utility falls back to main; main falls back to the first LLM connection. */
 export function connectionForRole(ctx: AppContext, owner: string, role: Role, override?: string | null): ResolvedConnection | null {
@@ -97,8 +97,10 @@ export function connectionForRole(ctx: AppContext, owner: string, role: Role, ov
       return null;
     }
   };
-  const direct = pick(s.roles[role]);
+  const direct = pick((s.roles as Record<string, string | null>)[role] ?? null);
   if (direct) return direct;
+  // Background work (chronicler, consolidation, social sim) uses the utility model unless set.
+  if (role === 'background') return connectionForRole(ctx, owner, 'utility');
   if (role === 'utility' || role === 'embeddings') {
     const main = connectionForRole(ctx, owner, 'main');
     if (role === 'embeddings' && main && !['openai', 'gemini', 'textgen'].includes(main.provider)) return null;

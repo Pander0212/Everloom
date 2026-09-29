@@ -240,4 +240,154 @@ CREATE VIRTUAL TABLE search_fts USING fts5(
 );
 `,
   },
+  {
+    version: 2,
+    name: 'memory v2, call log',
+    sql: `
+-- Memories live beside campaign state, anchored to messages like op_log entries:
+-- active when message_id is NULL, or the message exists in chat_id with a matching swipe.
+CREATE TABLE mem_items (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  campaign_id TEXT,
+  chat_id TEXT,
+  message_id TEXT,
+  swipe_id INTEGER,
+  source TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  text TEXT NOT NULL,
+  participants TEXT NOT NULL DEFAULT '[]',
+  witnesses TEXT NOT NULL DEFAULT '[]',
+  location_id TEXT,
+  game_time INTEGER NOT NULL DEFAULT 0,
+  importance INTEGER NOT NULL DEFAULT 1,
+  secret INTEGER NOT NULL DEFAULT 0,
+  pinned INTEGER NOT NULL DEFAULT 0,
+  forgotten INTEGER NOT NULL DEFAULT 0,
+  edited INTEGER NOT NULL DEFAULT 0,
+  folded_into TEXT,
+  seq INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX mem_items_campaign ON mem_items(campaign_id, seq);
+CREATE INDEX mem_items_chat ON mem_items(chat_id, seq);
+CREATE INDEX mem_items_message ON mem_items(message_id);
+CREATE TABLE mem_heard (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  campaign_id TEXT,
+  chat_id TEXT,
+  message_id TEXT,
+  swipe_id INTEGER,
+  memory_id TEXT NOT NULL,
+  viewer TEXT NOT NULL,
+  distortion INTEGER NOT NULL,
+  from_id TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX mem_heard_campaign ON mem_heard(campaign_id);
+CREATE INDEX mem_heard_message ON mem_heard(message_id);
+CREATE TABLE mem_facts (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  campaign_id TEXT,
+  chat_id TEXT,
+  message_id TEXT,
+  swipe_id INTEGER,
+  source TEXT NOT NULL,
+  entity_id TEXT NOT NULL,
+  entity_name TEXT NOT NULL,
+  key TEXT NOT NULL,
+  value TEXT NOT NULL,
+  text TEXT NOT NULL,
+  status TEXT NOT NULL,
+  supersedes TEXT,
+  conflicts_with TEXT,
+  cite TEXT,
+  game_time INTEGER NOT NULL DEFAULT 0,
+  seq INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX mem_facts_campaign ON mem_facts(campaign_id, entity_id);
+CREATE INDEX mem_facts_chat ON mem_facts(chat_id);
+CREATE INDEX mem_facts_message ON mem_facts(message_id);
+CREATE TABLE mem_summaries (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  campaign_id TEXT,
+  chat_id TEXT,
+  level TEXT NOT NULL,
+  title TEXT NOT NULL DEFAULT '',
+  text TEXT NOT NULL,
+  from_time INTEGER NOT NULL DEFAULT 0,
+  to_time INTEGER NOT NULL DEFAULT 0,
+  covers TEXT NOT NULL DEFAULT '[]',
+  importance INTEGER NOT NULL DEFAULT 1,
+  message_id TEXT,
+  swipe_id INTEGER,
+  edited INTEGER NOT NULL DEFAULT 0,
+  seq INTEGER NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX mem_summaries_campaign ON mem_summaries(campaign_id, level);
+CREATE INDEX mem_summaries_chat ON mem_summaries(chat_id, level);
+CREATE TABLE mem_vectors (
+  item_id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  model TEXT NOT NULL,
+  hash TEXT NOT NULL,
+  vector BLOB NOT NULL
+);
+CREATE VIRTUAL TABLE mem_fts USING fts5(
+  item_id UNINDEXED, owner_id UNINDEXED, campaign_id UNINDEXED, chat_id UNINDEXED, kind UNINDEXED, text,
+  tokenize = 'porter unicode61'
+);
+CREATE TABLE chronicle_state (
+  chat_id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  watermark_seq INTEGER NOT NULL DEFAULT 0,
+  runs TEXT NOT NULL DEFAULT '[]',
+  updated_at INTEGER NOT NULL
+);
+CREATE TABLE llm_calls (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  chat_id TEXT,
+  message_id TEXT,
+  purpose TEXT NOT NULL,
+  role TEXT NOT NULL,
+  provider TEXT,
+  model TEXT,
+  ms INTEGER NOT NULL DEFAULT 0,
+  tokens_in INTEGER NOT NULL DEFAULT 0,
+  tokens_out INTEGER NOT NULL DEFAULT 0,
+  first_token_ms INTEGER,
+  ok INTEGER NOT NULL DEFAULT 1,
+  error TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX llm_calls_owner ON llm_calls(owner_id, created_at);
+CREATE INDEX llm_calls_chat ON llm_calls(chat_id, created_at);
+
+-- Carry Phase 1 memory over. Long-term facts become world notes (they had no subject slot);
+-- rolling chat summaries become chapter summaries. The old rows stay untouched.
+INSERT INTO mem_facts (id, owner_id, campaign_id, chat_id, message_id, swipe_id, source, entity_id, entity_name, key, value, text, status, supersedes, conflicts_with, cite, game_time, seq, created_at, updated_at)
+SELECT 'mf_' || m.id, m.owner_id, c.campaign_id, m.chat_id, NULL, NULL, 'migrated', 'world', 'World', 'note_' || m.id, m.text, m.text,
+       'active', NULL, NULL, NULL, 0, COALESCE(m.upto_seq, 0), m.created_at, m.updated_at
+FROM memories m LEFT JOIN chats c ON c.id = m.chat_id
+WHERE m.kind = 'fact';
+INSERT INTO mem_summaries (id, owner_id, campaign_id, chat_id, level, title, text, from_time, to_time, covers, importance, message_id, swipe_id, edited, seq, created_at, updated_at)
+SELECT 'ms_' || c.id, c.owner_id, c.campaign_id, c.id, 'chapter', 'Story so far', json_extract(c.metadata, '$.memory.text'), 0, 0, '[]', 2, NULL, NULL,
+       COALESCE(json_extract(c.metadata, '$.memory.pinned'), 0), COALESCE(json_extract(c.metadata, '$.memory.uptoSeq'), 0), c.updated_at, c.updated_at
+FROM chats c
+WHERE json_valid(c.metadata) AND COALESCE(json_extract(c.metadata, '$.memory.text'), '') <> '';
+INSERT INTO mem_fts (item_id, owner_id, campaign_id, chat_id, kind, text)
+SELECT id, owner_id, COALESCE(campaign_id, ''), COALESCE(chat_id, ''), 'fact', text FROM mem_facts;
+INSERT INTO mem_fts (item_id, owner_id, campaign_id, chat_id, kind, text)
+SELECT id, owner_id, COALESCE(campaign_id, ''), COALESCE(chat_id, ''), 'summary', text FROM mem_summaries;
+`,
+  },
 ];

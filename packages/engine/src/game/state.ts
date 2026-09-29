@@ -1,6 +1,6 @@
 /** Versioned campaign state. Everything here is plain JSON so it can be stored, diffed and replayed. */
 
-export const STATE_VERSION = 1;
+export const STATE_VERSION = 2;
 
 export type Style = 'fantasy' | 'modern' | 'scifi';
 export type MapLevel = 'world' | 'region' | 'local' | 'nearby' | 'area';
@@ -73,6 +73,53 @@ export interface Player {
   appearance: string;
   /** Minute-of-year for birthday (null = none). */
   birthday: { month: number; day: number } | null;
+  /** What they're wearing and when that was last shown (game minutes). */
+  outfit: Outfit | null;
+}
+
+export interface Outfit {
+  text: string;
+  at: number;
+}
+
+export type GoalState = 'dormant' | 'acting' | 'blocked' | 'resolved' | 'failed';
+
+/** Something an NPC wants. An acting goal with a target place is pursued hop by hop off-screen. */
+export interface Goal {
+  id: string;
+  text: string;
+  state: GoalState;
+  urgency: number;
+  targetLocationId: string | null;
+  /** Game minute after which a dormant goal wakes up. */
+  activateAt: number | null;
+  deadline: number | null;
+}
+
+/** A directional feeling from one character toward another (NPC ↔ NPC). */
+export interface Bond {
+  from: string;
+  to: string;
+  affinity: number;
+  trust: number;
+  desire: number;
+  tension: number;
+  kind: string;
+}
+
+/** An off-screen storyline climbing rumor → visible → unmistakable → head. */
+export interface Thread {
+  id: string;
+  text: string;
+  stages: string[];
+  rung: number;
+  max: number;
+  pace: number;
+  bias: number;
+  lastBeat: number;
+  status: 'active' | 'head' | 'done';
+  placeId: string | null;
+  createdAt: number;
 }
 
 export type ItemCategory =
@@ -169,6 +216,10 @@ export interface Npc {
   firstSeenAt: number;
   lastSeenAt: number;
   portrait: string | null;
+  outfit: Outfit | null;
+  goals: Goal[];
+  /** Knocked out: present but can't act. */
+  unconscious: boolean;
 }
 
 export interface Org {
@@ -209,6 +260,10 @@ export interface Fact {
   tags: string[];
   at: number;
   source: string;
+  /** 'fact' is settled; 'development' is still moving (with a trend). */
+  kind: 'fact' | 'development';
+  trend: 'emerging' | 'rising' | 'stable' | 'falling' | 'uncertain' | null;
+  status: 'active' | 'resolved';
 }
 
 export interface Relationship {
@@ -217,6 +272,8 @@ export interface Relationship {
   npcId: string | null;
   affection: number;
   trust: number;
+  desire: number;
+  tension: number;
   label: string;
   memories: Array<{ id: string; at: number; text: string }>;
 }
@@ -255,6 +312,8 @@ export interface PartyMember {
   stats: Stats;
   equipment: Partial<Record<EquipSlot, string>>;
   skills: string[];
+  /** The narrator may describe what happens to them but never voice them. */
+  sovereign: boolean;
 }
 
 export interface Combatant {
@@ -329,6 +388,11 @@ export interface CampaignState {
   battle: Battle | null;
   phone: { unread: Record<string, number>; pending: Array<{ id: string; npcId: string; at: number; reason: string }> };
   counters: Record<string, number>;
+  /** NPC ↔ NPC feelings, keyed "fromId>toId". */
+  bonds: Record<string, Bond>;
+  threads: Record<string, Thread>;
+  /** Names the player deleted; the model may not re-create them. */
+  forgotten: string[];
 }
 
 export type WeatherKind = 'clear' | 'cloudy' | 'overcast' | 'rain' | 'storm' | 'snow' | 'fog' | 'wind' | 'heat';
@@ -395,6 +459,7 @@ export function createInitialState(opts: Partial<{ title: string; style: Style; 
       stats: { atk: 10, def: 8, spd: 10, mag: 8 },
       appearance: '',
       birthday: null,
+      outfit: null,
     },
     trackers: defaultTrackers(),
     inventory: {},
@@ -412,6 +477,9 @@ export function createInitialState(opts: Partial<{ title: string; style: Style; 
     battle: null,
     phone: { unread: {}, pending: [] },
     counters: {},
+    bonds: {},
+    threads: {},
+    forgotten: [],
   };
 }
 
@@ -426,6 +494,15 @@ export function migrateState(raw: any): CampaignState {
   const base = createInitialState();
   for (const key of Object.keys(base) as Array<keyof CampaignState>) {
     if (s[key] === undefined) (s as any)[key] = base[key];
+  }
+  if (s.version < 2) {
+    // Phase 2: outfits, goals, knockouts, bond dimensions, fact kinds. Nothing is removed.
+    s = { ...s, version: 2 };
+    s.player = { ...s.player, outfit: s.player?.outfit ?? null };
+    for (const id of Object.keys(s.npcs ?? {})) s.npcs[id] = { outfit: null, goals: [], unconscious: false, ...s.npcs[id] };
+    for (const id of Object.keys(s.relationships ?? {})) s.relationships[id] = { desire: 0, tension: 0, ...s.relationships[id] };
+    for (const id of Object.keys(s.databank ?? {})) s.databank[id] = { kind: 'fact', trend: null, status: 'active', ...s.databank[id] };
+    for (const id of Object.keys(s.party ?? {})) s.party[id] = { sovereign: false, ...s.party[id] };
   }
   return s as CampaignState;
 }

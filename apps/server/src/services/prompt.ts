@@ -1,6 +1,7 @@
 /** Builds the full prompt for a chat turn. Shared by generation and the prompt inspector. */
 import {
-  assemblePrompt, buildGameStateBlock, checkWorldInfo, createRng, formatClock, formatDate, INLINE_INSTRUCTION, seedFrom,
+  assemblePrompt, buildSceneBlock, checkWorldInfo, createRng, formatClock, formatDate, INLINE_INSTRUCTION, seedFrom, storySoFar,
+  type PersonMemoryView, type SceneBlock,
   stripInlineTags, type AssembledPrompt, type CampaignState, type ChatDTO, type CharacterDTO, type HistoryMessage, type MacroContext,
   type MessageDTO, type PersonaDTO, type ScanEntry, type Settings,
 } from '@everloom/engine';
@@ -15,6 +16,7 @@ import { search } from './search.js';
 import { getSettings } from './settings.js';
 import { countTokens } from './tokens.js';
 import { semanticHits } from './semantic.js';
+import { nameOfPerson, recallForScene } from './mem.js';
 
 export type GenType = 'normal' | 'swipe' | 'regenerate' | 'continue' | 'impersonate' | 'quiet';
 
@@ -88,10 +90,17 @@ export interface BuildOptions {
   maxResponse: number;
   finalInstruction?: string;
   presetId?: string | null;
+  /** THE DICE lines for this turn. */
+  dice?: string[];
+  /** SOMETHING HAPPENS lines for this turn. */
+  happens?: string[];
 }
 
 export interface BuiltPrompt {
   assembled: AssembledPrompt;
+  /** The exact scene block sent (byte-identical to the inspector's preview). */
+  scene: SceneBlock | null;
+  recall: { player: number; people: number };
   macros: MacroContext;
   wiActivated: Array<{ world: string; uid: number; comment: string }>;
   wiTimed: { sticky: Record<string, number>; cooldown: Record<string, number> };
@@ -168,23 +177,48 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     substitute: (s) => s.replace(/\{\{char\}\}/gi, character.name).replace(/\{\{user\}\}/gi, pc.userName),
   });
 
-  // Memory: rolling summary + pinned long-term facts for this character.
-  const memParts: string[] = [];
-  if (chat.metadata.memory?.text) memParts.push(chat.metadata.memory.text);
-  const facts = ctx.db
-    .prepare("SELECT text FROM memories WHERE owner_id = ? AND kind = 'fact' AND (chat_id = ? OR (character_id = ? AND pinned = 1)) ORDER BY pinned DESC, updated_at DESC LIMIT 12")
-    .all(owner, chat.id, character.id) as Array<{ text: string }>;
-  if (facts.length) memParts.push(`Long-term memories:\n${facts.map((f) => `- ${f.text}`).join('\n')}`);
-  const memory = memParts.length ? `[Story so far]\n${memParts.join('\n\n')}` : '';
-
-  // Game state block
+  // Memory and the scene block. Recall is scoped to what each person can know; the scene block
+  // tells the narrator who is here, what they know and don't, and what matters now.
+  const recentText = [lastUser ? textOf(lastUser) : '', lastChar ? textOf(lastChar) : '', ...visible.slice(-3).map(textOf)].join('\n').slice(-6000);
+  const names = { player: pc.userName, characters: pc.members.map((m) => ({ id: m.id, name: m.name })) };
+  const world = settings.world;
+  let memory = '';
   let gameState = '';
+  let sceneBlock: SceneBlock | null = null;
+  const scene = await recallForScene(ctx, owner, chat, state, recentText, {
+    chatCharacters: pc.members.map((m) => m.id),
+    semantic: world.semantic,
+    playerLimit: world.recallLimit,
+  });
+  const factsBy: Record<string, string[]> = {};
+  for (const f of scene.facts) (factsBy[f.entityId] ??= []).push(f.text);
+  const recap = storySoFar(scene.summaries, scene.milestones);
+  const recalled = scene.result.player.map((r) => ({ text: r.m.text, gameTime: r.m.gameTime, heard: r.k.kind === 'heard' }));
   if (state && settings.tracker.injectState) {
-    const recent = visible.slice(-3).map(textOf).join('\n');
-    const relevant = search(ctx, owner, recent, { campaignId: chat.campaignId, kinds: ['fact', 'runin', 'diary', 'memory'], limit: 6 }).map((h) => (h.title ? `${h.title}: ${h.body}` : h.body));
-    gameState = buildGameStateBlock(state, { budgetTokens: settings.tracker.injectBudget, relevantFacts: relevant, countTokens, recentText: recent });
+    const known = search(ctx, owner, recentText, { campaignId: chat.campaignId, kinds: ['fact', 'runin', 'diary'], limit: 4 }).map((h) => (h.title ? `${h.title}: ${h.body}` : h.body));
     const texts = recentPhoneTexts(ctx, owner, chat.campaignId!, state);
-    if (texts) gameState = gameState ? `${gameState}\n${texts}` : texts;
+    const people: Record<string, PersonMemoryView> = {};
+    for (const p of scene.result.people) {
+      people[p.id] = {
+        knows: p.knows.map((r) => r.m.text),
+        heard: p.heard.map((r) => ({ text: r.m.text, distortion: r.k.distortion })),
+        doesNotKnow: p.doesNotKnow.map((r) => r.m.text),
+      };
+    }
+    const referenced = new Set<string>();
+    const low = recentText.toLowerCase();
+    for (const n of Object.values(state.npcs)) if (low.includes(n.name.toLowerCase().split(' ')[0])) referenced.add(n.id);
+    const extraPresent = scene.present.filter((id) => id.startsWith('char:')).map((id) => ({ id, name: nameOfPerson(state, id, names) }));
+    sceneBlock = buildSceneBlock(
+      state,
+      { storySoFar: recap, recalled, known: [...known, ...texts], people, facts: factsBy, extraPresent, referenced, dice: opts.dice, happens: opts.happens },
+      { budgetTokens: world.sceneBudget, countTokens },
+    );
+    gameState = sceneBlock.text;
+  } else {
+    // No game: memory is still recalled and injected as the story so far.
+    const lines = [...recap, ...recalled.map((r) => `- ${r.text}`), ...(factsBy.world ?? []).map((f) => `- ${f}`), ...Object.entries(factsBy).filter(([k]) => k !== 'world').flatMap(([, v]) => v.map((f) => `- ${f}`))];
+    memory = lines.length ? `[Story so far]\n${lines.join('\n')}` : '';
   }
 
   const extraRules: string[] = [];
@@ -237,6 +271,8 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
   void characterRow;
   return {
     assembled,
+    scene: sceneBlock,
+    recall: { player: scene.result.player.length, people: scene.result.people.length },
     macros,
     wiActivated: wi.activated.map((e) => ({ world: e.world, uid: e.uid, comment: e.comment || e.key.join(', ') })),
     wiTimed: wi.timed,
@@ -244,13 +280,11 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
 }
 
 /** The last few phone texts from the past two game days, so the story knows what was said off-screen. */
-function recentPhoneTexts(ctx: AppContext, owner: string, campaignId: string, state: CampaignState): string {
+function recentPhoneTexts(ctx: AppContext, owner: string, campaignId: string, state: CampaignState): string[] {
   const since = state.time.minutes - 2 * 1440;
   const rows = ctx.db
     .prepare('SELECT npc_id, from_player, text, game_time FROM phone_messages WHERE owner_id = ? AND campaign_id = ? AND (game_time IS NULL OR game_time >= ?) ORDER BY created_at DESC LIMIT 6')
     .all(owner, campaignId, since) as Array<{ npc_id: string; from_player: number; text: string }>;
-  if (!rows.length) return '';
   const who = (id: string) => state.npcs[id]?.name ?? 'Someone';
-  const lines = rows.reverse().map((r) => `- ${r.from_player ? `${state.player.name} → ${who(r.npc_id)}` : `${who(r.npc_id)} → ${state.player.name}`}: ${r.text.slice(0, 240)}`);
-  return `[Recent phone texts]\n${lines.join('\n')}`;
+  return rows.reverse().map((r) => `text ${r.from_player ? `${state.player.name} → ${who(r.npc_id)}` : `${who(r.npc_id)} → ${state.player.name}`}: ${r.text.slice(0, 200)}`);
 }
