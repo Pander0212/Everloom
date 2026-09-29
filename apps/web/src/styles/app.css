@@ -1,0 +1,546 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/inter';
+@import '@fontsource-variable/source-serif-4';
+
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* ------------------------------------------------------------------ tokens
+   Every color in the app comes from these variables. Light is the default;
+   dark overrides below. One accent (warm amber) plus semantic colors. */
+:root {
+  --bg: #f6f5f2;
+  --surface: #ffffff;
+  --surface-2: #efeeea;
+  --surface-3: #e6e4de;
+  --border: #e3e1db;
+  --border-strong: #cdcac2;
+  --text: #18191b;
+  --text-2: #595c62;
+  --text-3: #8b8e94;
+  --accent: #cf912f;
+  --accent-hover: #c2852a;
+  --accent-fg: #1b1203;
+  --accent-text: #8c5709;
+  --accent-soft: rgb(207 145 47 / 0.13);
+  --danger: #c7353c;
+  --danger-soft: rgb(199 53 60 / 0.1);
+  --success: #2f7a3c;
+  --success-soft: rgb(47 122 60 / 0.1);
+  --warning: #9a5b00;
+  --warning-soft: rgb(207 145 47 / 0.14);
+  --overlay: rgb(20 20 22 / 0.36);
+  --shadow-color: 30 25 15;
+  --shadow-1: 0 1px 2px rgb(var(--shadow-color) / 0.06), 0 1px 1px rgb(var(--shadow-color) / 0.04);
+  --shadow-2: 0 4px 12px rgb(var(--shadow-color) / 0.08), 0 1px 3px rgb(var(--shadow-color) / 0.06);
+  --shadow-3: 0 16px 40px rgb(var(--shadow-color) / 0.14), 0 4px 10px rgb(var(--shadow-color) / 0.06);
+  --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
+  --story-size: 17px;
+  --safe-top: env(safe-area-inset-top, 0px);
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+  --tabbar-h: 60px;
+  color-scheme: light;
+}
+
+:root[data-theme='dark'] {
+  --bg: #0e0f11;
+  --surface: #151619;
+  --surface-2: #1b1c20;
+  --surface-3: #24262b;
+  --border: #25272c;
+  --border-strong: #34373d;
+  --text: #ecedee;
+  --text-2: #a2a5ab;
+  --text-3: #71747b;
+  --accent: #e1a94f;
+  --accent-hover: #ecb660;
+  --accent-fg: #1b1203;
+  --accent-text: #e8b566;
+  --accent-soft: rgb(225 169 79 / 0.14);
+  --danger: #f0676c;
+  --danger-soft: rgb(240 103 108 / 0.13);
+  --success: #5bbf6b;
+  --success-soft: rgb(91 191 107 / 0.13);
+  --warning: #f0b445;
+  --warning-soft: rgb(240 180 69 / 0.13);
+  --overlay: rgb(0 0 0 / 0.55);
+  --shadow-color: 0 0 0;
+  --shadow-1: 0 1px 2px rgb(0 0 0 / 0.4);
+  --shadow-2: 0 6px 16px rgb(0 0 0 / 0.45);
+  --shadow-3: 0 20px 48px rgb(0 0 0 / 0.55);
+  color-scheme: dark;
+}
+
+:root[data-text-size='small'] {
+  --story-size: 16px;
+}
+:root[data-text-size='large'] {
+  --story-size: 19px;
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-surface-3: var(--surface-3);
+  --color-line: var(--border);
+  --color-line-strong: var(--border-strong);
+  --color-fg: var(--text);
+  --color-fg-2: var(--text-2);
+  --color-fg-3: var(--text-3);
+  --color-accent: var(--accent);
+  --color-accent-hover: var(--accent-hover);
+  --color-accent-fg: var(--accent-fg);
+  --color-accent-text: var(--accent-text);
+  --color-accent-soft: var(--accent-soft);
+  --color-danger: var(--danger);
+  --color-danger-soft: var(--danger-soft);
+  --color-success: var(--success);
+  --color-success-soft: var(--success-soft);
+  --color-warning: var(--warning);
+  --color-warning-soft: var(--warning-soft);
+  --color-overlay: var(--overlay);
+
+  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-serif: 'Source Serif 4 Variable', ui-serif, Georgia, serif;
+
+  /* Type scale: 12 / 14 / 16 / 20 / 28 */
+  --text-xs: 12px;
+  --text-xs--line-height: 16px;
+  --text-sm: 14px;
+  --text-sm--line-height: 20px;
+  --text-base: 16px;
+  --text-base--line-height: 24px;
+  --text-lg: 20px;
+  --text-lg--line-height: 28px;
+  --text-xl: 28px;
+  --text-xl--line-height: 34px;
+  --text-story: var(--story-size);
+  --text-story--line-height: 1.6;
+
+  /* Radius scale: 6 / 10 / 16 */
+  --radius-sm: 6px;
+  --radius-md: 10px;
+  --radius-lg: 16px;
+
+  --shadow-1: var(--shadow-1);
+  --shadow-2: var(--shadow-2);
+  --shadow-3: var(--shadow-3);
+
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* ------------------------------------------------------------------ base */
+@layer base {
+  html,
+  body,
+  #root {
+    height: 100%;
+  }
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 24px;
+    font-feature-settings: 'cv11', 'ss01';
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overscroll-behavior-y: none;
+  }
+  ::selection {
+    background: var(--accent-soft);
+  }
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus);
+    border-radius: var(--radius-sm);
+  }
+  button,
+  [role='button'] {
+    cursor: pointer;
+    touch-action: manipulation;
+  }
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+  img {
+    user-select: none;
+    -webkit-user-drag: none;
+  }
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--border-strong) transparent;
+  }
+}
+
+/* ------------------------------------------------------------------ components */
+@layer components {
+  /* Press state — adapted from Uiverse.io by Custyyyy (fuzzy-fireant-2) / ZiyadOuamna (hungry-penguin-18). */
+  .pressable {
+    transition:
+      transform 120ms var(--ease-out),
+      background-color 150ms var(--ease-out),
+      color 150ms var(--ease-out),
+      opacity 150ms var(--ease-out);
+  }
+  .pressable:active:not(:disabled) {
+    transform: scale(0.97);
+  }
+
+  /* Text field focus — adapted from Uiverse.io by AtharvaMistry (kind-treefrog-34): quiet fill, accent ring on focus. */
+  .field {
+    width: 100%;
+    min-height: 44px;
+    border-radius: var(--radius-md);
+    background: var(--surface-2);
+    border: 1px solid transparent;
+    padding: 10px 12px;
+    font-size: 16px;
+    line-height: 22px;
+    color: var(--text);
+    transition:
+      border-color 150ms var(--ease-out),
+      box-shadow 150ms var(--ease-out),
+      background-color 150ms var(--ease-out);
+  }
+  .field::placeholder {
+    color: var(--text-3);
+  }
+  .field:hover {
+    border-color: var(--border);
+  }
+  .field:focus,
+  .field:focus-visible {
+    outline: none;
+    background: var(--surface);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-soft);
+  }
+  .field[aria-invalid='true'] {
+    border-color: var(--danger);
+  }
+  .field:disabled {
+    opacity: 0.55;
+  }
+  select.field {
+    appearance: none;
+    padding-right: 36px;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 12px center;
+  }
+
+  /* Switch — adapted from Uiverse.io by zanina-yassine (afraid-eel-50, "iOS Switch"). */
+  .switch {
+    position: relative;
+    display: inline-block;
+    width: 44px;
+    height: 26px;
+    flex: none;
+  }
+  .switch input {
+    position: absolute;
+    opacity: 0;
+    width: 100%;
+    height: 100%;
+    margin: 0;
+    cursor: pointer;
+    z-index: 1;
+  }
+  .switch .track {
+    position: absolute;
+    inset: 0;
+    border-radius: 999px;
+    background: var(--surface-3);
+    transition: background-color 180ms var(--ease-out);
+  }
+  .switch .thumb {
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    background: #fff;
+    box-shadow: 0 1px 3px rgb(0 0 0 / 0.2);
+    transition: transform 180ms var(--ease-out);
+  }
+  .switch input:checked ~ .track {
+    background: var(--accent);
+  }
+  .switch input:checked ~ .thumb {
+    transform: translateX(18px);
+  }
+  .switch input:focus-visible ~ .track {
+    box-shadow: var(--focus);
+  }
+  .switch input:active ~ .thumb {
+    transform: scale(0.94);
+  }
+  .switch input:checked:active ~ .thumb {
+    transform: translateX(18px) scale(0.94);
+  }
+  .switch input:disabled ~ .track {
+    opacity: 0.5;
+  }
+
+  /* Checkbox tick — adapted from Uiverse.io by elijahgummer (foolish-bulldog-87): the check draws in via stroke-dashoffset. */
+  .check {
+    position: relative;
+    display: inline-flex;
+    width: 20px;
+    height: 20px;
+    flex: none;
+  }
+  .check input {
+    position: absolute;
+    inset: -12px;
+    opacity: 0;
+    margin: 0;
+    cursor: pointer;
+    z-index: 1;
+  }
+  .check svg {
+    width: 20px;
+    height: 20px;
+    border-radius: 6px;
+    border: 1.5px solid var(--border-strong);
+    background: transparent;
+    stroke: var(--accent-fg);
+    stroke-width: 2.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    fill: none;
+    stroke-dasharray: 18;
+    stroke-dashoffset: 18;
+    transition:
+      background-color 160ms var(--ease-out),
+      border-color 160ms var(--ease-out),
+      stroke-dashoffset 240ms var(--ease-out);
+  }
+  .check input:checked + svg {
+    background: var(--accent);
+    border-color: var(--accent);
+    stroke-dashoffset: 0;
+  }
+  .check input:focus-visible + svg {
+    box-shadow: var(--focus);
+  }
+
+  /* Typing indicator — adapted from Uiverse.io by adamgiebl (thin-lionfish-5): pulsing dots, transform/opacity only. */
+  .typing {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    height: 20px;
+  }
+  .typing span {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--text-3);
+    animation: typing-pulse 1.2s infinite ease-in-out;
+  }
+  .typing span:nth-child(1) {
+    animation-delay: -0.24s;
+  }
+  .typing span:nth-child(2) {
+    animation-delay: -0.12s;
+  }
+  @keyframes typing-pulse {
+    0%,
+    80%,
+    100% {
+      transform: scale(0.7);
+      opacity: 0.45;
+    }
+    40% {
+      transform: scale(1);
+      opacity: 1;
+    }
+  }
+
+  .spinner {
+    width: 18px;
+    height: 18px;
+    border-radius: 50%;
+    border: 2px solid currentColor;
+    border-right-color: transparent;
+    opacity: 0.8;
+    animation: spin 700ms linear infinite;
+  }
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  /* Tooltip — adapted from Uiverse.io by EcheverriaJesus (odd-seahorse-52): fade and a short rise. */
+  .tooltip {
+    background: var(--text);
+    color: var(--bg);
+    font-size: 12px;
+    line-height: 16px;
+    padding: 6px 8px;
+    border-radius: var(--radius-sm);
+    box-shadow: var(--shadow-2);
+    animation: tooltip-in 140ms var(--ease-out);
+    z-index: 80;
+    max-width: 260px;
+  }
+  @keyframes tooltip-in {
+    from {
+      opacity: 0;
+      transform: translateY(3px);
+    }
+  }
+
+  /* Toast — slide-in adapted from Uiverse.io by guilhermeyohan (white-cat-52), without the pulse. */
+  .toast-enter {
+    animation: toast-in 220ms var(--ease-out);
+  }
+  @keyframes toast-in {
+    from {
+      transform: translateY(-12px);
+      opacity: 0;
+    }
+  }
+
+  /* Long-form story text */
+  .story {
+    font-family: var(--font-serif);
+    font-size: var(--story-size);
+    line-height: 1.6;
+    color: var(--text);
+    overflow-wrap: anywhere;
+  }
+  .story p {
+    margin: 0 0 0.75em;
+  }
+  .story p:last-child {
+    margin-bottom: 0;
+  }
+  .story em,
+  .story .action {
+    color: var(--text-2);
+    font-style: italic;
+  }
+  .story .speech {
+    color: var(--text);
+  }
+  .story strong {
+    font-weight: 600;
+  }
+  .story blockquote {
+    border-left: 2px solid var(--border-strong);
+    padding-left: 12px;
+    color: var(--text-2);
+    margin: 0.5em 0;
+  }
+  .story code {
+    font-size: 0.88em;
+    background: var(--surface-2);
+    border-radius: 4px;
+    padding: 1px 4px;
+  }
+  .story pre {
+    background: var(--surface-2);
+    border-radius: var(--radius-md);
+    padding: 10px 12px;
+    overflow-x: auto;
+    font-size: 14px;
+  }
+  .story ul,
+  .story ol {
+    padding-left: 1.3em;
+    margin: 0.3em 0 0.75em;
+  }
+  .story ul {
+    list-style: disc;
+  }
+  .story ol {
+    list-style: decimal;
+  }
+  .story hr {
+    border: 0;
+    border-top: 1px solid var(--border);
+    margin: 1em 0;
+  }
+  .story img {
+    max-width: 100%;
+    border-radius: var(--radius-md);
+  }
+  .story .stream-tail {
+    animation: stream-fade 260ms var(--ease-out);
+  }
+  @keyframes stream-fade {
+    from {
+      opacity: 0;
+    }
+  }
+
+  .safe-top {
+    padding-top: var(--safe-top);
+  }
+  .safe-bottom {
+    padding-bottom: var(--safe-bottom);
+  }
+  .no-scrollbar {
+    scrollbar-width: none;
+  }
+  .no-scrollbar::-webkit-scrollbar {
+    display: none;
+  }
+  .hairline-b {
+    border-bottom: 1px solid var(--border);
+  }
+  .hairline-t {
+    border-top: 1px solid var(--border);
+  }
+}
+
+/* Touch devices get 44 px tap targets. */
+@media (pointer: coarse) {
+  .tap {
+    min-height: 44px;
+    min-width: 44px;
+  }
+}
+
+/* Motion: respect the OS setting and the in-app override. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 1ms !important;
+  }
+  .typing span {
+    animation: none;
+    opacity: 0.7;
+  }
+}
+:root[data-motion='reduced'] *,
+:root[data-motion='reduced'] *::before,
+:root[data-motion='reduced'] *::after {
+  animation-duration: 1ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 1ms !important;
+}
+
+/* Vaul drawer (bottom sheet) */
+[data-vaul-drawer] {
+  touch-action: none;
+}
+[data-vaul-drawer][data-vaul-drawer-direction='bottom'] {
+  transition: transform 380ms cubic-bezier(0.32, 0.72, 0, 1);
+}
