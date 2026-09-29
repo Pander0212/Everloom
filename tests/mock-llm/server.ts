@@ -96,7 +96,7 @@ function answerFor(kind: string, messages: any[]): string {
     case 'phone':
       return 'hey, you still up? rehearsal was a mess lol';
     case 'wizard':
-      return JSON.stringify({ opening: 'The rain has not stopped for three days when you arrive in Northcrest.', items: [{ name: 'Umbrella', category: 'tool' }], npcs: [{ name: 'Iris Thorne', role: 'Bartender' }], location: { name: 'Northcrest', kind: 'town' } });
+      return JSON.stringify({ opening: 'The rain has not stopped for three days when you arrive in Northcrest.', items: [{ name: 'Umbrella', category: 'tool' }], npcs: [{ name: 'Iris Thorne', role: 'Bartender' }], location: { world: 'Aurel', region: 'Greenmarch', local: 'Northcrest', description: 'A rain-soaked market town on the river.', kind: 'town' }, quests: [{ title: 'Dry Ground', desc: 'Find shelter before nightfall.', objectives: ['Find an inn'] }], facts: ['It has rained for three days.'] });
     default:
       return storyFor(messages);
   }

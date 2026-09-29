@@ -15,6 +15,7 @@ import { findExact, findFuzzy, findItem, findNpc, nextCounter, uniqueId } from '
 import { logWorld, simulate, type Change } from './simulate.js';
 import type { CampaignState, Location, MapLevel, Npc, Org, Relationship } from './state.js';
 import { MAP_LEVELS } from './state.js';
+import { freeSpot } from './mapgen.js';
 import { defaultTravelOption, travelOptions } from './travel.js';
 
 enablePatches();
@@ -45,9 +46,8 @@ function childLevel(level: MapLevel): MapLevel {
   return MAP_LEVELS[Math.min(MAP_LEVELS.length - 1, i + 1)];
 }
 
-function placeFor(s: CampaignState, name: string): { x: number; y: number } {
-  const rng = createRng(seedFrom(s.meta.seed, 'place', slugify(name)));
-  return { x: rng.int(120, 880), y: rng.int(120, 580) };
+function placeFor(s: CampaignState, name: string, parentId: string | null = null): { x: number; y: number } {
+  return freeSpot(s, parentId, slugify(name));
 }
 
 function ensureLocation(s: CampaignState, name: string, ctx: ApplyContext, changes: Change[]): Location {
@@ -58,7 +58,7 @@ function ensureLocation(s: CampaignState, name: string, ctx: ApplyContext, chang
     const parentId = cur?.parentId ?? null;
     const level: MapLevel = cur?.level ?? 'local';
     const id = uniqueId(s.locations, 'loc', name);
-    const pos = placeFor(s, name);
+    const pos = placeFor(s, name, parentId);
     s.locations[id] = {
       id,
       name,
@@ -470,7 +470,7 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       const parent = op.parent ? findFuzzy(s.locations, op.parent) ?? ensureLocation(s, op.parent, ctx, changes) : undefined;
       if (!loc) {
         const id = uniqueId(s.locations, 'loc', op.name);
-        const pos = placeFor(s, op.name);
+        const pos = placeFor(s, op.name, op.parent === null ? null : parent?.id ?? null);
         const level = op.level ?? (parent ? childLevel(parent.level) : 'local');
         loc = s.locations[id] = {
           id,
@@ -712,6 +712,46 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       }
       if (op.influenceScale) org.influenceScale = op.influenceScale;
       if (op.standing !== undefined && ctx.source !== 'ai') org.standing = clamp(op.standing, 0, 100);
+      return;
+    }
+    case 'org.set': {
+      const org = s.orgs[op.id];
+      if (!org) throw new OpError('Unknown organization');
+      const { members, ...rest } = op.patch;
+      Object.assign(org, Object.fromEntries(Object.entries(rest).filter(([, v]) => v !== undefined)));
+      if (op.patch.standing !== undefined) org.standing = clamp(Math.round(op.patch.standing), 0, 100);
+      if (members) {
+        org.members = members;
+        for (const npc of Object.values(s.npcs)) {
+          const m = members.find((x) => x.npcId === npc.id);
+          const has = npc.orgs.find((o) => o.orgId === org.id);
+          if (m && !has) npc.orgs.push({ orgId: org.id, rank: m.rank });
+          else if (m && has) has.rank = m.rank;
+          else if (!m && has) npc.orgs = npc.orgs.filter((o) => o.orgId !== org.id);
+        }
+      }
+      return;
+    }
+    case 'org.remove': {
+      if (!s.orgs[op.id]) throw new OpError('Unknown organization');
+      delete s.orgs[op.id];
+      for (const npc of Object.values(s.npcs)) npc.orgs = npc.orgs.filter((o) => o.orgId !== op.id);
+      return;
+    }
+    case 'location.set': {
+      const loc = s.locations[op.id];
+      if (!loc) throw new OpError('Unknown location');
+      if (op.patch.parentId !== undefined && op.patch.parentId !== null) {
+        // Refuse cycles.
+        let cur: string | null = op.patch.parentId;
+        const seen = new Set<string>();
+        while (cur && !seen.has(cur)) {
+          if (cur === loc.id) throw new OpError('A place cannot be inside itself');
+          seen.add(cur);
+          cur = s.locations[cur]?.parentId ?? null;
+        }
+      }
+      Object.assign(loc, Object.fromEntries(Object.entries(op.patch).filter(([, v]) => v !== undefined)));
       return;
     }
     case 'org.standing': {

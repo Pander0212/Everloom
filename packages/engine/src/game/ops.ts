@@ -204,6 +204,47 @@ export const OpSchemas = {
     influenceScale: z.enum(['local', 'regional', 'national', 'global']).optional(),
     standing: num.optional(),
   }),
+  'org.set': z.object({
+    type: z.literal('org.set'),
+    id: z.string().max(80),
+    patch: z
+      .object({
+        name: name.optional(),
+        type: shortText.optional(),
+        purpose: text.optional(),
+        mainLocationId: z.string().max(80).nullable().optional(),
+        standing: num.min(0).max(100).optional(),
+        influenceScale: z.enum(['local', 'regional', 'national', 'global']).optional(),
+        leaderTitle: shortText.optional(),
+        leaderNpcId: z.string().max(80).nullable().optional(),
+        subLeaders: z.array(shortText).max(20).optional(),
+        rules: z.array(shortText).max(50).optional(),
+        influence: z.array(z.object({ locationId: z.string().max(80), strength: num.min(0).max(100) })).max(50).optional(),
+        members: z.array(z.object({ npcId: z.string().max(80).nullable(), name: shortText, rank: shortText })).max(200).optional(),
+        locked: z.boolean().optional(),
+      })
+      .strict(),
+  }),
+  'org.remove': z.object({ type: z.literal('org.remove'), id: z.string().max(80) }),
+  'location.set': z.object({
+    type: z.literal('location.set'),
+    id: z.string().max(80),
+    patch: z
+      .object({
+        name: name.optional(),
+        kind: locKind.optional(),
+        level: level.optional(),
+        parentId: z.string().max(80).nullable().optional(),
+        description: text.optional(),
+        customs: text.optional(),
+        x: num.min(0).max(1000).optional(),
+        y: num.min(0).max(1000).optional(),
+        discovered: z.boolean().optional(),
+        locked: z.boolean().optional(),
+        image: z.string().max(80).nullable().optional(),
+      })
+      .strict(),
+  }),
   'org.standing': z.object({ type: z.literal('org.standing'), name, delta: num.optional(), set: num.optional() }),
   'org.member': z.object({ type: z.literal('org.member'), org: name, npc: name, rank: shortText.optional(), remove: z.boolean().optional() }),
   'org.runin': z.object({ type: z.literal('org.runin'), org: name, text: shortText }),
@@ -316,7 +357,7 @@ export type OpOf<K extends OpType> = z.infer<(typeof OpSchemas)[K]>;
 
 /** Op types the tracker model / helper may emit. */
 export const AI_OP_TYPES: OpType[] = (Object.keys(OpSchemas) as OpType[]).filter(
-  (t) => !['patch', 'battle.action', 'meta.update', 'world.seen', 'phone.read', 'databank.remove', 'databank.update', 'location.remove', 'npc.set', 'npc.merge', 'quest.remove'].includes(t),
+  (t) => !['patch', 'battle.action', 'meta.update', 'world.seen', 'phone.read', 'databank.remove', 'databank.update', 'location.remove', 'npc.set', 'npc.merge', 'quest.remove', 'org.set', 'org.remove', 'location.set'].includes(t),
 );
 
 export const OpSchema = z.discriminatedUnion(

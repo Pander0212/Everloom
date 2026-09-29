@@ -119,6 +119,8 @@ export interface Location {
   visited: boolean;
   locked: boolean;
   tags: string[];
+  /** Optional scene background (media id). */
+  image?: string | null;
 }
 
 export type RouteMode = 'road' | 'trail' | 'rail' | 'water' | 'air' | 'space' | 'portal';

@@ -38,6 +38,8 @@ export interface GenerateInput {
   characterId?: string | null;
   /** Who the user's line is aimed at (target selector). */
   target?: string | null;
+  /** Extra one-off instruction for this reply (e.g. write the opening scene). */
+  instruction?: string | null;
   origin?: string;
 }
 
@@ -151,7 +153,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       history: promptHistory,
       maxContext,
       maxResponse,
-      finalInstruction: input.target ? `[${pc.userName} is addressing ${input.target}. ${input.target} should be the one to respond.]` : undefined,
+      finalInstruction: [input.target ? `[${pc.userName} is addressing ${input.target}. ${input.target} should be the one to respond.]` : '', input.instruction ?? ''].filter(Boolean).join('\n') || undefined,
     });
     lastPrompts.set(chatId, {
       at: Date.now(),

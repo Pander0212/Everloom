@@ -28,3 +28,5 @@ export * from './game/injection.js';
 export * from './game/tracker.js';
 export * from './api/types.js';
 export * from './game/emotion.js';
+export * from './game/mapgen.js';
+export * from './game/newgame.js';

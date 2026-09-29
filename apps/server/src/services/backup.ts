@@ -75,7 +75,9 @@ function openZip(file: string): Promise<yauzl.ZipFile> {
 
 /** Safe extraction: no absolute paths, no "..", size and entry-count caps. */
 export async function extractZip(file: string, dest: string, opts: { maxBytes?: number; maxEntries?: number; filter?: (name: string) => boolean } = {}): Promise<string[]> {
-  const zip = await openZip(file);
+  const zip = await openZip(file).catch((e: Error) => {
+    throw new HttpError(400, `Invalid archive: ${e.message}`);
+  });
   const maxBytes = opts.maxBytes ?? 4 * 1024 * 1024 * 1024;
   const maxEntries = opts.maxEntries ?? 200_000;
   const root = path.resolve(dest);
@@ -83,7 +85,12 @@ export async function extractZip(file: string, dest: string, opts: { maxBytes?: 
   let total = 0;
   let count = 0;
   const written: string[] = [];
-  return new Promise((resolve, reject) => {
+  return new Promise((resolve, rejectRaw) => {
+    // Anything yauzl itself rejects (bad names, corrupt data) is the upload's fault, not ours.
+    const reject = (e: unknown) => {
+      zip.close();
+      rejectRaw(e instanceof HttpError ? e : new HttpError(400, `Invalid archive: ${(e as Error)?.message ?? 'unreadable'}`));
+    };
     zip.on('error', reject);
     zip.on('end', () => resolve(written));
     zip.on('entry', (entry: yauzl.Entry) => {
