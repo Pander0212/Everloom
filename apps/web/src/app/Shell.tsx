@@ -67,7 +67,7 @@ function TabItem({ item }: { item: (typeof NAV)[number] }) {
 export function Shell() {
   return (
     <div className="flex h-full">
-      <aside className="hidden w-[232px] flex-none flex-col border-r border-line px-3 py-4 md:flex">
+      <aside className="ev-sidebar hidden w-[232px] flex-none flex-col border-r border-line px-3 py-4 md:flex">
         <div className="flex items-center gap-2.5 px-3 pb-5">
           <Logo size={26} />
           <span className="text-base font-semibold tracking-tight">Everloom</span>
@@ -90,7 +90,7 @@ export function Shell() {
             <Outlet />
           </Suspense>
         </main>
-        <nav className="fixed inset-x-0 bottom-0 z-30 flex h-[calc(var(--tabbar-h)+var(--safe-bottom))] bg-bg pb-[var(--safe-bottom)] hairline-t md:hidden">
+        <nav className="ev-tabbar fixed inset-x-0 bottom-0 z-30 flex h-[calc(var(--tabbar-h)+var(--safe-bottom))] bg-bg pb-[var(--safe-bottom)] hairline-t md:hidden">
           {NAV.map((n) => (
             <TabItem key={n.to} item={n} />
           ))}
@@ -104,7 +104,7 @@ export function Shell() {
 export function Page({ title, actions, children, narrow, back }: { title: React.ReactNode; actions?: React.ReactNode; children: React.ReactNode; narrow?: boolean; back?: React.ReactNode }) {
   return (
     <div className={cx('mx-auto w-full px-4 sm:px-6', narrow ? 'max-w-[720px]' : 'max-w-[1080px]')}>
-      <header className="sticky top-0 z-20 -mx-4 flex min-h-[60px] items-center gap-2 bg-bg px-4 pt-[var(--safe-top)] sm:-mx-6 sm:px-6">
+      <header className="ev-page-header sticky top-0 z-20 -mx-4 flex min-h-[60px] items-center gap-2 bg-bg px-4 pt-[var(--safe-top)] sm:-mx-6 sm:px-6">
         {back}
         <h1 className="min-w-0 flex-1 truncate text-lg font-semibold tracking-tight md:text-xl">{title}</h1>
         {actions}

@@ -60,7 +60,7 @@ export function Composer({ busy, enterToSend, onSwipeKey, stt, placeholder, onSe
     setListening(true);
   };
   return (
-    <div className="mx-auto w-full max-w-[760px] px-3 pb-[calc(var(--safe-bottom)+8px)] pt-2 sm:px-4">
+    <div className="ev-composer mx-auto w-full max-w-[760px] px-3 pb-[calc(var(--safe-bottom)+8px)] pt-2 sm:px-4">
       {accessory}
       <div className="flex items-end gap-1.5 rounded-lg bg-surface-2 p-1.5 transition-shadow focus-within:shadow-[0_0_0_2px_var(--accent-soft)]">
         <IconButton icon={Plus} label="Actions and tools" onClick={onMenu} />

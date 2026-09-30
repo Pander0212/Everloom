@@ -6,6 +6,7 @@ import { HttpError, owner, type AppContext } from '../context.js';
 import { completeChat } from '../llm/providers.js';
 import { logged, promptTokens } from '../services/calls.js';
 import { connectionForRole } from '../services/connections.js';
+import { sanitizeCss } from '../util/css.js';
 import { parse } from '../util/validate.js';
 
 /** What the assistant may target: the design tokens and the stable class hooks in the app. */
@@ -46,13 +47,4 @@ export function registerCss(app: FastifyInstance, ctx: AppContext) {
     if (!css.trim()) throw new HttpError(502, 'The model did not return any CSS');
     return { name: out.ok ? String(out.value?.name ?? '').slice(0, 60) : '', css, notes: out.ok ? String(out.value?.notes ?? '').slice(0, 300) : '' };
   });
-}
-
-/** No imports and no remote resources (privacy); data: URLs are fine. */
-export function sanitizeCss(css: string): string {
-  return css
-    .replace(/@import[^;]*;?/gi, '')
-    .replace(/url\(\s*(['"]?)(?!data:)[^)]*\1\s*\)/gi, 'none')
-    .replace(/expression\s*\(/gi, '(')
-    .slice(0, 20000);
 }

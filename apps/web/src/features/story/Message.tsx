@@ -95,12 +95,12 @@ export const Message = memo(function Message({ m, avatar, isLast, streamText, st
   ) : streaming && !text ? (
     <Typing className="mt-1" />
   ) : (
-    <div className={cx('story', streaming && 'is-streaming')} dangerouslySetInnerHTML={{ __html: html }} />
+    <div className={cx('ev-message-text story', streaming && 'is-streaming')} dangerouslySetInnerHTML={{ __html: html }} />
   );
 
   if (isUser) {
     return (
-      <div id={`msg-${m.id}`} className={cx('group flex flex-col items-end py-2', m.hidden && 'opacity-50', highlight && 'rounded-md bg-accent-soft')}>
+      <div id={`msg-${m.id}`} className={cx('ev-message ev-message-user group flex flex-col items-end py-2', m.hidden && 'opacity-50', highlight && 'rounded-md bg-accent-soft')}>
         <div className="flex max-w-[88%] items-start gap-1 sm:max-w-[75%]">
           <div className="opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100">{menu}</div>
           <div className="min-w-0 rounded-lg rounded-tr-sm bg-surface-2 px-4 py-2.5 [&_.story]:text-[16px]">{body}</div>
@@ -139,7 +139,7 @@ export const Message = memo(function Message({ m, avatar, isLast, streamText, st
   return (
     <motion.div
       id={`msg-${m.id}`}
-      className={cx('group relative flex gap-3 py-3', m.hidden && 'opacity-50', highlight && '-mx-2 rounded-md bg-accent-soft px-2', isNarrator && 'pl-0')}
+      className={cx('ev-message', isNarrator ? 'ev-message-system' : 'ev-message-assistant', 'group relative flex gap-3 py-3', m.hidden && 'opacity-50', highlight && '-mx-2 rounded-md bg-accent-soft px-2', isNarrator && 'pl-0')}
       style={canSwipe && !editing ? { x } : undefined}
       drag={canSwipe && !editing && !busy ? 'x' : false}
       dragDirectionLock

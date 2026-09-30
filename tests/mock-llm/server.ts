@@ -83,6 +83,7 @@ function classify(messages: any[]): string {
   if (/off-screen between two characters/i.test(sys)) return 'social';
   if (/slow-burning background storylines/i.test(sys)) return 'seed';
   if (/condense story memories/i.test(sys)) return 'consolidate';
+  if (/custom CSS snippets for the Everloom app/i.test(sys)) return 'css';
   if (/connection test/i.test(sys)) return 'test';
   if (/helper companion/i.test(sys)) return 'helper';
   if (/map designer/i.test(sys)) return 'map';
@@ -129,6 +130,12 @@ function answerFor(kind: string, messages: any[]): string {
     }
     case 'seed':
       return JSON.stringify({ text: 'Smugglers are using the old pier at night', stages: ['a rumour of lights on the water', 'crates nobody claims', 'a guard is bribed openly', 'the smugglers make their move'], place: null });
+    case 'css': {
+      // Revisions keep the current snippet and add to it; a remote import is included to prove it gets stripped.
+      const current = /Current snippet:\n([\s\S]*?)\n\n/.exec(String(messages[messages.length - 1].content))?.[1] ?? '';
+      const css = /green/i.test(all) ? `${current}\n.ev-message-user > div > div:last-child { background: rgb(22, 128, 61); }` : `@import url("https://evil.example/x.css");\n:root { --story-size: 19px; }\n.ev-message-text { letter-spacing: 0.01em; background: url(https://evil.example/t.png); }`;
+      return JSON.stringify({ name: 'Roomier story text', css: css.trim(), notes: 'Larger story text with a touch more spacing.' });
+    }
     case 'test':
       return 'ready';
     case 'helper':

@@ -2,6 +2,7 @@ import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router';
 import { get, onAuthRequired, setCsrf } from '@/lib/api';
+import { CustomCss } from '@/lib/customCss';
 import { startEvents, stopEvents } from '@/lib/events';
 import { useSettings } from '@/lib/queries';
 import { applyMotion, applyTextSize, applyTheme, watchSystemTheme } from '@/lib/theme';
@@ -42,6 +43,7 @@ function AuthedApp() {
   }, [settings.data]);
   return (
     <Suspense fallback={<PageFallback />}>
+      <CustomCss />
       <Routes>
         <Route path="/chat/:id" element={<StoryView />} />
         <Route path="/design" element={<DesignPage />} />

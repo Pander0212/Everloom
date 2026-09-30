@@ -1,5 +1,6 @@
 import { DEFAULT_WI_SETTINGS, WORLD_PROFILES, type Settings } from '@everloom/engine';
 import type { AppContext } from '../context.js';
+import { sanitizeCss } from '../util/css.js';
 
 export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
@@ -54,6 +55,9 @@ export function updateSettings(ctx: AppContext, owner: string, patch: Partial<Se
   if (profile && profile !== 'custom' && WORLD_PROFILES[profile as keyof typeof WORLD_PROFILES]) p.world = { ...p.world, ...WORLD_PROFILES[profile as keyof typeof WORLD_PROFILES], profile };
   // Flipping a single switch makes the setup custom.
   else if (!profile && p.world && Object.keys(p.world).some((k) => k in WORLD_PROFILES.balanced)) p.world = { ...p.world, profile: 'custom' };
+  // Custom CSS is cleaned on the way in, whoever wrote it.
+  if (Array.isArray(p.css?.snippets))
+    p.css = { ...p.css, snippets: p.css.snippets.slice(0, 100).map((x: any) => ({ id: String(x?.id ?? '').slice(0, 40), name: String(x?.name ?? 'Snippet').slice(0, 80), css: sanitizeCss(String(x?.css ?? '')), enabled: x?.enabled !== false })) };
   const next = merge(storedSettings(ctx, owner), p);
   ctx.db
     .prepare("INSERT INTO settings (owner_id, key, value) VALUES (?, 'app', ?) ON CONFLICT(owner_id, key) DO UPDATE SET value = excluded.value")

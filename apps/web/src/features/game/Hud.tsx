@@ -77,7 +77,7 @@ export function Hud() {
   if (!state) return chat.campaignId ? <div className="h-11 flex-none hairline-b" aria-hidden="true" /> : null;
   const pinned = settings.data?.hud.pinned ?? ['time', 'weather', 'location', 'hp', 'hunger', 'energy'];
   return (
-    <button onClick={() => open('status')} className={cx('pressable no-scrollbar flex h-11 w-full flex-none items-center gap-4 overflow-x-auto px-4 py-2 hairline-b text-left [&>*]:flex-none')}>
+    <button onClick={() => open('status')} className={cx('ev-hud pressable no-scrollbar flex h-11 w-full flex-none items-center gap-4 overflow-x-auto px-4 py-2 hairline-b text-left [&>*]:flex-none')}>
       <span className="sr-only">Status:</span>
       <HudItems s={state} pinned={pinned} />
     </button>
