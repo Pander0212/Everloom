@@ -35,6 +35,7 @@ function summary(r: any): CharacterSummary {
     hasGallery: !!r.has_gallery,
     hasGreetings: (card.alternate_greetings ?? []).length > 0,
     linked: r.source ? (json<{ key?: string }>(r.source, {}).key ?? null) : null,
+    linkedUrl: r.source ? (json<{ url?: string }>(r.source, {}).url ?? null) : null,
     collections: r.cols ? String(r.cols).split(',') : [],
   };
 }

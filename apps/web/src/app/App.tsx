@@ -16,6 +16,7 @@ const CharactersPage = lazy(() => import('@/features/library/LibraryPage'));
 const CharacterEditor = lazy(() => import('@/features/characters/CharacterEditor'));
 const StudioPage = lazy(() => import('@/features/studio/StudioPage'));
 const BrowsePage = lazy(() => import('@/features/sources/BrowsePage'));
+const BridgeReceive = lazy(() => import('@/features/sources/BridgeReceive'));
 const PersonasPage = lazy(() => import('@/features/personas/PersonasPage'));
 const LorePage = lazy(() => import('@/features/lore/LorePage'));
 const LoreEditor = lazy(() => import('@/features/lore/LoreEditor'));
@@ -56,6 +57,7 @@ function AuthedApp() {
           <Route path="characters" element={<CharactersPage />} />
           <Route path="characters/studio" element={<StudioPage />} />
           <Route path="characters/browse" element={<BrowsePage />} />
+          <Route path="bridge/receive" element={<BridgeReceive />} />
           <Route path="characters/:id" element={<CharacterEditor />} />
           <Route path="personas" element={<PersonasPage />} />
           <Route path="lore" element={<LorePage />} />

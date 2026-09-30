@@ -175,14 +175,21 @@ function Details({ c, onDeleted, onFullEditor }: { c: CharacterDTO; onDeleted: (
           <Link2 size={15} className="flex-none" />
           <span className="min-w-0 flex-1 truncate">
             From{' '}
-            {/* Chub is the only source so far; the link needs the provider once there are more. */}
-            <a className="font-medium text-accent-text" href={`https://chub.ai/characters/${c.linked}`} target="_blank" rel="noreferrer noopener">
+            <a className="font-medium text-accent-text" href={c.linkedUrl ?? `https://chub.ai/characters/${c.linked}`} target="_blank" rel="noreferrer noopener">
               {c.linked}
             </a>
           </span>
           <Button size="sm" variant="quiet" icon={RefreshCw} onClick={() => setUpdates(true)}>
             Check for update
           </Button>
+        </p>
+      ) : null}
+      {(c.card.extensions as Record<string, unknown> | undefined)?.definition_hidden ? (
+        <p className="flex items-start gap-2 rounded-md bg-surface-2 p-3 text-sm text-fg-2">
+          <Lock size={15} className="mt-0.5 flex-none" />
+          <span>
+            <strong className="font-medium text-fg">Definition hidden by creator.</strong> Only the public profile was imported. Write your own description and greeting, or chat with the full character on its site.
+          </span>
         </p>
       ) : null}
       {c.linked ? <UpdatesSheet open={updates} onOpenChange={setUpdates} ids={updateIds(c.id)} /> : null}

@@ -8,7 +8,7 @@ import { parse } from '../util/validate.js';
 
 export const SESSION_COOKIE = 'everloom_session';
 const SESSION_TTL = 30 * 24 * 3600 * 1000;
-const PUBLIC = new Set(['/api/health', '/api/auth/status', '/api/auth/setup', '/api/auth/login']);
+const PUBLIC = new Set(['/api/health', '/api/auth/status', '/api/auth/setup', '/api/auth/login', '/api/bridge/import', '/api/bridge/everloom-bridge.user.js']);
 
 const credentials = z.object({
   username: z.string().trim().min(1).max(64),

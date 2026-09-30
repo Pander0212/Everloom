@@ -47,10 +47,10 @@ describe('Chub source mapping', () => {
     expect(d.version).toBe('2026-05-01T10:00:00Z');
   });
 
-  it('reports a hidden definition as hidden, with no card to import', () => {
+  it('reports a hidden definition as hidden; only the public profile is left to import, labelled', () => {
     const d = chubDetail(fx('secret-sister.json'))!;
     expect(d.hidden).toBe(true);
-    expect(d.card).toBeNull();
+    expect(d.card).toMatchObject({ description: '', personality: '', scenario: '', first_mes: '', mes_example: '', extensions: { definition_hidden: true } });
     expect(chubDetail({ node: { fullPath: 'a/b', name: 'B', definition: { name: 'B' } } })!.hidden).toBe(true); // empty definition
   });
 });

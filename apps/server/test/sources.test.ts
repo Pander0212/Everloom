@@ -42,7 +42,7 @@ const search = async (qs = '') => (await c.req('GET', `/api/sources/chub/search?
 
 describe('online sources', () => {
   it('lists Chub; adult content is off by default and the server enforces it', async () => {
-    expect((await c.req('GET', '/api/sources')).json).toMatchObject({ nsfwAllowed: false, providers: [{ id: 'chub', name: 'Chub', hasToken: false }] });
+    expect((await c.req('GET', '/api/sources')).json).toMatchObject({ nsfwAllowed: false, providers: expect.arrayContaining([expect.objectContaining({ id: 'chub', name: 'Chub', hasToken: false })]) });
     const r = await search('&nsfw=1'); // asking isn't enough
     expect(r.nsfw).toBe(false);
     expect(r.items.map((i: any) => i.key)).not.toContain('nightowl/velvet-room');
@@ -74,13 +74,12 @@ describe('online sources', () => {
     expect((await c.req('GET', '/api/sources/chub/item?key=tidewriter/maren-holt')).json.ownedId).toBe(ch.id);
   });
 
-  it("refuses a card whose creator hid the definition, without any fallback", async () => {
+  it('imports only the public profile of a card whose creator hid the definition, labelled', async () => {
     const r = await c.req('POST', '/api/sources/chub/import', { key: 'quietmaker/secret-sister' });
-    expect(r.status).toBe(403);
-    expect(r.json.error).toMatch(/keeps this character's definition private/);
-    // Nothing else was tried: no card image, no other endpoint.
-    expect(calls.map((x) => new URL(x.url).pathname)).toEqual(['/api/characters/quietmaker/secret-sister']);
-    expect((await c.req('GET', '/api/characters')).json).toEqual([]);
+    expect(r.status).toBe(200);
+    expect(r.json.card).toMatchObject({ description: '', personality: '', scenario: '', first_mes: '', extensions: { definition_hidden: true } });
+    // Nothing else was tried: the one public endpoint, and the public picture.
+    expect(calls.map((x) => new URL(x.url).hostname + new URL(x.url).pathname).filter((u) => !u.startsWith('avatars.'))).toEqual(['api.chub.ai/api/characters/quietmaker/secret-sister']);
   });
 
   it('checks for updates with field-level diffs and applies chosen fields (keeping a version)', async () => {

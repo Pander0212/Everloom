@@ -1,23 +1,37 @@
 /**
- * Browse online character sources (Chub for now): search, preview, import. Everything comes through
- * the Everloom server, pictures included; adult content stays hidden unless turned on in Settings.
+ * Browse online character sources: search, preview, import, or import from a link. Everything comes
+ * through the Everloom server, pictures included; adult content stays hidden unless turned on in
+ * Settings. Sites the server must not fetch are listed with how to bring cards in (the browser bridge).
  */
 import type { SourceItem } from '@everloom/engine';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Check, Download, ExternalLink, Lock, Search, Star } from 'lucide-react';
+import { ArrowLeft, Check, Download, ExternalLink, Info, Link2, Lock, Search, Star } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Page } from '@/app/Shell';
 import { get, post } from '@/lib/api';
 import { toast, toastError } from '@/lib/store';
-import { Badge, Button, EmptyState, Icon, IconButton, Input, Segmented, Sheet, Spinner, ToggleRow } from '@/ui';
+import { Badge, Button, EmptyState, Field, Icon, IconButton, Input, Segmented, Select, Sheet, Spinner } from '@/ui';
 import { SandboxedHtml } from '../library/SandboxedHtml';
 
 type Item = SourceItem & { ownedId: string | null };
+interface Capability {
+  id: string;
+  name: string;
+  site: string;
+  access: 'server' | 'bridge' | 'none';
+  search: boolean;
+  preview: boolean;
+  import: boolean;
+  updates: boolean;
+  note: string;
+}
 interface Providers {
   nsfwAllowed: boolean;
   providers: Array<{ id: string; name: string; site: string; hasToken: boolean }>;
+  capabilities: Capability[];
 }
+const SOURCE_KEY = 'everloom:browse-source';
 interface Detail extends Item {
   hidden: boolean;
   description: string;
@@ -36,7 +50,24 @@ const SORTS = [
 export default function BrowsePage() {
   const navigate = useNavigate();
   const providers = useQuery({ queryKey: ['sources'], queryFn: () => get<Providers>('/api/sources') });
-  const provider = providers.data?.providers[0];
+  const [sourceId, setSourceId] = useState<string>(() => {
+    try {
+      return localStorage.getItem(SOURCE_KEY) ?? 'chub';
+    } catch {
+      return 'chub';
+    }
+  });
+  const provider = providers.data?.providers.find((p) => p.id === sourceId) ?? providers.data?.providers[0];
+  const pickSource = (id: string) => {
+    setSourceId(id);
+    try {
+      localStorage.setItem(SOURCE_KEY, id);
+    } catch {
+      /* remembered for this visit only */
+    }
+  };
+  const [about, setAbout] = useState(false);
+  const [linking, setLinking] = useState(false);
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
   const [sort, setSort] = useState<(typeof SORTS)[number]['value']>('popular');
@@ -61,13 +92,31 @@ export default function BrowsePage() {
   }, [results.data]);
 
   return (
-    <Page back={<IconButton icon={ArrowLeft} label="Back" onClick={() => navigate('/characters')} />} title={provider ? `Browse ${provider.name}` : 'Browse online'}>
+    <Page
+      back={<IconButton icon={ArrowLeft} label="Back" onClick={() => navigate('/characters')} />}
+      title={provider ? `Browse ${provider.name}` : 'Browse online'}
+      actions={
+        <>
+          <IconButton icon={Link2} label="Import from a link" onClick={() => setLinking(true)} />
+          <IconButton icon={Info} label="About sources" onClick={() => setAbout(true)} />
+        </>
+      }
+    >
       {!providers.data ? (
         <div className="flex justify-center py-16">
           <Spinner />
         </div>
       ) : (
         <>
+          <div className="mb-3 flex items-center gap-2">
+            <Select aria-label="Source" value={provider?.id ?? ''} onChange={(e) => pickSource(e.target.value)} className="w-auto min-w-44">
+              {providers.data.providers.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </Select>
+          </div>
           <div className="relative">
             <Icon icon={Search} size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" />
             <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Search ${provider?.name ?? ''}`} aria-label="Search online characters" className="pl-10" />
@@ -128,6 +177,8 @@ export default function BrowsePage() {
         </>
       )}
       {open ? <PreviewSheet item={open} onClose={() => setOpen(null)} /> : null}
+      <AboutSources open={about} onOpenChange={setAbout} caps={providers.data?.capabilities ?? []} />
+      <LinkImport open={linking} onOpenChange={setLinking} caps={providers.data?.capabilities ?? []} />
     </Page>
   );
 }
@@ -164,8 +215,8 @@ function PreviewSheet({ item, onClose }: { item: Item; onClose: () => void }) {
             Open in library
           </Button>
         ) : (
-          <Button variant="primary" block icon={Download} loading={busy} disabled={!d.data || d.data.hidden} onClick={doImport}>
-            Import
+          <Button variant="primary" block icon={Download} loading={busy} disabled={!d.data} onClick={doImport}>
+            {d.data?.hidden ? 'Import public profile' : 'Import'}
           </Button>
         )
       }
@@ -203,7 +254,10 @@ function PreviewSheet({ item, onClose }: { item: Item; onClose: () => void }) {
         <div className="mt-5 flex flex-col gap-4">
           {d.data.hidden ? (
             <p className="flex items-start gap-2 rounded-md bg-surface-2 p-3 text-sm text-fg-2">
-              <Lock size={16} className="mt-0.5 flex-none" /> The creator keeps this character's definition private, so it can't be imported. You can still chat with it on the site.
+              <Lock size={16} className="mt-0.5 flex-none" />
+              <span>
+                <strong className="font-medium text-fg">Definition hidden by creator.</strong> Only the public profile (name, picture, notes) comes across, labelled as such. You can still chat with the full character on the site.
+              </span>
             </p>
           ) : null}
           {d.data.preview?.first_mes ? (
@@ -221,6 +275,102 @@ function PreviewSheet({ item, onClose }: { item: Item; onClose: () => void }) {
           ) : null}
         </div>
       ) : null}
+    </Sheet>
+  );
+}
+
+const ACCESS: Record<Capability['access'], { label: string; tone: 'success' | 'accent' | 'neutral' }> = {
+  server: { label: 'Built in', tone: 'success' },
+  bridge: { label: 'Browser bridge', tone: 'accent' },
+  none: { label: 'Not supported', tone: 'neutral' },
+};
+
+/** The capability matrix: what works for each site, and why. */
+function AboutSources({ open, onOpenChange, caps }: { open: boolean; onOpenChange: (o: boolean) => void; caps: Capability[] }) {
+  const navigate = useNavigate();
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Character sources"
+      description="Everloom only uses public endpoints, fetched by your server with polite limits. Sites that block automated requests work through the browser bridge instead."
+      size="lg"
+      footer={
+        <Button variant="secondary" block onClick={() => navigate('/settings/characters#bridge')}>
+          Set up the browser bridge
+        </Button>
+      }
+    >
+      <ul className="flex flex-col divide-y divide-line" aria-label="What each source supports">
+        {caps.map((c) => (
+          <li key={c.id} className="flex flex-col gap-1 py-3">
+            <span className="flex items-center gap-2">
+              <span className="min-w-0 flex-1 truncate font-medium">{c.name}</span>
+              <Badge tone={ACCESS[c.access].tone}>{ACCESS[c.access].label}</Badge>
+            </span>
+            <span className="text-xs text-fg-2">{c.note}</span>
+            {c.access !== 'none' ? (
+              <span className="text-xs text-fg-3">
+                {[c.search && 'Search', c.preview && 'Preview', c.import && 'Import', c.updates && 'Update checks'].filter(Boolean).join(' · ')}
+              </span>
+            ) : null}
+          </li>
+        ))}
+      </ul>
+    </Sheet>
+  );
+}
+
+function LinkImport({ open, onOpenChange, caps }: { open: boolean; onOpenChange: (o: boolean) => void; caps: Capability[] }) {
+  const qc = useQueryClient();
+  const navigate = useNavigate();
+  const [url, setUrl] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const go = async () => {
+    setError(null);
+    // Pages on sites Everloom doesn't fetch: say what to do instead of trying.
+    try {
+      const u = new URL(url.trim());
+      const host = u.hostname.replace(/^www\./, '');
+      const cap = caps.find((c) => c.access !== 'server' && c.site && new URL(c.site).hostname.replace(/^www\./, '') === host);
+      if (cap && !/\.(png|json|charx)$/i.test(u.pathname)) {
+        setError(cap.access === 'none' ? `${cap.name} isn't supported. ${cap.note}` : `Everloom doesn't fetch pages from ${cap.name}. Open the page in your browser and use "Send to Everloom" (Settings → Characters → Browser bridge).`);
+        return;
+      }
+    } catch {
+      setError("That doesn't look like a link");
+      return;
+    }
+    setBusy(true);
+    try {
+      const r = await post<{ character: { id: string; name: string }; via: string }>('/api/sources/import-url', { url: url.trim() });
+      toast({ title: `${r.character.name} added to your library`, lines: [`From ${r.via}`], tone: 'success', action: { label: 'Open', run: () => navigate(`/characters/${r.character.id}`) } });
+      await qc.invalidateQueries({ queryKey: ['source-search'] });
+      setUrl('');
+      onOpenChange(false);
+    } catch (e) {
+      setError((e as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Import from a link"
+      description="A character page on a supported site, or a direct link to a card file (PNG, JSON or CHARX)."
+      size="md"
+      footer={
+        <Button variant="primary" block icon={Download} loading={busy} disabled={url.trim().length < 8} onClick={go}>
+          Import
+        </Button>
+      }
+    >
+      <Field label="Link" htmlFor="import-url" error={error ?? undefined}>
+        <Input id="import-url" type="url" inputMode="url" placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && url.trim().length >= 8 && void go()} />
+      </Field>
     </Sheet>
   );
 }

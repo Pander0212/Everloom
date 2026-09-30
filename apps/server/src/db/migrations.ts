@@ -463,4 +463,20 @@ ALTER TABLE phone_messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'text';
 ALTER TABLE phone_messages ADD COLUMN speaker_id TEXT;
 `,
   },
+  {
+    version: 5,
+    name: 'phase 3 browser bridge',
+    sql: `
+-- Devices allowed to send cards through the browser bridge. Only a hash of each token is kept.
+CREATE TABLE bridge_devices (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  label TEXT NOT NULL,
+  token_hash TEXT NOT NULL UNIQUE,
+  created_at INTEGER NOT NULL,
+  last_used_at INTEGER
+);
+CREATE INDEX bridge_devices_owner ON bridge_devices(owner_id);
+`,
+  },
 ];

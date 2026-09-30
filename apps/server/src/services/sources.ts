@@ -6,7 +6,40 @@
  * provider. Only public, openly accessible endpoints are used. A card whose creator hid its
  * definition can't be imported, and adult content stays out unless the owner turned it on.
  */
-import { chubDetail, chubDetailUrl, chubKeyFromLink, chubSearchResults, chubSearchUrl, CHUB, diffCards, type CardData, type FieldDiff, type SourceDetail, type SourceItem, type SourceSearch } from '@everloom/engine';
+import {
+  chubDetail,
+  chubDetailUrl,
+  chubKeyFromLink,
+  chubSearchResults,
+  chubSearchUrl,
+  CHUB,
+  CTAVERN,
+  ctDetail,
+  ctDetailUrl,
+  ctKeyFromLink,
+  ctSearchResults,
+  ctSearchUrl,
+  PYGMALION,
+  pygDetail,
+  pygDetailRequest,
+  pygKeyFromLink,
+  pygSearchRequest,
+  pygSearchResults,
+  RISU,
+  risuDetail,
+  risuDownloadUrl,
+  risuKeyFromLink,
+  risuMetaUrl,
+  risuSearchResults,
+  risuSearchUrl,
+  unflattenPageData,
+  WYVERN,
+  wyvDetail,
+  wyvDetailUrl,
+  wyvKeyFromLink,
+  wyvSearchResults,
+  wyvSearchUrl,
+  diffCards, type CardData, type FieldDiff, type SourceDetail, type SourceItem, type SourceSearch } from '@everloom/engine';
 import { createHash } from 'node:crypto';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
@@ -20,8 +53,8 @@ import { getSettings } from './settings.js';
 // ------------------------------------------------------------------ the provider interface
 
 export interface ProviderIO {
-  /** Cached, rate-limited JSON GET. */
-  json(url: string, opts?: { ttlMs?: number }): Promise<any>;
+  /** Cached, rate-limited JSON GET (or a JSON POST when `post` is given). */
+  json(url: string, opts?: { ttlMs?: number; post?: unknown }): Promise<any>;
   bytes(url: string): Promise<Buffer>;
   token: string | null;
 }
@@ -37,6 +70,8 @@ export interface SourceProvider {
   search(q: SourceSearch, io: ProviderIO): Promise<{ items: SourceItem[]; hasMore: boolean }>;
   get(key: string, io: ProviderIO, opts?: { fresh?: boolean }): Promise<SourceDetail | null>;
   keyFromLink(link: string): string | null;
+  /** The character's page on the site. */
+  urlFor(key: string): string;
 }
 
 const PER_PAGE = 24;
@@ -56,10 +91,116 @@ export const chubProvider: SourceProvider = {
     return chubDetail(await io.json(chubDetailUrl(key), { ttlMs: opts?.fresh ? 0 : 30 * 60_000 }));
   },
   keyFromLink: chubKeyFromLink,
+  urlFor: (key) => `${CHUB.site}/characters/${key}`,
 };
 
-/** Other sites were checked and have no public, documented catalog API (see PHASE2_DECISIONS.md). */
-export const PROVIDERS: Record<string, SourceProvider> = { [chubProvider.id]: chubProvider };
+export const ctavernProvider: SourceProvider = {
+  id: CTAVERN.id,
+  name: CTAVERN.name,
+  site: CTAVERN.site,
+  imageHosts: ['cards.character-tavern.com'],
+  async search(q, io) {
+    const r = ctSearchResults(await io.json(ctSearchUrl(q, PER_PAGE), { ttlMs: 10 * 60_000 }));
+    return { items: q.nsfw ? r.items : r.items.filter((i) => !i.nsfw), hasMore: r.hasMore };
+  },
+  async get(key, io, opts) {
+    return ctDetail(await io.json(ctDetailUrl(key), { ttlMs: opts?.fresh ? 0 : 30 * 60_000 }));
+  },
+  keyFromLink: ctKeyFromLink,
+  urlFor: (key) => `${CTAVERN.site}/character/${key}`,
+};
+
+export const risuProvider: SourceProvider = {
+  id: RISU.id,
+  name: RISU.name,
+  site: RISU.site,
+  imageHosts: ['sv.risuai.xyz'],
+  async search(q, io) {
+    const r = risuSearchResults(await io.json(risuSearchUrl(q), { ttlMs: 10 * 60_000 }));
+    return { items: q.nsfw ? r.items : r.items.filter((i) => !i.nsfw), hasMore: r.hasMore };
+  },
+  async get(key, io, opts) {
+    const ttlMs = opts?.fresh ? 0 : 30 * 60_000;
+    const meta = await io.json(risuMetaUrl(key), { ttlMs });
+    if (!meta) return null;
+    const hidden = unflattenPageData(meta)?.card?.hidden;
+    // A hidden card's definition is never downloaded.
+    return risuDetail(meta, hidden ? null : await io.json(risuDownloadUrl(key), { ttlMs }));
+  },
+  keyFromLink: risuKeyFromLink,
+  urlFor: (key) => `${RISU.site}/character/${key}`,
+};
+
+export const pygmalionProvider: SourceProvider = {
+  id: PYGMALION.id,
+  name: PYGMALION.name,
+  site: PYGMALION.site,
+  imageHosts: ['assets.pygmalion.chat'],
+  async search(q, io) {
+    const req = pygSearchRequest(q, PER_PAGE);
+    const r = pygSearchResults(await io.json(req.url, { ttlMs: 10 * 60_000, post: req.body }), q.page, PER_PAGE);
+    return { items: q.nsfw ? r.items : r.items.filter((i) => !i.nsfw), hasMore: r.hasMore };
+  },
+  async get(key, io, opts) {
+    const req = pygDetailRequest(key);
+    return pygDetail(await io.json(req.url, { ttlMs: opts?.fresh ? 0 : 30 * 60_000, post: req.body }));
+  },
+  keyFromLink: pygKeyFromLink,
+  urlFor: (key) => `${PYGMALION.site}/character/${key}`,
+};
+
+export const wyvernProvider: SourceProvider = {
+  id: WYVERN.id,
+  name: WYVERN.name,
+  site: WYVERN.site,
+  imageHosts: ['imagedelivery.net'],
+  async search(q, io) {
+    const r = wyvSearchResults(await io.json(wyvSearchUrl(q, PER_PAGE), { ttlMs: 10 * 60_000 }));
+    return { items: q.nsfw ? r.items : r.items.filter((i) => !i.nsfw), hasMore: r.hasMore };
+  },
+  async get(key, io, opts) {
+    return wyvDetail(await io.json(wyvDetailUrl(key), { ttlMs: opts?.fresh ? 0 : 30 * 60_000 }));
+  },
+  keyFromLink: wyvKeyFromLink,
+  urlFor: (key) => `${WYVERN.site}/characters/${key}`,
+};
+
+/** Sites with a public API Everloom can use from the server. The rest are in CAPABILITIES. */
+export const PROVIDERS: Record<string, SourceProvider> = Object.fromEntries([chubProvider, ctavernProvider, risuProvider, pygmalionProvider, wyvernProvider].map((p) => [p.id, p]));
+
+export type Access = 'server' | 'bridge' | 'none';
+export interface Capability {
+  id: string;
+  name: string;
+  site: string;
+  access: Access;
+  search: boolean;
+  preview: boolean;
+  import: boolean;
+  updates: boolean;
+  /** Why it works the way it does (shown in the app and the docs). */
+  note: string;
+}
+
+/**
+ * What each site allows, checked in the order the Phase 3 brief lists them (see PHASE2_DECISIONS.md
+ * › Phase 3 › Character sources). "bridge" means only the player's own browser, on a page they
+ * opened, can send a card; the server never tries to get past a site's bot protection.
+ */
+export const CAPABILITIES: Capability[] = [
+  { id: 'chub', name: 'Chub', site: 'https://chub.ai', access: 'server', search: true, preview: true, import: true, updates: true, note: 'Public API. An optional API key makes results follow your Chub account settings.' },
+  { id: 'ctavern', name: 'Character Tavern', site: 'https://character-tavern.com', access: 'server', search: true, preview: true, import: true, updates: true, note: 'Public search and character API; robots.txt allows it.' },
+  { id: 'risu', name: 'RisuRealm', site: 'https://realm.risuai.net', access: 'server', search: true, preview: true, import: true, updates: true, note: "Search reads the site's public page data; imports use the public download API RisuAI itself uses. Hidden cards are never downloaded." },
+  { id: 'pygmalion', name: 'Pygmalion', site: 'https://pygmalion.chat', access: 'server', search: true, preview: true, import: true, updates: true, note: 'Public character API. Only public characters are listed.' },
+  { id: 'wyvern', name: 'Wyvern', site: 'https://app.wyvern.chat', access: 'server', search: true, preview: true, import: true, updates: true, note: "Public explore API. Fields the creator marks secret are left out and the card is labelled 'definition hidden'." },
+  { id: 'botbooru', name: 'Botbooru', site: 'https://botbooru.com', access: 'bridge', search: false, preview: false, import: true, updates: false, note: 'robots.txt disallows automated access to its API and character pages, so only the browser bridge can send a card you are viewing.' },
+  { id: 'aicc', name: 'AI Character Cards', site: 'https://aicharactercards.com', access: 'bridge', search: false, preview: false, import: true, updates: false, note: 'Pages sit behind a browser check, so cards come in through the browser bridge (or paste a direct card-file link).' },
+  { id: 'janitor', name: 'JanitorAI', site: 'https://janitorai.com', access: 'bridge', search: false, preview: false, import: true, updates: false, note: 'Behind Cloudflare: browser bridge only. A hidden definition stays hidden; only the public profile comes across.' },
+  { id: 'jannyai', name: 'JannyAI', site: 'https://jannyai.com', access: 'bridge', search: false, preview: false, import: true, updates: false, note: 'Behind Cloudflare: browser bridge only.' },
+  { id: 'datacat', name: 'DataCat', site: 'https://datacat.run', access: 'bridge', search: false, preview: false, import: true, updates: false, note: 'robots.txt disallows its API, so only the browser bridge can send a card from a page you opened.' },
+  { id: 'saucepan', name: 'Saucepan', site: 'https://saucepan.ai', access: 'none', search: false, preview: false, import: false, updates: false, note: 'No public catalog or permission to import was found, so it is not supported.' },
+  { id: 'url', name: 'Any link', site: '', access: 'server', search: false, preview: true, import: true, updates: false, note: 'A direct link to a card file (PNG, JSON or CHARX), or a link to a page on one of the sites above.' },
+];
 
 export function provider(id: string): SourceProvider {
   const p = PROVIDERS[id];
@@ -69,7 +210,7 @@ export function provider(id: string): SourceProvider {
 
 // ------------------------------------------------------------------ fetching: cache, rate limit, test hook
 
-export type SourceFetcher = (url: string, headers: Record<string, string>) => Promise<{ status: number; body: Buffer }>;
+export type SourceFetcher = (url: string, headers: Record<string, string>, body?: string) => Promise<{ status: number; body: Buffer }>;
 let fetcher: SourceFetcher | null = null;
 /** Tests replace the network with recorded responses. */
 export function setSourceFetcher(f: SourceFetcher | null) {
@@ -77,17 +218,33 @@ export function setSourceFetcher(f: SourceFetcher | null) {
 }
 
 /**
- * Test support only: EVERLOOM_SOURCE_FIXTURES=<folder> answers Chub requests from saved responses
- * (search.json, <slug>.json) instead of the network. Unset in normal use.
+ * Test support only: EVERLOOM_SOURCE_FIXTURES=<folder> answers source requests from saved responses
+ * (tests/fixtures/sources, one folder per provider) instead of the network. Unset in normal use.
+ * Pointing it at the chub folder itself still works.
  */
 export function fixtureFetcher(dir: string): SourceFetcher {
   const PNG = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64');
-  return async (url) => {
+  const root = existsSync(path.join(dir, 'search.json')) ? path.dirname(path.resolve(dir)) : path.resolve(dir);
+  const file = (sub: string, name: string | null | undefined) => {
+    if (!name) return null;
+    const full = path.join(root, sub, name.endsWith('.json') ? name : `${name}.json`);
+    return full.startsWith(path.join(root, sub) + path.sep) && existsSync(full) ? full : null;
+  };
+  const IMAGE_HOSTS = new Set(['avatars.charhub.io', 'cards.character-tavern.com', 'sv.risuai.xyz', 'assets.pygmalion.chat', 'imagedelivery.net']);
+  return async (url, _headers, body) => {
     const u = new URL(url);
-    if (u.hostname === 'avatars.charhub.io') return { status: 200, body: PNG };
-    const file = u.pathname === '/search' ? 'search.json' : /^\/api\/characters\/[^/]+\/([^/]+)$/.exec(u.pathname)?.[1];
-    const full = file ? path.join(dir, file.endsWith('.json') ? file : `${decodeURIComponent(file)}.json`) : null;
-    return full && full.startsWith(path.resolve(dir) + path.sep) && existsSync(full) ? { status: 200, body: readFileSync(full) } : { status: 404, body: Buffer.from('{}') };
+    if (IMAGE_HOSTS.has(u.hostname)) return { status: 200, body: PNG };
+    let full: string | null = null;
+    if (u.hostname === 'api.chub.ai') full = file('chub', u.pathname === '/search' ? 'search.json' : decodeURIComponent(/^\/api\/characters\/[^/]+\/([^/]+)$/.exec(u.pathname)?.[1] ?? ''));
+    else if (u.hostname === 'character-tavern.com') full = file('ctavern', u.pathname === '/api/search/cards' ? 'search.json' : /^\/api\/character\/([^/]+)\/([^/]+)$/.exec(u.pathname)?.slice(1).map(decodeURIComponent).join('__'));
+    else if (u.hostname === 'realm.risuai.net') {
+      const id = /^\/(?:character|api\/v1\/download\/json-v2)\/([0-9a-f-]{36})/.exec(u.pathname)?.[1];
+      full = file('risu', u.pathname === '/__data.json' ? 'search.json' : id ? (u.pathname.startsWith('/api/') ? `card-${id}` : `meta-${id}`) : null);
+    } else if (u.hostname === 'server.pygmalion.chat') {
+      const b = body ? (JSON.parse(body) as { characterMetaId?: string }) : {};
+      full = file('pygmalion', u.pathname.endsWith('/CharacterSearch') ? 'search.json' : b.characterMetaId);
+    } else if (u.hostname === 'api.wyvern.chat') full = file('wyvern', u.pathname.startsWith('/exploreSearch/') ? 'search.json' : /^\/characters\/([A-Za-z0-9_-]+)$/.exec(u.pathname)?.[1]);
+    return full ? { status: 200, body: readFileSync(full) } : { status: 404, body: Buffer.from('{}') };
   };
 }
 if (process.env.EVERLOOM_SOURCE_FIXTURES) fetcher = fixtureFetcher(path.resolve(process.env.EVERLOOM_SOURCE_FIXTURES));
@@ -117,25 +274,25 @@ function io(ctx: AppContext, owner: string, p: SourceProvider): ProviderIO {
   const token = getToken(ctx, owner, p.id);
   const headers: Record<string, string> = { accept: 'application/json' };
   if (token && p.id === 'chub') headers['CH-API-KEY'] = token;
-  const get = async (url: string, accept?: string) => {
+  const get = async (url: string, accept?: string, post?: unknown) => {
     if (accept?.startsWith('image/')) await rateLimit(`${p.id}:img`, 24, 8);
     else await rateLimit(p.id);
     const h = accept ? { ...headers, accept } : headers;
-    if (fetcher) return fetcher(url, h);
-    const r = await fetchPublic(url, { headers: h, maxBytes: 20 * 1024 * 1024, allowPrivate: ctx.cfg.fetchPrivate, timeoutMs: 20_000 });
+    if (fetcher) return fetcher(url, h, post === undefined ? undefined : JSON.stringify(post));
+    const r = await fetchPublic(url, { headers: h, maxBytes: 20 * 1024 * 1024, allowPrivate: ctx.cfg.fetchPrivate, timeoutMs: 20_000, ...(post === undefined ? {} : { postJson: post }) });
     return { status: r.status, body: r.body };
   };
   return {
     token,
     async json(url, opts = {}) {
       // The cache key includes whether a token was used, so a signed-in view never leaks to a signed-out one.
-      const key = createHash('sha256').update(`${p.id}|${token ? createHash('sha256').update(token).digest('hex') : '-'}|${url}`).digest('hex');
+      const key = createHash('sha256').update(`${p.id}|${token ? createHash('sha256').update(token).digest('hex') : '-'}|${url}|${opts.post === undefined ? '' : JSON.stringify(opts.post)}`).digest('hex');
       const ttl = opts.ttlMs ?? 10 * 60_000;
       if (ttl > 0) {
         const hit = ctx.db.prepare('SELECT body, fetched_at FROM provider_cache WHERE key = ?').get(key) as { body: string; fetched_at: number } | undefined;
         if (hit && Date.now() - hit.fetched_at < ttl) return JSON.parse(hit.body);
       }
-      const r = await get(url);
+      const r = await get(url, undefined, opts.post);
       if (r.status === 404) return null;
       if (r.status === 401 || r.status === 403) throw new HttpError(502, `${p.name} refused the request (${r.status}). It may not be available where your server is, or your token may be wrong.`, 'upstream');
       if (r.status !== 200) throw new HttpError(502, `${p.name} answered ${r.status}`, 'upstream');
@@ -182,6 +339,7 @@ export function listProviders(ctx: AppContext, owner: string) {
   return {
     nsfwAllowed: getSettings(ctx, owner).library.nsfw === true,
     providers: Object.values(PROVIDERS).map((p) => ({ id: p.id, name: p.name, site: p.site, tokenHint: p.tokenHint ?? null, hasToken: !!getToken(ctx, owner, p.id) })),
+    capabilities: CAPABILITIES,
   };
 }
 
@@ -250,7 +408,6 @@ export async function sourceDetail(ctx: AppContext, owner: string, providerId: s
   return { ...rest, preview: card ? { first_mes: card.first_mes, alternate_greetings: card.alternate_greetings.length, tokens: d.tokens } : null, ownedId: linksByKey(ctx, owner).get(`${p.id}:${d.key.toLowerCase()}`) ?? null };
 }
 
-const HIDDEN = "The creator keeps this character's definition private, so it can't be imported.";
 
 export async function importFromSource(ctx: AppContext, owner: string, providerId: string, key: string) {
   const p = provider(providerId);
@@ -258,7 +415,8 @@ export async function importFromSource(ctx: AppContext, owner: string, providerI
   const d = await p.get(key, pio, { fresh: true });
   if (!d) throw new HttpError(404, 'Not found at the source');
   if (d.nsfw && !allowNsfw(ctx, owner)) throw new HttpError(403, 'This character is marked adult. Turn on adult content in Settings → Characters to import it.');
-  if (d.hidden || !d.card) throw new HttpError(403, HIDDEN);
+  // A hidden definition: the public parts come in, labelled (card.extensions.definition_hidden).
+  if (!d.card) throw new HttpError(404, 'Nothing public to import');
   const created = await importCard(ctx, owner, Buffer.from(JSON.stringify({ spec: 'chara_card_v2', spec_version: '2.0', data: d.card })));
   if (d.avatarUrl) {
     try {
@@ -292,7 +450,7 @@ export function scanLinks(ctx: AppContext, owner: string) {
     for (const p of Object.values(PROVIDERS)) {
       const key = (p.id === 'chub' && typeof chubPath === 'string' && chubPath.includes('/') ? chubPath : null) ?? p.keyFromLink(text);
       if (key && !owned.has(`${p.id}:${key.toLowerCase()}`)) {
-        out.push({ characterId: r.id, name: r.name, provider: p.id, key, url: `${p.site}/characters/${key}` });
+        out.push({ characterId: r.id, name: r.name, provider: p.id, key, url: p.urlFor(key) });
         break;
       }
     }
@@ -344,7 +502,7 @@ export async function applyUpdate(ctx: AppContext, owner: string, characterId: s
   const p = provider(link.provider);
   const d = await p.get(link.key, io(ctx, owner, p), { fresh: true });
   if (!d) throw new HttpError(404, 'The character is no longer at the source');
-  if (d.hidden || !d.card) throw new HttpError(403, HIDDEN);
+  if (d.hidden || !d.card) throw new HttpError(403, "The creator now keeps this character's definition private, so there's nothing to update from.");
   const local = getCharacter(ctx, owner, characterId);
   const { character_book: _book, ...remote } = d.card;
   const diffs = diffCards(local.card, { ...remote, extensions: local.card.extensions, character_version: local.card.character_version });
@@ -367,4 +525,40 @@ export async function sourceImage(ctx: AppContext, owner: string, providerId: st
   }
   if (u.protocol !== 'https:' || !p.imageHosts.includes(u.hostname)) throw new HttpError(400, 'Not an image from this source');
   return io(ctx, owner, p).bytes(u.href);
+}
+
+// ------------------------------------------------------------------ import from a link
+
+const BRIDGE_HOSTS = new Map(CAPABILITIES.filter((c) => c.access !== 'server' && c.site).map((c) => [new URL(c.site).hostname.replace(/^www\./, ''), c]));
+
+/**
+ * A link to a card file (PNG, JSON, CHARX) or to a character page on a supported site. Pages on
+ * sites the server must not fetch get a pointer to the browser bridge instead of a request.
+ */
+export async function importFromUrl(ctx: AppContext, owner: string, raw: string) {
+  let url: URL;
+  try {
+    url = new URL(raw.trim());
+  } catch {
+    throw new HttpError(400, "That doesn't look like a link");
+  }
+  for (const p of Object.values(PROVIDERS)) {
+    const key = p.keyFromLink(url.href);
+    if (key) return { character: await importFromSource(ctx, owner, p.id, key), via: p.name };
+  }
+  const host = url.hostname.replace(/^www\./, '');
+  const direct = /\.(png|json|charx)$/i.test(url.pathname);
+  const bridge = BRIDGE_HOSTS.get(host);
+  if (bridge && !direct) {
+    throw new HttpError(400, bridge.access === 'none' ? `${bridge.name} isn't supported: ${bridge.note}` : `Everloom doesn't fetch pages from ${bridge.name}. Open the page in your browser and use "Send to Everloom" (Settings → Characters → Browser bridge).`, 'use_bridge');
+  }
+  const r = await fetchPublic(url.href, { maxBytes: 30 * 1024 * 1024, allowPrivate: ctx.cfg.fetchPrivate, timeoutMs: 30_000 });
+  const challenged = (r.status === 403 || r.status === 503 || r.status === 429) && (String(r.headers['server'] ?? '').toLowerCase().includes('cloudflare') || 'cf-ray' in r.headers);
+  if (challenged) throw new HttpError(400, 'That site checks for a real browser before it answers, and Everloom never tries to get past that. Use "Send to Everloom" from the page instead.', 'use_bridge');
+  if (r.status !== 200) throw new HttpError(400, `The link answered ${r.status}`);
+  const head = r.body.subarray(0, 16);
+  const looksLikeCard = head[0] === 0x89 || head[0] === 0x7b || (head[0] === 0x50 && head[1] === 0x4b) || (head[0] === 0x52 && head[8] === 0x57);
+  if (!looksLikeCard) throw new HttpError(400, "That link isn't a card file. Link to the PNG, JSON or CHARX file itself, or use the browser bridge on the page.");
+  const c = await importCard(ctx, owner, r.body);
+  return { character: getCharacter(ctx, owner, c.id), via: host };
 }

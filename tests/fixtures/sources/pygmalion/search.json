@@ -1,0 +1,59 @@
+{
+ "totalItems": "2",
+ "characters": [
+  {
+   "id": "7a7a7a7a-1111-4222-8333-444455556666",
+   "displayName": "Juniper Hale",
+   "avatarUrl": "https://assets.pygmalion.chat/7a7a7a7a-1111-4222-8333-444455556666",
+   "description": "A cartographer mapping a city that rearranges itself each dawn.",
+   "source": "Original",
+   "views": 40,
+   "isPublic": true,
+   "tags": [
+    "Adventure",
+    "Female"
+   ],
+   "createdAt": "1766599096",
+   "updatedAt": "1766728717",
+   "approvedAt": "1767601612",
+   "owner": {
+    "id": "o1",
+    "displayName": "Maple",
+    "username": "maplewood",
+    "avatarUrl": ""
+   },
+   "stars": 3,
+   "downloads": 12,
+   "versionId": "v-1",
+   "personalityTokenCount": "380",
+   "chatCount": "9"
+  },
+  {
+   "id": "7a7a7a7a-1111-4222-8333-444455557777",
+   "displayName": "Nightlight",
+   "avatarUrl": "https://assets.pygmalion.chat/7a7a7a7a-1111-4222-8333-444455557777",
+   "description": "(fixture) adult card.",
+   "source": "Original",
+   "views": 40,
+   "isPublic": true,
+   "tags": [
+    "NSFW",
+    "Female"
+   ],
+   "createdAt": "1766599096",
+   "updatedAt": "1766728717",
+   "approvedAt": "1767601612",
+   "owner": {
+    "id": "o1",
+    "displayName": "Maple",
+    "username": "maplewood",
+    "avatarUrl": ""
+   },
+   "stars": 3,
+   "downloads": 12,
+   "versionId": "v-1",
+   "personalityTokenCount": "380",
+   "chatCount": "9"
+  }
+ ]
+}

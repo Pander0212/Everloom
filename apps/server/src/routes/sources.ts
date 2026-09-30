@@ -3,10 +3,10 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { owner, type AppContext } from '../context.js';
 import { sniffImageType } from '@everloom/engine';
-import { applyUpdate, sourceImage, checkUpdates, importFromSource, listProviders, provider, scanLinks, searchSource, setLink, setToken, sourceDetail } from '../services/sources.js';
+import { applyUpdate, sourceImage, checkUpdates, importFromSource, importFromUrl, listProviders, provider, scanLinks, searchSource, setLink, setToken, sourceDetail } from '../services/sources.js';
 import { parse } from '../util/validate.js';
 
-const key = z.string().trim().min(3).max(200).regex(/^[^/\s]+\/[^\s]+$/, 'Expected creator/name');
+const key = z.string().trim().min(3).max(200).regex(/^[^\s]+$/, 'Expected an id from the source');
 
 export function registerSources(app: FastifyInstance, ctx: AppContext) {
   app.get('/api/sources', async (req) => listProviders(ctx, owner(req)));
@@ -36,6 +36,11 @@ export function registerSources(app: FastifyInstance, ctx: AppContext) {
     ctx.bus.publish(owner(req), 'characters.changed', {}, req.clientId);
     return c;
   });
+  app.post('/api/sources/import-url', async (req) => {
+    const r = await importFromUrl(ctx, owner(req), parse(z.object({ url: z.string().trim().min(8).max(2000) }), req.body).url);
+    ctx.bus.publish(owner(req), 'characters.changed', {}, req.clientId);
+    return r;
+  });
   // The token is stored encrypted and never sent back; only whether one is set.
   app.put('/api/sources/:provider/token', async (req) => {
     setToken(ctx, owner(req), (req.params as { provider: string }).provider, parse(z.object({ token: z.string().max(500).nullable() }), req.body).token);
@@ -45,7 +50,7 @@ export function registerSources(app: FastifyInstance, ctx: AppContext) {
     const b = parse(z.object({ characterId: z.string().max(80), provider: z.string().max(40), key: key.nullable() }), req.body);
     if (b.key) {
       const p = provider(b.provider);
-      setLink(ctx, owner(req), b.characterId, { provider: p.id, key: b.key, url: `${p.site}/characters/${b.key}`, version: '' });
+      setLink(ctx, owner(req), b.characterId, { provider: p.id, key: b.key, url: p.urlFor(b.key), version: '' });
     } else setLink(ctx, owner(req), b.characterId, null);
     ctx.bus.publish(owner(req), 'characters.changed', {}, req.clientId);
     return { ok: true };

@@ -61,6 +61,8 @@ export interface CharacterSummary {
   hasGreetings: boolean;
   /** Online source link, e.g. "chub:author/slug". */
   linked: string | null;
+  /** The linked character's page at its source. */
+  linkedUrl?: string | null;
   collections: string[];
 }
 

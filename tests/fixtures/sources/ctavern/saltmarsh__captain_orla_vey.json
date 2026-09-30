@@ -1,0 +1,35 @@
+{
+ "card": {
+  "id": "CT_x",
+  "origin": "Character Tavern",
+  "name": "Captain Orla Vey",
+  "inChatName": "Captain",
+  "author": 1234,
+  "path": "saltmarsh/captain_orla_vey",
+  "tagline": "Harbour master with a secret ledger.",
+  "description": "Her definition is private.",
+  "isNSFW": false,
+  "createdAt": "2026-05-01T10:00:00.000Z",
+  "lastUpdatedAt": "2026-08-01T10:00:00.000Z",
+  "visibility": "private",
+  "lorebookId": null,
+  "definition_scenario": null,
+  "definition_personality": null,
+  "definition_character_description": null,
+  "definition_first_message": null,
+  "definition_example_messages": null,
+  "definition_system_prompt": null,
+  "definition_post_history_prompt": null,
+  "tokenTotal": 412,
+  "analytics_chats": 10,
+  "analytics_messages": 200,
+  "isOC": true,
+  "versionId": 2,
+  "tags": [
+   "Librarian",
+   "Fantasy",
+   "Mystery"
+  ]
+ },
+ "ownerCTId": "x"
+}

@@ -2,8 +2,8 @@
  * Online character sources: the shapes every provider returns, and the mapping for Chub's public
  * API. Mapping is kept here (pure) so it can be tested against recorded responses.
  *
- * A card whose creator hid its definition is reported as hidden and cannot be imported; nothing
- * here tries to get around that.
+ * A card whose creator hid its definition is reported as hidden: only its public parts are imported,
+ * labelled "definition hidden by creator". Nothing here tries to get around that.
  */
 import { emptyCardData, type CardData } from '../cards/card.js';
 
@@ -25,7 +25,7 @@ export interface SourceItem {
 }
 
 export interface SourceDetail extends SourceItem {
-  /** null when the creator keeps the definition private. */
+  /** The card to import. When the creator hid the definition, only the public parts (hidden = true). */
   card: (CardData & { character_book?: unknown }) | null;
   hidden: boolean;
   /** Changes whenever the card changes at the source; compared by the update check. */
@@ -116,7 +116,8 @@ export function chubDetail(body: any): SourceDetail | null {
   if (!item) return null;
   const d = node.definition;
   const hidden = !d || node.hidden === true || node.definition_hidden === true || (!d.personality && !d.first_message && !d.description && !d.scenario);
-  let card: SourceDetail['card'] = null;
+  // A hidden definition: keep only what the creator shows publicly, and say so.
+  let card: SourceDetail['card'] = { ...emptyCardData(item.name), creator_notes: String(node.description ?? node.tagline ?? ''), tags: item.tags.filter((t) => !/^(nsfw|sfw)$/i.test(t)).slice(0, 30), creator: item.creator, extensions: { chub: { full_path: item.key, id: node.id ?? null }, definition_hidden: true } };
   if (!hidden) {
     card = {
       ...emptyCardData(String(d.name ?? item.name)),

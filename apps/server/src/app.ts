@@ -19,6 +19,7 @@ import { registerSources } from './routes/sources.js';
 import { registerImageProxy } from './routes/image-proxy.js';
 import { registerGameAi } from './routes/game-ai.js';
 import { registerComms } from './routes/comms.js';
+import { registerBridge } from './routes/bridge.js';
 import { backfillMeta } from './services/characters.js';
 import { registerInspector } from './routes/inspector.js';
 import { registerMemory } from './routes/memory.js';
@@ -107,6 +108,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerImageProxy(app, ctx);
   registerGameAi(app, ctx);
   registerComms(app, ctx);
+  registerBridge(app, ctx);
   registerSystem(app, ctx);
 
   const indexFile = path.join(cfg.webDir, 'index.html');
