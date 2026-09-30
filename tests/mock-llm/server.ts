@@ -84,6 +84,7 @@ function classify(messages: any[]): string {
   if (/slow-burning background storylines/i.test(sys)) return 'seed';
   if (/condense story memories/i.test(sys)) return 'consolidate';
   if (/custom CSS snippets for the Everloom app/i.test(sys)) return 'css';
+  if (/character writer helping someone build a roleplay character card/i.test(sys)) return 'studio';
   if (/connection test/i.test(sys)) return 'test';
   if (/helper companion/i.test(sys)) return 'helper';
   if (/map designer/i.test(sys)) return 'map';
@@ -130,6 +131,19 @@ function answerFor(kind: string, messages: any[]): string {
     }
     case 'seed':
       return JSON.stringify({ text: 'Smugglers are using the old pier at night', stages: ['a rumour of lights on the water', 'crates nobody claims', 'a guard is bribed openly', 'the smugglers make their move'], place: null });
+    case 'studio': {
+      const sys = String(messages[0].content);
+      const last = String(messages[messages.length - 1].content);
+      if (/Pitch distinct character concepts/.test(sys))
+        return JSON.stringify({ ideas: [1, 2, 3, 4, 5].map((i) => ({ title: `Idea ${i}: The Lighthouse Keeper`, pitch: `A keeper who logs every ship that never arrives (${i}).` })) });
+      if (/Write a complete character card/.test(sys))
+        return JSON.stringify({ card: { name: 'Maren Holt', description: 'Maren keeps the lighthouse on Gull Rock. She logs every ship that never arrives.', personality: 'Dry, patient, secretly sentimental.', scenario: '{{user}} washes ashore during a storm.', first_mes: 'Maren hauls you out of the surf. "You\'re not on my list," she says.', mes_example: '<START>\n{{user}}: Who are you?\n{{char}}: The one who writes down the lost.', alternate_greetings: ['The lamp gutters as you climb the stairs.'], tags: ['mystery', 'Coastal'], creator_notes: 'A slow-burn mystery.' }, notes: 'Built around the logbook.' });
+      if (/Revise the card as asked/.test(sys)) return JSON.stringify({ card: { personality: 'Dry, patient, openly warm with strangers.' }, notes: 'Made her warmer.' });
+      if (/Rewrite only the marked passage/.test(sys)) return 'She records every vessel the sea keeps.';
+      if (/Write the "Tags" field/.test(sys)) return 'lighthouse\nmystery\nslow burn';
+      if (/Write the "/.test(sys)) return `Rewritten field text${/Also: (.*)/.exec(last)?.[1] ? ` (${/Also: (.*)/.exec(last)![1]})` : ''}.`;
+      return '{}';
+    }
     case 'css': {
       // Revisions keep the current snippet and add to it; a remote import is included to prove it gets stripped.
       const current = /Current snippet:\n([\s\S]*?)\n\n/.exec(String(messages[messages.length - 1].content))?.[1] ?? '';

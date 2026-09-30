@@ -40,7 +40,12 @@ for (const vpName of which) {
       await page.waitForTimeout(900);
       if (action) {
         for (const step of action.split('|')) {
-          const [kind, arg] = step.split(':');
+          const [kind, ...rest] = step.split(':');
+          const arg = rest.join(':');
+          if (kind === 'fill') {
+            const [label, value] = arg.split('=');
+            await page.getByLabel(label).first().fill(value).catch((e) => errors.push(`fill ${label}: ${e.message.split('\n')[0]}`));
+          }
           if (kind === 'click') await page.getByRole('button', { name: arg }).first().click().catch((e) => errors.push(`click ${arg}: ${e.message.split('\n')[0]}`));
           if (kind === 'tab') await page.getByRole('tab', { name: arg }).first().click().catch((e) => errors.push(`tab ${arg}: ${e.message.split('\n')[0]}`));
           if (kind === 'text') await page.getByText(arg).first().click().catch((e) => errors.push(`text ${arg}: ${e.message.split('\n')[0]}`));

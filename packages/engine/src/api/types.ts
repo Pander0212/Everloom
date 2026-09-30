@@ -217,6 +217,8 @@ export interface Settings {
   world: WorldSettings;
   library: LibrarySettings;
   css: { snippets: CssSnippet[] };
+  /** Character studio: your own system prompts, and which preset and connection it starts with. */
+  studio: { presets: Array<{ id: string; name: string; system: string }>; preset: string; connection: string | null };
 }
 
 export interface CssSnippet {

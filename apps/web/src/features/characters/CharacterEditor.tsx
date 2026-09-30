@@ -108,6 +108,7 @@ export default function CharacterEditor() {
             items={[
               { label: 'Export PNG card', icon: Download, onSelect: () => download(`/api/characters/${c.id}/export?format=png`, `${c.name}.png`) },
               { label: 'Export JSON', icon: FileJson, onSelect: () => download(`/api/characters/${c.id}/export?format=json`, `${c.name}.json`) },
+              { label: 'Open in studio', icon: Sparkles, onSelect: () => navigate(`/characters/studio?base=${c.id}`) },
               { label: 'Duplicate', icon: Copy, onSelect: duplicate },
               { label: 'Delete', icon: Trash2, danger: true, separatorBefore: true, onSelect: remove },
             ]}

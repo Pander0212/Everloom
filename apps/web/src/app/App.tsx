@@ -14,6 +14,7 @@ import { ConnectionBanner, Shell } from './Shell';
 const ChatsPage = lazy(() => import('@/features/chats/ChatsPage'));
 const CharactersPage = lazy(() => import('@/features/library/LibraryPage'));
 const CharacterEditor = lazy(() => import('@/features/characters/CharacterEditor'));
+const StudioPage = lazy(() => import('@/features/studio/StudioPage'));
 const PersonasPage = lazy(() => import('@/features/personas/PersonasPage'));
 const LorePage = lazy(() => import('@/features/lore/LorePage'));
 const LoreEditor = lazy(() => import('@/features/lore/LoreEditor'));
@@ -52,6 +53,7 @@ function AuthedApp() {
         <Route element={<Shell />}>
           <Route index element={<ChatsPage />} />
           <Route path="characters" element={<CharactersPage />} />
+          <Route path="characters/studio" element={<StudioPage />} />
           <Route path="characters/:id" element={<CharacterEditor />} />
           <Route path="personas" element={<PersonasPage />} />
           <Route path="lore" element={<LorePage />} />
