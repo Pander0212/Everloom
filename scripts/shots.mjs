@@ -15,7 +15,13 @@ const errors = [];
 for (const vpName of which) {
   for (const theme of themes) {
     const ctx = await browser.newContext({ viewport: VIEWPORTS[vpName], colorScheme: theme, deviceScaleFactor: 2, hasTouch: vpName !== 'desk', isMobile: vpName !== 'desk' && vpName !== 'land' });
-    await ctx.addInitScript((t) => localStorage.setItem('everloom.theme', t), theme);
+    await ctx.addInitScript((t) => {
+      try {
+        localStorage.setItem('everloom.theme', t);
+      } catch {
+        /* sandboxed frames have no storage */
+      }
+    }, theme);
     const page = await ctx.newPage();
     page.on('console', (m) => m.type() === 'error' && errors.push(`${vpName}/${theme}: ${m.text()}`));
     page.on('pageerror', (e) => errors.push(`${vpName}/${theme}: ${e.message}`));
@@ -36,6 +42,7 @@ for (const vpName of which) {
         for (const step of action.split('|')) {
           const [kind, arg] = step.split(':');
           if (kind === 'click') await page.getByRole('button', { name: arg }).first().click().catch((e) => errors.push(`click ${arg}: ${e.message.split('\n')[0]}`));
+          if (kind === 'tab') await page.getByRole('tab', { name: arg }).first().click().catch((e) => errors.push(`tab ${arg}: ${e.message.split('\n')[0]}`));
           if (kind === 'text') await page.getByText(arg).first().click().catch((e) => errors.push(`text ${arg}: ${e.message.split('\n')[0]}`));
           if (kind === 'wait') await page.waitForTimeout(Number(arg));
         }

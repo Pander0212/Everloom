@@ -10,7 +10,7 @@ import { LoginPage, SetupPage } from './AuthPages';
 import { ConnectionBanner, Shell } from './Shell';
 
 const ChatsPage = lazy(() => import('@/features/chats/ChatsPage'));
-const CharactersPage = lazy(() => import('@/features/characters/CharactersPage'));
+const CharactersPage = lazy(() => import('@/features/library/LibraryPage'));
 const CharacterEditor = lazy(() => import('@/features/characters/CharacterEditor'));
 const PersonasPage = lazy(() => import('@/features/personas/PersonasPage'));
 const LorePage = lazy(() => import('@/features/lore/LorePage'));

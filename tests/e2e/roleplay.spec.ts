@@ -19,6 +19,7 @@ test.describe('roleplay core', () => {
     await page.locator('input[type=file]').first().setInputFiles(SERAPHINA);
     await expect(page.getByText('Character imported')).toBeVisible();
     await page.getByRole('button', { name: /Seraphina/ }).first().click();
+    await page.getByRole('tab', { name: 'Edit' }).click();
     await expect(page.getByLabel('Name', { exact: true })).toHaveValue('Seraphina');
     await page.getByRole('button', { name: 'Chat', exact: true }).click();
     await page.getByRole('button', { name: 'Start chat' }).click();

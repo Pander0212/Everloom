@@ -1,6 +1,6 @@
 import { EMOTIONS, type CardData, type CharacterDTO, type CharacterGame } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, BookOpen, Copy, Download, FileJson, ImagePlus, MessageSquare, MoreHorizontal, Plus, Sparkles, Star, Trash2, Wand2, X } from 'lucide-react';
+import { ArrowLeft, BookOpen, Copy, Download, FileJson, ImagePlus, MessageSquare, MoreHorizontal, Music, Play, Plus, Sparkles, Star, Trash2, Upload, Wand2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Page } from '@/app/Shell';
@@ -10,7 +10,7 @@ import { useImageGen } from '@/lib/imagegen';
 import { useCharacter, useChats, useConnections, useLorebooks } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
 import { NewChatSheet } from '@/features/chats/NewChatSheet';
-import { Avatar, Button, confirm, EmptyState, Field, FileButton, IconButton, Input, ListRow, Menu, Select, Sheet, Spinner, TabPanel, Tabs, Textarea } from '@/ui';
+import { Avatar, Button, confirm, EmptyState, Field, FileButton, Icon, IconButton, Input, ListRow, Menu, Select, Sheet, Spinner, TabPanel, Tabs, Textarea } from '@/ui';
 
 type Draft = { card: CardData; game: CharacterGame };
 
@@ -260,22 +260,42 @@ export default function CharacterEditor() {
 interface MediaItem {
   id: string;
   url: string;
+  mime?: string;
   kind: string;
   meta: { prompt?: string; emotion?: string };
   createdAt: number;
 }
 
 /** Every image made for or uploaded to this character: portraits, sprites, drawings. */
-function CharacterGallery({ characterId, name }: { characterId: string; name: string }) {
+export function CharacterGallery({ characterId, name }: { characterId: string; name: string }) {
   const qc = useQueryClient();
   const key = ['media', 'character', characterId];
   const media = useQuery({ queryKey: key, queryFn: () => get<MediaItem[]>('/api/media', { characterId }) });
   const gen = useImageGen();
   const [prompt, setPrompt] = useState('');
   const [open, setOpen] = useState<MediaItem | null>(null);
-  const list = media.data ?? [];
+  const list = (media.data ?? []).filter((m) => m.kind !== 'avatar');
+  const [uploading, setUploading] = useState(false);
+  const add = async (files: File[]) => {
+    setUploading(true);
+    for (const f of files) {
+      try {
+        await upload('/api/media', f, { kind: 'gallery', characterId });
+      } catch (e) {
+        toastError(new Error(`${f.name}: ${(e as Error).message}`));
+      }
+    }
+    setUploading(false);
+    await qc.invalidateQueries({ queryKey: key });
+    await qc.invalidateQueries({ queryKey: ['characters'] });
+  };
+  const isVideo = (m: MediaItem) => m.mime?.startsWith('video/');
+  const isAudio = (m: MediaItem) => m.mime?.startsWith('audio/');
   return (
     <div className="flex flex-col gap-4">
+      <FileButton accept="image/*,video/mp4,video/webm,audio/*" multiple onFiles={add} loading={uploading} variant="secondary" icon={Upload} className="self-start">
+        Add pictures, video or audio
+      </FileButton>
       <div className="flex gap-2">
         <Input aria-label="Describe a picture" placeholder={`${name} reading by the window…`} value={prompt} onChange={(e) => setPrompt(e.target.value)} maxLength={600} className="min-w-0 flex-1" />
         <Button
@@ -296,8 +316,22 @@ function CharacterGallery({ characterId, name }: { characterId: string; name: st
       {list.length ? (
         <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
           {list.map((m) => (
-            <button key={m.id} onClick={() => setOpen(m)} className="pressable relative aspect-[3/4] overflow-hidden rounded-md bg-surface-2" aria-label={m.meta.emotion ? `${m.meta.emotion} sprite` : 'Open image'}>
-              <img src={m.url} alt="" loading="lazy" className="h-full w-full object-cover object-top" />
+            <button key={m.id} onClick={() => setOpen(m)} className="pressable relative aspect-[3/4] overflow-hidden rounded-md bg-surface-2" aria-label={isVideo(m) ? 'Play video' : isAudio(m) ? 'Play audio' : m.meta.emotion ? `${m.meta.emotion} sprite` : 'Open image'}>
+              {isVideo(m) ? (
+                <>
+                  <video src={`${m.url}#t=0.1`} preload="metadata" muted playsInline className="h-full w-full object-cover" />
+                  <span className="absolute inset-0 m-auto flex size-10 items-center justify-center rounded-full bg-overlay text-white">
+                    <Icon icon={Play} size={18} />
+                  </span>
+                </>
+              ) : isAudio(m) ? (
+                <span className="flex h-full w-full flex-col items-center justify-center gap-2 text-fg-2">
+                  <Icon icon={Music} size={26} />
+                  <span className="text-xs">Audio</span>
+                </span>
+              ) : (
+                <img src={m.url} alt="" loading="lazy" className="h-full w-full object-cover object-top" />
+              )}
             </button>
           ))}
         </div>
@@ -307,7 +341,7 @@ function CharacterGallery({ characterId, name }: { characterId: string; name: st
       <Sheet
         open={!!open}
         onOpenChange={(o) => !o && setOpen(null)}
-        title="Picture"
+        title={isVideo(open ?? ({} as MediaItem)) ? 'Video' : isAudio(open ?? ({} as MediaItem)) ? 'Audio' : 'Picture'}
         description={open?.meta.prompt ? undefined : open ? relativeTime(open.createdAt) : undefined}
         size="md"
         footer={
@@ -331,6 +365,7 @@ function CharacterGallery({ characterId, name }: { characterId: string; name: st
               <Button
                 variant="primary"
                 className="flex-1"
+                disabled={isVideo(open) || isAudio(open)}
                 onClick={async () => {
                   try {
                     const updated = await patch<CharacterDTO>(`/api/characters/${characterId}`, { avatar: open.id });
@@ -350,7 +385,13 @@ function CharacterGallery({ characterId, name }: { characterId: string; name: st
       >
         {open ? (
           <div className="flex flex-col gap-3">
-            <img src={open.url} alt="" className="max-h-[60dvh] w-full rounded-md object-contain" />
+            {isVideo(open) ? (
+              <video src={open.url} controls playsInline className="max-h-[60dvh] w-full rounded-md bg-black" />
+            ) : isAudio(open) ? (
+              <audio src={open.url} controls className="w-full" />
+            ) : (
+              <img src={open.url} alt="" className="max-h-[60dvh] w-full rounded-md object-contain" />
+            )}
             {open.meta.prompt ? <p className="text-xs text-fg-2">{open.meta.prompt}</p> : null}
           </div>
         ) : null}
@@ -359,7 +400,7 @@ function CharacterGallery({ characterId, name }: { characterId: string; name: st
   );
 }
 
-function CharacterLore({ characterId, name }: { characterId: string; name: string }) {
+export function CharacterLore({ characterId, name }: { characterId: string; name: string }) {
   const books = useLorebooks();
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -391,7 +432,7 @@ function CharacterLore({ characterId, name }: { characterId: string; name: strin
   );
 }
 
-function CharacterChats({ characterId, onNew }: { characterId: string; onNew: () => void }) {
+export function CharacterChats({ characterId, onNew }: { characterId: string; onNew: () => void }) {
   const chats = useChats({ characterId });
   const navigate = useNavigate();
   if (!chats.data?.length)
