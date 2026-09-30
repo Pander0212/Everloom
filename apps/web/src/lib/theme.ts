@@ -37,3 +37,13 @@ export function watchSystemTheme(get: () => Settings['theme']) {
   mq.addEventListener('change', fn);
   return () => mq.removeEventListener('change', fn);
 }
+
+export function applyPalette(palette: Settings['palette'] | undefined) {
+  try {
+    localStorage.setItem('everloom.palette', palette ?? 'amber');
+  } catch {
+    /* private mode */
+  }
+  if (!palette || palette === 'amber') delete document.documentElement.dataset.palette;
+  else document.documentElement.dataset.palette = palette;
+}

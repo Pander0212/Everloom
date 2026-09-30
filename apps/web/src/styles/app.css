@@ -95,6 +95,109 @@
   color-scheme: dark;
 }
 
+/* Accent palettes (Settings → Appearance). Amber is the default above. Contrast checked for text on --bg. */
+:root[data-palette='dusk'] {
+  --accent: #7a5ccf;
+  --accent-hover: #6d4fc2;
+  --accent-fg: #ffffff;
+  --accent-text: #5a3fb0;
+  --accent-soft: rgb(122 92 207 / 0.12);
+}
+:root[data-theme='dark'][data-palette='dusk'] {
+  --accent: #a58cf2;
+  --accent-hover: #b39ef5;
+  --accent-fg: #16102b;
+  --accent-text: #b8a4f7;
+  --accent-soft: rgb(165 140 242 / 0.15);
+}
+:root[data-palette='sea'] {
+  --accent: #1b7978;
+  --accent-hover: #176a69;
+  --accent-fg: #ffffff;
+  --accent-text: #146866;
+  --accent-soft: rgb(31 133 132 / 0.12);
+}
+:root[data-theme='dark'][data-palette='sea'] {
+  --accent: #4cc2bf;
+  --accent-hover: #63cfcc;
+  --accent-fg: #062321;
+  --accent-text: #6fd2cf;
+  --accent-soft: rgb(76 194 191 / 0.14);
+}
+:root[data-palette='rose'] {
+  --accent: #c24a6c;
+  --accent-hover: #b13f60;
+  --accent-fg: #ffffff;
+  --accent-text: #a1345a;
+  --accent-soft: rgb(194 74 108 / 0.11);
+}
+:root[data-theme='dark'][data-palette='rose'] {
+  --accent: #ee84a2;
+  --accent-hover: #f297b1;
+  --accent-fg: #2b0b16;
+  --accent-text: #f39ab4;
+  --accent-soft: rgb(238 132 162 / 0.14);
+}
+
+/* Genre themes: the story view takes on the campaign's setting (only the surfaces and accent). */
+.ev-story[data-genre='fantasy'] {
+  --bg: #f4efe3;
+  --surface: #fbf8f0;
+  --surface-2: #ece5d4;
+  --surface-3: #e2d9c4;
+  --border: #ddd3bd;
+}
+:root[data-theme='dark'] .ev-story[data-genre='fantasy'] {
+  --bg: #13110d;
+  --surface: #1a1712;
+  --surface-2: #221e17;
+  --surface-3: #2b261d;
+  --border: #2d281f;
+}
+.ev-story[data-genre='scifi'] {
+  --bg: #eef2f5;
+  --surface: #f9fbfc;
+  --surface-2: #e3e9ee;
+  --surface-3: #d8e0e7;
+  --border: #d6dee5;
+  --accent: #25749b;
+  --accent-hover: #1f6588;
+  --accent-fg: #ffffff;
+  --accent-text: #1c6689;
+  --accent-soft: rgb(42 127 168 / 0.12);
+}
+:root[data-theme='dark'] .ev-story[data-genre='scifi'] {
+  --bg: #0b0f13;
+  --surface: #11171c;
+  --surface-2: #172027;
+  --surface-3: #1f2a33;
+  --border: #1f2a33;
+  --accent: #5cb8e0;
+  --accent-hover: #74c4e6;
+  --accent-fg: #06141c;
+  --accent-text: #7cc8e8;
+  --accent-soft: rgb(92 184 224 / 0.14);
+}
+
+/* What the story view shows (per device), and cinematic mode: the story and nothing else. */
+:root[data-hide-hud] .ev-hud,
+:root[data-hide-chips] .ev-chips,
+:root[data-hide-avatars] .ev-msg-avatar {
+  display: none !important;
+}
+.ev-story[data-cinematic] .ev-chrome,
+.ev-story[data-cinematic] .ev-hud,
+.ev-story[data-cinematic] .ev-composer {
+  display: none !important;
+}
+.ev-story[data-cinematic] {
+  --story-size: 20px;
+}
+.ev-story[data-cinematic] .ev-msg-avatar,
+.ev-story[data-cinematic] .ev-msg-actions {
+  display: none !important;
+}
+
 :root[data-text-size='small'] {
   --story-size: 16px;
 }

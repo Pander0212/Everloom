@@ -6,6 +6,8 @@ export const DEFAULT_SETTINGS: Settings = {
   theme: 'system',
   motion: 'full',
   textSize: 'medium',
+  palette: 'amber',
+  genreTheme: true,
   roles: { main: null, utility: null, background: null, embeddings: null, tts: null, image: null },
   activePresetId: null,
   defaultPersonaId: null,

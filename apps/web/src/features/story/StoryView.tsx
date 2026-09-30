@@ -1,6 +1,6 @@
 import type { MessageDTO } from '@everloom/engine';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowLeft, BookText, Brain, FastForward, History, MoreHorizontal, NotebookPen, Search, ScrollText, Sparkles, Telescope, UserRoundPen } from 'lucide-react';
+import { ArrowDown, ArrowLeft, BookText, Brain, Clapperboard, Eye, FastForward, History, Minimize2, MoreHorizontal, NotebookPen, Save, Search, ScrollText, Sparkles, Telescope, UserRoundPen } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
@@ -21,6 +21,7 @@ import { ChatInfoSheet, InspectorSheet, NoteSheet, SearchSheet } from './sheets'
 import { speak } from './tts';
 import { GameLayer } from '@/features/game/GameLayer';
 import type { Command } from '@/features/game/CommandMenu';
+import { SavesSheet, ViewSheet } from './SavesSheet';
 import { ComposerChips } from '@/features/game/ComposerChips';
 
 const Stage = lazy(() => import('@/features/game/Stage'));
@@ -41,7 +42,14 @@ export default function StoryView() {
   const streams = useLive((s) => s.streams);
   const [composer, setComposer] = useState('');
   const [limit, setLimit] = useState(PAGE);
-  const [sheet, setSheet] = useState<null | 'inspector' | 'search' | 'note' | 'memory' | 'info' | 'world'>(null);
+  const [sheet, setSheet] = useState<null | 'inspector' | 'search' | 'note' | 'memory' | 'info' | 'world' | 'saves' | 'view'>(null);
+  const [cinematic, setCinematic] = useState(false);
+  useEffect(() => {
+    if (!cinematic) return;
+    const onKey = (e: KeyboardEvent) => e.key === 'Escape' && setCinematic(false);
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [cinematic]);
   const [highlight, setHighlight] = useState<string | null>(null);
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -263,6 +271,8 @@ export default function StoryView() {
     { id: 'memory', label: 'Memory', icon: Brain, group: 'Quick', keywords: 'summary', run: () => setSheet('memory') },
     { id: 'inspector', label: 'Prompt inspector', icon: ScrollText, group: 'Quick', keywords: 'tokens debug', run: () => setSheet('inspector') },
     { id: 'world', label: 'World inspector', icon: Telescope, group: 'Quick', keywords: 'scene block calls cost health changes undo', run: () => setSheet('world') },
+    { id: 'saves', label: 'Saves', icon: Save, group: 'Quick', keywords: 'save load slot checkpoint', run: () => setSheet('saves') },
+    { id: 'cinematic', label: 'Cinematic mode', icon: Clapperboard, group: 'Quick', keywords: 'focus fullscreen immersive hide', run: () => setCinematic(true) },
   ];
 
   const renderMessage = (m: MessageDTO) => {
@@ -287,8 +297,13 @@ export default function StoryView() {
   };
 
   return (
-    <div className="flex h-full flex-col bg-bg">
-      <header className="z-20 flex flex-none items-center gap-1 px-2 pt-[var(--safe-top)] hairline-b">
+    <div className="ev-story relative flex h-full flex-col bg-bg" data-genre={settings.data?.genreTheme !== false ? (campaign.data?.state?.meta.style ?? undefined) : undefined} data-cinematic={cinematic ? '' : undefined}>
+      {cinematic ? (
+        <Button size="sm" variant="secondary" icon={Minimize2} className="absolute right-3 top-[calc(var(--safe-top)+12px)] z-30 opacity-70 hover:opacity-100 focus-visible:opacity-100" onClick={() => setCinematic(false)}>
+          Exit
+        </Button>
+      ) : null}
+      <header className="ev-chrome z-20 flex flex-none items-center gap-1 px-2 pt-[var(--safe-top)] hairline-b">
         <IconButton icon={ArrowLeft} label="Back" onClick={() => navigate(c.characterId ? '/' : '/')} />
         <button className="pressable flex min-w-0 flex-1 items-center gap-2.5 rounded-md py-2 pl-1 pr-2 text-left" onClick={() => setSheet('info')}>
           <Avatar src={group?.avatar ?? character.data?.avatar} name={title} size="sm" />
@@ -306,6 +321,9 @@ export default function StoryView() {
             { label: "Author's note", icon: NotebookPen, onSelect: () => setSheet('note') },
             { label: 'Memory', icon: Brain, onSelect: () => setSheet('memory') },
             { label: 'World inspector', icon: Telescope, onSelect: () => setSheet('world') },
+            { label: 'Saves', icon: Save, onSelect: () => setSheet('saves'), separatorBefore: true },
+            { label: 'View', icon: Eye, onSelect: () => setSheet('view') },
+            { label: 'Cinematic mode', icon: Clapperboard, onSelect: () => setCinematic(true) },
             { label: 'Chat details', icon: MoreHorizontal, onSelect: () => setSheet('info'), separatorBefore: true },
           ]}
         />
@@ -378,6 +396,8 @@ export default function StoryView() {
       <MemorySheet chat={c} open={sheet === 'memory'} onOpenChange={(o) => setSheet(o ? 'memory' : null)} />
       <WorldInspector chat={c} open={sheet === 'world'} onOpenChange={(o) => setSheet(o ? 'world' : null)} />
       <ChatInfoSheet chat={c} open={sheet === 'info'} onOpenChange={(o) => setSheet(o ? 'info' : null)} />
+      <SavesSheet chat={c} open={sheet === 'saves'} onOpenChange={(o) => setSheet(o ? 'saves' : null)} />
+      <ViewSheet open={sheet === 'view'} onOpenChange={(o) => setSheet(o ? 'view' : null)} onCinematic={() => setCinematic(true)} />
     </div>
   );
 }

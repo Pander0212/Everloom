@@ -55,7 +55,8 @@ const CHAT_SELECT = `SELECT c.*,
   FROM chats c`;
 
 export function listChats(ctx: AppContext, owner: string, filter: { characterId?: string; groupId?: string } = {}): ChatSummary[] {
-  let sql = `${CHAT_SELECT} WHERE c.owner_id = ?`;
+  // Save slots are hidden branches; they show up only in the slots list.
+  let sql = `${CHAT_SELECT} WHERE c.owner_id = ? AND c.slot = 0`;
   const args: unknown[] = [owner];
   if (filter.characterId) {
     sql += ' AND c.character_id = ?';

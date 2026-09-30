@@ -203,6 +203,10 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark';
   motion: 'full' | 'reduced';
   textSize: 'small' | 'medium' | 'large';
+  /** Accent palette. */
+  palette: 'amber' | 'dusk' | 'sea' | 'rose';
+  /** Tint the story view to match the campaign's genre. */
+  genreTheme: boolean;
   roles: { main: string | null; utility: string | null; background: string | null; embeddings: string | null; tts: string | null; image: string | null };
   activePresetId: string | null;
   defaultPersonaId: string | null;

@@ -152,7 +152,7 @@ export const Message = memo(function Message({ m, avatar, isLast, streamText, st
         void animate(x, 0, t.base);
       }}
     >
-      {!isNarrator ? <Avatar src={avatar} name={m.name} size="md" className="mt-0.5" /> : null}
+      {!isNarrator ? <Avatar src={avatar} name={m.name} size="md" className="ev-msg-avatar mt-0.5" /> : null}
       {content}
     </motion.div>
   );

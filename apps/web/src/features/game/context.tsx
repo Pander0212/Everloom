@@ -18,6 +18,8 @@ export interface GameCtx {
   busy: boolean;
   open: (tool: ToolId, arg?: string) => void;
   close: () => void;
+  /** The tool open right now (for floating panels). */
+  toolId?: ToolId | null;
   /** Apply user ops through the server (anchored to the latest message). Returns the change summary. */
   apply: (ops: Op[] | Op, opts?: { quiet?: boolean }) => Promise<string[] | null>;
   run: (type: 'normal' | 'continue', text?: string) => Promise<unknown>;

@@ -479,4 +479,24 @@ CREATE TABLE bridge_devices (
 CREATE INDEX bridge_devices_owner ON bridge_devices(owner_id);
 `,
   },
+  {
+    version: 6,
+    name: 'phase 3 save slots',
+    sql: `
+-- A save slot is a hidden branch of the story at the moment it was saved; loading forks it again,
+-- so a slot never changes.
+ALTER TABLE chats ADD COLUMN slot INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE save_slots (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  story_id TEXT NOT NULL,
+  source_chat_id TEXT NOT NULL,
+  slot_chat_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  summary TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX save_slots_story ON save_slots(owner_id, story_id, created_at);
+`,
+  },
 ];

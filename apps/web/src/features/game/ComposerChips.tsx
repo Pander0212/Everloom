@@ -39,7 +39,7 @@ export function ComposerChips({ campaign, target, setTarget, composer, setCompos
     }
   };
   return (
-    <div className="mb-2">
+    <div className="ev-chips mb-2">
       <AnimatePresence>
         {suggestions?.length ? (
           <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }} transition={t.base} className="mb-2 flex flex-col gap-1.5">

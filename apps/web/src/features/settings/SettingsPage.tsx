@@ -1,4 +1,4 @@
-import { ArrowLeft, Bot, BookOpen, Brush, Code, Database, Gamepad2, Image, Info, KeyRound, MessageSquare, Plug, ScrollText, Users, Volume2 } from 'lucide-react';
+import { ArrowLeft, Bot, BookOpen, Brush, Code, Database, Gamepad2, Image, Info, KeyRound, MessageSquare, Plug, ScrollText, Users, Volume2, Stethoscope } from 'lucide-react';
 import { lazy, Suspense } from 'react';
 import { NavLink, useLocation, useNavigate, useParams } from 'react-router';
 import { Page } from '@/app/Shell';
@@ -18,6 +18,7 @@ const ImagesSection = lazy(() => import('./sections/Images'));
 const DataSection = lazy(() => import('./sections/Data'));
 const AccountSection = lazy(() => import('./sections/Account'));
 const AboutSection = lazy(() => import('./sections/About'));
+const DiagnosticsSection = lazy(() => import('./sections/Diagnostics'));
 
 export const SECTIONS = [
   { id: 'connections', label: 'Connections', icon: Plug, el: ConnectionsSection },
@@ -32,6 +33,7 @@ export const SECTIONS = [
   { id: 'images', label: 'Images', icon: Image, el: ImagesSection },
   { id: 'data', label: 'Backups & import', icon: Database, el: DataSection },
   { id: 'account', label: 'Account & security', icon: KeyRound, el: AccountSection },
+  { id: 'diagnostics', label: 'Diagnostics', icon: Stethoscope, el: DiagnosticsSection },
   { id: 'about', label: 'About', icon: Info, el: AboutSection },
 ];
 

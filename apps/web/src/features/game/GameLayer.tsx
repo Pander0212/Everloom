@@ -63,11 +63,12 @@ export function GameLayer({ chat, campaign, busy, onRun, setComposer, menuOpen, 
       busy,
       open,
       close,
+      toolId: tool?.id ?? null,
       apply: (ops: Op[] | Op, opts?: { quiet?: boolean }) => applyOps(chat, Array.isArray(ops) ? ops : [ops], opts?.quiet),
       run: onRun,
       setComposer,
     }),
-    [chat, campaign, state, busy, open, close, onRun, setComposer],
+    [chat, campaign, state, busy, open, close, onRun, setComposer, tool?.id],
   );
 
   useEffect(() => {

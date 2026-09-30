@@ -5,7 +5,7 @@ import { api, get, onAuthRequired, setCsrf } from '@/lib/api';
 import { CustomCss } from '@/lib/customCss';
 import { startEvents, stopEvents } from '@/lib/events';
 import { useSettings } from '@/lib/queries';
-import { applyMotion, applyTextSize, applyTheme, watchSystemTheme } from '@/lib/theme';
+import { applyMotion, applyPalette, applyTextSize, applyTheme, watchSystemTheme } from '@/lib/theme';
 import { Button, ConfirmHost, Spinner, Toaster } from '@/ui';
 import { LoginPage, SetupPage } from './AuthPages';
 import { StuckHelp } from './ErrorBoundary';
@@ -44,6 +44,7 @@ function AuthedApp() {
     applyTheme(settings.data.theme);
     applyMotion(settings.data.motion);
     applyTextSize(settings.data.textSize);
+    applyPalette(settings.data.palette);
     return watchSystemTheme(() => settings.data!.theme);
   }, [settings.data]);
   return (

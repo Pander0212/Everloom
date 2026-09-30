@@ -1,5 +1,13 @@
-import { Field, Segmented } from '@/ui';
-import { applyMotion, applyTextSize, applyTheme } from '@/lib/theme';
+import { cx } from '@/lib/format';
+import { Field, Segmented, ToggleRow } from '@/ui';
+import { applyMotion, applyPalette, applyTextSize, applyTheme } from '@/lib/theme';
+
+const PALETTES = [
+  { value: 'amber', label: 'Amber', swatch: '#cf912f' },
+  { value: 'dusk', label: 'Dusk', swatch: '#7a5ccf' },
+  { value: 'sea', label: 'Sea', swatch: '#1b7978' },
+  { value: 'rose', label: 'Rose', swatch: '#c24a6c' },
+] as const;
 import { Section, useSettingsPatch } from '../common';
 
 export default function AppearanceSection() {
@@ -23,6 +31,29 @@ export default function AppearanceSection() {
             ]}
           />
         </Field>
+        <Field label="Accent">
+          <div role="radiogroup" aria-label="Accent" className="flex flex-wrap gap-2">
+            {PALETTES.map((p) => {
+              const on = (settings.palette ?? 'amber') === p.value;
+              return (
+                <button
+                  key={p.value}
+                  role="radio"
+                  aria-checked={on}
+                  onClick={() => {
+                    applyPalette(p.value);
+                    void update({ palette: p.value });
+                  }}
+                  className={cx('pressable flex h-10 items-center gap-2 rounded-md border px-3 text-sm', on ? 'border-accent bg-accent-soft font-medium' : 'border-line hover:bg-surface-2')}
+                >
+                  <span className="size-4 rounded-full" style={{ background: p.swatch }} aria-hidden="true" />
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+        </Field>
+        <ToggleRow label="Match the story's genre" description="Fantasy stories get warm parchment tones, science fiction cool ones. Only in the story view." checked={settings.genreTheme !== false} onChange={(v) => void update({ genreTheme: v })} />
         <Field label="Motion" hint="Reduced turns animations into simple fades. Your device setting is also respected.">
           <Segmented
             label="Motion"
