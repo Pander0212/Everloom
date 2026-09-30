@@ -8,6 +8,7 @@ export * from './cards/card.js';
 export * from './lore/types.js';
 export * from './lore/convert.js';
 export * from './lore/activate.js';
+export * from './lore/generate.js';
 export * from './prompt/macros.js';
 export * from './prompt/assemble.js';
 export * from './prompt/instruct.js';

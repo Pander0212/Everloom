@@ -85,6 +85,7 @@ function classify(messages: any[]): string {
   if (/condense story memories/i.test(sys)) return 'consolidate';
   if (/custom CSS snippets for the Everloom app/i.test(sys)) return 'css';
   if (/recommend which roleplay character to play next/i.test(sys)) return 'recommend';
+  if (/You write lorebook entries for a roleplay story/i.test(sys)) return 'lore';
   if (/character writer helping someone build a roleplay character card/i.test(sys)) return 'studio';
   if (/connection test/i.test(sys)) return 'test';
   if (/helper companion/i.test(sys)) return 'helper';
@@ -144,6 +145,22 @@ function answerFor(kind: string, messages: any[]): string {
       if (/Write the "Tags" field/.test(sys)) return 'lighthouse\nmystery\nslow burn';
       if (/Write the "/.test(sys)) return `Rewritten field text${/Also: (.*)/.exec(last)?.[1] ? ` (${/Also: (.*)/.exec(last)![1]})` : ''}.`;
       return '{}';
+    }
+    case 'lore': {
+      if (/"entries"/.test(String(messages[0].content))) {
+        const n = Number(/exactly (\d+) entries/.exec(String(messages[0].content))?.[1] ?? 3);
+        // One proposal repeats an entry the book already has ("The Ravens"), to prove it's dropped.
+        const pool = [
+          { title: 'The Ravens', keys: ['ravens'], content: 'A band.' },
+          { title: 'Harbor Guild', keys: ['guild', 'harbor guild'], content: 'The dockworkers who really run Northcrest; they settle disputes before the watch hears of them.' },
+          { title: 'Night Market', keys: ['night market', 'lantern row'], content: 'Stalls open at dusk on Lantern Row and close before the fog lifts.' },
+          { title: 'The Tide Bell', keys: ['tide bell'], content: 'A bronze bell that rings on its own when a ship is lost.', constant: false },
+          { title: 'Old Pier', keys: ['pier'], content: 'Rotting boards where smugglers meet.' },
+        ];
+        return JSON.stringify({ entries: pool.slice(0, n + 1) });
+      }
+      const also = /Also: (.*)/.exec(all)?.[1];
+      return JSON.stringify({ keys: ['tide bell', 'bell'], content: `The Tide Bell hangs above the harbor mouth and rings by itself when a ship is lost.${also ? ` (${also})` : ''}` });
     }
     case 'recommend': {
       // Prefers entries whose line mentions a mood word; also names one number that doesn't exist, to prove it's ignored.

@@ -14,6 +14,7 @@ import { registerGame } from './routes/game.js';
 import { registerCharLib } from './routes/charlib.js';
 import { registerCss } from './routes/css.js';
 import { registerStudio } from './routes/studio.js';
+import { registerLoreAi } from './routes/lore-ai.js';
 import { backfillMeta } from './services/characters.js';
 import { registerInspector } from './routes/inspector.js';
 import { registerMemory } from './routes/memory.js';
@@ -97,6 +98,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerCharLib(app, ctx);
   registerCss(app, ctx);
   registerStudio(app, ctx);
+  registerLoreAi(app, ctx);
   registerSystem(app, ctx);
 
   const indexFile = path.join(cfg.webDir, 'index.html');

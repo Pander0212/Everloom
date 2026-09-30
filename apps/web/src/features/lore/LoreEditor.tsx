@@ -1,13 +1,13 @@
-import { newEntry, type LorebookDTO, type WIEntry, type WorldBook } from '@everloom/engine';
+import { newEntry, type LoreProposal, type LorebookDTO, type WIEntry, type WorldBook } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Download, MoreHorizontal, Plus, Search, Trash2 } from 'lucide-react';
+import { ArrowLeft, Download, MoreHorizontal, Plus, Search, Sparkles, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Page } from '@/app/Shell';
-import { del, download, get, put } from '@/lib/api';
+import { del, download, get, post, put } from '@/lib/api';
 import { useCharacters } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
-import { Badge, Button, confirm, EmptyState, Field, Icon, IconButton, Input, Menu, Select, Sheet, Spinner, Textarea, ToggleRow } from '@/ui';
+import { Badge, Button, Checkbox, confirm, EmptyState, Field, Icon, IconButton, Input, Menu, Segmented, Select, Sheet, Spinner, Textarea, ToggleRow } from '@/ui';
 
 const POSITIONS: Array<[number, string]> = [
   [0, 'Before character definition'],
@@ -39,6 +39,7 @@ export default function LoreEditor() {
   const [search, setSearch] = useState('');
   const [editing, setEditing] = useState<WIEntry | null>(null);
   const [saving, setSaving] = useState(false);
+  const [genOpen, setGenOpen] = useState(false);
   useEffect(() => {
     if (q.data) {
       setBook(structuredClone(q.data.book));
@@ -104,6 +105,9 @@ export default function LoreEditor() {
               { label: 'Delete lorebook', icon: Trash2, danger: true, separatorBefore: true, onSelect: removeBook },
             ]}
           />
+          <Button icon={Sparkles} aria-label="Generate entries" onClick={() => setGenOpen(true)}>
+            <span className="hidden sm:inline">Generate</span>
+          </Button>
           <Button variant="primary" icon={Plus} onClick={addEntry}>
             Entry
           </Button>
@@ -159,14 +163,47 @@ export default function LoreEditor() {
       ) : (
         <EmptyState title={search ? 'No entries match' : 'No entries yet'} action={search ? undefined : <Button variant="secondary" icon={Plus} onClick={addEntry}>Add entry</Button>} />
       )}
-      <EntrySheet entry={editing} onClose={() => setEditing(null)} onSave={saveEntry} onDelete={removeEntry} />
+      <GenerateSheet
+        open={genOpen}
+        onOpenChange={setGenOpen}
+        bookId={q.data.id}
+        onAdd={async (list) => {
+          let uid = Math.max(-1, ...Object.keys(book.entries).map(Number)) + 1;
+          const added = Object.fromEntries(list.map((p) => [String(uid), newEntry(uid, { comment: p.title, key: p.keys, content: p.content, constant: p.constant, displayIndex: uid++ })]));
+          const next = { ...book, entries: { ...book.entries, ...added } };
+          setBook(next);
+          setGenOpen(false);
+          await persist(next);
+          toast({ title: `${list.length} ${list.length === 1 ? 'entry' : 'entries'} added`, tone: 'success' });
+        }}
+      />
+      <EntrySheet bookId={q.data.id} entry={editing} onClose={() => setEditing(null)} onSave={saveEntry} onDelete={removeEntry} />
     </Page>
   );
 }
 
-function EntrySheet({ entry, onClose, onSave, onDelete }: { entry: WIEntry | null; onClose: () => void; onSave: (e: WIEntry) => void; onDelete: (e: WIEntry) => void }) {
+function EntrySheet({ bookId, entry, onClose, onSave, onDelete }: { bookId: string; entry: WIEntry | null; onClose: () => void; onSave: (e: WIEntry) => void; onDelete: (e: WIEntry) => void }) {
   const [e, setE] = useState<WIEntry | null>(entry);
-  useEffect(() => setE(entry), [entry]);
+  const [writing, setWriting] = useState(false);
+  const [before, setBefore] = useState<Pick<WIEntry, 'content' | 'key'> | null>(null);
+  useEffect(() => {
+    setE(entry);
+    setBefore(null);
+  }, [entry]);
+  const aiWrite = async () => {
+    if (!e) return;
+    setWriting(true);
+    try {
+      const r = await post<{ keys: string[]; content: string }>(`/api/lorebooks/${bookId}/write-entry`, { entry: { comment: e.comment, key: e.key, content: e.content } });
+      setBefore({ content: e.content, key: e.key });
+      const lower = new Set(e.key.map((k) => k.toLowerCase()));
+      set({ content: r.content, key: [...e.key, ...r.keys.filter((k) => !lower.has(k.toLowerCase()))] });
+    } catch (err) {
+      toastError(err);
+    } finally {
+      setWriting(false);
+    }
+  };
   const set = (p: Partial<WIEntry>) => setE((x) => (x ? { ...x, ...p } : x));
   const list = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean);
   const num = (s: string) => (s === '' ? null : Number(s));
@@ -216,8 +253,21 @@ function EntrySheet({ entry, onClose, onSave, onDelete }: { entry: WIEntry | nul
               </Select>
             </Field>
           </div>
-          <Field label="Content" htmlFor="ect">
+          <Field
+            label="Content"
+            htmlFor="ect"
+            trailing={
+              <Button size="sm" variant="quiet" icon={Sparkles} loading={writing} onClick={aiWrite}>
+                {e.content.trim() ? 'Improve with AI' : 'Write with AI'}
+              </Button>
+            }
+          >
             <Textarea id="ect" rows={6} maxRows={24} value={e.content} onChange={(ev) => set({ content: ev.target.value })} />
+            {before ? (
+              <button className="pressable self-start text-xs font-medium text-accent-text" onClick={() => (set(before), setBefore(null))}>
+                Undo the AI’s change
+              </button>
+            ) : null}
           </Field>
           <div className="grid gap-3 sm:grid-cols-2">
             <Field label="Position" htmlFor="epos">
@@ -309,6 +359,76 @@ function EntrySheet({ entry, onClose, onSave, onDelete }: { entry: WIEntry | nul
           </div>
         </div>
       ) : null}
+    </Sheet>
+  );
+}
+
+/** Propose entries on a topic with AI; nothing is added until you pick. */
+function GenerateSheet({ open, onOpenChange, bookId, onAdd }: { open: boolean; onOpenChange: (o: boolean) => void; bookId: string; onAdd: (list: LoreProposal[]) => void }) {
+  const [topic, setTopic] = useState('');
+  const [count, setCount] = useState('5');
+  const [busy, setBusy] = useState(false);
+  const [props, setProps] = useState<LoreProposal[]>([]);
+  const [pick, setPick] = useState<Set<number>>(new Set());
+  useEffect(() => {
+    if (open) setProps([]);
+  }, [open]);
+  const go = async () => {
+    setBusy(true);
+    try {
+      const r = await post<{ entries: LoreProposal[] }>(`/api/lorebooks/${bookId}/generate`, { topic, count: Number(count) });
+      setProps(r.entries);
+      setPick(new Set(r.entries.map((_, i) => i)));
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const chosen = props.filter((_, i) => pick.has(i));
+  return (
+    <Sheet
+      open={open}
+      onOpenChange={onOpenChange}
+      title="Generate entries"
+      description="Describe what the book should cover. You'll see the entries before anything is added."
+      size="lg"
+      footer={
+        props.length ? (
+          <Button variant="primary" block disabled={!chosen.length} onClick={() => onAdd(chosen)}>
+            Add {chosen.length} {chosen.length === 1 ? 'entry' : 'entries'}
+          </Button>
+        ) : undefined
+      }
+    >
+      <div className="flex flex-col gap-4">
+        <Field label="Topic" htmlFor="gen-topic">
+          <Textarea id="gen-topic" value={topic} onChange={(ev) => setTopic(ev.target.value)} rows={2} maxRows={6} placeholder="The factions of the harbor district, and the places they meet" />
+        </Field>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <Segmented label="How many" value={count} onChange={setCount} options={[{ value: '3', label: '3' }, { value: '5', label: '5' }, { value: '8', label: '8' }]} />
+          <Button icon={Sparkles} loading={busy} disabled={topic.trim().length < 3} onClick={go}>
+            {props.length ? 'Generate again' : 'Generate'}
+          </Button>
+        </div>
+        {props.length ? (
+          <ul className="flex flex-col divide-y divide-line" aria-label="Proposed entries">
+            {props.map((p, i) => (
+              <li key={p.title} className="flex items-start gap-3 py-3">
+                <Checkbox label={`Add ${p.title}`} checked={pick.has(i)} onChange={(v) => setPick((s) => { const n = new Set(s); if (v) n.add(i); else n.delete(i); return n; })} />
+                <div className="min-w-0 flex-1">
+                  <p className="flex items-center gap-2 text-sm font-medium">
+                    {p.title}
+                    {p.constant ? <Badge tone="accent">Always</Badge> : null}
+                  </p>
+                  <p className="mt-0.5 text-xs text-fg-2">{p.keys.join(', ')}</p>
+                  <p className="mt-1 text-sm text-fg-2">{p.content}</p>
+                </div>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </Sheet>
   );
 }

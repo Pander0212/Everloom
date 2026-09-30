@@ -1,12 +1,13 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { BookOpen, Plus, Upload } from 'lucide-react';
+import { BookOpen, Plus, Search, Upload } from 'lucide-react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Page } from '@/app/Shell';
 import { post, upload } from '@/lib/api';
 import { relativeTime } from '@/lib/format';
 import { useCharacters, useLorebooks } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
-import { Badge, Button, EmptyState, FileButton, IconButton, ListRow, Switch } from '@/ui';
+import { Badge, Button, EmptyState, FileButton, Icon, IconButton, Input, ListRow, Switch } from '@/ui';
 import { put } from '@/lib/api';
 
 export default function LorePage() {
@@ -14,6 +15,7 @@ export default function LorePage() {
   const chars = useCharacters();
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const [q, setQ] = useState('');
   const charName = (id: string | null) => chars.data?.find((c) => c.id === id)?.name;
   const create = async () => {
     const b = await post('/api/lorebooks', { name: 'New lorebook' });
@@ -35,10 +37,12 @@ export default function LorePage() {
     await put(`/api/lorebooks/${id}`, { enabled });
     await qc.invalidateQueries({ queryKey: ['lorebooks'] });
   };
+  const needle = q.trim().toLowerCase();
+  const all = (books.data ?? []).filter((b) => !needle || b.name.toLowerCase().includes(needle) || (charName(b.scopeId) ?? '').toLowerCase().includes(needle));
   const groups = [
-    { title: 'Global', items: (books.data ?? []).filter((b) => b.scope === 'global') },
-    { title: 'Character', items: (books.data ?? []).filter((b) => b.scope === 'character') },
-    { title: 'Chat', items: (books.data ?? []).filter((b) => b.scope === 'chat') },
+    { title: 'Global', items: all.filter((b) => b.scope === 'global') },
+    { title: 'Character', items: all.filter((b) => b.scope === 'character') },
+    { title: 'Chat', items: all.filter((b) => b.scope === 'chat') },
   ].filter((g) => g.items.length);
   return (
     <Page
@@ -53,7 +57,13 @@ export default function LorePage() {
         </>
       }
     >
-      <p className="mb-2 text-sm text-fg-2">World Info entries are added to the prompt when their keywords come up. SillyTavern world files import as-is.</p>
+      <p className="mb-2 text-sm text-fg-2">World Info entries are added to the prompt when their keywords come up. SillyTavern world files import as-is. Open a lorebook to generate entries with AI.</p>
+      {(books.data?.length ?? 0) > 5 ? (
+        <div className="relative mt-3">
+          <Icon icon={Search} size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" />
+          <Input value={q} onChange={(e) => setQ(e.target.value)} placeholder="Search lorebooks" aria-label="Search lorebooks" className="pl-10" />
+        </div>
+      ) : null}
       {groups.length ? (
         groups.map((g) => (
           <section key={g.title} className="mt-4">
@@ -76,7 +86,9 @@ export default function LorePage() {
             </div>
           </section>
         ))
-      ) : books.isLoading ? null : (
+      ) : books.isLoading ? null : needle ? (
+        <EmptyState title="No lorebooks match" />
+      ) : (
         <EmptyState icon={BookOpen} title="No lorebooks yet" body="Create one or import a SillyTavern world JSON." action={<Button variant="primary" onClick={create}>Create lorebook</Button>} />
       )}
     </Page>
