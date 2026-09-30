@@ -11,6 +11,8 @@ import { registerAuth } from './routes/auth.js';
 import { registerChats } from './routes/chats.js';
 import { registerEvents } from './routes/events.js';
 import { registerGame } from './routes/game.js';
+import { registerCharLib } from './routes/charlib.js';
+import { backfillMeta } from './services/characters.js';
 import { registerInspector } from './routes/inspector.js';
 import { registerMemory } from './routes/memory.js';
 import { registerLibrary } from './routes/library.js';
@@ -42,6 +44,8 @@ export interface BuiltApp {
 export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } = {}): Promise<BuiltApp> {
   const db = opts.db ?? openDb(cfg.dbPath);
   const ctx: AppContext = { cfg, db, bus: new Bus() };
+  // Library columns for characters made before they existed (fast; only rows still missing them).
+  backfillMeta(ctx);
   const app = Fastify({
     logger: opts.logger === false ? false : { level: cfg.logLevel, redact: ['req.headers.cookie', 'req.headers.authorization', 'req.headers["x-csrf-token"]'] },
     trustProxy: cfg.trustProxy,
@@ -53,7 +57,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   // Raw bodies for uploads (validated by magic bytes in the handlers).
   const raw = { parseAs: 'buffer' as const, bodyLimit: 64 * 1024 * 1024 };
   app.addContentTypeParser(['application/octet-stream', 'application/zip', 'application/x-zip-compressed', 'text/plain', 'application/jsonl', 'application/x-ndjson'], raw, (_req, body, done) => done(null, body));
-  app.addContentTypeParser(/^image\//, raw, (_req, body, done) => done(null, body));
+  app.addContentTypeParser(/^(image|video|audio)\//, raw, (_req, body, done) => done(null, body));
 
   app.addHook('onSend', async (req, reply, payload) => {
     reply.header('x-content-type-options', 'nosniff');
@@ -88,6 +92,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerGame(app, ctx);
   registerMemory(app, ctx);
   registerInspector(app, ctx);
+  registerCharLib(app, ctx);
   registerSystem(app, ctx);
 
   const indexFile = path.join(cfg.webDir, 'index.html');

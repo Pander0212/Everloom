@@ -390,4 +390,68 @@ INSERT INTO mem_fts (item_id, owner_id, campaign_id, chat_id, kind, text)
 SELECT id, owner_id, COALESCE(campaign_id, ''), COALESCE(chat_id, ''), 'summary', text FROM mem_summaries;
 `,
   },
+  {
+    version: 3,
+    name: 'character library',
+    sql: `
+-- Library metadata kept beside the card: a local nickname, the creator, a token count and a
+-- content hash (for duplicates), and a link to an online source.
+ALTER TABLE characters ADD COLUMN display_name TEXT;
+ALTER TABLE characters ADD COLUMN creator TEXT NOT NULL DEFAULT '';
+ALTER TABLE characters ADD COLUMN tokens INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE characters ADD COLUMN content_hash TEXT NOT NULL DEFAULT '';
+ALTER TABLE characters ADD COLUMN source TEXT;
+CREATE TABLE character_versions (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  character_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  label TEXT NOT NULL DEFAULT '',
+  name TEXT NOT NULL,
+  card TEXT NOT NULL,
+  game TEXT NOT NULL DEFAULT '{}',
+  avatar TEXT,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX character_versions_char ON character_versions(character_id, created_at);
+CREATE TABLE collections (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  icon TEXT NOT NULL DEFAULT 'folder',
+  color TEXT NOT NULL DEFAULT 'accent',
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX collections_owner ON collections(owner_id, position);
+CREATE TABLE collection_items (
+  collection_id TEXT NOT NULL REFERENCES collections(id) ON DELETE CASCADE,
+  character_id TEXT NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+  added_at INTEGER NOT NULL,
+  PRIMARY KEY (collection_id, character_id)
+);
+CREATE INDEX collection_items_char ON collection_items(character_id);
+-- Deleted characters are kept for a short while so a delete can be undone.
+CREATE TABLE character_trash (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  payload TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE TABLE provider_accounts (
+  owner_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  token_enc TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, provider)
+);
+CREATE TABLE provider_cache (
+  key TEXT PRIMARY KEY,
+  body TEXT NOT NULL,
+  fetched_at INTEGER NOT NULL
+);
+`,
+  },
 ];

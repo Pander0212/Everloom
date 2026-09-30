@@ -49,6 +49,19 @@ export interface CharacterSummary {
   updatedAt: number;
   lastChatAt: number | null;
   chatCount: number;
+  /** A local nickname; the card keeps its own name. */
+  displayName: string | null;
+  creator: string;
+  /** Permanent prompt tokens (description, personality, scenario, first message, examples…). */
+  tokens: number;
+  hash: string;
+  version: string;
+  hasLorebook: boolean;
+  hasGallery: boolean;
+  hasGreetings: boolean;
+  /** Online source link, e.g. "chub:author/slug". */
+  linked: string | null;
+  collections: string[];
 }
 
 export interface CharacterDTO extends CharacterSummary {
@@ -202,6 +215,35 @@ export interface Settings {
   helper: { visible: boolean; name: string };
   atmosphere: { enabled: boolean; particles: boolean };
   world: WorldSettings;
+  library: LibrarySettings;
+}
+
+export interface FilterPreset {
+  id: string;
+  name: string;
+  query: string;
+  tagStates: Record<string, 'include' | 'exclude'>;
+  sort: 'name' | 'modified' | 'created' | 'tokens' | 'recent' | 'random';
+  desc: boolean;
+  /** Which screen it belongs to. */
+  scope: 'characters' | 'chats';
+}
+
+export interface LibrarySettings {
+  view: 'grid' | 'list';
+  presets: FilterPreset[];
+  /** Applied every time the library opens. */
+  defaultPreset: string | null;
+  /** Automatic snapshots kept per character (manual ones are kept until deleted). */
+  versionRetention: number;
+  /** Show the Info tab (ids, raw data). */
+  debug: boolean;
+  /** Prev/next through the filtered list in the detail sheet. */
+  prevNext: boolean;
+  /** Card info on hover / long-press. */
+  cardInfo: boolean;
+  /** Online sources: show adult content. Off by default. */
+  nsfw: boolean;
 }
 
 export type WorldProfile = 'cheap' | 'balanced' | 'max' | 'custom';

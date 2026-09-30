@@ -38,7 +38,7 @@ it('upgrades a Phase-1 database in place, with a backup first and nothing lost',
   built = await buildApp(loadConfig({ dataDir: dir, webDir: path.join(dir, 'no-web'), logLevel: 'error' }), { logger: false });
   const db = built.ctx.db;
   // Schema is current and the pre-migration copy exists and is still a v1 database.
-  expect((db.prepare('SELECT MAX(version) AS v FROM schema_migrations').get() as { v: number }).v).toBe(2);
+  expect((db.prepare(`SELECT MAX(version) AS v FROM schema_migrations`).get() as { v: number }).v).toBe(3);
   const backups = readdirSync(path.join(dir, 'backups')).filter((f) => f.startsWith('pre-migration-v1-'));
   expect(backups).toHaveLength(1);
   const bak = new Database(path.join(dir, 'backups', backups[0]), { readonly: true });

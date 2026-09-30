@@ -8,10 +8,11 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
 import { listModels, testConnection } from '../llm/providers.js';
+import { batch } from '../services/charlib.js';
 import * as chars from '../services/characters.js';
 import * as conns from '../services/connections.js';
 import * as lore from '../services/lorebooks.js';
-import { deleteMedia, getMedia, listMedia, mediaUrl, saveImage } from '../services/media.js';
+import { deleteMedia, getMedia, listMedia, mediaUrl, saveMedia } from '../services/media.js';
 import * as personas from '../services/personas.js';
 import * as presets from '../services/presets.js';
 import { ensureEmbeddings } from '../services/semantic.js';
@@ -78,8 +79,8 @@ export function registerLibrary(app: FastifyInstance, ctx: AppContext) {
     const q = req.query as { kind?: string; characterId?: string };
     const body = req.body as Buffer;
     if (!Buffer.isBuffer(body)) throw new HttpError(400, 'Send the file as the request body');
-    const row = await saveImage(ctx, owner(req), body, { kind: (q.kind ?? 'upload').slice(0, 20), characterId: q.characterId ?? null });
-    return { id: row.id, url: mediaUrl(row.id), width: row.width, height: row.height };
+    const row = await saveMedia(ctx, owner(req), body, { kind: (q.kind ?? 'upload').slice(0, 20), characterId: q.characterId ?? null });
+    return { id: row.id, url: mediaUrl(row.id), mime: row.mime, width: row.width, height: row.height };
   });
   app.get('/api/media', async (req) => listMedia(ctx, owner(req), req.query as any));
   app.delete('/api/media/:id', async (req) => {
@@ -91,6 +92,20 @@ export function registerLibrary(app: FastifyInstance, ctx: AppContext) {
     reply.header('content-type', row.mime);
     reply.header('cache-control', 'private, max-age=31536000, immutable');
     reply.header('content-disposition', 'inline');
+    reply.header('accept-ranges', 'bytes');
+    // Byte ranges, so video and audio can seek (iOS needs this to play at all).
+    const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''));
+    if (range && (range[1] || range[2])) {
+      const size = row.size;
+      const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
+      const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
+      if (start >= size || start > end) {
+        reply.code(416).header('content-range', `bytes */${size}`);
+        return reply.send();
+      }
+      reply.code(206).header('content-range', `bytes ${start}-${end}/${size}`).header('content-length', end - start + 1);
+      return reply.send(createReadStream(file, { start, end }));
+    }
     return reply.send(createReadStream(file));
   });
 
@@ -105,8 +120,9 @@ export function registerLibrary(app: FastifyInstance, ctx: AppContext) {
   });
   app.patch('/api/characters/:id', async (req) => chars.updateCharacter(ctx, owner(req), (req.params as any).id, (req.body ?? {}) as any));
   app.delete('/api/characters/:id', async (req) => {
-    chars.deleteCharacter(ctx, owner(req), (req.params as any).id);
-    return { ok: true };
+    // Kept in the trash for a day, so the delete can be undone.
+    const r = batch(ctx, owner(req), [(req.params as any).id], { action: 'delete' });
+    return { ok: true, undoId: r.undoId };
   });
   app.post('/api/characters/:id/duplicate', async (req) => chars.duplicateCharacter(ctx, owner(req), (req.params as any).id));
   app.post('/api/characters/import', async (req) => {

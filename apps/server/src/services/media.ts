@@ -81,6 +81,37 @@ export async function saveImage(
   return row;
 }
 
+export const MAX_AV_BYTES = 60 * 1024 * 1024;
+const AV_MIME: Record<string, string> = { mp4: 'video/mp4', webm: 'video/webm', mp3: 'audio/mpeg', wav: 'audio/wav', ogg: 'audio/ogg', m4a: 'audio/mp4' };
+
+/** Video and audio by magic bytes (never by the name or the declared type). */
+export function sniffAvType(b: Uint8Array): keyof typeof AV_MIME | null {
+  const s = (o: number, n: number) => String.fromCharCode(...b.subarray(o, o + n));
+  if (b.length < 12) return null;
+  if (s(4, 4) === 'ftyp') return /M4A|M4B/.test(s(8, 4)) ? 'm4a' : 'mp4';
+  if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return 'webm';
+  if (s(0, 3) === 'ID3' || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0)) return 'mp3';
+  if (s(0, 4) === 'RIFF' && s(8, 4) === 'WAVE') return 'wav';
+  if (s(0, 4) === 'OggS') return 'ogg';
+  return null;
+}
+
+/** Store any gallery file: images are re-encoded (metadata stripped), video and audio stored as sent. */
+export async function saveMedia(ctx: AppContext, owner: string, bytes: Buffer, opts: { kind: string; characterId?: string | null; maxDim?: number; meta?: Record<string, unknown> }): Promise<MediaRow> {
+  if (sniffImageType(new Uint8Array(bytes.subarray(0, 16)))) return saveImage(ctx, owner, bytes, opts);
+  const type = sniffAvType(new Uint8Array(bytes.subarray(0, 16)));
+  if (!type) throw new HttpError(415, 'Unsupported file type. Use an image (PNG, JPEG, WebP, GIF), video (MP4, WebM) or audio (MP3, WAV, OGG, M4A).');
+  if (bytes.length > MAX_AV_BYTES) throw new HttpError(413, 'File is larger than 60 MB');
+  const id = newId('m_');
+  const filename = `${id}.${type}`;
+  writeFileSync(path.join(ownerDir(ctx, owner), filename), bytes);
+  const row: MediaRow = { id, owner_id: owner, kind: opts.kind, filename, mime: AV_MIME[type], size: bytes.length, width: null, height: null, character_id: opts.characterId ?? null, meta: JSON.stringify(opts.meta ?? {}), created_at: Date.now() };
+  ctx.db
+    .prepare('INSERT INTO media (id, owner_id, kind, filename, mime, size, width, height, character_id, meta, created_at) VALUES (@id, @owner_id, @kind, @filename, @mime, @size, @width, @height, @character_id, @meta, @created_at)')
+    .run(row);
+  return row;
+}
+
 export function getMedia(ctx: AppContext, owner: string, id: string): { row: MediaRow; file: string } {
   if (!SAFE_ID.test(id)) throw new HttpError(404, 'Not found');
   const row = ctx.db.prepare('SELECT * FROM media WHERE id = ? AND owner_id = ?').get(id, owner) as MediaRow | undefined;
@@ -130,5 +161,5 @@ export function listMedia(ctx: AppContext, owner: string, filter: { kind?: strin
     args.push(filter.characterId);
   }
   const rows = ctx.db.prepare(`SELECT * FROM media WHERE ${where.join(' AND ')} ORDER BY created_at DESC LIMIT 500`).all(...args) as MediaRow[];
-  return rows.map((r) => ({ id: r.id, url: mediaUrl(r.id)!, kind: r.kind, width: r.width, height: r.height, characterId: r.character_id, meta: JSON.parse(r.meta), createdAt: r.created_at }));
+  return rows.map((r) => ({ id: r.id, url: mediaUrl(r.id)!, kind: r.kind, mime: r.mime, size: r.size, width: r.width, height: r.height, characterId: r.character_id, meta: JSON.parse(r.meta), createdAt: r.created_at }));
 }
