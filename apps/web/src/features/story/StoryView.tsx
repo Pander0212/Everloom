@@ -1,6 +1,6 @@
 import type { MessageDTO } from '@everloom/engine';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowLeft, BookText, Brain, FastForward, History, MoreHorizontal, NotebookPen, Search, ScrollText, Sparkles, UserRoundPen } from 'lucide-react';
+import { ArrowDown, ArrowLeft, BookText, Brain, FastForward, History, MoreHorizontal, NotebookPen, Search, ScrollText, Sparkles, Telescope, UserRoundPen } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
@@ -14,6 +14,7 @@ import { Avatar, Button, confirm, IconButton, Menu, Spinner } from '@/ui';
 import { Composer } from './Composer';
 import { generate, stop, useGen } from './gen';
 import { Message, type MessageActions } from './Message';
+import { WorldInspector } from '../inspector/WorldInspector';
 import { MemorySheet } from '../memory/MemorySheet';
 import { ChatInfoSheet, InspectorSheet, NoteSheet, SearchSheet } from './sheets';
 import { speak } from './tts';
@@ -39,7 +40,7 @@ export default function StoryView() {
   const streams = useLive((s) => s.streams);
   const [composer, setComposer] = useState('');
   const [limit, setLimit] = useState(PAGE);
-  const [sheet, setSheet] = useState<null | 'inspector' | 'search' | 'note' | 'memory' | 'info'>(null);
+  const [sheet, setSheet] = useState<null | 'inspector' | 'search' | 'note' | 'memory' | 'info' | 'world'>(null);
   const [highlight, setHighlight] = useState<string | null>(null);
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -248,6 +249,7 @@ export default function StoryView() {
     { id: 'note', label: "Author's note", icon: NotebookPen, group: 'Quick', run: () => setSheet('note') },
     { id: 'memory', label: 'Memory', icon: Brain, group: 'Quick', keywords: 'summary', run: () => setSheet('memory') },
     { id: 'inspector', label: 'Prompt inspector', icon: ScrollText, group: 'Quick', keywords: 'tokens debug', run: () => setSheet('inspector') },
+    { id: 'world', label: 'World inspector', icon: Telescope, group: 'Quick', keywords: 'scene block calls cost health changes undo', run: () => setSheet('world') },
   ];
 
   const renderMessage = (m: MessageDTO) => {
@@ -290,6 +292,7 @@ export default function StoryView() {
             { label: 'Prompt inspector', icon: ScrollText, onSelect: () => setSheet('inspector') },
             { label: "Author's note", icon: NotebookPen, onSelect: () => setSheet('note') },
             { label: 'Memory', icon: Brain, onSelect: () => setSheet('memory') },
+            { label: 'World inspector', icon: Telescope, onSelect: () => setSheet('world') },
             { label: 'Chat details', icon: MoreHorizontal, onSelect: () => setSheet('info'), separatorBefore: true },
           ]}
         />
@@ -360,6 +363,7 @@ export default function StoryView() {
       <SearchSheet chatId={id} messages={list} open={sheet === 'search'} onOpenChange={(o) => setSheet(o ? 'search' : null)} onJump={jumpTo} />
       <NoteSheet chat={c} open={sheet === 'note'} onOpenChange={(o) => setSheet(o ? 'note' : null)} />
       <MemorySheet chat={c} open={sheet === 'memory'} onOpenChange={(o) => setSheet(o ? 'memory' : null)} />
+      <WorldInspector chat={c} open={sheet === 'world'} onOpenChange={(o) => setSheet(o ? 'world' : null)} />
       <ChatInfoSheet chat={c} open={sheet === 'info'} onOpenChange={(o) => setSheet(o ? 'info' : null)} />
     </div>
   );

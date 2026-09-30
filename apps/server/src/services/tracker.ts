@@ -6,6 +6,7 @@ import { logged, promptTokens } from './calls.js';
 import { appendOps, characterRefs, getState, type AppendResult } from './campaigns.js';
 import { getChat, getGroup, getMessage, listMessages, writeSwipes } from './chats.js';
 import { connectionForRole } from './connections.js';
+import { recordUnresolved } from './health.js';
 import { runHearsay, writeTurnMemory, type TurnWriteResult } from './mem.js';
 import { defaultPersona, getPersona } from './personas.js';
 import { getSettings } from './settings.js';
@@ -137,6 +138,7 @@ export function writeTurnWorld(ctx: AppContext, owner: string, chatId: string, m
 /** Apply ops for a message/swipe (replacing earlier ones from the same source) and store the summary on the swipe. */
 export function applyTracked(ctx: AppContext, owner: string, campaignId: string, chatId: string, messageId: string, swipeId: number, ops: Op[], source: 'ai', origin?: string, extras?: TrackerExtras): AppendResult & { memory: TurnWriteResult | null } {
   const result = appendOps(ctx, owner, campaignId, { chatId, messageId, swipeId, source, ops, replace: true, origin });
+  if (result.errors.length) recordUnresolved(ctx, owner, campaignId, result.errors);
   const memory = extras ? writeTurnWorld(ctx, owner, chatId, messageId, swipeId, extras) : null;
   const m = getMessage(ctx, owner, messageId);
   const swipes = m.swipes.slice();
