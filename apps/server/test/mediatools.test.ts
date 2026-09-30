@@ -136,3 +136,19 @@ describe('media integrity', () => {
     expect((await c.req('GET', '/api/library/media')).json.integrity.unusedRows).toEqual([]);
   });
 });
+
+describe('image proxy', () => {
+  it('serves remote pictures for signed-in users only, never private addresses, and only real images', async () => {
+    const q = (u: string) => `/api/image-proxy?url=${encodeURIComponent(u)}`;
+    expect((await c.req('GET', q(`${base}/img/a.png`))).status).toBe(400); // private by default
+    expect(hits).toBe(0);
+    c.built.ctx.cfg.fetchPrivate = true;
+    const ok = await c.req('GET', q(`${base}/img/a.png`));
+    expect(ok.status).toBe(200);
+    expect(ok.headers['content-type']).toBe('image/png');
+    expect((await c.req('GET', q(`${base}/page.png`))).status).toBe(415); // HTML pretending to be a PNG
+    expect((await c.req('GET', q('file:///etc/passwd'))).status).toBe(400);
+    const anon = await c.built.app.inject({ method: 'GET', url: q(`${base}/img/a.png`) });
+    expect(anon.statusCode).toBe(401);
+  });
+});

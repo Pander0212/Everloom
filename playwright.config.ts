@@ -40,7 +40,7 @@ export default defineConfig({
       command: `node --import tsx apps/server/src/index.ts`,
       port: PORT,
       reuseExistingServer: false,
-      env: { PORT: String(PORT), EVERLOOM_DATA_DIR: DATA, EVERLOOM_WEB_DIR: path.resolve('apps/web/dist'), LOG_LEVEL: 'error' },
+      env: { PORT: String(PORT), EVERLOOM_DATA_DIR: DATA, EVERLOOM_SOURCE_FIXTURES: path.resolve('tests/fixtures/sources/chub'), EVERLOOM_WEB_DIR: path.resolve('apps/web/dist'), LOG_LEVEL: 'error' },
     },
   ],
 });

@@ -32,7 +32,7 @@ export async function api(page: Page, method: string, path: string, body?: unkno
       const status = await (await fetch('/api/auth/status')).json();
       const res = await fetch(path as string, {
         method: method as string,
-        headers: { 'content-type': 'application/json', 'x-csrf-token': status.csrf },
+        headers: body === undefined ? { 'x-csrf-token': status.csrf } : { 'content-type': 'application/json', 'x-csrf-token': status.csrf },
         body: body === undefined ? undefined : JSON.stringify(body),
       });
       const text = await res.text();

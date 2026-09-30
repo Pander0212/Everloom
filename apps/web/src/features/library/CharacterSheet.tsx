@@ -6,7 +6,7 @@
  */
 import { CARD_FIELDS, diffCards, type CardData, type CharacterDTO, type CharacterSummary, type FieldDiff } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Download, ExternalLink, History, Lock, LockOpen, MessageSquare, RotateCcw, Save, Star, Trash2 } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, ExternalLink, History, Link2, Lock, LockOpen, MessageSquare, RefreshCw, RotateCcw, Save, Star, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { del, download, get, patch, post } from '@/lib/api';
@@ -16,6 +16,7 @@ import { toast, toastError } from '@/lib/store';
 import { NewChatSheet } from '@/features/chats/NewChatSheet';
 import { Avatar, Badge, Button, confirm, Dialog, EmptyState, Field, Icon, IconButton, Input, ListRow, Sheet, Spinner, TabPanel, Tabs, Textarea, useDesktop } from '@/ui';
 import { CharacterChats, CharacterGallery, CharacterLore } from '../characters/CharacterEditor';
+import { UpdatesSheet } from '../sources/SourceSheets';
 import { SandboxedHtml } from './SandboxedHtml';
 
 interface VersionRow {
@@ -158,12 +159,33 @@ export function CharacterSheet({ id, onClose, onPrev, onNext, position, onDelete
   );
 }
 
+const idLists = new Map<string, string[]>();
+/** A stable array per id, so the sheet doesn't re-run its check on every render. */
+const updateIds = (id: string) => idLists.get(id) ?? (idLists.set(id, [id]), idLists.get(id)!);
+
 function Details({ c, onDeleted, onFullEditor }: { c: CharacterDTO; onDeleted: () => void; onFullEditor: () => void }) {
   const [g, setG] = useState(0);
   const greetings = [c.card.first_mes, ...(c.card.alternate_greetings ?? [])].filter(Boolean);
   const touch = useRef<number | null>(null);
+  const [updates, setUpdates] = useState(false);
   return (
     <div className="flex flex-col gap-6">
+      {c.linked ? (
+        <p className="-mb-2 flex items-center gap-2 text-sm text-fg-2">
+          <Link2 size={15} className="flex-none" />
+          <span className="min-w-0 flex-1 truncate">
+            From{' '}
+            {/* Chub is the only source so far; the link needs the provider once there are more. */}
+            <a className="font-medium text-accent-text" href={`https://chub.ai/characters/${c.linked}`} target="_blank" rel="noreferrer noopener">
+              {c.linked}
+            </a>
+          </span>
+          <Button size="sm" variant="quiet" icon={RefreshCw} onClick={() => setUpdates(true)}>
+            Check for update
+          </Button>
+        </p>
+      ) : null}
+      {c.linked ? <UpdatesSheet open={updates} onOpenChange={setUpdates} ids={updateIds(c.id)} /> : null}
       {c.tags.length ? (
         <div className="flex flex-wrap gap-1.5">
           {c.tags.map((t) => (

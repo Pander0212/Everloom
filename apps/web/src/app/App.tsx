@@ -15,6 +15,7 @@ const ChatsPage = lazy(() => import('@/features/chats/ChatsPage'));
 const CharactersPage = lazy(() => import('@/features/library/LibraryPage'));
 const CharacterEditor = lazy(() => import('@/features/characters/CharacterEditor'));
 const StudioPage = lazy(() => import('@/features/studio/StudioPage'));
+const BrowsePage = lazy(() => import('@/features/sources/BrowsePage'));
 const PersonasPage = lazy(() => import('@/features/personas/PersonasPage'));
 const LorePage = lazy(() => import('@/features/lore/LorePage'));
 const LoreEditor = lazy(() => import('@/features/lore/LoreEditor'));
@@ -54,6 +55,7 @@ function AuthedApp() {
           <Route index element={<ChatsPage />} />
           <Route path="characters" element={<CharactersPage />} />
           <Route path="characters/studio" element={<StudioPage />} />
+          <Route path="characters/browse" element={<BrowsePage />} />
           <Route path="characters/:id" element={<CharacterEditor />} />
           <Route path="personas" element={<PersonasPage />} />
           <Route path="lore" element={<LorePage />} />

@@ -7,12 +7,12 @@ import DOMPurify from 'dompurify';
 import { marked } from 'marked';
 import { useEffect, useMemo, useRef, useState } from 'react';
 
-export const NOTES_CSP = "default-src 'none'; img-src https: http: data: blob:; media-src https: http: data: blob:; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; script-src 'none'; form-action 'none'; frame-src 'none'; base-uri 'none'";
+export const NOTES_CSP = "default-src 'none'; img-src 'self' data: blob:; media-src 'self' https: data: blob:; style-src 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com data:; script-src 'none'; form-action 'none'; frame-src 'none'; base-uri 'none'";
 
 export function notesDocument(source: string, theme: { fg: string; muted: string; link: string; bg: string }): string {
   const looksHtml = /<\w+[^>]*>/.test(source);
   const html = looksHtml ? source : (marked.parse(source, { async: false, breaks: true }) as string);
-  const clean = DOMPurify.sanitize(html, { WHOLE_DOCUMENT: false, ADD_TAGS: ['style'], FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'meta', 'base', 'link'], FORBID_ATTR: ['srcdoc', 'formaction'] });
+  const clean = proxyImages(DOMPurify.sanitize(html, { WHOLE_DOCUMENT: false, ADD_TAGS: ['style'], FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form', 'input', 'button', 'meta', 'base', 'link'], FORBID_ATTR: ['srcdoc', 'formaction', 'srcset'] }));
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${NOTES_CSP}"><meta name="viewport" content="width=device-width, initial-scale=1"><base target="_blank"><style>
 html,body{margin:0;padding:0;background:${theme.bg};color:${theme.fg};font:15px/1.6 -apple-system,BlinkMacSystemFont,"Inter Variable",system-ui,sans-serif;overflow-wrap:anywhere}
 body{padding:2px}
@@ -24,6 +24,14 @@ blockquote{margin:0 0 .8em;padding-left:12px;border-left:3px solid ${theme.muted
 table{border-collapse:collapse;max-width:100%}
 td,th{border:1px solid ${theme.muted};padding:4px 8px}
 </style></head><body>${clean}</body></html>`;
+}
+
+/** Remote pictures load through Everloom's image proxy (the app only allows its own images). */
+export const proxied = (url: string) => `/api/image-proxy?url=${encodeURIComponent(url)}`;
+export function proxyImages(html: string): string {
+  return html
+    .replace(/(<img\b[^>]*?\ssrc\s*=\s*)(["'])(https?:\/\/[^"']+)\2/gi, (_m, pre, q, url) => `${pre}${q}${proxied(url.replace(/&amp;/g, '&')).replace(/&/g, '&amp;')}${q}`)
+    .replace(/url\(\s*(["']?)(https?:\/\/[^"')\s]+)\1\s*\)/gi, (_m, q, url) => `url(${q}${proxied(url.replace(/&amp;/g, '&'))}${q})`);
 }
 
 /** Height follows the content (measured from the outside, since the frame can't run scripts). */

@@ -15,6 +15,8 @@ import { registerCharLib } from './routes/charlib.js';
 import { registerCss } from './routes/css.js';
 import { registerStudio } from './routes/studio.js';
 import { registerLoreAi } from './routes/lore-ai.js';
+import { registerSources } from './routes/sources.js';
+import { registerImageProxy } from './routes/image-proxy.js';
 import { backfillMeta } from './services/characters.js';
 import { registerInspector } from './routes/inspector.js';
 import { registerMemory } from './routes/memory.js';
@@ -99,6 +101,8 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerCss(app, ctx);
   registerStudio(app, ctx);
   registerLoreAi(app, ctx);
+  registerSources(app, ctx);
+  registerImageProxy(app, ctx);
   registerSystem(app, ctx);
 
   const indexFile = path.join(cfg.webDir, 'index.html');

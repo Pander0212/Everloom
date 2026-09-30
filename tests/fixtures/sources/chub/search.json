@@ -1,0 +1,83 @@
+{
+ "data": {
+  "count": 4,
+  "nodes": [
+   {
+    "id": 28875,
+    "name": "Maren Holt",
+    "fullPath": "tidewriter/maren-holt",
+    "tagline": "The lighthouse keeper who logs the lost.",
+    "description": "The lighthouse keeper who logs the lost.",
+    "topics": [
+     "Mystery",
+     "Female",
+     "OC"
+    ],
+    "starCount": 120,
+    "nChats": 3400,
+    "nTokens": 1650,
+    "createdAt": "2025-11-02T08:00:00Z",
+    "lastActivityAt": "2026-05-01T10:00:00Z",
+    "max_res_url": "https://avatars.charhub.io/avatars/tidewriter/maren-holt/chara_card_v2.png",
+    "avatar_url": "https://avatars.charhub.io/avatars/tidewriter/maren-holt/avatar.webp",
+    "nsfw_image": false
+   },
+   {
+    "id": 1107638,
+    "name": "Captain Orr",
+    "fullPath": "tidewriter/captain-orr",
+    "tagline": "A retired smuggler with a debt to settle.",
+    "description": "A retired smuggler with a debt to settle.",
+    "topics": [
+     "Adventure",
+     "Male"
+    ],
+    "starCount": 120,
+    "nChats": 3400,
+    "nTokens": 1650,
+    "createdAt": "2025-11-02T08:00:00Z",
+    "lastActivityAt": "2026-05-01T10:00:00Z",
+    "max_res_url": "https://avatars.charhub.io/avatars/tidewriter/captain-orr/chara_card_v2.png",
+    "avatar_url": "https://avatars.charhub.io/avatars/tidewriter/captain-orr/avatar.webp",
+    "nsfw_image": false
+   },
+   {
+    "id": 9334569,
+    "name": "Velvet Room",
+    "fullPath": "nightowl/velvet-room",
+    "tagline": "Adults only.",
+    "description": "Adults only.",
+    "topics": [
+     "NSFW",
+     "Romance"
+    ],
+    "starCount": 120,
+    "nChats": 3400,
+    "nTokens": 1650,
+    "createdAt": "2025-11-02T08:00:00Z",
+    "lastActivityAt": "2026-05-01T10:00:00Z",
+    "max_res_url": "https://avatars.charhub.io/avatars/nightowl/velvet-room/chara_card_v2.png",
+    "avatar_url": "https://avatars.charhub.io/avatars/nightowl/velvet-room/avatar.webp",
+    "nsfw_image": true
+   },
+   {
+    "id": 3950267,
+    "name": "The Secret Sister",
+    "fullPath": "quietmaker/secret-sister",
+    "tagline": "Definition hidden by the creator.",
+    "description": "Definition hidden by the creator.",
+    "topics": [
+     "Drama"
+    ],
+    "starCount": 120,
+    "nChats": 3400,
+    "nTokens": 1650,
+    "createdAt": "2025-11-02T08:00:00Z",
+    "lastActivityAt": "2026-05-01T10:00:00Z",
+    "max_res_url": "https://avatars.charhub.io/avatars/quietmaker/secret-sister/chara_card_v2.png",
+    "avatar_url": "https://avatars.charhub.io/avatars/quietmaker/secret-sister/avatar.webp",
+    "nsfw_image": false
+   }
+  ]
+ }
+}
