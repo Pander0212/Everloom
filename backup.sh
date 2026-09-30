@@ -32,6 +32,8 @@ else
   $DOCKER compose run --rm --no-deps -T everloom sh -c 'cd /data && if [ -d media ]; then tar -czf - everloom.db media; else tar -czf - everloom.db; fi' >"$OUT" || fail "couldn't read the data folder"
 fi
 [ -s "$OUT" ] || fail "the archive is empty"
+# Run with sudo: give the archive to whoever owns this folder, like everything else in it.
+[ "$(id -u)" = 0 ] && chown "$(stat -c %u:%g .)" "$OUT" 2>/dev/null || true
 # Keep the 14 newest host backups.
 ls -1t backups/everloom-*.tar.gz 2>/dev/null | tail -n +15 | xargs -r rm -f
 echo "Backup written to $OUT"

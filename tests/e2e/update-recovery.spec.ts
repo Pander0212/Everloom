@@ -29,3 +29,15 @@ test.describe('recovering from an update', () => {
     errors.length = 0; // the failed loads above are expected
   });
 });
+
+test.describe('server unreachable', () => {
+  test('shows the error screen and recovers by itself when the server is back', async ({ page, errors }) => {
+    await page.route('**/api/auth/status', (r) => r.abort('connectionrefused'));
+    await page.goto('/characters');
+    await expect(page.getByText("Can't reach the server")).toBeVisible({ timeout: 20_000 });
+    await page.unroute('**/api/auth/status');
+    // No click: it retries on its own.
+    await expect(page.getByRole('heading', { name: 'Characters' })).toBeVisible({ timeout: 15_000 });
+    errors.length = 0; // the refused requests above are expected
+  });
+});

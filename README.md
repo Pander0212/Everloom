@@ -113,6 +113,8 @@ Prices and free tiers change often — check the provider's page. The per-chat *
 cd Everloom && bash update.sh
 ```
 
+Run it as your normal user; it uses `sudo` for Docker by itself when needed (running the whole script with `sudo` works too). It ends with `Updated: Everloom is running build abc1234`, and **Settings → About** shows the same build. If it stops with an error, nothing was changed.
+
 **Backups:**
 
 - The app makes a nightly backup (database + images) into `data/backups/`, keeping the newest 14 by default. Change this in **Settings → Backups & import**, where you can also make a backup right now and download it.
@@ -229,6 +231,8 @@ Layout: `packages/engine` (formats, prompt assembly, World Info, the determinist
 **The site doesn't load / certificate errors.** Check the DNS record points to this server (`dig +short rp.example.com`), ports 80/443 are open, and nothing else uses them. See `docker compose logs caddy`. With Cloudflare, use DNS-only until the certificate is issued.
 
 **`https://your-ip` doesn't load in IP-only mode.** Update (`git pull && docker compose restart caddy`) — older versions couldn't answer HTTPS requests made to a bare IP address. Also check port 443 is open (`sudo ufw allow 443/tcp`, and your provider's firewall panel). HTTPS uses the normal port, so the address is just `https://your-ip`.
+
+**Safari says "Can't reach the server" but Chrome works (IP-only mode).** IP-only mode uses a self-signed certificate that Caddy renews about every 12 hours. Safari's "visit this website anyway" only covers the certificate you accepted, and it keeps opening Everloom from its offline copy without asking again, so every request to the server quietly fails. Open `https://your-ip/api/health` in Safari, accept the warning, and go back (the error screen links there too). To stop this for good, give the server a free hostname with a real certificate: in `.env` set `EVERLOOM_DOMAIN=203-0-113-5.sslip.io` (your IP with dashes) and `EVERLOOM_TLS=` (empty), then run `docker compose up -d`. Open the new address, sign in again and re-add it to your home screen; your data doesn't change.
 
 **502 Bad Gateway.** Everloom isn't running or is still starting: `docker compose ps` and `docker compose logs everloom`.
 
