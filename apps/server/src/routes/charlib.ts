@@ -1,8 +1,12 @@
-/** Character library routes: collections, batch actions, undo, duplicates, related, versions. */
+/** Character library routes: collections, batch actions, undo, duplicates, related, recommendations, versions. */
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { owner, type AppContext } from '../context.js';
-import { getCharacter, refreshMeta } from '../services/characters.js';
+import { buildRecommendPrompt, parseRecommend, sampleForRecommend } from '@everloom/engine';
+import { completeChat } from '../llm/providers.js';
+import { logged, promptTokens } from '../services/calls.js';
+import { getCharacter, listCharacters, refreshMeta } from '../services/characters.js';
+import { connectionForRole } from '../services/connections.js';
 import { batch, deleteCollection, duplicates, editCollection, listCollections, mergeDuplicates, related, reorderCollections, saveCollection, undoDelete } from '../services/charlib.js';
 import { deleteVersion, listVersions, restoreVersion, snapshot, versionDiff } from '../services/versions.js';
 import { parse } from '../util/validate.js';
@@ -13,6 +17,30 @@ const ids = z.array(z.string().max(80)).max(5000);
 const collectionInput = z.object({ name: z.string().trim().min(1).max(80), icon: z.string().max(40).optional(), color: z.string().max(40).optional() });
 
 export function registerCharLib(app: FastifyInstance, ctx: AppContext) {
+  // "What should I play tonight?": the utility model picks three from a sample of the library.
+  app.post('/api/library/recommend', async (req) => {
+    const o = owner(req);
+    const b = parse(z.object({ mood: z.string().max(500).default(''), collectionId: z.string().max(80).nullable().optional(), exclude: ids.default([]), seed: z.number().int().optional() }), req.body ?? {});
+    const conn = connectionForRole(ctx, o, 'utility');
+    if (!conn) throw new HttpError(400, 'Add a connection first');
+    let list = listCharacters(ctx, o);
+    if (b.collectionId) list = list.filter((c) => c.collections.includes(b.collectionId!));
+    if (!list.length) throw new HttpError(400, 'There are no characters to choose from');
+    const sample = sampleForRecommend(list, { mood: b.mood, exclude: b.exclude, seed: b.seed ?? Date.now() % 2147483647 });
+    if (!sample.length) throw new HttpError(400, "You've seen every character in this list");
+    const messages = buildRecommendPrompt(b.mood, sample);
+    const r = await logged(ctx, o, conn, { purpose: 'recommender', role: 'utility' }, promptTokens(messages), () =>
+      completeChat(conn, { messages, overrides: { temperature: 0.9, max_tokens: 500, reasoning: false, stop: [] }, signal: AbortSignal.timeout(90_000) }),
+    );
+    let picks: Array<{ id: string; why: string }>;
+    try {
+      picks = parseRecommend(r.text, sample);
+    } catch (e) {
+      throw new HttpError(502, (e as Error).message);
+    }
+    const byId = new Map(list.map((c) => [c.id, c]));
+    return { picks: picks.map((p) => ({ ...byId.get(p.id)!, why: p.why })), considered: sample.length, total: list.length };
+  });
   app.get('/api/library/collections', async (req) => listCollections(ctx, owner(req)));
   app.post('/api/library/collections', async (req) => saveCollection(ctx, owner(req), parse(collectionInput, req.body)));
   app.patch('/api/library/collections/:id', async (req) => saveCollection(ctx, owner(req), parse(collectionInput, req.body), (req.params as { id: string }).id));

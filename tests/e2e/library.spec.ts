@@ -96,4 +96,22 @@ test.describe('character library', () => {
     await expect(page.getByText('Bundle imported')).toBeVisible();
     if (await isPhone(page)) expect(errors).toEqual([]);
   });
+
+  test('what should I play: three picks with reasons; a pick opens the character', async ({ page, errors }) => {
+    const name = `Wren ${Date.now().toString(36)}`;
+    await page.goto('/characters');
+    await api(page, 'POST', '/api/characters', { card: { name, tags: ['spooky'], description: 'A ghost haunting a lonely lighthouse.' } });
+    await page.getByRole('button', { name: 'Library tools' }).click();
+    await page.getByRole('menuitem', { name: 'What should I play?' }).click();
+    await page.getByLabel('Mood').fill('a haunting ghost story');
+    await page.getByRole('button', { name: 'Pick', exact: true }).click();
+    const picks = page.getByRole('list', { name: 'Picks' }).getByRole('button');
+    await expect(picks.first()).toBeVisible();
+    expect(await picks.count()).toBeLessThanOrEqual(3);
+    await expect(picks.first()).toContainText(name);
+    await expect(picks.first()).toContainText('Fits:');
+    await picks.first().click();
+    await expect(page.getByRole('dialog').getByText(name).first()).toBeVisible();
+    expect(errors).toEqual([]);
+  });
 });

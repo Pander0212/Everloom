@@ -84,6 +84,7 @@ function classify(messages: any[]): string {
   if (/slow-burning background storylines/i.test(sys)) return 'seed';
   if (/condense story memories/i.test(sys)) return 'consolidate';
   if (/custom CSS snippets for the Everloom app/i.test(sys)) return 'css';
+  if (/recommend which roleplay character to play next/i.test(sys)) return 'recommend';
   if (/character writer helping someone build a roleplay character card/i.test(sys)) return 'studio';
   if (/connection test/i.test(sys)) return 'test';
   if (/helper companion/i.test(sys)) return 'helper';
@@ -143,6 +144,15 @@ function answerFor(kind: string, messages: any[]): string {
       if (/Write the "Tags" field/.test(sys)) return 'lighthouse\nmystery\nslow burn';
       if (/Write the "/.test(sys)) return `Rewritten field text${/Also: (.*)/.exec(last)?.[1] ? ` (${/Also: (.*)/.exec(last)![1]})` : ''}.`;
       return '{}';
+    }
+    case 'recommend': {
+      // Prefers entries whose line mentions a mood word; also names one number that doesn't exist, to prove it's ignored.
+      const mood = /Mood: (.*)/.exec(all)?.[1]?.toLowerCase() ?? '';
+      const lines = [...all.matchAll(/^#(\d+) (.*)$/gm)].map((m) => ({ n: Number(m[1]), text: m[2].toLowerCase() }));
+      const words = mood.match(/[a-z]{4,}/g) ?? [];
+      const hits = lines.filter((l) => words.some((w) => l.text.includes(w)));
+      const chosen = [...hits, ...lines].slice(0, 3);
+      return JSON.stringify({ picks: [{ n: 999, why: 'Not real.' }, ...chosen.map((l) => ({ n: l.n, why: `Fits: ${l.text.split(' ')[0]}.` }))] });
     }
     case 'css': {
       // Revisions keep the current snippet and add to it; a remote import is included to prove it gets stripped.

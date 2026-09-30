@@ -175,3 +175,32 @@ describe('chat history', () => {
     expect((await c.req('GET', '/api/chat-search?q=x')).json).toEqual([]);
   });
 });
+
+describe('recommender', () => {
+  it('picks from the library (never an invented one), honors the mood, a collection and exclusions, and logs the call', async () => {
+    const { startMockLlm } = await import('../../../tests/mock-llm/server.js');
+    const mock = await startMockLlm();
+    try {
+      expect((await c.req('POST', '/api/library/recommend', {})).status).toBe(400); // no connection
+      await c.req('POST', '/api/connections', { name: 'Mock', provider: 'openai', baseUrl: mock.url, model: 'mock-story', params: { max_tokens: 300, context_size: 8192 } });
+      expect((await c.req('POST', '/api/library/recommend', {})).status).toBe(400); // empty library
+      for (let i = 0; i < 50; i++) await make({ name: `Filler ${i}`, description: 'An ordinary shopkeeper.' });
+      const ghost = await make({ name: 'Wren', tags: ['horror'], description: 'A ghost haunting the lighthouse.' });
+      const r = (await c.req('POST', '/api/library/recommend', { mood: 'something with a ghost', seed: 3 })).json;
+      expect(r.picks[0]).toMatchObject({ id: ghost.id, name: 'Wren' });
+      expect(r.picks.length).toBeLessThanOrEqual(3);
+      expect(r.considered).toBeLessThanOrEqual(30);
+      expect(r.total).toBe(51);
+      const again = (await c.req('POST', '/api/library/recommend', { mood: 'something with a ghost', seed: 3, exclude: [ghost.id] })).json;
+      expect(again.picks.map((p: any) => p.id)).not.toContain(ghost.id);
+      const col = (await c.req('POST', '/api/library/collections', { name: 'Spooky' })).json;
+      await c.req('POST', '/api/library/batch', { ids: [ghost.id], action: { action: 'collect', collectionId: col.id } });
+      const inCol = (await c.req('POST', '/api/library/recommend', { collectionId: col.id })).json;
+      expect(inCol.picks.map((p: any) => p.id)).toEqual([ghost.id]);
+      const calls = (await c.req('GET', '/api/calls?limit=10')).json;
+      expect((calls.items ?? calls).some((x: any) => x.purpose === 'recommender')).toBe(true);
+    } finally {
+      await mock.close();
+    }
+  });
+});
