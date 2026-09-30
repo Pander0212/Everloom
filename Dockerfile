@@ -17,7 +17,9 @@ RUN npm run build -w apps/web && npm run build -w apps/server
 RUN npm prune --omit=dev --no-audit --no-fund
 
 FROM node:22-bookworm-slim
-ENV NODE_ENV=production \
+ARG EVERLOOM_COMMIT=
+ENV EVERLOOM_COMMIT=$EVERLOOM_COMMIT \
+    NODE_ENV=production \
     EVERLOOM_DATA_DIR=/data \
     EVERLOOM_WEB_DIR=/app/apps/web/dist \
     PORT=8787

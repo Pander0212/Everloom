@@ -87,7 +87,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
 
   app.get('/api/health', async () => {
     db.prepare('SELECT 1').get();
-    return { ok: true, version: VERSION };
+    return { ok: true, version: VERSION, build: process.env.EVERLOOM_COMMIT || null };
   });
 
   registerAuth(app, ctx);
