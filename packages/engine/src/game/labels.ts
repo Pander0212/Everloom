@@ -51,3 +51,19 @@ export function trackerState(t: Tracker): { label: string; severity: 0 | 1 | 2 |
 export function xpForLevel(level: number): number {
   return Math.round(100 * Math.pow(1.25, Math.max(0, level - 1)));
 }
+
+/**
+ * Labels that must be earned. The model may name a relationship, but a romantic or close label
+ * only sticks when the numbers support it; kinship labels need nothing. Returns the label to keep.
+ */
+export function earnedLabel(proposed: string, r: Pick<Relationship, 'affection' | 'trust'> & { desire?: number; tension?: number }): string | null {
+  const l = proposed.trim().toLowerCase();
+  if (!l) return null;
+  if (/\b(mother|father|parent|sister|brother|sibling|cousin|aunt|uncle|daughter|son|grand\w*|family|twin)\b/.test(l)) return proposed;
+  if (/\b(partner|lover|girlfriend|boyfriend|spouse|wife|husband|fianc\w*|beloved|sweetheart)\b/.test(l)) return r.affection >= 40 && r.trust >= 20 ? proposed : null;
+  if (/\bcrush\b/.test(l)) return (r.desire ?? 0) >= 15 && r.affection >= 0 ? proposed : null;
+  if (/\b(best friend|confidant|soulmate)\b/.test(l)) return r.affection >= 50 && r.trust >= 40 ? proposed : null;
+  if (/\b(enemy|nemesis|rival|foe)\b/.test(l)) return r.affection <= -20 || (r.tension ?? 0) >= 30 ? proposed : null;
+  if (/\b(friend|ally)\b/.test(l)) return r.affection >= 15 ? proposed : null;
+  return proposed;
+}

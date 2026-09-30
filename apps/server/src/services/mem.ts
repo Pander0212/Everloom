@@ -8,6 +8,7 @@
  */
 import {
   contentWords,
+  jaccard,
   currentFacts,
   factKey,
   findNpc,
@@ -504,10 +505,15 @@ export function writeTurnMemory(
   const now = state?.time.minutes ?? 0;
   const loc = state?.currentLocationId ?? null;
   const resolve = (n: string) => personId(state, n, names);
+  // The same beat reported again (models repeat themselves) is not a new memory.
+  const recent = loadMemoryState(ctx, owner, scope).items.slice(-30).map((x) => contentWords(x.text));
   ctx.db.transaction(() => {
     for (const m of input.memories.slice(0, 6)) {
       const text = String(m.text ?? '').trim();
       if (text.length < 8) continue;
+      const words = contentWords(text);
+      if (recent.some((r) => jaccard(r, words) >= 0.8)) continue;
+      recent.push(words);
       const about = (m.about ?? []).map(resolve).filter((x): x is string => !!x);
       let witnesses = present;
       if (m.private) {

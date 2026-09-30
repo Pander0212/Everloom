@@ -120,6 +120,8 @@ export interface Thread {
   status: 'active' | 'head' | 'done';
   placeId: string | null;
   createdAt: number;
+  /** The chat turn it began on: its heartbeat is a pure function of turns since then. */
+  bornTurn: number;
 }
 
 export type ItemCategory =

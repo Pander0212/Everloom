@@ -33,3 +33,4 @@ export * from './game/newgame.js';
 export * from './memory/index.js';
 export * from './game/scene.js';
 export * from './game/health.js';
+export * from './game/tick.js';

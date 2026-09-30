@@ -5,11 +5,11 @@
 import { applyPatches, enablePatches, produceWithPatches, setAutoFreeze, type Patch } from 'immer';
 import { clamp } from '../util/clamp.js';
 import { createRng, seedFrom } from '../util/rng.js';
-import { nameMatchScore, slugify } from '../util/text.js';
+import { nameMatchScore, normalizeName, slugify } from '../util/text.js';
 import { battleRewards, playerAction, startBattle } from './battle.js';
 import { MIN_PER_DAY, fromDate, nextTimeOfDay, parseClock, toDate } from './calendar.js';
 import { defaultEffects, defaultSlot, guessCategory, iconForItem } from './items.js';
-import { relationshipLabel, standingLabel, xpForLevel } from './labels.js';
+import { earnedLabel, relationshipLabel, standingLabel, xpForLevel } from './labels.js';
 import type { Op, OpOf } from './ops.js';
 import { findExact, findFuzzy, findItem, findNpc, nextCounter, uniqueId } from './resolve.js';
 import { logWorld, simulate, type Change } from './simulate.js';
@@ -38,7 +38,8 @@ export interface ApplyResult {
 
 export class OpError extends Error {}
 
-const AI_RELATIONSHIP_STEP = 10;
+// A model can move a feeling at most this far in one turn.
+const AI_RELATIONSHIP_STEP = 8;
 const AI_STANDING_STEP = 15;
 
 function childLevel(level: MapLevel): MapLevel {
@@ -312,7 +313,8 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       }
       const before = b.cur;
       const delta = ctx.source === 'ai' ? clamp(op.delta, -b.max, b.max) : op.delta;
-      b.cur = clamp(b.cur + delta, 0, b.max);
+      // A model's report never kills the player: HP from the model floors at 1.
+      b.cur = clamp(b.cur + delta, ctx.source === 'ai' && b.id === 'hp' ? Math.min(1, b.cur) : 0, b.max);
       if (b.cur !== before) changes.push({ key: `bar:${b.id}`, label: b.label, delta: Math.round(b.cur - before), kind: 'bar' });
       return;
     }
@@ -472,6 +474,8 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
     }
     case 'location.upsert': {
       let loc = findFuzzy(s.locations, op.name);
+      if (!loc) assertNotForgotten(s, op.name, ctx);
+      if (ctx.source === 'user') unforget(s, op.name);
       const parent = op.parent ? findFuzzy(s.locations, op.parent) ?? ensureLocation(s, op.parent, ctx, changes) : undefined;
       if (!loc) {
         const id = uniqueId(s.locations, 'loc', op.name);
@@ -524,6 +528,7 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       const loc = findExact(s.locations, op.name);
       if (!loc) throw new OpError(`No location "${op.name}"`);
       delete s.locations[loc.id];
+      if (ctx.source === 'user') forget(s, loc.name);
       for (const l of Object.values(s.locations)) if (l.parentId === loc.id) l.parentId = loc.parentId;
       for (const r of Object.values(s.routes)) if (r.from === loc.id || r.to === loc.id) delete s.routes[r.id];
       for (const n of Object.values(s.npcs)) if (n.locationId === loc.id) n.locationId = null;
@@ -568,6 +573,8 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
     case 'npc.upsert': {
       const match = findNpc(s, op.name);
       let npc = match?.npc;
+      if (!npc) assertNotForgotten(s, op.name, ctx);
+      if (ctx.source === 'user') unforget(s, op.name);
       if (npc) {
         assertUnlocked(npc, ctx);
         // Upgrade "Tobias" to "Tobias Moreno" and keep the short form as an alias.
@@ -676,6 +683,7 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       if (!npc) throw new OpError(`Unknown NPC "${op.name}"`);
       assertUnlocked(npc, ctx);
       delete s.npcs[npc.id];
+      if (ctx.source === 'user') forget(s, npc.name);
       for (const org of Object.values(s.orgs)) {
         org.members = org.members.filter((m) => m.npcId !== npc.id);
         if (org.leaderNpcId === npc.id) org.leaderNpcId = null;
@@ -895,7 +903,12 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       const dt = clamp(op.trust ?? 0, -step, step);
       r.affection = clamp(r.affection + da, -100, 100);
       r.trust = clamp(r.trust + dt, -100, 100);
-      r.label = op.label ?? relationshipLabel(r);
+      r.desire = clamp((r.desire ?? 0) + clamp(op.desire ?? 0, -step, step), -100, 100);
+      r.tension = clamp((r.tension ?? 0) + clamp(op.tension ?? 0, -step, step), -100, 100);
+      // An explicit label has to be earned (the player can set any).
+      const kept = op.label ? (ctx.source === 'user' ? op.label : earnedLabel(op.label, r)) : null;
+      const earned = r.label && r.label !== relationshipLabel({ affection: r.affection - da, trust: r.trust - dt }) ? earnedLabel(r.label, r) : null;
+      r.label = kept ?? earned ?? relationshipLabel(r);
       if (da) changes.push({ key: `rel:${r.id}:a`, label: `${r.name} affection`, delta: da, kind: 'tracker' });
       if (dt) changes.push({ key: `rel:${r.id}:t`, label: `${r.name} trust`, delta: dt, kind: 'tracker' });
       return;
@@ -904,6 +917,78 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       const r = relationshipFor(s, op.name, ctx);
       r.memories.push({ id: `mem_${nextCounter(s.counters, 'mem')}`, at: s.time.minutes, text: op.text });
       if (r.memories.length > 100) r.memories.shift();
+      return;
+    }
+    case 'outfit.set': {
+      const outfit = { text: op.text, at: s.time.minutes };
+      if (/^(player|you|me)$/i.test(op.who) || normalizeName(op.who) === normalizeName(s.player.name)) s.player.outfit = outfit;
+      else {
+        const npc = findNpc(s, op.who)?.npc;
+        if (!npc) throw new OpError(`Unknown NPC "${op.who}"`);
+        npc.outfit = outfit;
+      }
+      return;
+    }
+    case 'npc.vitals': {
+      const npc = findNpc(s, op.name)?.npc;
+      if (!npc) throw new OpError(`Unknown NPC "${op.name}"`);
+      assertUnlocked(npc, ctx);
+      if (op.state === 'dead') {
+        if (npc.status !== 'dead') changes.push({ key: `npc:${npc.id}:dead`, label: npc.name, text: `${npc.name} died`, kind: 'text' });
+        npc.status = 'dead';
+        npc.unconscious = false;
+        for (const m of Object.values(s.party)) if (m.npcId === npc.id) m.hp = 0;
+      } else {
+        if (op.state === 'unconscious' && !npc.unconscious) changes.push({ key: `npc:${npc.id}:ko`, label: npc.name, text: `${npc.name} was knocked out`, kind: 'text' });
+        npc.unconscious = op.state === 'unconscious';
+      }
+      return;
+    }
+    case 'bond.delta': {
+      const a = findNpc(s, op.from)?.npc;
+      const b = findNpc(s, op.to)?.npc;
+      if (!a) throw new OpError(`Unknown NPC "${op.from}"`);
+      if (!b) throw new OpError(`Unknown NPC "${op.to}"`);
+      if (a.id === b.id) throw new OpError('A bond needs two different people');
+      const id = `${a.id}>${b.id}`;
+      const bond = (s.bonds[id] ??= { from: a.id, to: b.id, affinity: 0, trust: 0, desire: 0, tension: 0, kind: '' });
+      const step = ctx.source === 'ai' ? AI_RELATIONSHIP_STEP : 200;
+      for (const k of ['affinity', 'trust', 'desire', 'tension'] as const) if (op[k] !== undefined) bond[k] = clamp(bond[k] + clamp(op[k]!, -step, step), -100, 100);
+      if (op.kind) {
+        const kept = ctx.source === 'user' ? op.kind : earnedLabel(op.kind, { affection: bond.affinity, trust: bond.trust, desire: bond.desire, tension: bond.tension });
+        if (kept) bond.kind = kept;
+      }
+      return;
+    }
+    case 'goal.set': {
+      const npc = findNpc(s, op.npc)?.npc;
+      if (!npc) throw new OpError(`Unknown NPC "${op.npc}"`);
+      const goals = (npc.goals ??= []);
+      const same = goals.find((g) => normalizeName(g.text) === normalizeName(op.text));
+      const target = op.target === null ? null : op.target ? findFuzzy(s.locations, op.target)?.id ?? null : undefined;
+      const state = op.state ?? 'acting';
+      if (same) {
+        same.state = state;
+        if (op.urgency !== undefined) same.urgency = op.urgency;
+        if (target !== undefined) same.targetLocationId = target;
+      } else {
+        goals.push({ id: `goal_${nextCounter(s.counters, 'goal')}`, text: op.text, state, urgency: op.urgency ?? 5, targetLocationId: target ?? null, activateAt: null, deadline: null });
+        if (goals.length > 8) goals.splice(0, goals.length - 8);
+      }
+      return;
+    }
+    case 'thread.add': {
+      const id = `thread_${nextCounter(s.counters, 'thread')}`;
+      const place = op.place ? findFuzzy(s.locations, op.place)?.id ?? null : null;
+      const stages = op.stages ?? ['a rumour', 'signs anyone could see', 'impossible to ignore', 'it comes to a head'];
+      s.threads[id] = { id, text: op.text, stages, rung: 0, max: stages.length - 1, pace: op.pace ?? 0.2, bias: 0, lastBeat: 0, status: 'active', placeId: place, createdAt: s.time.minutes, bornTurn: op.turn ?? 0 };
+      return;
+    }
+    case 'thread.resolve': {
+      const t = Object.values(s.threads).find((x) => x.status !== 'done' && nameMatchScore(x.text, op.text) >= 0.6);
+      if (!t) throw new OpError(`Unknown storyline "${op.text}"`);
+      t.status = 'done';
+      changes.push({ key: `thread:${t.id}`, label: t.text, text: `Settled: ${t.text}`, kind: 'text' });
       return;
     }
     case 'event.add': {
@@ -973,6 +1058,8 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       const m = findFuzzy(s.party, op.name);
       if (!m) throw new OpError(`${op.name} is not in the party`);
       if (op.role) m.role = op.role;
+      // Only the player decides who is sovereign.
+      if (op.sovereign !== undefined && ctx.source === 'user') m.sovereign = op.sovereign;
       if (op.hp !== undefined) m.hp = clamp(op.hp, 0, m.maxHp);
       if (op.mp !== undefined) m.mp = clamp(op.mp, 0, m.maxMp);
       if (op.equip) {
@@ -1112,6 +1199,19 @@ export interface ApplyManyResult {
   changes: Change[];
   applied: Op[];
   errors: Array<{ op: Op; error: string }>;
+}
+
+/** Names the player deleted: the model may not bring them back; the player can. */
+function forget(s: CampaignState, name: string) {
+  const n = normalizeName(name);
+  if (n && !s.forgotten.includes(n)) s.forgotten.push(n);
+}
+function unforget(s: CampaignState, name: string) {
+  const n = normalizeName(name);
+  s.forgotten = s.forgotten.filter((x) => x !== n);
+}
+function assertNotForgotten(s: CampaignState, name: string, ctx: ApplyContext) {
+  if (ctx.source !== 'user' && s.forgotten?.includes(normalizeName(name))) throw new OpError(`"${name}" was removed by the player`);
 }
 
 export function applyOps(state: CampaignState, ops: Op[], ctx: ApplyContext = { source: 'user' }): ApplyManyResult {

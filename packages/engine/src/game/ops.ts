@@ -276,9 +276,38 @@ export const OpSchemas = {
     name,
     affection: num.min(-100).max(100).optional(),
     trust: num.min(-100).max(100).optional(),
+    desire: num.min(-100).max(100).optional(),
+    tension: num.min(-100).max(100).optional(),
     label: shortText.optional(),
   }),
   'relationship.memory': z.object({ type: z.literal('relationship.memory'), name, text: shortText }),
+  /** What someone is wearing now ("player" for the player). */
+  'outfit.set': z.object({ type: z.literal('outfit.set'), who: name, text: shortText }),
+  /** Knocked out, woken up, or killed (never the player). */
+  'npc.vitals': z.object({ type: z.literal('npc.vitals'), name, state: z.enum(['awake', 'unconscious', 'dead']) }),
+  /** How one NPC feels about another (directional). */
+  'bond.delta': z.object({
+    type: z.literal('bond.delta'),
+    from: name,
+    to: name,
+    affinity: num.min(-100).max(100).optional(),
+    trust: num.min(-100).max(100).optional(),
+    desire: num.min(-100).max(100).optional(),
+    tension: num.min(-100).max(100).optional(),
+    kind: shortText.optional(),
+  }),
+  /** Something an NPC wants; "acting" goals with a place are pursued off-screen. */
+  'goal.set': z.object({
+    type: z.literal('goal.set'),
+    npc: name,
+    text: shortText,
+    state: z.enum(['dormant', 'acting', 'blocked', 'resolved', 'failed']).default('acting'),
+    urgency: num.min(0).max(10).optional(),
+    target: name.nullable().optional(),
+  }),
+  /** An off-screen storyline that climbs from rumour to something unmistakable. */
+  'thread.add': z.object({ type: z.literal('thread.add'), text: shortText, stages: z.array(shortText).min(2).max(6).optional(), place: name.nullable().optional(), pace: num.min(0.05).max(0.9).optional(), turn: int.min(0).optional() }),
+  'thread.resolve': z.object({ type: z.literal('thread.resolve'), text: shortText }),
   'event.add': z.object({
     type: z.literal('event.add'),
     title: name,
@@ -298,6 +327,7 @@ export const OpSchemas = {
   'party.update': z.object({
     type: z.literal('party.update'),
     name,
+    sovereign: z.boolean().optional(),
     role: shortText.optional(),
     equip: z.object({ slot, item: name.nullable() }).optional(),
     hp: num.optional(),
@@ -357,7 +387,7 @@ export type OpOf<K extends OpType> = z.infer<(typeof OpSchemas)[K]>;
 
 /** Op types the tracker model / helper may emit. */
 export const AI_OP_TYPES: OpType[] = (Object.keys(OpSchemas) as OpType[]).filter(
-  (t) => !['patch', 'battle.action', 'meta.update', 'world.seen', 'phone.read', 'databank.remove', 'databank.update', 'location.remove', 'npc.set', 'npc.merge', 'quest.remove', 'org.set', 'org.remove', 'location.set'].includes(t),
+  (t) => !['patch', 'battle.action', 'meta.update', 'world.seen', 'phone.read', 'databank.remove', 'databank.update', 'location.remove', 'npc.set', 'npc.merge', 'quest.remove', 'org.set', 'org.remove', 'location.set', 'thread.add'].includes(t),
 );
 
 export const OpSchema = z.discriminatedUnion(
@@ -446,4 +476,9 @@ export const OP_REFERENCE = `Allowed ops (JSON objects with "type"):
 - {"type":"relationship.delta","name":"Iris Thorne","affection":2,"trust":1}   {"type":"relationship.memory","name":"Iris Thorne","text":"Shared tea on the roof."}
 - {"type":"event.add","title":"Band rehearsal","inMinutes":1440}
 - {"type":"battle.start","enemies":[{"name":"Wolf","level":2,"count":2}]}
-- {"type":"party.add","name":"Iris Thorne","role":"support"}`;
+- {"type":"party.add","name":"Iris Thorne","role":"support"}
+- {"type":"outfit.set","who":"Iris Thorne","text":"green raincoat over a band t-shirt"}  also "who":"player"; only when clothing is described or changes
+- {"type":"npc.vitals","name":"Bram","state":"unconscious"}  states: awake, unconscious, dead (never the player)
+- {"type":"bond.delta","from":"Iris Thorne","to":"Tobias Moreno","affinity":3,"tension":-2}  how one person feels about another; small steps
+- {"type":"goal.set","npc":"Tobias Moreno","text":"Find a singer before Friday","target":"Market Square"}
+- {"type":"thread.resolve","text":"The missing ferryman"}  an ongoing storyline was settled`;

@@ -52,10 +52,13 @@ describe('reducer', () => {
   it('clamps numbers', () => {
     const r = apply(base(), [{ type: 'tracker.delta', id: 'hunger', delta: 500 } as Op]);
     expect(r.state.trackers.hunger.value).toBeLessThanOrEqual(100);
+    // A model's report never kills the player; the player's own change can.
     const r2 = apply(base(), [{ type: 'bar.delta', id: 'hp', delta: -9999 } as Op]);
-    expect(r2.state.player.bars.hp.cur).toBe(0);
+    expect(r2.state.player.bars.hp.cur).toBe(1);
+    expect(apply(base(), [{ type: 'bar.delta', id: 'hp', delta: -9999 } as Op], 'user').state.player.bars.hp.cur).toBe(0);
+    // Feelings move at most 8 per model report.
     const r3 = apply(base(), [{ type: 'relationship.delta', name: 'Iris', affection: 90 } as Op]);
-    expect(Object.values(r3.state.relationships)[0].affection).toBe(10);
+    expect(Object.values(r3.state.relationships)[0].affection).toBe(8);
   });
 
   it('time advance decays trackers and formats the clock', () => {

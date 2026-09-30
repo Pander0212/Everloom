@@ -94,6 +94,8 @@ export interface BuildOptions {
   dice?: string[];
   /** SOMETHING HAPPENS lines for this turn. */
   happens?: string[];
+  /** Storyline rungs at this turn (from the turn tick). */
+  threadRungs?: Record<string, number>;
 }
 
 export interface BuiltPrompt {
@@ -221,7 +223,7 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     const extraPresent = scene.present.filter((id) => id.startsWith('char:')).map((id) => ({ id, name: nameOfPerson(state, id, names) }));
     sceneBlock = buildSceneBlock(
       state,
-      { storySoFar: recap, recalled, known: [...known, ...texts], people, facts: factsBy, extraPresent, referenced, dice: opts.dice, happens: opts.happens },
+      { storySoFar: recap, recalled, known: [...known, ...texts], people, facts: factsBy, extraPresent, referenced, dice: opts.dice, happens: opts.happens, threadRungs: opts.threadRungs },
       { budgetTokens: world.sceneBudget, countTokens },
     );
     gameState = sceneBlock.text;

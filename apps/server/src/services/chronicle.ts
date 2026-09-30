@@ -210,7 +210,6 @@ export async function runConsolidation(ctx: AppContext, owner: string, chatId: s
       }
     }
     const textFor = (id: string, items: Array<{ text: string; importance: number }>) => ensureMilestones(prose.get(id)?.text ?? fallbackSummary(items, 700), milestonesOf(items));
-    const anchor = { chatId, messageId: null, swipeId: null };
     const exists = ctx.db.prepare('SELECT folded_into FROM mem_items WHERE id = ?');
     ctx.db.transaction(() => {
       scenes.forEach((s, i) => {
@@ -219,7 +218,9 @@ export async function runConsolidation(ctx: AppContext, owner: string, chatId: s
           const r = exists.get(b.id) as { folded_into: string | null } | undefined;
           return r && !r.folded_into;
         })) return;
-        const made = insertMemory(ctx, owner, scope, anchor, 'consolidate', {
+        // Anchored where its newest beat is: if that take is swiped away, the fold goes with it.
+        const newest = s.beats.reduce((a, b) => (b.seq > a.seq ? b : a)) as MemoryRow;
+        const made = insertMemory(ctx, owner, scope, { chatId, messageId: newest.messageId, swipeId: newest.swipeId }, 'consolidate', {
           kind: 'scene',
           text: textFor(`s${i}`, s.beats),
           participants: s.participants,
@@ -235,7 +236,8 @@ export async function runConsolidation(ctx: AppContext, owner: string, chatId: s
       });
       days.forEach((d, i) => {
         if (!d.items.every((m) => exists.get(m.id))) return;
-        insertSummary(ctx, owner, scope, anchor, { level: 'day', title: prose.get(`d${i}`)?.title || `Day ${d.day + 1}`, text: textFor(`d${i}`, d.items), fromTime: d.day * 1440, toTime: d.day * 1440 + 1439, covers: [...d.items.map((m) => m.id), ...scenesOfDay(new Set(d.items.map((m) => m.id)))], importance: d.importance });
+        const newest = d.items.reduce((a, b) => (b.seq > a.seq ? b : a)) as MemoryRow;
+        insertSummary(ctx, owner, scope, { chatId, messageId: newest.messageId, swipeId: newest.swipeId }, { level: 'day', title: prose.get(`d${i}`)?.title || `Day ${d.day + 1}`, text: textFor(`d${i}`, d.items), fromTime: d.day * 1440, toTime: d.day * 1440 + 1439, covers: [...d.items.map((m) => m.id), ...scenesOfDay(new Set(d.items.map((m) => m.id)))], importance: d.importance });
         res.days++;
       });
       if (chapter) {
@@ -243,7 +245,9 @@ export async function runConsolidation(ctx: AppContext, owner: string, chatId: s
         const text = prose.get('c0')?.text ?? chapter.map((s) => s.text).join(' ');
         // Milestones inside the folded summaries are carried up verbatim when the prose drops them.
         const ms = chapter.flatMap((s) => s.covers).map((id) => mem.all.find((m) => m.id === id)).filter((m): m is MemoryRow => !!m && m.importance >= 3).map((m) => m.text);
-        insertSummary(ctx, owner, scope, anchor, { level: 'chapter', title: prose.get('c0')?.title || 'Chapter', text: ensureMilestones(text, ms).slice(0, 4000), fromTime: Math.min(...chapter.map((s) => s.fromTime)), toTime: Math.max(...chapter.map((s) => s.toTime)), covers: chapter.map((s) => s.id), importance: imp });
+        const last = chapter.reduce((a, b) => (b.seq > a.seq ? b : a));
+        const lastRow = ctx.db.prepare('SELECT message_id, swipe_id FROM mem_summaries WHERE id = ?').get(last.id) as { message_id: string | null; swipe_id: number | null } | undefined;
+        insertSummary(ctx, owner, scope, { chatId, messageId: lastRow?.message_id ?? null, swipeId: lastRow?.swipe_id ?? null }, { level: 'chapter', title: prose.get('c0')?.title || 'Chapter', text: ensureMilestones(text, ms).slice(0, 4000), fromTime: Math.min(...chapter.map((s) => s.fromTime)), toTime: Math.max(...chapter.map((s) => s.toTime)), covers: chapter.map((s) => s.id), importance: imp });
         res.chapters++;
       }
     })();

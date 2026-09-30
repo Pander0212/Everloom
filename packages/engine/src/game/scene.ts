@@ -52,6 +52,8 @@ export interface SceneView {
   referenced?: Set<string>;
   dice?: string[];
   happens?: string[];
+  /** Storyline rungs at this turn (threads climb on turn-number heartbeats). */
+  threadRungs?: Record<string, number>;
 }
 
 export interface SceneOptions {
@@ -254,7 +256,10 @@ export function buildSceneBlock(s: CampaignState, view: SceneView = {}, opts: Sc
   // THE WORLD RIGHT NOW (private continuity for the narrator)
   const worldLines: string[] = [];
   for (const f of Object.values(s.databank)) if (f.kind === 'development' && f.status === 'active') worldLines.push(`[${f.trend ?? 'developing'}] ${truncate(f.text, 180)}`);
-  for (const t of Object.values(s.threads ?? {})) if (t.status === 'active' && t.rung >= 1) worldLines.push(`[${t.stages[Math.min(t.rung, t.stages.length - 1)] ?? 'stirring'}] ${truncate(t.text, 160)}`);
+  for (const t of Object.values(s.threads ?? {})) {
+    const rung = view.threadRungs?.[t.id] ?? t.rung;
+    if (t.status !== 'done' && rung >= 1) worldLines.push(`[${t.stages[Math.min(rung, t.stages.length - 1)] ?? 'stirring'}] ${truncate(t.text, 160)}`);
+  }
   for (const f of view.facts?.world ?? []) worldLines.push(truncate(f, 180));
   for (const e of s.worldLog.filter((x) => !x.seen && x.kind !== 'weather').slice(-4)) worldLines.push(truncate(e.text, 160));
   if (worldLines.length) add('THE WORLD RIGHT NOW', '(private continuity for you, the narrator — not automatically known to anyone present)', 'world', 0);

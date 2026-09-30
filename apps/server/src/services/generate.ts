@@ -2,10 +2,10 @@
  * Chat generation: builds the prompt, streams tokens to the caller and to other devices,
  * saves the result as a message/swipe, then runs the tracker pass and memory upkeep.
  */
-import { detectEmotion, extractInlineOps, stripInlineTags, type GenerateEvent, type MessageDTO, type SwipeDTO } from '@everloom/engine';
+import { detectEmotion, extractInlineOps, stripInlineTags, turnTick, type GenerateEvent, type MessageDTO, type SwipeDTO, type TickResult } from '@everloom/engine';
 import { HttpError, type AppContext } from '../context.js';
 import { streamChat, type ResolvedConnection } from '../llm/providers.js';
-import { deleteEntriesFor, rebuildCampaign, realtimeTick } from './campaigns.js';
+import { appendOps, deleteEntriesFor, getState, rebuildCampaign, realtimeTick } from './campaigns.js';
 import { getChat, getGroup, getMessage, insertMessage, listMessages, updateChat, writeSwipes } from './chats.js';
 import { connectionForRole } from './connections.js';
 import { afterTurn } from './chronicle.js';
@@ -148,6 +148,23 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       swipeIndex = target.swipeId;
       baseText = textOf(target);
     }
+    // 4. The turn tick: moves, off-screen pursuit, dice, random events, storylines. No model call;
+    // ops are written once per player message (anchored to it), and everything else is a pure
+    // function of that message and the turn number, so a swipe replays the same outcome.
+    let tick: TickResult | null = null;
+    const lastUserMsg = [...promptHistory].reverse().find((m) => m.role === 'user');
+    if (chat.campaignId && lastUserMsg && input.type !== 'continue' && input.type !== 'impersonate') {
+      const w = pc.settings.world;
+      const turn = promptHistory.filter((m) => m.role === 'assistant' && !m.hidden).length + 1;
+      const tickInput = { text: textOf(lastUserMsg), messageKey: lastUserMsg.id, turn, switches: { intent: w.intent, dice: w.dice, pulse: w.pulse, threads: w.threads } };
+      const has = ctx.db.prepare("SELECT 1 FROM op_log WHERE campaign_id = ? AND message_id = ? AND source = 'ai'").get(chat.campaignId, lastUserMsg.id);
+      if (!has) {
+        const first = turnTick(getState(ctx, owner, chat.campaignId), tickInput);
+        if (first.ops.length) appendOps(ctx, owner, chat.campaignId, { chatId, messageId: lastUserMsg.id, swipeId: lastUserMsg.swipeId, source: 'ai', ops: first.ops, origin: input.origin });
+      }
+      tick = turnTick(getState(ctx, owner, chat.campaignId), tickInput);
+    }
+
     // Refresh state after rebuilds.
     pc = loadPromptContext(ctx, owner, chatId, speakerId);
 
@@ -157,6 +174,9 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       maxContext,
       maxResponse,
       finalInstruction: [input.target ? `[${pc.userName} is addressing ${input.target}. ${input.target} should be the one to respond.]` : '', input.instruction ?? ''].filter(Boolean).join('\n') || undefined,
+      dice: tick?.dice,
+      happens: tick?.happens,
+      threadRungs: tick ? Object.fromEntries(tick.threads.map((t) => [t.id, t.rung])) : undefined,
     });
     lastPrompts.set(chatId, {
       at: Date.now(),
@@ -274,15 +294,18 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
     emit({ type: 'done', messageId, swipeId: swipeIndex, message: finalMsg, error });
     pub('message.updated', { chatId, message: finalMsg });
 
-    // 7. Game state + memory (after the reply is safely stored)
+    // 7. Game state + memory (after the reply is safely stored), then background memory work,
+    // which needs to see this turn's memories.
     if (chat.campaignId && pc.settings.tracker.mode !== 'off') {
       if (inline) {
         if (inline.ok.length || inline.found) applyTracked(ctx, owner, chat.campaignId, chatId, messageId, swipeIndex, inline.ok, 'ai', input.origin, inline);
+        afterTurn(ctx, owner, chatId);
       } else {
-        void runTrackerPass(ctx, owner, chatId, messageId, input.origin).catch(() => {});
+        void runTrackerPass(ctx, owner, chatId, messageId, input.origin)
+          .catch(() => {})
+          .finally(() => afterTurn(ctx, owner, chatId));
       }
-    }
-    afterTurn(ctx, owner, chatId);
+    } else afterTurn(ctx, owner, chatId);
   } finally {
     active.delete(chatId);
   }
