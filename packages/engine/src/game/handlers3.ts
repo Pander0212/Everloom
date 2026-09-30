@@ -29,6 +29,7 @@ import {
 } from './economy.js';
 import { OpError } from './errors.js';
 import { arrive, blockers, carries, checkRequirements, linesAt, logTrip, planTrip, ticketName, ticketPrice } from './journey.js';
+import { allClasses, findClass, findNode, learn, learnProblems, xpSourceOn, xpToNext, type Who } from './progress.js';
 import { logWorld } from './simulate.js';
 import { MIN_PER_DAY } from './calendar.js';
 import { AMENITIES, currentHome, defaultRooms, defaultStorage, findStorage, isAtHome, storedIn } from './home.js';
@@ -37,7 +38,7 @@ import type { ApplyContext } from './reducer.js';
 import type { OpOf, OpType } from './ops.js';
 import { findExact, findFuzzy, findItem, findNpc, nextCounter, uniqueId } from './resolve.js';
 import type { Change } from './simulate.js';
-import type { Account, CampaignState, Home, HouseholdMember, Item, Location, Route, ScheduleSlot } from './state.js';
+import type { Account, CampaignState, Home, HouseholdMember, Item, Location, PartyMember, Route, ScheduleSlot } from './state.js';
 
 export interface Kit {
   ctx: ApplyContext;
@@ -65,6 +66,18 @@ function findLine(s: CampaignState, nameOrId: string) {
   const l = s.transit[nameOrId] ?? findExact(s.transit, nameOrId) ?? findFuzzy(s.transit, nameOrId);
   if (!l) throw new OpError(`No transit line "${nameOrId}"`);
   return l;
+}
+
+const isPlayerName = (s: CampaignState, n?: string) => !n || /^(player|me|you|self)$/i.test(n.trim()) || normalizeName(n) === normalizeName(s.player.name);
+
+function findMember3(s: CampaignState, nameOrId: string): PartyMember {
+  const m = s.party[nameOrId] ?? Object.values(s.party).find((x) => x.id === nameOrId) ?? findFuzzy(s.party, nameOrId);
+  if (!m) throw new OpError(`${nameOrId} isn't in the party`);
+  return m;
+}
+
+function whoOf(s: CampaignState, n?: string): Who {
+  return isPlayerName(s, n) ? { kind: 'player' } : { kind: 'member', m: findMember3(s, n!) };
 }
 
 function findMember(s: CampaignState, nameOrId: string): HouseholdMember {
@@ -534,6 +547,144 @@ export const HANDLERS3: Handlers = {
     if (!r) throw new OpError(`Unknown recipe "${op.recipe}" (built-in recipes can't be removed)`);
     delete s.recipes[r.id];
   },
+  // ---------------- party and progression
+  'party.leader': (s, op, { changes }) => {
+    if (isPlayerName(s, op.name)) s.partyMeta.leader = 'player';
+    else {
+      const m = findMember3(s, op.name);
+      if (m.active === false) throw new OpError(`${m.name} is in the reserve; make them active first`);
+      s.partyMeta.leader = m.id;
+    }
+    text(changes, 'party:leader', 'Leader', `${s.partyMeta.leader === 'player' ? 'You lead' : `${s.party[s.partyMeta.leader]!.name} leads`} the party`);
+  },
+  'party.formation': (s, op) => {
+    const m = findMember3(s, op.name);
+    if (op.row) m.row = op.row;
+    if (op.active !== undefined && op.active !== (m.active !== false)) {
+      if (op.active) {
+        const n = Object.values(s.party).filter((x) => x.active !== false).length;
+        if (n >= s.partyMeta.maxActive) throw new OpError(`Only ${s.partyMeta.maxActive} can be active; move someone to the reserve first`);
+      } else if (s.partyMeta.leader === m.id) s.partyMeta.leader = 'player';
+      m.active = op.active;
+    }
+  },
+  'party.tactics': (s, op) => {
+    const m = findMember3(s, op.name);
+    if (op.roleKind !== undefined) m.roleKind = op.roleKind;
+    const tactics = (m.tactics ??= { preset: 'balanced', rules: [] });
+    if (op.preset) tactics.preset = op.preset;
+    if (op.rules) tactics.rules = op.rules.map((r) => ({ when: r.when, value: r.value, do: r.do, ...(r.skill ? { skill: r.skill } : {}) }));
+  },
+  'party.meta': (s, op) => {
+    if (op.curve) {
+      s.partyMeta.curve = op.curve;
+      const xp = s.player.bars.xp;
+      if (xp) xp.max = xpToNext(s.player.level, op.curve);
+    }
+    if (op.maxActive) s.partyMeta.maxActive = op.maxActive;
+    if (op.xpSources) s.partyMeta.xpSources = { ...s.partyMeta.xpSources, ...op.xpSources };
+  },
+  'party.vital': (s, op) => {
+    const m = findMember3(s, op.name);
+    const id = op.id ?? slugify(op.label);
+    const vitals = (m.vitals ??= {});
+    if (op.remove) {
+      delete vitals[id];
+      return;
+    }
+    const v = (vitals[id] ??= { label: op.label, cur: op.max ?? 100, max: op.max ?? 100 });
+    v.label = op.label;
+    if (op.max !== undefined) v.max = op.max;
+    if (op.cur !== undefined) v.cur = Math.max(0, Math.min(v.max, op.cur));
+  },
+  'party.injury': (s, op, { changes }) => {
+    const m = findMember3(s, op.name);
+    m.injuries ??= [];
+    if (op.remove) m.injuries = m.injuries.filter((x) => normalizeName(x) !== normalizeName(op.injury));
+    else if (!m.injuries.some((x) => normalizeName(x) === normalizeName(op.injury))) {
+      m.injuries.push(op.injury);
+      text(changes, `injury:${m.id}`, m.name, op.injury);
+    }
+  },
+  'class.define': (s, op, { changes }) => {
+    const existing = Object.values(s.classes).find((c) => normalizeName(c.name) === normalizeName(op.name));
+    const id = existing?.id ?? uniqueId(s.classes, 'class', op.name);
+    s.classes[id] = { id, name: op.name, desc: op.desc, growth: op.growth, hpPerLevel: op.hpPerLevel, mpPerLevel: op.mpPerLevel, builtin: false };
+    if (!existing) text(changes, `class:${id}`, op.name, 'New class');
+  },
+  'class.set': (s, op, { changes }) => {
+    const cls = findClass(s, op.class) ?? findFuzzy(Object.fromEntries(allClasses(s).map((c) => [c.id, c])), op.class);
+    if (!cls) throw new OpError(`Unknown class "${op.class}"`);
+    const w = whoOf(s, op.who);
+    if (w.kind === 'player') {
+      s.player.classId = cls.id;
+      s.player.className = cls.name;
+    } else w.m.classId = cls.id;
+    text(changes, 'class', 'Class', `${w.kind === 'player' ? 'You are' : `${w.m.name} is`} now a ${cls.name}`);
+  },
+  'skillnode.add': (s, op, { changes }) => {
+    const cls = op.class ? findClass(s, op.class) : null;
+    if (op.class && !cls) throw new OpError(`Unknown class "${op.class}"`);
+    const after = (op.after ?? []).map((n) => {
+      const node = findNode(s, n);
+      if (!node) throw new OpError(`Unknown skill "${n}"`);
+      return node.id;
+    });
+    const existing = Object.values(s.skillTree).find((n) => normalizeName(n.name) === normalizeName(op.name));
+    const id = existing?.id ?? uniqueId(s.skillTree, 'skill', op.name);
+    s.skillTree[id] = {
+      id,
+      name: op.name,
+      desc: op.desc,
+      classId: cls?.id ?? null,
+      kind: op.kind,
+      cost: op.cost,
+      costType: op.costType,
+      power: op.power,
+      element: op.element ? op.element.toLowerCase() : null,
+      target: op.target,
+      maxRank: op.maxRank,
+      requires: { level: op.level, ...(after.length ? { skills: after } : {}), ...(op.item ? { item: op.item } : {}), ...(op.quest ? { quest: op.quest } : {}) },
+      source: 'user',
+    };
+    if (!existing) text(changes, `skill:${id}`, op.name, 'New skill in the tree');
+  },
+  'skill.learn': (s, op, { changes }) => {
+    const node = findNode(s, op.skill);
+    if (!node) throw new OpError(`Unknown skill "${op.skill}"`);
+    const w = whoOf(s, op.who);
+    const problems = learnProblems(s, w, node);
+    if (problems.length) throw new OpError(problems.join('; '));
+    const rank = learn(s, w, node);
+    const who = w.kind === 'player' ? 'You' : w.m.name;
+    text(changes, `skill:${node.id}`, node.name, rank === 1 ? `${who} learned ${node.name}` : `${node.name} rank ${rank}`);
+  },
+  'stats.spend': (s, op, { changes }) => {
+    const w = whoOf(s, op.who);
+    const have = w.kind === 'player' ? (s.player.statPoints ?? 0) : (w.m.statPoints ?? 0);
+    if (have < op.points) throw new OpError(`Only ${have} stat point${have === 1 ? '' : 's'} to spend`);
+    if (w.kind === 'player') {
+      s.player.statPoints = have - op.points;
+      if (op.stat === 'hp' || op.stat === 'mp') {
+        const bar = s.player.bars[op.stat];
+        if (!bar) throw new OpError(`No ${op.stat.toUpperCase()} bar`);
+        const inc = op.points * (op.stat === 'hp' ? 5 : 3);
+        bar.max += inc;
+        bar.cur += inc;
+      } else s.player.stats[op.stat] += op.points;
+    } else {
+      const m = w.m;
+      m.statPoints = have - op.points;
+      if (op.stat === 'hp') {
+        m.maxHp += op.points * 5;
+        m.hp += op.points * 5;
+      } else if (op.stat === 'mp') {
+        m.maxMp += op.points * 3;
+        m.mp += op.points * 3;
+      } else m.stats[op.stat] += op.points;
+    }
+    text(changes, `stat:${op.stat}`, op.stat.toUpperCase(), `+${op.points} ${op.stat.toUpperCase()}`);
+  },
   // ---------------- transit
   'transit.add': (s, op, kit) => {
     const stops = op.stops.map((n) => kit.ensureLocation(n).id);
@@ -651,6 +802,8 @@ export const HANDLERS3: Handlers = {
     // Discipline experience.
     const prog = ((s.player.crafting ??= {})[recipe.discipline] ??= { level: 0, xp: 0 });
     prog.xp += out.xp;
+    // A quarter of it counts toward your own level too.
+    if (out.xp > 0 && xpSourceOn(s, 'crafting')) kit.addXp(Math.max(1, Math.round(out.xp / 4)));
     while (prog.xp >= xpForCraftLevel(prog.level) && prog.level < 20) {
       prog.xp -= xpForCraftLevel(prog.level);
       prog.level += 1;

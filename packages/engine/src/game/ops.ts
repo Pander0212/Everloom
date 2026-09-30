@@ -348,6 +348,8 @@ export const OpSchemas = {
           spd: num.optional(),
           mag: num.optional(),
           count: int.min(1).max(8).optional(),
+          weaknesses: z.array(z.string().trim().min(1).max(20)).max(6).optional(),
+          row: z.enum(['front', 'back']).optional(),
         }),
       )
       .min(1)
@@ -355,7 +357,7 @@ export const OpSchemas = {
   }),
   'battle.action': z.object({
     type: z.literal('battle.action'),
-    action: z.enum(['attack', 'skill', 'item', 'defend', 'flee']),
+    action: z.enum(['attack', 'skill', 'item', 'defend', 'flee', 'swap']),
     actor: z.string().max(80).optional(),
     target: z.string().max(80).optional(),
     skill: name.optional(),
@@ -465,7 +467,7 @@ export const OP_REFERENCE = `Allowed ops (JSON objects with "type"):
 - {"type":"tracker.delta","id":"hunger","delta":-10}  trackers: hunger (higher = hungrier), energy, hygiene
 - {"type":"bar.delta","id":"hp","delta":-5}  bars: hp, mp, ap
 - {"type":"currency.delta","amount":-3}
-- {"type":"xp.add","amount":10}
+- {"type":"xp.add","amount":10}  only for things code doesn't already reward (battles, finished quests, new places and crafting give XP on their own)
 - {"type":"item.add","name":"Iced Lemon Tea","qty":1,"category":"drink"}  categories: food, drink, weapon, armor, clothing, accessory, key, tool, material, consumable, medicine, book, container, quest, valuable, misc
 - {"type":"item.remove","name":"Iced Lemon Tea","qty":1}   {"type":"item.use","name":"Bread"}   {"type":"item.equip","name":"Sword","equipped":true}
 - {"type":"status.add","name":"Soaked","kind":"debuff","minutes":60}   {"type":"status.remove","name":"Soaked"}

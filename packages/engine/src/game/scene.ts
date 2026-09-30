@@ -258,7 +258,17 @@ export function buildSceneBlock(s: CampaignState, view: SceneView = {}, opts: Sc
   if (party.some((m) => m.sovereign)) add('PARTY', '[Sovereign party members: describe what happens to them, but never write their words, thoughts, decisions or voluntary actions.]');
   for (const m of party) {
     const npc = m.npcId ? s.npcs[m.npcId] : undefined;
-    const bits = [m.role, `HP ${m.hp}/${m.maxHp}`, m.sovereign ? 'sovereign' : ''].filter(Boolean).join(', ');
+    const bits = [
+      m.role,
+      `level ${m.level}`,
+      `HP ${m.hp}/${m.maxHp}`,
+      s.partyMeta?.leader === m.id ? 'leads the party' : '',
+      m.active === false ? 'in reserve, not in the fight' : '',
+      m.injuries?.length ? `hurt: ${m.injuries.join(', ')}` : '',
+      m.sovereign ? 'sovereign' : '',
+    ]
+      .filter(Boolean)
+      .join(', ');
     add('PARTY', `- ${m.name} (${bits})${!m.sovereign && npc?.appearance ? `: ${truncate(npc.appearance, 120)}` : ''}`);
     const wr = npc ? wearing(npc.outfit, now) : null;
     if (wr) add('PARTY', `  ${wr}`);

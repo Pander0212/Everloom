@@ -6,10 +6,11 @@ import { applyPatches, enablePatches, produceWithPatches, setAutoFreeze, type Pa
 import { clamp } from '../util/clamp.js';
 import { createRng, seedFrom } from '../util/rng.js';
 import { nameMatchScore, normalizeName, slugify } from '../util/text.js';
-import { battleRewards, playerAction, startBattle } from './battle.js';
+import { battleRewards, playerAction, startBattle, summarize } from './battle.js';
 import { MIN_PER_DAY, fromDate, nextTimeOfDay, parseClock, toDate } from './calendar.js';
 import { defaultEffects, defaultSlot, guessCategory, iconForItem } from './items.js';
-import { earnedLabel, relationshipLabel, standingLabel, xpForLevel } from './labels.js';
+import { earnedLabel, relationshipLabel, standingLabel } from './labels.js';
+import { addMemberXp, curveOf, DISCOVERY_XP, levelUpPlayer, questXp, xpSourceOn, xpToNext } from './progress.js';
 import type { Op, OpOf } from './ops.js';
 import { findExact, findFuzzy, findItem, findNpc, nextCounter, uniqueId } from './resolve.js';
 import { logWorld, simulate, type Change } from './simulate.js';
@@ -202,24 +203,14 @@ function notifyPlayer(s: CampaignState, text: string) {
 }
 
 function addXp(s: CampaignState, amount: number, changes: Change[]) {
-  const xp = (s.player.bars.xp ??= { id: 'xp', label: 'XP', cur: 0, max: xpForLevel(s.player.level), visible: true });
+  const xp = (s.player.bars.xp ??= { id: 'xp', label: 'XP', cur: 0, max: xpToNext(s.player.level, curveOf(s)), visible: true });
   xp.cur += Math.round(amount);
   changes.push({ key: 'xp', label: 'XP', delta: Math.round(amount), kind: 'xp' });
   let guard = 0;
   while (xp.cur >= xp.max && guard++ < 100) {
     xp.cur -= xp.max;
-    s.player.level += 1;
-    xp.max = xpForLevel(s.player.level);
-    for (const bar of Object.values(s.player.bars)) {
-      if (bar.id === 'xp') continue;
-      const inc = bar.id === 'hp' ? 10 : 5;
-      bar.max += inc;
-      bar.cur = bar.max;
-    }
-    s.player.stats.atk += 1;
-    s.player.stats.def += 1;
-    s.player.stats.spd += 1;
-    s.player.stats.mag += 1;
+    levelUpPlayer(s);
+    xp.max = xpToNext(s.player.level, curveOf(s));
     changes.push({ key: 'level', label: 'Level', text: `Level ${s.player.level}`, kind: 'level' });
     logWorld(s, s.time.minutes, 'event', `You reached level ${s.player.level}.`, true);
   }
@@ -256,19 +247,39 @@ function finalizeBattle(s: CampaignState, changes: Change[]) {
     if (s.player.bars.mp) s.player.bars.mp.cur = clamp(me.mp, 0, s.player.bars.mp.max);
     if (s.player.bars.ap) s.player.bars.ap.cur = clamp(me.ap, 0, s.player.bars.ap.max);
   }
+  const summary = (b.summary ??= summarize(b));
   for (const m of Object.values(s.party)) {
     const c = b.combatants[`ally_${m.id}`];
-    if (c) {
-      m.hp = Math.max(b.status === 'lost' ? 1 : 0, c.hp);
-      m.mp = c.mp;
-    }
+    if (!c) continue;
+    m.mp = c.mp;
+    if (c.hp <= 0) {
+      // Knocked out: back on their feet after the fight, but hurt until they rest.
+      m.hp = 1;
+      m.injuries ??= [];
+      if (!m.injuries.includes('Knocked out')) m.injuries.push('Knocked out');
+      summary.injuries.push(`${m.name}: knocked out`);
+    } else m.hp = c.hp;
   }
   if (b.status === 'won') {
     const r = battleRewards(b);
     b.rewards = { xp: r.xp, currency: r.currency, items: [] };
     s.player.currency += r.currency;
     changes.push({ key: 'currency', label: s.meta.currency.name, delta: r.currency, kind: 'currency' });
-    addXp(s, r.xp, changes);
+    if (xpSourceOn(s, 'battle')) {
+      const before = s.player.level;
+      addXp(s, r.xp, changes);
+      if (s.player.level > before) summary.levelUps.push(`${s.player.name || 'You'} → level ${s.player.level}`);
+      // Everyone who ended the fight in the active party shares the XP.
+      for (const m of Object.values(s.party)) {
+        const c = b.combatants[`ally_${m.id}`];
+        if (!c || c.reserve) continue;
+        for (const up of addMemberXp(s, m, r.xp)) {
+          summary.levelUps.push(`${up.who} → level ${up.level}`);
+          changes.push({ key: `level:${m.id}`, label: m.name, text: `${m.name} reached level ${up.level}`, kind: 'level' });
+          logWorld(s, s.time.minutes, 'event', `${m.name} reached level ${up.level}.`, true);
+        }
+      }
+    }
   } else {
     b.rewards = { xp: 0, currency: 0, items: [] };
     if (b.status === 'lost') {
@@ -597,9 +608,11 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
         changes.push({ key: 'tracker:energy', label: t.label, delta: Math.round((t.value - before) * 10) / 10, kind: 'tracker' });
       }
       const fromName = s.currentLocationId ? s.locations[s.currentLocationId]?.name : null;
+      const firstVisit = !dest.visited;
       s.currentLocationId = dest.id;
       dest.discovered = true;
       dest.visited = true;
+      if (firstVisit && xpSourceOn(s, 'discovery')) addXp(s, DISCOVERY_XP, changes);
       changes.push({ key: 'location', label: 'Location', text: `Travelled to ${dest.name} by ${chosen.label.toLowerCase()}`, kind: 'text' });
       logWorld(s, s.time.minutes, 'travel', `Travelled${fromName ? ` from ${fromName}` : ''} to ${dest.name} (${chosen.label}, ${chosen.minutes} min).`, true);
       advanceTime(s, chosen.minutes, changes);
@@ -911,6 +924,7 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       if (op.status && op.status !== q.status) {
         q.status = op.status;
         changes.push({ key: `quest:${q.id}`, label: q.title, text: `${q.title}: ${op.status === 'done' ? 'completed' : op.status}`, kind: 'text' });
+        if (op.status === 'done' && xpSourceOn(s, 'quests')) addXp(s, questXp(s), changes);
       }
       q.updatedAt = s.time.minutes;
       return;
@@ -1070,7 +1084,8 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
     case 'party.add': {
       const npc = findNpc(s, op.name)?.npc ?? newNpc(s, op.name, ctx);
       if (Object.values(s.party).some((m) => m.npcId === npc.id)) return;
-      if (Object.keys(s.party).length >= 5) throw new OpError('Party is full');
+      if (Object.keys(s.party).length >= 8) throw new OpError('Party is full');
+      const activeCount = Object.values(s.party).filter((m) => m.active !== false).length;
       const level = op.level ?? s.player.level;
       const id = `pm_${slugify(npc.name)}`;
       s.party[id] = {
@@ -1088,6 +1103,17 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
         equipment: {},
         skills: [],
         sovereign: false,
+        row: 'front',
+        active: activeCount < (s.partyMeta?.maxActive ?? 4),
+        roleKind: null,
+        tactics: { preset: 'balanced', rules: [] },
+        xp: 0,
+        classId: null,
+        statPoints: 0,
+        skillPoints: 0,
+        skillRanks: {},
+        vitals: {},
+        injuries: [],
       };
       changes.push({ key: `party:${id}`, label: npc.name, text: `${npc.name} joined the party`, kind: 'text' });
       return;
@@ -1096,6 +1122,7 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       const m = findFuzzy(s.party, op.name);
       if (!m) throw new OpError(`${op.name} is not in the party`);
       delete s.party[m.id];
+      if (s.partyMeta.leader === m.id) s.partyMeta.leader = 'player';
       changes.push({ key: `party:${m.id}`, label: m.name, text: `${m.name} left the party`, kind: 'text' });
       return;
     }
@@ -1229,6 +1256,14 @@ function runActivity(s: CampaignState, op: OpOf<'activity'>, changes: Change[]) 
     },
     changes,
   );
+  // A night's sleep (or a long rest) patches the party up and clears knock-outs.
+  if (op.kind === 'sleep' || (op.kind === 'rest' && hours >= 4)) {
+    for (const m of Object.values(s.party)) {
+      m.hp = m.maxHp;
+      m.mp = m.maxMp;
+      if (m.injuries?.includes('Knocked out')) m.injuries = m.injuries.filter((x) => x !== 'Knocked out');
+    }
+  }
   if (bonus > 1) changes.push({ key: `activity:${op.kind}:home`, label: 'Home', text: `+${Math.round((bonus - 1) * 100)}% from your home`, kind: 'text' });
   if (spec.xpPerHour) addXp(s, Math.round(spec.xpPerHour * hours * bonus), changes);
   if (spec.payPerHour) {

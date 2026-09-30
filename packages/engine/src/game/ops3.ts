@@ -162,6 +162,55 @@ export const OpSchemas3 = {
   }),
   'recipe.remove': z.object({ type: z.literal('recipe.remove'), recipe: name }),
   craft: z.object({ type: z.literal('craft'), recipe: name, target: name.optional() }),
+  // ---- party and progression
+  'party.leader': z.object({ type: z.literal('party.leader'), name }),
+  'party.formation': z.object({ type: z.literal('party.formation'), name, row: z.enum(['front', 'back']).optional(), active: z.boolean().optional() }),
+  'party.tactics': z.object({
+    type: z.literal('party.tactics'),
+    name,
+    roleKind: z.enum(['tank', 'healer', 'damage', 'support', 'scout']).nullable().optional(),
+    preset: z.enum(['balanced', 'aggressive', 'defensive', 'heal-first', 'conserve']).optional(),
+    rules: z
+      .array(z.object({ when: z.enum(['allyHpBelow', 'selfHpBelow', 'enemyBroken', 'always']), value: num.min(0).max(100).default(0), do: z.enum(['heal', 'defend', 'attackWeakest', 'attackStrongest', 'skill']), skill: z.string().max(80).optional() }))
+      .max(8)
+      .optional(),
+  }),
+  'party.meta': z.object({
+    type: z.literal('party.meta'),
+    curve: z.enum(['gentle', 'standard', 'steep']).optional(),
+    maxActive: int.min(1).max(7).optional(),
+    xpSources: z.object({ battle: z.boolean(), quests: z.boolean(), discovery: z.boolean(), crafting: z.boolean() }).partial().optional(),
+  }),
+  'party.vital': z.object({ type: z.literal('party.vital'), name, id: z.string().trim().max(30).optional(), label: z.string().trim().min(1).max(30), cur: num.optional(), max: num.min(1).max(1e6).optional(), remove: z.boolean().optional() }),
+  'party.injury': z.object({ type: z.literal('party.injury'), name, injury: shortText, remove: z.boolean().optional() }),
+  'class.define': z.object({
+    type: z.literal('class.define'),
+    name,
+    desc: shortText.default(''),
+    growth: stats.default({}),
+    hpPerLevel: int.min(0).max(1000).default(10),
+    mpPerLevel: int.min(0).max(1000).default(5),
+  }),
+  'class.set': z.object({ type: z.literal('class.set'), who: name.optional(), class: name }),
+  'skillnode.add': z.object({
+    type: z.literal('skillnode.add'),
+    name,
+    desc: shortText.default(''),
+    class: name.nullable().optional(),
+    kind: z.enum(['attack', 'heal', 'buff', 'debuff', 'utility']).default('attack'),
+    cost: int.min(0).max(1000).default(10),
+    costType: z.enum(['mp', 'ap', 'none']).default('mp'),
+    power: num.min(0).max(1000).default(12),
+    element: z.string().trim().max(20).nullable().optional(),
+    target: z.enum(['single', 'all', 'row', 'random', 'self', 'ally', 'allies']).default('single'),
+    maxRank: int.min(1).max(5).default(3),
+    level: int.min(1).max(999).default(1),
+    after: z.array(name).max(4).optional(),
+    item: name.optional(),
+    quest: name.optional(),
+  }),
+  'skill.learn': z.object({ type: z.literal('skill.learn'), who: name.optional(), skill: name }),
+  'stats.spend': z.object({ type: z.literal('stats.spend'), who: name.optional(), stat: z.enum(['atk', 'def', 'spd', 'mag', 'hp', 'mp']), points: int.min(1).max(99).default(1) }),
   // ---- transit
   'transit.add': z.object({
     type: z.literal('transit.add'),

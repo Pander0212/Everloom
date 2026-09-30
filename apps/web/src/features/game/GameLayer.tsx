@@ -6,6 +6,7 @@ import { Sheet, Spinner } from '@/ui';
 import { CommandMenu, TOOL_META, type Command } from './CommandMenu';
 import { applyOps, GameContext, type GameCtx, type ToolId } from './context';
 import { Hud } from './Hud';
+import { LevelUpMoment } from './LevelUp';
 
 const TOOLS: Partial<Record<ToolId, React.LazyExoticComponent<(p: { arg?: string }) => ReactNode>>> = {
   status: lazy(() => import('./tools/Status')),
@@ -114,6 +115,7 @@ export function GameLayer({ chat, campaign, busy, onRun, setComposer, menuOpen, 
         <Hud />
         {children}
       </div>
+      <LevelUpMoment />
       <CommandMenu open={menuOpen} onOpenChange={setMenuOpen} commands={commands} />
       {tool && Tool ? (
         <Suspense

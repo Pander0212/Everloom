@@ -79,6 +79,7 @@ export interface Player {
   outfit: Outfit | null;
   classId?: string | null;
   statPoints?: number;
+  skillPoints?: number;
   /** Skill-tree node id → rank. */
   skillRanks?: Record<string, number>;
   /** Public reputation, -100..100. */
@@ -360,6 +361,7 @@ export interface PartyMember {
   xp?: number;
   classId?: string | null;
   statPoints?: number;
+  skillPoints?: number;
   skillRanks?: Record<string, number>;
   /** Extra vitals shown for this member (e.g. Sanity), id → value. */
   vitals?: Record<string, { label: string; cur: number; max: number }>;
@@ -407,6 +409,19 @@ export interface Combatant {
   reserve?: boolean;
   /** Party member id this combatant came from. */
   memberId?: string | null;
+  /** Damage dealt and taken this battle (for the summary). */
+  dealt?: number;
+  taken?: number;
+}
+
+export interface BattleSummary {
+  rounds: number;
+  dealt: number;
+  taken: number;
+  mvp: string | null;
+  breaks: number;
+  levelUps: string[];
+  injuries: string[];
 }
 
 export interface Battle {
@@ -422,6 +437,7 @@ export interface Battle {
   startedAt: number;
   /** Who acts first among the party and speaks for it. */
   leader?: string;
+  summary?: BattleSummary | null;
 }
 
 export interface CalendarConfig {
@@ -642,6 +658,16 @@ export interface TravelEntry {
   minutes: number;
   cost: number;
 }
+export type LevelCurve = 'gentle' | 'standard' | 'steep';
+export type XpSource = 'battle' | 'quests' | 'discovery' | 'crafting';
+export interface PartyMeta {
+  /** 'player' or a party member id. */
+  leader: string;
+  maxActive: number;
+  curve?: LevelCurve;
+  /** Which things give XP (all on when unset). */
+  xpSources?: Partial<Record<XpSource, boolean>>;
+}
 export interface ClassDef {
   id: string;
   name: string;
@@ -737,7 +763,7 @@ export interface CampaignState {
   travelLog: TravelEntry[];
   classes: Record<string, ClassDef>;
   skillTree: Record<string, SkillNode>;
-  partyMeta: { leader: string; maxActive: number };
+  partyMeta: PartyMeta;
   mail: Record<string, Mail>;
   feed: FeedPost[];
   /** The last arrival's consequences, shown in the scene until the next trip. */
