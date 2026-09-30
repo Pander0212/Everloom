@@ -117,6 +117,9 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
       const rel = decodeURIComponent(url).replace(/^\/+/, '');
       const candidate = path.resolve(cfg.webDir, rel);
       if (rel && candidate.startsWith(cfg.webDir + path.sep) && existsSync(candidate) && !rel.endsWith('/')) return reply.sendFile(rel);
+      // A missing file (an old build's script after an update) must fail loudly, not come back as the app's HTML,
+      // or the browser waits forever on a script that never runs.
+      if (/^assets\//.test(rel) || /\.(?:m?js|css|map|woff2?|png|jpe?g|svg|webp|ico|json|webmanifest)$/i.test(rel)) return reply.code(404).header('cache-control', 'no-store').send({ error: 'Not found' });
       reply.header('cache-control', 'no-cache');
       return reply.sendFile('index.html');
     });

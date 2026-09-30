@@ -1,13 +1,14 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router';
-import { get, onAuthRequired, setCsrf } from '@/lib/api';
+import { api, get, onAuthRequired, setCsrf } from '@/lib/api';
 import { CustomCss } from '@/lib/customCss';
 import { startEvents, stopEvents } from '@/lib/events';
 import { useSettings } from '@/lib/queries';
 import { applyMotion, applyTextSize, applyTheme, watchSystemTheme } from '@/lib/theme';
-import { ConfirmHost, Spinner, Toaster } from '@/ui';
+import { Button, ConfirmHost, Spinner, Toaster } from '@/ui';
 import { LoginPage, SetupPage } from './AuthPages';
+import { StuckHelp } from './ErrorBoundary';
 import { ConnectionBanner, Shell } from './Shell';
 
 const ChatsPage = lazy(() => import('@/features/chats/ChatsPage'));
@@ -22,8 +23,9 @@ const DesignPage = lazy(() => import('@/features/design/DesignPage'));
 
 export function PageFallback() {
   return (
-    <div className="flex h-full min-h-[40vh] items-center justify-center">
+    <div className="flex h-full min-h-[40vh] flex-col items-center justify-center">
       <Spinner />
+      <StuckHelp />
     </div>
   );
 }
@@ -68,7 +70,10 @@ export function App() {
   const status = useQuery({
     queryKey: ['auth'],
     queryFn: async () => {
-      const s = await get<{ setupRequired: boolean; authenticated: boolean; username: string | null; csrf: string | null }>('/api/auth/status');
+      // Never wait forever on the first request: a stuck one becomes a retry and then an error screen.
+      const ac = new AbortController();
+      const t = setTimeout(() => ac.abort(), 15_000);
+      const s = await api<{ setupRequired: boolean; authenticated: boolean; username: string | null; csrf: string | null }>('/api/auth/status', { signal: ac.signal }).finally(() => clearTimeout(t));
       setCsrf(s.csrf);
       return s;
     },
@@ -95,7 +100,10 @@ export function App() {
     body = (
       <div className="flex h-full flex-col items-center justify-center gap-2 p-6 text-center">
         <p className="font-medium">Can't reach the server</p>
-        <p className="text-sm text-fg-2">Check your connection. Everloom will retry.</p>
+        <p className="text-sm text-fg-2">Check your connection, then reload.</p>
+        <Button className="mt-2" onClick={() => void status.refetch()}>
+          Try again
+        </Button>
       </div>
     );
   else if (status.data?.setupRequired) body = <SetupPage onDone={refresh} />;

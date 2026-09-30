@@ -5,7 +5,9 @@ import { createRoot } from 'react-dom/client';
 import { BrowserRouter } from 'react-router';
 import { App } from './app/App';
 import { queryClient } from './lib/queries';
+import { ErrorBoundary } from './app/ErrorBoundary';
 import { registerServiceWorker } from './app/pwa';
+import { installRecovery } from './lib/recover';
 import { TooltipProvider } from './ui';
 import './styles/app.css';
 import interUrl from '@fontsource-variable/inter/files/inter-latin-wght-normal.woff2?url';
@@ -22,7 +24,7 @@ for (const href of [interUrl, serifUrl]) {
   document.head.appendChild(l);
 }
 
-
+installRecovery();
 registerServiceWorker();
 
 createRoot(document.getElementById('root')!).render(
@@ -31,7 +33,9 @@ createRoot(document.getElementById('root')!).render(
       <MotionConfig reducedMotion="user">
         <TooltipProvider>
           <BrowserRouter>
-            <App />
+            <ErrorBoundary>
+              <App />
+            </ErrorBoundary>
           </BrowserRouter>
         </TooltipProvider>
       </MotionConfig>

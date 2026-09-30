@@ -76,7 +76,8 @@ $SUDO chown -R 10001:10001 data 2>/dev/null || true
 
 # 4. Build and start
 bold "Building and starting (first build takes a few minutes)…"
-$DOCKER compose up -d --build
+$DOCKER compose build --build-arg EVERLOOM_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || true)" everloom
+$DOCKER compose up -d
 
 # 5. Wait for health
 echo -n "Waiting for Everloom"

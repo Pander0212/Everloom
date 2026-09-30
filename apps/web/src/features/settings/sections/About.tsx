@@ -3,7 +3,7 @@ import { Section } from '../common';
 export default function AboutSection() {
   return (
     <>
-      <Section title="Everloom" description="Version 0.1.0 · Free software, MIT licensed.">
+      <Section title="Everloom" description={`Version 0.1.0 · build ${__EVERLOOM_BUILD__.commit} (${__EVERLOOM_BUILD__.date} UTC) · Free software, MIT licensed.`}>
         <p className="text-sm text-fg-2">A self-hosted roleplay frontend with a built-in RPG layer. Your data stays on your server.</p>
       </Section>
       <Section title="Credits">

@@ -8,7 +8,7 @@ bash backup.sh
 echo "Pulling the latest version…"
 git pull --ff-only
 echo "Rebuilding…"
-$DOCKER compose build everloom
+$DOCKER compose build --build-arg EVERLOOM_COMMIT="$(git rev-parse --short HEAD)" everloom
 echo "Applying database migrations…"
 $DOCKER compose run --rm everloom node apps/server/dist/index.js --migrate-only
 $DOCKER compose up -d

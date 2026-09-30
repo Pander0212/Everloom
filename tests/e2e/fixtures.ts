@@ -5,7 +5,10 @@ export const test = base.extend<{ errors: string[] }>({
   errors: async ({ page }, use) => {
     const errors: string[] = [];
     page.on('console', (m) => {
-      if (m.type() === 'error' && !/favicon/.test(m.text())) errors.push(m.text());
+      // Playwright tries to inject its helper into every frame; the sandboxed creator-notes frame (which holds no
+      // scripts, see library.spec) correctly refuses, and Chromium logs that refusal against the frame.
+      const harness = m.location().url === 'about:srcdoc' && /^Blocked script execution in 'about:srcdoc'/.test(m.text());
+      if (m.type() === 'error' && !/favicon/.test(m.text()) && !harness) errors.push(m.text());
     });
     page.on('pageerror', (e) => errors.push(e.message));
     await use(errors);

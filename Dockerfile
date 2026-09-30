@@ -11,6 +11,8 @@ COPY tsconfig.base.json ./
 COPY packages packages
 COPY apps apps
 COPY scripts scripts
+ARG EVERLOOM_COMMIT=
+ENV EVERLOOM_COMMIT=$EVERLOOM_COMMIT
 RUN npm run build -w apps/web && npm run build -w apps/server
 RUN npm prune --omit=dev --no-audit --no-fund
 
