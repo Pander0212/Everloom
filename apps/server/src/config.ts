@@ -16,7 +16,12 @@ export interface Config {
   /** Force Secure cookies even over plain HTTP (behind a TLS proxy that doesn't set X-Forwarded-Proto). */
   forceSecureCookies: boolean;
   trustProxy: boolean;
-  /** Allow outbound calls to private network addresses (local LLMs on the same VPS). */
+  /**
+   * Let content-driven fetches (images named in cards, online character sources) reach private
+   * network addresses. Off by default: a card must not be able to make the server call your LAN.
+   * Connections you configure yourself (a local LLM) are not affected.
+   */
+  fetchPrivate: boolean;
   backupRetention: number;
   logLevel: string;
   /** Restricts which directories the SillyTavern importer may read. */
@@ -57,6 +62,7 @@ export function loadConfig(overrides: Partial<Config> = {}): Config {
     secretKey,
     forceSecureCookies: env.EVERLOOM_SECURE_COOKIES === '1',
     trustProxy: env.EVERLOOM_TRUST_PROXY !== '0',
+    fetchPrivate: env.EVERLOOM_FETCH_PRIVATE === '1',
     backupRetention: Number(env.EVERLOOM_BACKUP_RETENTION ?? 14),
     logLevel: env.LOG_LEVEL ?? 'warn',
     // Folders the SillyTavern importer may read. Docker sets /import; otherwise the home folder.

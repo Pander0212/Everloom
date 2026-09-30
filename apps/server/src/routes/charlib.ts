@@ -7,6 +7,7 @@ import { completeChat } from '../llm/providers.js';
 import { logged, promptTokens } from '../services/calls.js';
 import { getCharacter, listCharacters, refreshMeta } from '../services/characters.js';
 import { connectionForRole } from '../services/connections.js';
+import { fixMedia, localizeCharacter, mediaIntegrity, remoteMediaReport, type FixAction } from '../services/mediatools.js';
 import { batch, deleteCollection, duplicates, editCollection, listCollections, mergeDuplicates, related, reorderCollections, saveCollection, undoDelete } from '../services/charlib.js';
 import { deleteVersion, listVersions, restoreVersion, snapshot, versionDiff } from '../services/versions.js';
 import { parse } from '../util/validate.js';
@@ -17,6 +18,24 @@ const ids = z.array(z.string().max(80)).max(5000);
 const collectionInput = z.object({ name: z.string().trim().min(1).max(80), icon: z.string().max(40).optional(), color: z.string().max(40).optional() });
 
 export function registerCharLib(app: FastifyInstance, ctx: AppContext) {
+  // Media: remote images in cards (localize), and the integrity check with its fixes.
+  app.get('/api/library/media', async (req) => ({ remote: remoteMediaReport(ctx, owner(req)), integrity: mediaIntegrity(ctx, owner(req)) }));
+  app.post('/api/library/localize', async (req) => {
+    const o = owner(req);
+    const b = parse(z.object({ ids: ids.optional() }), req.body ?? {});
+    const targets = b.ids ?? remoteMediaReport(ctx, o).map((r) => r.id);
+    const results = [];
+    for (const id of targets) results.push(await localizeCharacter(ctx, o, id));
+    ctx.bus.publish(o, 'characters.changed', {}, req.clientId);
+    return { characters: results.filter((r) => r.saved || r.reused || r.failed.length).length, saved: results.reduce((n, r) => n + r.saved, 0), reused: results.reduce((n, r) => n + r.reused, 0), failed: results.flatMap((r) => r.failed.map((f) => ({ ...f, characterId: r.characterId }))) };
+  });
+  app.post('/api/library/media/fix', async (req) => {
+    const b = parse(z.object({ actions: z.array(z.enum(['redownload', 'forget-missing', 'delete-orphan-files', 'delete-unused', 'clear-dangling'])).min(1) }), req.body);
+    const done = await fixMedia(ctx, owner(req), b.actions as FixAction[]);
+    ctx.bus.publish(owner(req), 'characters.changed', {}, req.clientId);
+    return { done, integrity: mediaIntegrity(ctx, owner(req)) };
+  });
+
   // "What should I play tonight?": the utility model picks three from a sample of the library.
   app.post('/api/library/recommend', async (req) => {
     const o = owner(req);

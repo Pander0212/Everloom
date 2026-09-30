@@ -5,7 +5,7 @@
  */
 import type { CharacterSummary } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckSquare, Copy, Dices, Download, Folder, FolderPlus, LayoutGrid, List, MoreHorizontal, PackageOpen, Pencil, Plus, Search, SlidersHorizontal, Sparkles, Star, Tag, Trash2, Upload, Users, UsersRound, X } from 'lucide-react';
+import { CheckSquare, Copy, Dices, Download, Folder, FolderPlus, Image as ImageIcon, LayoutGrid, List, MoreHorizontal, PackageOpen, Pencil, Plus, Search, SlidersHorizontal, Sparkles, Star, Tag, Trash2, Upload, Users, UsersRound, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Page } from '@/app/Shell';
@@ -20,6 +20,7 @@ import { BundleImportSheet } from './BundleImportSheet';
 import { CharacterSheet } from './CharacterSheet';
 import { COLLECTION_COLORS, CollectionDialog, collectionIcon } from './Collections';
 import { ContextMenu, type ContextItem } from './ContextMenu';
+import { MediaSheet } from './MediaSheet';
 import { RecommendSheet } from './RecommendSheet';
 import { DuplicatesSheet } from './DuplicatesSheet';
 import { FiltersSheet } from './FiltersSheet';
@@ -62,7 +63,7 @@ export default function LibraryPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
   const [menu, setMenu] = useState<{ c: CharacterSummary; at: { clientX: number; clientY: number } } | null>(null);
-  const [sheet, setSheet] = useState<null | 'filters' | 'bundle' | 'dupes' | 'group' | 'recommend'>(null);
+  const [sheet, setSheet] = useState<null | 'filters' | 'bundle' | 'dupes' | 'group' | 'recommend' | 'media'>(null);
   const [bundleFile, setBundleFile] = useState<File | null>(null);
   const [colDialog, setColDialog] = useState<CollectionDTO | 'new' | null>(null);
   const [tagDialog, setTagDialog] = useState<null | 'tag' | 'untag'>(null);
@@ -200,6 +201,7 @@ export default function LibraryPage() {
               { label: 'New collection', icon: FolderPlus, onSelect: () => setColDialog('new') },
               { label: 'Find duplicates', icon: Copy, onSelect: () => setSheet('dupes') },
               { label: 'Import a bundle', icon: PackageOpen, onSelect: () => setSheet('bundle') },
+              { label: 'Media check', icon: ImageIcon, onSelect: () => setSheet('media') },
             ]}
           />
         </>
@@ -316,6 +318,7 @@ export default function LibraryPage() {
         setSheet(o ? 'bundle' : null);
         if (!o) setBundleFile(null);
       }} file={bundleFile} onDone={refresh} />
+      <MediaSheet open={sheet === 'media'} onOpenChange={(o) => setSheet(o ? 'media' : null)} />
       <RecommendSheet
         open={sheet === 'recommend'}
         onOpenChange={(o) => setSheet(o ? 'recommend' : null)}

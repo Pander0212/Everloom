@@ -114,4 +114,20 @@ test.describe('character library', () => {
     await expect(page.getByRole('dialog').getByText(name).first()).toBeVisible();
     expect(errors).toEqual([]);
   });
+
+  test('media check: linked images are listed, a private address is refused, integrity is reported', async ({ page, errors }) => {
+    await page.goto('/characters');
+    await api(page, 'POST', '/api/characters', { card: { name: `Linker ${Date.now().toString(36)}`, creator_notes: '<img src="http://127.0.0.1:9/private.png">' } });
+    await page.getByRole('button', { name: 'Library tools' }).click();
+    await page.getByRole('menuitem', { name: 'Media check' }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog.getByRole('region', { name: 'Integrity' }).or(dialog.getByLabel('Integrity'))).toBeVisible();
+    const save = dialog.getByRole('button', { name: /^Save \d+ images? locally$/ });
+    await expect(save).toBeVisible();
+    await save.click();
+    await expect(dialog.getByText(/couldn't be downloaded/)).toBeVisible();
+    await dialog.getByText(/couldn't be downloaded/).click();
+    await expect(dialog.getByText(/127\.0\.0\.1:9\/private\.png — .*private network/)).toBeVisible();
+    expect(errors).toEqual([]);
+  });
 });
