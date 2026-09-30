@@ -17,7 +17,7 @@ interface SceneDTO {
   at: number;
   text: string;
   tokens: number;
-  dropped: string[];
+  dropped: Array<{ section: string; drop: string; text: string }>;
 }
 interface TxDTO {
   id: string;
@@ -137,7 +137,7 @@ function ScenePanel({ chatId, open }: { chatId: string; open: boolean }) {
         <>
           <p className="mt-2 text-xs text-fg-2">
             {d.source === 'last request' ? `Sent ${relativeTime(d.at)}, byte for byte.` : 'What the next reply would get right now.'} {d.tokens.toLocaleString()} tokens
-            {d.dropped.length ? ` · left out to fit: ${d.dropped.join(', ')}` : ''}
+            {d.dropped.length ? ` · left out to fit: ${d.dropped.length} line${d.dropped.length === 1 ? '' : 's'} (${[...new Set(d.dropped.map((x) => x.drop))].join(', ')})` : ''}
           </p>
           <pre className="mt-2 max-h-[62vh] overflow-auto whitespace-pre-wrap rounded-md bg-surface-2 p-3 font-mono text-[12px] leading-5 text-fg-2">{d.text}</pre>
         </>

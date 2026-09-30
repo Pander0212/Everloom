@@ -61,7 +61,7 @@ Memory is the one piece that lives **beside** the campaign state instead of insi
 | Pre-generation model read (move, time, dice) | **Adopted as optional** | It adds a model call **before** the reply, which costs latency. It's off in *cheap* and *balanced*, on in *max immersion*, with a hard ceiling. |
 | Deterministic intent backstop ("I go to the market") | **Adopted** | Free and fast: the player's own sentence is matched against known places before the reply, so the reply is written in the right place. It never guesses on questions, conditionals or ambiguous names. |
 | Companions follow the player | **Adopted** | Party members always come along; people the player names or addresses with "we/let's" come along too. |
-| Hop-by-hop travel for NPCs | **Adopted** | NPC goals with a target move one hop per game hour along the map. |
+| Hop-by-hop travel for NPCs | **Adopted** | NPC goals with a target move one hop along the map every third turn (by turn number, so swipes never shift it), never in front of the player. |
 
 ### A.6 Capture and presence
 

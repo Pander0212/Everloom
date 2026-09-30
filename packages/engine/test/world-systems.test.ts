@@ -63,11 +63,22 @@ describe('intent', () => {
     expect(detectMove(s, 'I think about the market.')).toBeNull();
     expect(detectMove(s, '"Let\'s go to the Old Pier," I say.')).toBeNull();
     expect(detectMove(s, 'I go to the moon.')).toBeNull();
+    // Never on a question, a conditional or a maybe.
+    expect(detectMove(s, 'Should I go to Market Square?')).toBeNull();
+    expect(detectMove(s, 'If it stops raining, I head to Market Square.')).toBeNull();
+    expect(detectMove(s, 'Maybe I walk to Old Pier later.')).toBeNull();
+    expect(detectMove(s, 'I finish my tea. I head to Market Square.')!.name).toBe('Market Square');
     const t = turnTick(s, { text: 'I head to Market Square.', messageKey: 'x', turn: 1, switches: { intent: true, dice: true, pulse: false, threads: false } });
     const after = apply(s, t.ops).state;
     const market = Object.values(after.locations).find((l) => l.name === 'Market Square')!;
     expect(after.currentLocationId).toBe(market.id);
     expect(Object.values(after.npcs).find((n) => n.name === 'Iris Thorne')!.locationId).toBe(market.id);
+    // "We" with someone here named brings them too; others stay.
+    let s2 = apply(world(), [{ type: 'npc.upsert', name: 'Bram', location: 'The Lantern' }], 'user').state;
+    s2 = apply(s2, turnTick(s2, { text: 'Come on, Iris, we head to Market Square.', messageKey: 'y', turn: 1, switches: { intent: true, dice: false, pulse: false, threads: false } }).ops).state;
+    const m2 = Object.values(s2.locations).find((l) => l.name === 'Market Square')!.id;
+    expect(Object.values(s2.npcs).find((n) => n.name === 'Iris Thorne')!.locationId).toBe(m2);
+    expect(Object.values(s2.npcs).find((n) => n.name === 'Bram')!.locationId).not.toBe(m2);
   });
 });
 

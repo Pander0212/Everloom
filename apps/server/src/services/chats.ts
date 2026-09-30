@@ -273,14 +273,18 @@ export function updateMessage(
   const m = getMessage(ctx, owner, id);
   const swipes = m.swipes.slice();
   let textChanged = false;
+  let extra = { ...m.extra, ...(patch.extra ?? {}) };
   if (patch.text !== undefined && patch.text !== swipes[m.swipeId]?.text) {
     swipes[m.swipeId] = { ...swipes[m.swipeId], text: patch.text, changes: undefined };
     textChanged = true;
+    // A new text is read afresh.
+    const { preRead: _p, ...rest } = extra as Record<string, unknown>;
+    extra = rest;
   }
   if (patch.reasoning !== undefined) swipes[m.swipeId] = { ...swipes[m.swipeId], reasoning: patch.reasoning };
   ctx.db
     .prepare('UPDATE messages SET swipes = ?, hidden = ?, bookmarked = ?, extra = ?, updated_at = ? WHERE id = ?')
-    .run(JSON.stringify(swipes), (patch.hidden ?? m.hidden) ? 1 : 0, (patch.bookmarked ?? m.bookmarked) ? 1 : 0, JSON.stringify({ ...m.extra, ...(patch.extra ?? {}) }), Date.now(), id);
+    .run(JSON.stringify(swipes), (patch.hidden ?? m.hidden) ? 1 : 0, (patch.bookmarked ?? m.bookmarked) ? 1 : 0, JSON.stringify(extra), Date.now(), id);
   if (textChanged) {
     // The model's reading of the old text is taken back for good (the edited text is tracked again).
     const chat = getChat(ctx, owner, m.chatId);

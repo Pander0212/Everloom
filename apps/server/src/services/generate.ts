@@ -9,6 +9,7 @@ import { appendOps, deleteEntriesFor, getState, rebuildCampaign, realtimeTick } 
 import { getChat, getGroup, getMessage, insertMessage, listMessages, updateChat, writeSwipes } from './chats.js';
 import { connectionForRole } from './connections.js';
 import { afterTurn } from './chronicle.js';
+import { preRead } from './worldsim.js';
 import { buildPrompt, loadPromptContext, type GenType, type PromptContext } from './prompt.js';
 import { countTokens } from './tokens.js';
 import { applyTracked, runTrackerPass } from './tracker.js';
@@ -156,11 +157,23 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
     if (chat.campaignId && lastUserMsg && input.type !== 'continue' && input.type !== 'impersonate') {
       const w = pc.settings.world;
       const turn = promptHistory.filter((m) => m.role === 'assistant' && !m.hidden).length + 1;
-      const tickInput = { text: textOf(lastUserMsg), messageKey: lastUserMsg.id, turn, switches: { intent: w.intent, dice: w.dice, pulse: w.pulse, threads: w.threads } };
+      const tickInput = { text: textOf(lastUserMsg), messageKey: lastUserMsg.id, turn, switches: { intent: w.intent, dice: w.dice, pulse: w.pulse, threads: w.threads }, extraCheck: (lastUserMsg.extra?.preRead as any)?.check ?? null };
       const has = ctx.db.prepare("SELECT 1 FROM op_log WHERE campaign_id = ? AND message_id = ? AND source = 'ai'").get(chat.campaignId, lastUserMsg.id);
       if (!has) {
-        const first = turnTick(getState(ctx, owner, chat.campaignId), tickInput);
-        if (first.ops.length) appendOps(ctx, owner, chat.campaignId, { chatId, messageId: lastUserMsg.id, swipeId: lastUserMsg.swipeId, source: 'ai', ops: first.ops, origin: input.origin });
+        const s0 = getState(ctx, owner, chat.campaignId);
+        const first = turnTick(s0, tickInput);
+        // Max immersion: a quick model read for what the rules missed. Its result is kept on the
+        // message, so a swipe replays it instead of asking again.
+        const fresh = w.preRead && lastUserMsg.extra?.preRead === undefined;
+        const read = fresh ? await preRead(ctx, owner, chatId, lastUserMsg.id, tickInput.text, s0) : null;
+        if (fresh) {
+          const m0 = getMessage(ctx, owner, lastUserMsg.id);
+          ctx.db.prepare('UPDATE messages SET extra = ? WHERE id = ?').run(JSON.stringify({ ...m0.extra, preRead: { check: read?.check ?? null } }), lastUserMsg.id);
+          tickInput.extraCheck = read?.check ?? null;
+        }
+        const extra = (read?.ops ?? []).filter((o) => o.type !== 'location.move' || !first.ops.some((f) => f.type === 'location.move'));
+        const ops = [...first.ops, ...extra];
+        if (ops.length) appendOps(ctx, owner, chat.campaignId, { chatId, messageId: lastUserMsg.id, swipeId: lastUserMsg.swipeId, source: 'ai', ops, origin: input.origin });
       }
       tick = turnTick(getState(ctx, owner, chat.campaignId), tickInput);
     }

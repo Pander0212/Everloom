@@ -32,6 +32,7 @@ import { connectionForRole } from './connections.js';
 import { embedPending, insertMemory, insertSummary, loadMemoryState, personId, scopeOf, writeModelFacts, type MemoryRow } from './mem.js';
 import { getSettings } from './settings.js';
 import { chatCharacterIds, playerName } from './tracker.js';
+import { runSocial, runThreadSeeding } from './worldsim.js';
 
 const inflight = new Set<string>();
 
@@ -264,10 +265,25 @@ export async function runConsolidation(ctx: AppContext, owner: string, chatId: s
  * After a reply is stored: what background memory work is due at this turn. Cadence comes from
  * the turn number (assistant replies so far), so swipes and edits never shift it.
  */
-export function afterTurn(ctx: AppContext, owner: string, chatId: string): { chronicler: boolean; consolidate: boolean; embed: boolean } {
+export function afterTurn(ctx: AppContext, owner: string, chatId: string): Record<'chronicler' | 'consolidate' | 'embed' | 'social' | 'seed', boolean> {
+  try {
+    return scheduleAfterTurn(ctx, owner, chatId);
+  } catch {
+    // Background memory work must never break a reply (or outlive a closed database).
+    return { chronicler: false, consolidate: false, embed: false, social: false, seed: false };
+  }
+}
+
+function scheduleAfterTurn(ctx: AppContext, owner: string, chatId: string): Record<'chronicler' | 'consolidate' | 'embed' | 'social' | 'seed', boolean> {
   const w = getSettings(ctx, owner).world;
   const turn = (ctx.db.prepare("SELECT COUNT(*) AS n FROM messages WHERE chat_id = ? AND role = 'assistant' AND hidden = 0").get(chatId) as { n: number }).n;
-  const due = { chronicler: w.chronicler && turn > 0 && turn % Math.max(1, w.chronicleEvery) === 0, consolidate: turn > 0 && turn % Math.max(1, w.consolidateEvery) === 0, embed: w.semantic };
+  const due = {
+    chronicler: w.chronicler && turn > 0 && turn % Math.max(1, w.chronicleEvery) === 0,
+    consolidate: turn > 0 && turn % Math.max(1, w.consolidateEvery) === 0,
+    embed: w.semantic,
+    social: w.social && turn > 0 && turn % Math.max(1, w.socialEvery) === 0,
+    seed: w.threads && w.threadSeeding && turn > 0 && turn % 15 === 0,
+  };
   const chat = getChat(ctx, owner, chatId);
   const prev = background.get(chatId) ?? Promise.resolve();
   const p = prev
@@ -275,6 +291,8 @@ export function afterTurn(ctx: AppContext, owner: string, chatId: string): { chr
       if (due.chronicler) await runChronicler(ctx, owner, chatId);
       if (due.consolidate) await runConsolidation(ctx, owner, chatId, { useModel: w.consolidate });
       if (due.embed) await embedPending(ctx, owner, scopeOf(chat), chatId);
+      if (due.social) await runSocial(ctx, owner, chatId, turn).catch(() => false);
+      if (due.seed) await runThreadSeeding(ctx, owner, chatId, turn).catch(() => false);
     })
     .catch(() => {})
     .finally(() => {

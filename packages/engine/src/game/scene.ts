@@ -17,7 +17,7 @@ export const SCENE_SECTIONS = ['NOW', 'YOU', 'LOCATION', 'PRESENT', 'PARTY', 'ST
 export type SceneSection = (typeof SCENE_SECTIONS)[number];
 
 /** Per-character line labels, exactly as emitted. */
-export const SCENE_LINE_LABELS = ['NOW:', 'WEARING:', 'LAST SEEN WEARING:', 'FEELS:', 'FACTS:', 'WANTS:', 'KNOWS (was there):', 'HEARD SECONDHAND:', 'HEARD AS RUMOUR (may be garbled):', 'DOES NOT KNOW:', 'WARNING:'] as const;
+export const SCENE_LINE_LABELS = ['NOW:', 'WEARING:', 'LAST SEEN WEARING:', 'FEELS:', 'TOWARD OTHERS:', 'FACTS:', 'WANTS:', 'KNOWS (was there):', 'HEARD SECONDHAND:', 'HEARD AS RUMOUR (may be garbled):', 'DOES NOT KNOW:', 'WARNING:'] as const;
 
 /**
  * What goes first when the block is over budget (earliest first). Anything not listed — the time,
@@ -95,12 +95,31 @@ function wearing(o: { text: string; at: number } | null | undefined, now: number
 function relationPhrase(s: CampaignState, n: Npc): string | null {
   const rel = Object.values(s.relationships).find((r) => r.npcId === n.id);
   if (!rel) return null;
-  const bits = [relationshipLabel(rel).toLowerCase()];
+  const bits = [(rel.label || relationshipLabel(rel)).toLowerCase()];
   if (rel.trust <= -25) bits.push('does not trust you');
   else if (rel.trust >= 50) bits.push('trusts you');
   if ((rel.desire ?? 0) >= 40) bits.push('is drawn to you');
   if ((rel.tension ?? 0) >= 40) bits.push('there is tension between you');
   return `FEELS: ${bits.join(' — ')}`;
+}
+
+/** How someone feels about the others here (strong feelings only). */
+function bondPhrase(s: CampaignState, n: Npc, here: Set<string>): string | null {
+  const bits: string[] = [];
+  for (const b of Object.values(s.bonds ?? {})) {
+    if (b.from !== n.id || !here.has(b.to)) continue;
+    const other = s.npcs[b.to]?.name;
+    if (!other) continue;
+    const f: string[] = [];
+    if (b.kind) f.push(b.kind);
+    if (b.affinity >= 30) f.push('likes');
+    else if (b.affinity <= -30) f.push('dislikes');
+    if (b.trust <= -30) f.push('distrusts');
+    if (b.desire >= 40) f.push('is drawn to');
+    if (b.tension >= 30) f.push('tense with');
+    if (f.length) bits.push(`${f.join(', ')} ${other}`);
+  }
+  return bits.length ? `TOWARD OTHERS: ${bits.slice(0, 3).join('; ')}` : null;
 }
 
 function warning(n: Pick<Npc, 'unconscious' | 'status'>): string | null {
@@ -185,6 +204,8 @@ export function buildSceneBlock(s: CampaignState, view: SceneView = {}, opts: Sc
     if (wr) detail(wr);
     const rel = relationPhrase(s, n);
     if (rel) detail(rel);
+    const bonds = bondPhrase(s, n, new Set(present.map((x) => x.n.id)));
+    if (bonds) detail(bonds);
     const facts = view.facts?.[n.id] ?? [];
     if (facts.length) detail(`FACTS: ${facts.slice(0, 4).map((f) => truncate(f, 120)).join('; ')}`);
     const goal = (n.goals ?? []).filter((g) => g.state === 'acting').sort((a, b) => b.urgency - a.urgency)[0];
@@ -308,7 +329,7 @@ export const NARRATOR_CONTRACT = `How to use the WORLD STATE block:
 - It is ground truth and input only. Never quote it, echo it or mention it.
 - NOW is the time and weather. YOU is the player's own character: their body, needs, gear and standing facts.
 - LOCATION is where the scene is. Only people under PRESENT and PARTY are here; anyone else is elsewhere and cannot appear unless they arrive in the story.
-- Under each person: NOW: is what their day has them doing, WEARING: or LAST SEEN WEARING: is their clothing, FEELS: is how they feel about the player, FACTS: are standing truths, WANTS: is what drives them.
+- Under each person: NOW: is what their day has them doing, WEARING: or LAST SEEN WEARING: is their clothing, FEELS: is how they feel about the player, TOWARD OTHERS: how they feel about others here, FACTS: are standing truths, WANTS: is what drives them.
 - KNOWS (was there): they witnessed it. HEARD SECONDHAND: they were told. HEARD AS RUMOUR (may be garbled): they heard a distorted version. DOES NOT KNOW: they must not know or act on it unless someone tells them in the story.
 - WARNING: lines bind (an UNCONSCIOUS person cannot act or speak).
 - PARTY members travel with the player. A sovereign party member may be described, but never write their words, thoughts, decisions or voluntary actions.

@@ -78,6 +78,9 @@ function classify(messages: any[]): string {
   if (/bookkeeper for a roleplay game/i.test(sys)) return 'tracker';
   if (/summarize stories/i.test(sys)) return 'summary';
   if (/chronicler of a roleplay story/i.test(sys)) return 'chronicle';
+  if (/report its concrete intent/i.test(sys)) return 'preread';
+  if (/off-screen between two characters/i.test(sys)) return 'social';
+  if (/slow-burning background storylines/i.test(sys)) return 'seed';
   if (/condense story memories/i.test(sys)) return 'consolidate';
   if (/connection test/i.test(sys)) return 'test';
   if (/helper companion/i.test(sys)) return 'helper';
@@ -110,6 +113,14 @@ function answerFor(kind: string, messages: any[]): string {
       for (const m of all.matchAll(/^\[(\w+)\] \((\w+)\)\n((?:- .*\n?)+)/gm)) out[m[1]] = { title: `${m[2]} ${m[1]}`, text: `In short: ${m[3].trim().split('\n').map((l) => l.slice(2).replace(/\.$/, '')).join('; ')}.` };
       return JSON.stringify({ summaries: out });
     }
+    case 'preread':
+      return JSON.stringify(/\bdance\b/i.test(all) ? { move: null, minutes: 30, check: { skill: 'agility', difficulty: 'hard' } } : { move: null, minutes: 0, check: null });
+    case 'social': {
+      const names = [...all.matchAll(/^- (.+?) \(/gm)].map((m) => m[1]);
+      return JSON.stringify({ text: `${names[0] ?? 'Someone'} and ${names[1] ?? 'someone'} shared a quiet drink and patched up an old quarrel.`, aToB: { affinity: 3, trust: 2, tension: -2 }, bToA: { affinity: 2, trust: 1, tension: -1 } });
+    }
+    case 'seed':
+      return JSON.stringify({ text: 'Smugglers are using the old pier at night', stages: ['a rumour of lights on the water', 'crates nobody claims', 'a guard is bribed openly', 'the smugglers make their move'], place: null });
     case 'test':
       return 'ready';
     case 'helper':

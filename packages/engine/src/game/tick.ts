@@ -20,10 +20,15 @@ import type { CampaignState, Location, Thread } from './state.js';
 const MOVE_RE = /\b(?:i|we)\s+(?:(?:go|head|walk|run|hurry|wander|travel|return|drive|ride|sail|fly|make (?:my|our) way|set off|leave)\s+(?:back\s+)?(?:to|into|towards?|for|over to|down to|up to)|enter|go inside)\s+(?:the\s+)?([^.,!?;\n*"]{2,50})/i;
 
 /** Where the player says they're going, if it is a known place. */
+const HEDGE_RE = /\b(if|maybe|perhaps|should|could|would|might|shall|whether|wonder|want to|thinking (?:about|of)|plan to|not|never|don't|won't|can't)\b/i;
+
 export function detectMove(s: CampaignState, text: string): Location | null {
   const clean = text.replace(/"[^"]*"/g, ' '); // spoken words are not actions
   const m = MOVE_RE.exec(clean);
   if (!m) return null;
+  // Never guess on a question, a conditional or a maybe: only a plain statement of what I do.
+  const sentence = clean.slice(Math.max(0, clean.lastIndexOf('.', m.index) + 1), clean.indexOf('.', m.index) >= 0 ? clean.indexOf('.', m.index) : undefined);
+  if (/\?/.test(sentence) || HEDGE_RE.test(sentence.slice(0, sentence.search(MOVE_RE) + 12))) return null;
   const want = m[1].trim().split(/\s+(?:and|then|with|to)\s+/i)[0];
   let best: { loc: Location; score: number } | null = null;
   const candidates = [...exitsFrom(s, s.currentLocationId), ...Object.values(s.locations)];
@@ -39,8 +44,16 @@ export function intentOps(s: CampaignState, text: string): Op[] {
   const to = detectMove(s, text);
   if (!to) return [];
   const ops: Op[] = [{ type: 'location.move', to: to.name } as Op];
-  // Companions come along.
-  for (const m of Object.values(s.party)) if (m.npcId && s.npcs[m.npcId]?.status === 'alive') ops.push({ type: 'npc.set', id: m.npcId, patch: { locationId: to.id } } as Op);
+  // Companions come along: the party always, and anyone here I name with "we" or "let's".
+  const going = new Set(Object.values(s.party).map((m) => m.npcId).filter((id): id is string => !!id && s.npcs[id]?.status === 'alive'));
+  if (/\b(we|let's|let us|together)\b/i.test(text)) {
+    const low = text.toLowerCase();
+    for (const n of Object.values(s.npcs)) {
+      const first = n.name.toLowerCase().split(' ')[0];
+      if (n.status === 'alive' && !n.unconscious && n.locationId === s.currentLocationId && first.length >= 3 && new RegExp(`\\b${first}\\b`).test(low)) going.add(n.id);
+    }
+  }
+  for (const id of going) ops.push({ type: 'npc.set', id, patch: { locationId: to.id } } as Op);
   return ops;
 }
 
@@ -89,12 +102,20 @@ export function detectCheck(s: CampaignState, text: string, seedKey: string): Ch
   const hit = CHECKS.find((c) => c.re.test(clean));
   if (!hit) return null;
   const difficulty: Check['difficulty'] = /\b(impossible|nearly impossible|very hard|desperate)\b/i.test(clean) ? 'very hard' : /\b(hard|difficult|heavily guarded|guarded|tough)\b/i.test(clean) ? 'hard' : /\b(easy|simple|quick)\b/i.test(clean) ? 'easy' : 'normal';
+  return rollCheck(s, hit.skill, difficulty, seedKey, text);
+}
+
+const SKILL_STAT: Record<string, Check['stat']> = { agility: 'spd', strength: 'atk', presence: 'level', magic: 'mag', endurance: 'def' };
+
+/** Roll a named check for the player, seeded by the message so it replays identically. */
+export function rollCheck(s: CampaignState, skill: string, difficulty: Check['difficulty'], seedKey: string, text: string): Check {
+  const stat = SKILL_STAT[skill] ?? 'level';
   const p = s.player;
-  const statValue = hit.stat === 'level' ? 10 + p.level : p.stats[hit.stat];
+  const statValue = stat === 'level' ? 10 + p.level : p.stats[stat];
   const gap = (statValue - 10) / 2 + (p.level - 1) / 3 - { easy: -2, normal: 0, hard: 2, 'very hard': 4 }[difficulty];
   const odds = checkOdds(gap);
   const roll = createRng(seedFrom('check', seedKey, normalizeName(text))).next();
-  return { skill: hit.skill, stat: hit.stat, difficulty, odds, roll, tier: tierFor(odds, roll) };
+  return { skill, stat, difficulty, odds, roll, tier: tierFor(odds, roll) };
 }
 
 export function describeCheck(c: Check): string {
@@ -207,6 +228,8 @@ export interface TickInput {
   /** This reply's turn number (assistant replies so far + 1). */
   turn: number;
   switches: { intent: boolean; dice: boolean; pulse: boolean; threads: boolean };
+  /** A check the pre-read found that the rules missed. */
+  extraCheck?: { skill: string; difficulty: Check['difficulty'] } | null;
 }
 
 export interface TickResult {
@@ -222,7 +245,7 @@ export function turnTick(s: CampaignState, input: TickInput): TickResult {
   const happens: string[] = [];
   if (input.switches.intent) ops.push(...intentOps(s, input.text));
   ops.push(...goalOps(s, input.turn));
-  const check = input.switches.dice ? detectCheck(s, input.text, input.messageKey) : null;
+  const check = input.switches.dice ? detectCheck(s, input.text, input.messageKey) ?? (input.extraCheck ? rollCheck(s, input.extraCheck.skill, input.extraCheck.difficulty, input.messageKey, input.text) : null) : null;
   if (input.switches.pulse && pulseAt(s.meta.seed, input.turn)) happens.push(pulseEvent(s, input.turn));
   const threads: TickResult['threads'] = [];
   if (input.switches.threads) {
