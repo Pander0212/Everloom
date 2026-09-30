@@ -19,6 +19,22 @@ const scheduleSlot = z.object({
 });
 const shopKind = z.enum(['general', 'food', 'tavern', 'smith', 'alchemist', 'clothier', 'books', 'magic', 'tech', 'pharmacy', 'market', 'stable', 'other']);
 const homeKind = z.enum(['house', 'apartment', 'room', 'guild', 'castle', 'cabin', 'campsite', 'cave', 'vehicle', 'other']);
+const clock = z.union([int.min(0).max(1440), z.string().regex(/^\d{1,2}:\d{2}$/)]).transform((v) => (typeof v === 'number' ? v : Number(v.split(':')[0]) * 60 + Number(v.split(':')[1])));
+const weatherKind = z.enum(['clear', 'cloudy', 'overcast', 'rain', 'storm', 'snow', 'fog', 'wind', 'heat']);
+/** A condition code checks before travel. */
+export const requirement = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('discovered') }),
+  z.object({ kind: z.literal('fare'), amount: money }),
+  z.object({ kind: z.literal('vehicle'), mode: z.string().trim().min(1).max(30) }),
+  z.object({ kind: z.literal('item'), name }),
+  z.object({ kind: z.literal('standing'), org: name, min: num.min(0).max(100) }),
+  z.object({ kind: z.literal('reputation'), min: num.min(-100).max(100) }),
+  z.object({ kind: z.literal('quest'), title: name, state: z.enum(['active', 'done']).default('done') }),
+  z.object({ kind: z.literal('partySize'), max: int.min(1).max(20) }),
+  z.object({ kind: z.literal('notWanted'), max: int.min(0).max(5).default(0) }),
+  z.object({ kind: z.literal('hours'), open: clock, close: clock }),
+  z.object({ kind: z.literal('weather'), not: z.array(weatherKind).min(1).max(9) }),
+]);
 const discipline = z.enum(['cooking', 'alchemy', 'forge', 'enchantment', 'general']);
 
 export const OpSchemas3 = {
@@ -146,7 +162,26 @@ export const OpSchemas3 = {
   }),
   'recipe.remove': z.object({ type: z.literal('recipe.remove'), recipe: name }),
   craft: z.object({ type: z.literal('craft'), recipe: name, target: name.optional() }),
+  // ---- transit
+  'transit.add': z.object({
+    type: z.literal('transit.add'),
+    name,
+    mode: z.string().trim().min(1).max(30).default('train'),
+    stops: z.array(name).min(2).max(24),
+    first: clock.default(360),
+    last: clock.default(1320),
+    every: int.min(5).max(24 * 60).default(60),
+    days: z.array(int.min(0).max(13)).max(14).default([]),
+    hop: int.min(1).max(24 * 60 * 7).default(30),
+    fare: money.default(0),
+    farePerStop: money.default(0),
+    requires: z.array(requirement).max(8).default([]),
+  }),
+  'transit.remove': z.object({ type: z.literal('transit.remove'), line: name }),
+  'transit.ticket': z.object({ type: z.literal('transit.ticket'), line: name, qty: int.min(1).max(20).default(1) }),
+  'transit.ride': z.object({ type: z.literal('transit.ride'), line: name, to: name }),
+  'route.require': z.object({ type: z.literal('route.require'), from: name, to: name, mode: z.enum(['road', 'trail', 'rail', 'water', 'air', 'space', 'portal']).optional(), requires: z.array(requirement).max(8) }),
 } as const;
 
 /** Phase 3 ops the model may emit: things the story establishes, never the player's own money moves. */
-export const AI_OPS3 = ['currency.define', 'shop.upsert', 'bill.add', 'asset.add', 'home.add', 'room.add', 'household.add', 'household.update'] as const;
+export const AI_OPS3 = ['currency.define', 'shop.upsert', 'bill.add', 'asset.add', 'home.add', 'room.add', 'household.add', 'household.update', 'transit.add', 'route.require'] as const;

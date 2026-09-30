@@ -20,6 +20,7 @@ export interface MapNode {
   kind: LocationKind;
   pin: PinKind;
   discovered: boolean;
+  visited: boolean;
   current: boolean;
   /** The player is somewhere inside this node. */
   containsCurrent: boolean;
@@ -260,6 +261,8 @@ export function generateMapScene(state: CampaignState, parentId: string | null, 
   const noise = makeNoise(rng);
   const pathToCurrent = new Set(locationPath(state, state.currentLocationId).map((l) => l.id));
   const children = Object.values(state.locations).filter((l) => (l.parentId ?? null) === parentId);
+  // A place counts as visited when you've been there or anywhere inside it.
+  const visited = new Set(Object.values(state.locations).filter((l) => l.visited).flatMap((l) => locationPath(state, l.id).map((x) => x.id)));
   const nodes: MapNode[] = children.map((l) => ({
     id: l.id,
     name: l.name,
@@ -268,6 +271,7 @@ export function generateMapScene(state: CampaignState, parentId: string | null, 
     kind: l.kind,
     pin: pinFor(l.kind, l.id === state.currentLocationId),
     discovered: l.discovered,
+    visited: visited.has(l.id),
     current: l.id === state.currentLocationId,
     containsCurrent: pathToCurrent.has(l.id) && l.id !== state.currentLocationId,
     hasChildren: Object.values(state.locations).some((c) => c.parentId === l.id),

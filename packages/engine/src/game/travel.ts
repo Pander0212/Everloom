@@ -1,4 +1,5 @@
 /** Deterministic travel math: distance from map coordinates, time, energy and fare per mode. */
+import { blockers, checkRequirement, checkRequirements, routeRequirements } from './journey.js';
 import type { CampaignState, Location, MapLevel, RouteMode, Style } from './state.js';
 
 export interface TravelMode {
@@ -21,15 +22,19 @@ export const TRAVEL_MODES: TravelMode[] = [
   { id: 'horse', label: 'Horse', speed: 12, energyPerHour: 3, baseFare: 0, farePerKm: 0.05, access: ['road', 'trail'], styles: ['fantasy'], minKm: 1 },
   { id: 'carriage', label: 'Carriage', speed: 9, energyPerHour: 1, baseFare: 2, farePerKm: 0.15, access: ['road'], styles: ['fantasy'], minKm: 1 },
   { id: 'ship', label: 'Ship', speed: 15, energyPerHour: 1, baseFare: 8, farePerKm: 0.1, access: ['water'], styles: ['fantasy', 'modern'], minKm: 5 },
+  { id: 'caravan', label: 'Caravan', speed: 5, energyPerHour: 2, baseFare: 1, farePerKm: 0.04, access: ['road', 'trail'], styles: ['fantasy'], minKm: 10 },
+  { id: 'airship', label: 'Airship', speed: 60, energyPerHour: 0.5, baseFare: 15, farePerKm: 0.05, access: ['air'], styles: ['fantasy'], minKm: 30 },
   { id: 'portal', label: 'Portal', speed: 100000, energyPerHour: 0, baseFare: 20, farePerKm: 0, access: ['portal'], styles: ['fantasy', 'scifi'] },
   { id: 'bike', label: 'Bicycle', speed: 15, energyPerHour: 5, baseFare: 0, farePerKm: 0, access: ['road', 'trail'], styles: ['modern'] },
   { id: 'bus', label: 'Bus', speed: 25, energyPerHour: 1, baseFare: 2, farePerKm: 0.05, access: ['road'], styles: ['modern'], minKm: 1 },
   { id: 'taxi', label: 'Taxi', speed: 35, energyPerHour: 0, baseFare: 4, farePerKm: 1.2, access: ['road'], styles: ['modern'], minKm: 0.5 },
+  { id: 'subway', label: 'Subway', speed: 32, energyPerHour: 0.5, baseFare: 2.5, farePerKm: 0, access: ['rail'], styles: ['modern'], minKm: 1 },
   { id: 'car', label: 'Car', speed: 45, energyPerHour: 1, baseFare: 0, farePerKm: 0.12, access: ['road'], styles: ['modern'], minKm: 1 },
   { id: 'train', label: 'Train', speed: 90, energyPerHour: 0.5, baseFare: 6, farePerKm: 0.15, access: ['rail', 'road'], styles: ['modern'], minKm: 20 },
   { id: 'ferry', label: 'Ferry', speed: 25, energyPerHour: 0.5, baseFare: 5, farePerKm: 0.2, access: ['water'], styles: ['modern'], minKm: 2 },
   { id: 'plane', label: 'Flight', speed: 750, energyPerHour: 2, baseFare: 120, farePerKm: 0.08, access: ['air', 'road'], styles: ['modern'], minKm: 300 },
   { id: 'shuttle', label: 'Shuttle', speed: 80, energyPerHour: 0.5, baseFare: 3, farePerKm: 0.1, access: ['road', 'rail'], styles: ['scifi'], minKm: 1 },
+  { id: 'hovercar', label: 'Hovercar', speed: 90, energyPerHour: 0.5, baseFare: 0, farePerKm: 0.08, access: ['road', 'air'], styles: ['scifi'], minKm: 1 },
   { id: 'maglev', label: 'Maglev', speed: 400, energyPerHour: 0.5, baseFare: 12, farePerKm: 0.05, access: ['rail', 'road'], styles: ['scifi'], minKm: 30 },
   { id: 'starship', label: 'Starship', speed: 50000, energyPerHour: 1, baseFare: 200, farePerKm: 0.001, access: ['space', 'air', 'road'], styles: ['scifi'], minKm: 2000 },
 ];
@@ -94,6 +99,10 @@ export interface TravelOption {
   fare: number;
   available: boolean;
   reason?: string;
+  /** What would make this possible, when code can say. */
+  fix?: string;
+  /** Minutes until it becomes possible on its own (opening hours). */
+  wait?: number;
 }
 
 export function routeModesBetween(state: Pick<CampaignState, 'routes'>, fromId: string, toId: string): RouteMode[] {
@@ -130,13 +139,17 @@ export function travelOptions(state: CampaignState, fromId: string | null, toId:
     const fare = Math.round((mode.baseFare + mode.farePerKm * km) * 100) / 100;
     let available = reachable;
     let reason: string | undefined;
+    let fix: string | undefined;
+    let wait: number | undefined;
     if (!reachable) reason = 'No route for this mode';
     else if (mode.minKm && km < mode.minKm) {
       available = false;
       reason = 'Too close for this';
     } else if (fare > state.player.currency) {
       available = false;
-      reason = `Needs ${fare} ${state.meta.currency.name}`;
+      const c = checkRequirement(state, { kind: 'fare', amount: fare });
+      reason = c.reason;
+      fix = c.fix;
     } else if (energyTracker && energy > 0 && energyTracker.value - energy < 0) {
       available = false;
       reason = 'Too tired';
@@ -144,7 +157,16 @@ export function travelOptions(state: CampaignState, fromId: string | null, toId:
       available = false;
       reason = 'Too far to walk';
     }
-    options.push({ mode: mode.id, label: mode.label, km: Math.round(km * 100) / 100, minutes, energy, fare, available, reason });
+    if (available) {
+      const stop = blockers(checkRequirements(state, routeRequirements(state, fromId, toId, mode.access), { destination: state.locations[toId] ?? null }))[0];
+      if (stop) {
+        available = false;
+        reason = stop.reason;
+        fix = stop.fix;
+        wait = stop.wait;
+      }
+    }
+    options.push({ mode: mode.id, label: mode.label, km: Math.round(km * 100) / 100, minutes, energy, fare, available, reason, ...(fix ? { fix } : {}), ...(wait !== undefined ? { wait } : {}) });
   }
   return options.sort((a, b) => Number(b.available) - Number(a.available) || a.minutes - b.minutes);
 }

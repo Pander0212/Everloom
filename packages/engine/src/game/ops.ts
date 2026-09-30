@@ -486,6 +486,8 @@ export const OP_REFERENCE = `Allowed ops (JSON objects with "type"):
 - {"type":"bond.delta","from":"Iris Thorne","to":"Tobias Moreno","affinity":3,"tension":-2}  how one person feels about another; small steps
 - {"type":"goal.set","npc":"Tobias Moreno","text":"Find a singer before Friday","target":"Market Square"}
 - {"type":"thread.resolve","text":"The missing ferryman"}  an ongoing storyline was settled
+- {"type":"transit.add","name":"Coast Line","mode":"train","stops":["Northcrest","Eastport","Gull Bay"],"first":"06:00","last":"22:00","every":60,"hop":40,"fare":3,"farePerStop":1}  a scheduled line the story establishes (train, bus, ferry, airship, shuttle…); rides happen in the travel screen
+- {"type":"route.require","from":"Old Gate","to":"Palace","requires":[{"kind":"standing","org":"Royal Guard","min":70},{"kind":"hours","open":"08:00","close":"18:00"}]}  conditions code checks before travel (kinds: discovered, fare, vehicle, item, standing, reputation, quest, partySize, notWanted, hours, weather)
 - {"type":"shop.upsert","name":"Copper Kettle","kind":"general","npc":"Mara Quill","location":"Market Square","open":480,"close":1200}  a shop the story establishes (kinds: general, food, tavern, smith, alchemist, clothier, books, magic, tech, pharmacy, market, stable); purchases happen in the shop screen, not through ops
 - {"type":"home.add","name":"Loft over the Kettle","kind":"apartment","location":"Market Square","ownership":"rented","rent":10}  the player gains a place to live (kinds: house, apartment, room, guild, castle, cabin, campsite, cave, vehicle)
 - {"type":"household.add","name":"Pip","home":"Rose Cottage","role":"dependent","relation":"child"}  someone lives at (or, role "guest", regularly visits) one of the player's homes

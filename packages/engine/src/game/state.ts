@@ -740,6 +740,8 @@ export interface CampaignState {
   partyMeta: { leader: string; maxActive: number };
   mail: Record<string, Mail>;
   feed: FeedPost[];
+  /** The last arrival's consequences, shown in the scene until the next trip. */
+  arrival?: { at: number; locationId: string; mode: string; notes: string[] } | null;
 }
 
 export type WeatherKind = 'clear' | 'cloudy' | 'overcast' | 'rain' | 'storm' | 'snow' | 'fog' | 'wind' | 'heat';

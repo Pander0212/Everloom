@@ -16,8 +16,9 @@ import { logWorld, simulate, type Change } from './simulate.js';
 import type { CampaignState, Location, MapLevel, Npc, Org, Relationship } from './state.js';
 import { MAP_LEVELS } from './state.js';
 import { freeSpot } from './mapgen.js';
+import { arrive, logTrip } from './journey.js';
 import { defaultTravelOption, travelOptions } from './travel.js';
-import { accrueInterest, processAssets, processBills, restockShops } from './economy.js';
+import { accrueInterest, processAssets, processBills, restockShops, pay } from './economy.js';
 import { HANDLERS3, type Kit } from './handlers3.js';
 import { homeBonus } from './home.js';
 
@@ -569,6 +570,10 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       if (ctx.source === 'user') forget(s, loc.name);
       for (const l of Object.values(s.locations)) if (l.parentId === loc.id) l.parentId = loc.parentId;
       for (const r of Object.values(s.routes)) if (r.from === loc.id || r.to === loc.id) delete s.routes[r.id];
+      for (const l of Object.values(s.transit)) {
+        l.stops = l.stops.filter((id) => id !== loc.id);
+        if (l.stops.length < 2) delete s.transit[l.id];
+      }
       for (const n of Object.values(s.npcs)) if (n.locationId === loc.id) n.locationId = null;
       if (s.currentLocationId === loc.id) s.currentLocationId = loc.parentId;
       return;
@@ -580,10 +585,10 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       const opts = travelOptions(s, s.currentLocationId, dest.id);
       const chosen = op.mode ? opts.find((o) => o.mode === op.mode) : defaultTravelOption(opts);
       if (!chosen) throw new OpError('No way to get there');
-      if (!chosen.available) throw new OpError(chosen.reason ?? 'Not available');
+      if (!chosen.available) throw new OpError(chosen.fix ? `${chosen.reason}. ${chosen.fix}` : (chosen.reason ?? 'Not available'));
+      const fromId = s.currentLocationId;
       if (chosen.fare > 0) {
-        s.player.currency = Math.max(0, Math.round((s.player.currency - chosen.fare) * 100) / 100);
-        changes.push({ key: 'currency', label: s.meta.currency.name, delta: -chosen.fare, kind: 'currency' });
+        pay(s, chosen.fare, `${chosen.label} to ${dest.name}`, changes);
       }
       if (chosen.energy > 0 && s.trackers.energy) {
         const t = s.trackers.energy;
@@ -599,6 +604,8 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       logWorld(s, s.time.minutes, 'travel', `Travelled${fromName ? ` from ${fromName}` : ''} to ${dest.name} (${chosen.label}, ${chosen.minutes} min).`, true);
       advanceTime(s, chosen.minutes, changes);
       for (const npc of Object.values(s.npcs)) if (npc.locationId === dest.id) npc.lastSeenAt = s.time.minutes;
+      logTrip(s, fromId, dest.id, chosen.mode, chosen.minutes, chosen.fare);
+      arrive(s, dest, chosen.mode, chosen.minutes);
       return;
     }
     case 'route.add': {

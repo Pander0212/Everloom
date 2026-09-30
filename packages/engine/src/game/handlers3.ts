@@ -28,6 +28,8 @@ import {
   tradeAccepted,
 } from './economy.js';
 import { OpError } from './errors.js';
+import { arrive, blockers, carries, checkRequirements, linesAt, logTrip, planTrip, ticketName, ticketPrice } from './journey.js';
+import { logWorld } from './simulate.js';
 import { MIN_PER_DAY } from './calendar.js';
 import { AMENITIES, currentHome, defaultRooms, defaultStorage, findStorage, isAtHome, storedIn } from './home.js';
 import { defaultEffects, defaultSlot, guessCategory, iconForItem } from './items.js';
@@ -35,7 +37,7 @@ import type { ApplyContext } from './reducer.js';
 import type { OpOf, OpType } from './ops.js';
 import { findExact, findFuzzy, findItem, findNpc, nextCounter, uniqueId } from './resolve.js';
 import type { Change } from './simulate.js';
-import type { Account, CampaignState, Home, HouseholdMember, Item, Location, ScheduleSlot } from './state.js';
+import type { Account, CampaignState, Home, HouseholdMember, Item, Location, Route, ScheduleSlot } from './state.js';
 
 export interface Kit {
   ctx: ApplyContext;
@@ -57,6 +59,12 @@ function findHome(s: CampaignState, nameOrId: string): Home {
   const h = s.homes[nameOrId] ?? findExact(s.homes, nameOrId) ?? findFuzzy(s.homes, nameOrId);
   if (!h) throw new OpError(`Unknown home "${nameOrId}"`);
   return h;
+}
+
+function findLine(s: CampaignState, nameOrId: string) {
+  const l = s.transit[nameOrId] ?? findExact(s.transit, nameOrId) ?? findFuzzy(s.transit, nameOrId);
+  if (!l) throw new OpError(`No transit line "${nameOrId}"`);
+  return l;
 }
 
 function findMember(s: CampaignState, nameOrId: string): HouseholdMember {
@@ -525,6 +533,72 @@ export const HANDLERS3: Handlers = {
     const r = findExact(s.recipes, op.recipe) ?? findFuzzy(s.recipes, op.recipe);
     if (!r) throw new OpError(`Unknown recipe "${op.recipe}" (built-in recipes can't be removed)`);
     delete s.recipes[r.id];
+  },
+  // ---------------- transit
+  'transit.add': (s, op, kit) => {
+    const stops = op.stops.map((n) => kit.ensureLocation(n).id);
+    if (new Set(stops).size < 2) throw new OpError('A line needs at least two different stops');
+    const existing = findExact(s.transit, op.name);
+    const id = existing?.id ?? uniqueId(s.transit, 'line', op.name);
+    s.transit[id] = { id, name: op.name, mode: op.mode, stops, first: op.first, last: Math.max(op.first, op.last), every: op.every, days: op.days, hop: op.hop, fare: op.fare, farePerStop: op.farePerStop, requires: op.requires };
+    if (!existing) text(kit.changes, `line:${id}`, op.name, `New ${op.mode} line`);
+  },
+  'transit.remove': (s, op) => {
+    delete s.transit[findLine(s, op.line).id];
+  },
+  'transit.ticket': (s, op, { changes, ctx }) => {
+    const line = findLine(s, op.line);
+    if (ctx.source === 'user' && !linesAt(s, s.currentLocationId).includes(line)) throw new OpError(`Buy ${line.name} tickets at one of its stops`);
+    const price = ticketPrice(line);
+    pay(s, price * op.qty, `${op.qty}× ${ticketName(line)}`, changes);
+    giveItem(
+      s,
+      { name: ticketName(line), category: 'misc', qty: op.qty, desc: `Good for one ride on the ${line.name}, any distance.`, icon: iconForItem('ticket', 'misc'), value: price, equipped: false, slot: null, effects: {}, stats: {}, containerId: null, locked: false, tags: ['ticket'], addedAt: s.time.minutes, holder: null },
+      changes,
+    );
+  },
+  'transit.ride': (s, op, kit) => {
+    const { changes } = kit;
+    const line = findLine(s, op.line);
+    const from = s.currentLocationId;
+    if (!from || !line.stops.includes(from)) throw new OpError(`You're not at a ${line.name} stop`);
+    const dest = line.stops.map((id) => s.locations[id]!).find((l) => l && (l.id === op.to || normalizeName(l.name) === normalizeName(op.to))) ?? findFuzzy(Object.fromEntries(line.stops.map((id) => [id, s.locations[id]!])), op.to);
+    if (!dest) throw new OpError(`The ${line.name} doesn't stop at "${op.to}"`);
+    const trip = planTrip(s, line, from, dest.id);
+    if (!trip) throw new OpError(`No ${line.name} departures to ${dest.name}`);
+    const stop = blockers(checkRequirements(s, line.requires, { destination: dest }))[0];
+    if (stop) throw new OpError(`${stop.reason}. ${stop.fix}`);
+    let cost = 0;
+    if (carries(s, ticketName(line))) removeQty(s, Object.values(s.inventory).find((i) => !i.holder && i.name === ticketName(line))!.name, 1, changes);
+    else if (trip.fare > 0) {
+      if (s.player.currency + 1e-9 < trip.fare) {
+        const [fare] = checkRequirements(s, [{ kind: 'fare', amount: trip.fare }]);
+        throw new OpError(`${fare!.reason}. ${fare!.fix}`);
+      }
+      pay(s, trip.fare, `${line.name}: ${trip.from.name} → ${dest.name}`, changes);
+      cost = trip.fare;
+    }
+    kit.advanceTime(trip.wait + trip.ride);
+    s.currentLocationId = dest.id;
+    dest.discovered = true;
+    dest.visited = true;
+    text(changes, 'location', 'Location', `Took the ${line.name} to ${dest.name}`);
+    logWorld(s, s.time.minutes, 'travel', `Took the ${line.name} from ${trip.from.name} to ${dest.name} (${trip.stops} stop${trip.stops === 1 ? '' : 's'}, waited ${trip.wait} min).`, true);
+    logTrip(s, from, dest.id, line.mode, trip.wait + trip.ride, cost);
+    for (const npc of Object.values(s.npcs)) if (npc.locationId === dest.id) npc.lastSeenAt = s.time.minutes;
+    arrive(s, dest, line.mode, trip.ride);
+  },
+  'route.require': (s, op, kit) => {
+    const a = kit.ensureLocation(op.from);
+    const b = kit.ensureLocation(op.to);
+    let routes = Object.values(s.routes).filter((r) => ((r.from === a.id && r.to === b.id) || (r.from === b.id && r.to === a.id)) && (!op.mode || r.mode === op.mode));
+    if (!routes.length) {
+      const mode = op.mode ?? 'road';
+      const id = `route_${[a.id, b.id].sort().join('__')}_${mode}`;
+      s.routes[id] = { id, from: a.id, to: b.id, mode, minutes: null };
+      routes = [s.routes[id]!];
+    }
+    for (const r of routes) r.requires = op.requires as Route['requires'];
   },
   craft: (s, op, kit) => {
     const recipe = findRecipe(s, op.recipe);

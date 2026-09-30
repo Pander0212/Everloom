@@ -1,6 +1,6 @@
 import type { CampaignState, Location, LocationKind, MapLevel, MapNode, MapScene, Op, PinKind, RouteMode, TravelOption } from '@everloom/engine';
-import { childLevelOf, defaultTravelOption, generateMapScene, locationPath, MAP_LEVELS, travelOptions } from '@everloom/engine';
-import { Car, ChevronRight, CircleDot, DoorOpen, Info, Landmark, LocateFixed, MapPin, MapPinPlus, Minus, Pencil, Plus, Route, Skull, Sparkles, Store, TrainFront, Trash2, type LucideIcon } from 'lucide-react';
+import { childLevelOf, defaultTravelOption, generateMapScene, linesAt, locationPath, MAP_LEVELS, travelOptions } from '@everloom/engine';
+import { Car, ChevronRight, CircleDot, Clock, Footprints, DoorOpen, Info, Landmark, LocateFixed, MapPin, MapPinPlus, Minus, Pencil, Plus, Route, Skull, Sparkles, Store, TrainFront, Trash2, type LucideIcon } from 'lucide-react';
 import { animate, useReducedMotion } from 'motion/react';
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react';
 import { post } from '@/lib/api';
@@ -10,6 +10,7 @@ import { setCampaignState } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
 import { Badge, Button, confirm, Dialog, Field, Icon, IconButton, Input, Popover, Select, Sheet, Textarea, ToggleRow } from '@/ui';
 import { useGame } from '../context';
+import { JourneySheet, RideList } from './Journeys';
 import { NoCampaign, ToolSheet } from './ToolSheet';
 
 const LEVEL_LABEL: Record<MapLevel, string> = { world: 'World', region: 'Region', local: 'Local', nearby: 'Nearby', area: 'Area' };
@@ -128,6 +129,8 @@ export default function MapTool({ arg }: { arg?: string }) {
   const [placing, setPlacing] = useState(false);
   const [placeAt, setPlaceAt] = useState<{ x: number; y: number } | null>(null);
   const [expanding, setExpanding] = useState(false);
+  const [showVisited, setShowVisited] = useState(false);
+  const [journeys, setJourneys] = useState(false);
   const [view, setView] = useState<View>({ x: 0, y: 0, k: 1 });
   const viewRef = useRef(view);
   viewRef.current = view;
@@ -208,6 +211,7 @@ export default function MapTool({ arg }: { arg?: string }) {
       description={path.length ? path.map((l) => l.name).join(' › ') : s.meta.title || 'World'}
       size="full"
       flush
+      headerActions={<IconButton icon={TrainFront} label="Journeys" onClick={() => setJourneys(true)} />}
       footer={
         <>
           <Button variant={placing ? 'primary' : 'secondary'} icon={MapPinPlus} className="flex-1" onClick={() => setPlacing((p) => !p)} aria-pressed={placing}>
@@ -239,6 +243,15 @@ export default function MapTool({ arg }: { arg?: string }) {
               </button>
             );
           })}
+          <span className="flex-1" />
+          <button
+            aria-pressed={showVisited}
+            onClick={() => setShowVisited((v) => !v)}
+            className={cx('pressable flex h-8 flex-none items-center gap-1.5 rounded-md px-3 text-xs font-medium', showVisited ? 'bg-accent-soft text-accent-text' : 'text-fg-2 hover:bg-surface-2 hover:text-fg')}
+          >
+            <Icon icon={Footprints} size={14} />
+            Visited
+          </button>
         </div>
         <MapCanvas
           scene={scene}
@@ -250,6 +263,7 @@ export default function MapTool({ arg }: { arg?: string }) {
           }}
           onMeasure={() => !touched.current && frame()}
           placing={placing}
+          showVisited={showVisited}
           selected={selected}
           onNode={(n) => {
             setSelected(n.id);
@@ -295,6 +309,16 @@ export default function MapTool({ arg }: { arg?: string }) {
         }}
       />
 
+      <JourneySheet
+        open={journeys}
+        onOpenChange={setJourneys}
+        onShow={(loc) => {
+          setJourneys(false);
+          setParentId(loc.parentId ?? null);
+          setSelected(loc.id);
+        }}
+      />
+
       <PlaceDialog
         at={placeAt}
         state={s}
@@ -317,6 +341,7 @@ function MapCanvas({
   view,
   setView,
   placing,
+  showVisited,
   selected,
   onNode,
   onPlace,
@@ -325,6 +350,7 @@ function MapCanvas({
   onMeasure,
 }: {
   onMeasure: () => void;
+  showVisited?: boolean;
   scene: MapScene;
   view: View;
   setView: (v: View) => void;
@@ -497,10 +523,12 @@ function MapCanvas({
               <g
                 key={n.id}
                 transform={`translate(${n.x} ${n.y}) scale(${inv})`}
+                opacity={showVisited && !n.visited && !n.current && !n.containsCurrent ? 0.3 : 1}
+                data-visited={n.visited || undefined}
                 className="cursor-pointer"
                 role="button"
                 tabIndex={0}
-                aria-label={n.discovered || n.current ? `${n.name}${n.current ? ', you are here' : n.containsCurrent ? ', you are inside' : ''}` : 'Unknown place, unexplored'}
+                aria-label={n.discovered || n.current ? `${n.name}${n.current ? ', you are here' : n.containsCurrent ? ', you are inside' : ''}${showVisited && n.visited && !n.current ? ', visited' : ''}` : 'Unknown place, unexplored'}
                 data-testid="map-node"
                 onClick={(e) => {
                   // While placing, let the tap fall through to the canvas.
@@ -525,6 +553,7 @@ function MapCanvas({
                   strokeWidth={active ? 3 : 1.5}
                   strokeDasharray={n.discovered ? undefined : '3 3'}
                 />
+                {showVisited && n.visited && !n.current ? <circle cx={10} cy={-10} r={4.5} fill="var(--accent)" stroke="var(--surface)" strokeWidth={1.5} /> : null}
                 <I x={-8} y={-8} width={16} height={16} strokeWidth={1.75} color={n.current ? 'var(--accent-fg)' : n.discovered ? 'var(--text)' : 'var(--text-3)'} aria-hidden="true" />
                 <text
                   y={28}
@@ -594,6 +623,7 @@ function NodeSheet({ loc, state: s, onClose, onEnter, onTravel }: { loc: Locatio
   const [routeMode, setRouteMode] = useState<RouteMode>('road');
   const options: TravelOption[] = useMemo(() => (loc && loc.id !== s.currentLocationId ? travelOptions(s, s.currentLocationId, loc.id) : []), [loc, s]);
   const def = defaultTravelOption(options);
+  const blocked = options.filter((o, i) => o.fix && options.findIndex((x) => x.reason === o.reason) === i);
   useEffect(() => {
     setMode(null);
     setEditing(false);
@@ -664,6 +694,19 @@ function NodeSheet({ loc, state: s, onClose, onEnter, onTravel }: { loc: Locatio
         {!here ? (
           <div>
             <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-3">Getting there</h3>
+            {blocked.length ? (
+              <ul className="mb-2 flex flex-col gap-1.5" aria-label="What's in the way">
+                {blocked.map((o) => (
+                  <li key={o.reason} className="flex items-center gap-2 rounded-md bg-surface-2 px-3 py-2 text-xs">
+                    <span className="min-w-0 flex-1">
+                      <span className="block font-medium text-fg">{o.reason}</span>
+                      <span className="block text-fg-2">{o.fix}</span>
+                    </span>
+                    {o.wait ? (
+                      <Button size="sm" variant="secondary" icon={Clock} onClick={() => apply({ type: 'time.advance', minutes: o.wait } as Op)}>
+                        Wait
+                      </Button>
+                    ) : null}
             {options.length ? (
               <div role="radiogroup" aria-label="Travel mode" className="flex flex-col gap-1">
                 {options.map((o) => {
@@ -692,6 +735,16 @@ function NodeSheet({ loc, state: s, onClose, onEnter, onTravel }: { loc: Locatio
             ) : (
               <p className="text-sm text-fg-3">No way to get there from here.</p>
             )}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
+            {linesAt(s, s.currentLocationId).some((l) => l.stops.includes(loc.id)) ? (
+              <div className="mt-3">
+                <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-3">Scheduled</h3>
+                <RideList s={s} to={loc} />
+              </div>
+            ) : null}
           </div>
         ) : null}
 

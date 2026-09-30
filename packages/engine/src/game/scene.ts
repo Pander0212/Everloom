@@ -7,6 +7,7 @@
  */
 import { currentHome, presentAt } from './home.js';
 import { formatMoney, shopOpen } from './economy.js';
+import { linesAt, nextDeparture } from './journey.js';
 import { estimateTokens, truncate } from '../util/text.js';
 import { formatClock, formatDate, formatDuration, partOfDay } from './calendar.js';
 import { exitsFrom } from './injection.js';
@@ -192,6 +193,15 @@ export function buildSceneBlock(s: CampaignState, view: SceneView = {}, opts: Sc
   for (const shop of Object.values(s.economy?.shops ?? {}).filter((x) => x.locationId && x.locationId === loc?.id).slice(0, 3)) {
     const keeper = shop.npcId ? s.npcs[shop.npcId]?.name : null;
     add('LOCATION', `SHOP: ${shop.name} (${shop.kind})${keeper ? `, kept by ${keeper}` : ''} — ${shopOpen(s, shop) ? 'open' : 'closed now'}. Sales happen through the shop screen; narrate, don't change money or items for purchases.`, 'world', 1);
+  }
+  if (s.arrival && s.arrival.locationId === loc?.id && now - s.arrival.at <= 90 && s.arrival.notes.length) {
+    add('LOCATION', `JUST ARRIVED (by ${s.arrival.mode}): ${s.arrival.notes.join('; ')}. Work these into the scene.`, 'world', 1);
+  }
+  for (const line of linesAt(s, loc?.id ?? null).slice(0, 3)) {
+    const others = line.stops.filter((id) => id !== loc?.id).map((id) => s.locations[id]?.name).filter(Boolean);
+    const idx = line.stops.indexOf(loc!.id);
+    const next = nextDeparture(s, line, idx, idx === line.stops.length - 1 ? idx - 1 : idx + 1, now);
+    add('LOCATION', `TRANSIT: ${line.name} (${line.mode}) to ${others.join(', ')}${next !== null ? `; next departure ${formatClock(next, s.meta.calendar)}` : ''}. Rides happen through the travel screen.`, 'world', 1);
   }
   const soon = Object.values(s.economy?.bills ?? {})
     .filter((b) => b.status === 'active' && (b.missed > 0 || b.nextDue - now <= 3 * 1440))
