@@ -47,7 +47,7 @@ export function Segmented<V extends string>({ options, value, onChange, size = '
           role="radio"
           aria-checked={value === o.value}
           onClick={() => onChange(o.value)}
-          className={cx('pressable relative flex-1 rounded-[8px] px-3 font-medium outline-none', size === 'sm' ? 'h-8 text-xs' : 'h-9 text-sm', value === o.value ? 'text-fg' : 'text-fg-2 hover:text-fg')}
+          className={cx('pressable relative flex-1 whitespace-nowrap rounded-[8px] px-3 font-medium outline-none', size === 'sm' ? 'h-8 text-xs' : 'h-9 text-sm', value === o.value ? 'text-fg' : 'text-fg-2 hover:text-fg')}
         >
           {value === o.value ? <motion.span layoutId={`seg-${id}`} className="absolute inset-0 rounded-[8px] bg-surface shadow-1 dark:bg-surface-3" transition={t.indicator} /> : null}
           <span className="relative">{o.label}</span>

@@ -14,6 +14,7 @@ import { Avatar, Button, confirm, IconButton, Menu, Spinner } from '@/ui';
 import { Composer } from './Composer';
 import { generate, stop, useGen } from './gen';
 import { Message, type MessageActions } from './Message';
+import { CastStrip } from '../game/CastStrip';
 import { WorldInspector } from '../inspector/WorldInspector';
 import { MemorySheet } from '../memory/MemorySheet';
 import { ChatInfoSheet, InspectorSheet, NoteSheet, SearchSheet } from './sheets';
@@ -225,7 +226,10 @@ export default function StoryView() {
             })}
           </div>
         ) : c.campaignId ? (
-          <ComposerChips campaign={campaign.data ?? null} target={target} setTarget={setTarget} setComposer={setComposer} composer={composer} chatId={id} busy={busy} />
+          <>
+            <CastStrip />
+            <ComposerChips campaign={campaign.data ?? null} target={target} setTarget={setTarget} setComposer={setComposer} composer={composer} chatId={id} busy={busy} />
+          </>
         ) : null
       }
     />

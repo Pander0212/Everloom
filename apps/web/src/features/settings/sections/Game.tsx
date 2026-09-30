@@ -16,7 +16,7 @@ export function CostLabel({ text, cost }: { text: ReactNode; cost: 'background' 
 const PROFILE_HINT: Record<string, string> = {
   cheap: 'The tracker call after each reply, plus a chronicle read every 30 turns. Summaries fold in plain text.',
   balanced: 'Adds model-written summaries and off-screen life every few turns, and meaning-based recall when an embeddings connection is set. Nothing slows the reply down.',
-  max: 'Everything, more often, plus a quick read of your message before each reply (movement, time, dice) — adds a little latency.',
+  max: 'Max immersion: everything, more often, plus a quick read of your message before each reply (movement, time, dice) — adds a little latency.',
   custom: 'Your own mix of the switches below.',
 };
 
@@ -34,7 +34,7 @@ function WorldSection() {
           options={[
             { value: 'cheap', label: 'Cheap' },
             { value: 'balanced', label: 'Balanced' },
-            { value: 'max', label: 'Max immersion' },
+            { value: 'max', label: 'Max' },
             { value: 'custom', label: 'Custom' },
           ]}
         />
