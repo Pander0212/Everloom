@@ -2,7 +2,43 @@
 
 Snapshot of what's built, what's partial, and how it was tested. Everloom 0.1.0.
 
-## Summary
+## Phase 2 (World Engine ideas + Character Library features)
+
+Decisions, the memory benchmark and call costs are in [docs/PHASE2_DECISIONS.md](docs/PHASE2_DECISIONS.md).
+
+### Done ✅
+- **One engine**: memory, the living world and the game layer share one op log anchored to message + swipe; swipe, edit, delete, continue and branch roll back exactly (soak test: 60 turns with repeated swipe cycles fold back to identical state and memory).
+- **Memory** (top priority): who saw what vs who heard, gossip with distortion, secrets that never travel, versioned facts with conflicts and an evidence firewall, scene/day/chapter summaries, hybrid recall (BM25 + embeddings + people/place/importance/recency), "Why recalled?", editable Memory screen. Benchmark over 320 turns: recall 28% → 86%, knowledge leaks 14% → 0%, current fact shown 57% → 100%, stale facts 29% → 0%; a second, untuned campaign: recall 31% → 100%.
+- **Living world**: intent and movement with companions, dice with swipe-stable rolls, the pulse, schedules and goals with route-finding, off-screen life, relationship caps and earned labels, threads and storyline seeding, deadlines and world facts, outfits and vitals, sovereign party members, world import from a lorebook or card.
+- **World inspector**: the scene block the model saw, every change with revert, the model call log, a health check with one-click fixes, unresolved names.
+- **Cost presets** Cheap / Balanced / Max with measured calls per turn (about 2.0 / 2.5 / 4.4 model calls).
+- **Character library, items 1–14**: library view with filter language and presets, batch actions with undo, detail sheet, versions with diffs, collections, duplicates and display names, Character studio, related + "What should I play?", chat history browser, bundles (and SillyTavern zips), AI lorebook entries in the existing Lore screens, media localization + integrity check, custom CSS with assistant and safe mode, online sources (Chub).
+- **Also fixed**: pictures in creator notes (blocked by the app's security policy) now load through an authenticated image proxy; after an update, a page on the old build reloads once or offers Reset instead of spinning; character changes refresh other devices; the Background model can now be picked in Settings.
+
+### Partial or not built
+- **Chub isn't verified live.** Its API and terms page are geo-blocked from the build environment, so the provider follows the response shape established open-source clients use, and tests run on fixtures built to that shape rather than live recordings. Please try it from your server; if Chub changes a field, the mapping is one small function (`packages/engine/src/library/sources.ts`).
+- **Other sources** (Character Tavern, Wyvern, Pygmalion): not built; no public, documented catalog API was found. Chub's follow and timeline features aren't built either (optional in the spec).
+- **Creator-hidden definitions** are refused by design, with no workaround.
+- The memory benchmark was run in mock mode; its real-model mode (`MEMORY_BENCH_URL`) wasn't run here, since no model API is available in this environment.
+- The studio returns each result at once (no token streaming).
+- **Open:** the custom CSS e2e failed once on 360×800 light (a visibility check), in a subset run right after the final rebuild. It passed in the full run and in 42 repeats since, and that run's artifacts were overwritten, so the cause isn't known yet. If it shows up again, keep `tests/e2e/.artifacts/results` from that run.
+
+### Phase 2 tests
+| Suite | Result |
+| --- | --- |
+| Engine unit tests (Vitest) | 143 passed (16 files) |
+| Server tests (Vitest, real SQLite, mock model) | 80 passed (19 files) |
+| Playwright e2e: 17 flows × 8 projects (+ setup) | 137 passed, 0 failed, zero console errors (16 min) |
+
+New in Phase 2:
+- **Engine**: memory (knowledge scoping, gossip, facts and conflicts, recall scoring, summaries), chronicler planning, the scene block and its drop order, dice odds and swipe-stable rolls, relationship caps and earned labels, threads, the pulse, deadlines, the fact firewall, NPC/place dedupe, the library filter parser and tri-state tags, card diffs and hashes, duplicates, related, the studio prompts and parsing, the recommender, lorebook entry generation, remote-media scanning, the Chub mapping.
+- **Server**: memory across swipe/edit/delete/branch, the chronicler watermark, consolidation, the **memory benchmark** with thresholds (200 turns), a **soak test** (60 turns, swipe cycles fold back to identical state and memory), a **migration test** (a real Phase 1 database upgrades with nothing lost), the World inspector and health fixes, versions/diff/restore, bundles round-trip (Everloom → zip → Everloom, and SillyTavern zips), duplicates, the studio, the recommender, lorebook AI, custom CSS cleaning, media localization and the integrity check (including the private-address guard), the image proxy, online sources against fixtures (caching, rate limiting, adult content enforced by the server, hidden definitions refused, encrypted token), and **calls per preset**.
+- **E2E**: 2,000-character library (windowed, filtered within budget), sandboxed notes run no scripts, select/delete/undo and bundle import, "What should I play?", media check, the studio (brainstorm → write → refine → revise a selection → undo → save → overwrite), lorebook AI, custom CSS and safe mode, online sources, and recovery after an update.
+- Protections were checked by breaking them on purpose (the tests must then fail): memory edit rollback, the soak, clean-on-save for CSS, the private-address guard, the "still referenced" scan in the integrity check, adult-content enforcement, and both halves of the update recovery.
+
+Latency (mock model, Send → first token, balanced): Phase 1 259 / 323 ms, Phase 2 264 / 327 ms (median / p90, +2%).
+
+## Summary (Phase 1)
 
 All five tiers are built and pass their tests. The roleplay core (Tier 1) and the game core (Tier 2) are complete; the world (Tier 3) and depth features (Tier 4) are complete apart from the smaller gaps listed under **Partial**.
 
@@ -32,7 +68,7 @@ Voice (browser voices, OpenAI-compatible speech, ElevenLabs; per-character voice
 - **Battle:** full-screen sheet with animated HP bars and floating damage numbers; no sprite-level hit animations.
 - **Phone:** recent texts are always included in the story prompt (last two game days); there's no manual "summarize this thread" button.
 
-## Tests
+## Tests (Phase 1 snapshot)
 
 | Suite | Result |
 | --- | --- |
