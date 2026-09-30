@@ -179,10 +179,58 @@ How it got there (each step measured on the benchmark): the first version recall
 
 ## Part B — Character Library
 
-PART_B_PLACEHOLDER
+Character Library (the SillyTavern extension, AGPL-3.0) was used as a specification of features and behavior; no code was copied into Everloom. Everloom has a real database, so everything below is rebuilt on top of it rather than on SillyTavern's folders.
+
+| # | Feature | Decision | How it works in Everloom |
+| --- | --- | --- | --- |
+| 1 | Library view | **Built** | Windowed grid/list (only visible cards are in the DOM; the e2e test opens and filters 2,000 characters within its 5 s / 2 s budgets) with a filter language (`tag:`, `-tag:`, `creator:`, `tokens>1500`, `has:lorebook`, `has:chats`, `fav`, `linked:`, `in:<collection>` …), tri-state tag chips, sorts, saved filter presets and a default preset. Card info on hover/long-press. |
+| 2 | Multi-select and batch actions | **Built** | Tag/untag, favorite, add to/remove from a collection, export, delete. Deletes go to a one-day trash and can be undone. |
+| 3 | Detail sheet | **Built** | Tabs for details (creator notes in a sandboxed frame, greetings), edit, chats, gallery, lorebook, related, versions, and an Info tab for troubleshooting. Previous/next through the filtered list. |
+| 4 | Versions and snapshots | **Built** | A version is saved before every change to a card (plus manual ones with a label), with a word-level diff per field, restore (itself undoable) and a retention setting. Stored in `character_versions`. |
+| 5 | Collections | **Built** | Named, ordered virtual folders with icon and color; a character can be in several. |
+| 6 | Duplicates and display names | **Built** | Groups by content hash, name similarity and matching fields; merging moves the others' chats to the one you keep and deletes the rest (undoable). A display name is a local nickname that never changes the card. |
+| 7 | Character studio | **Built** | `/characters/studio`: brainstorm five concepts, write a full card from a brief, refine the whole card, (re)write one field, or select a passage and revise just that (quick chips or your own words). Built-in styles plus your own system prompts, a choice of connection, undo, start from an existing character, save as new or overwrite (a version is kept). Uses the main model; each call is in the call log. |
+| 8 | Related and recommender | **Built** | Related: deterministic score from shared tags (rarer tags count more), same creator and description similarity, each with its reason. "What should I play?": the utility model picks three from a sample of the library (mood matches, favorites, forgotten and never-played ones, random) and says why; picks map back through short numbers, so it can't invent a character. |
+| 9 | Chat history browser | **Built** | Every chat across all characters, virtualised, with search inside messages, filters, sorts, presets, and a jump straight to the matching message. |
+| 10 | Bundles | **Built** | One zip with cards, chats, gallery media and lorebooks, previewed before import with per-character conflict choices (skip, keep both, replace with a version kept). Reads SillyTavern zips (cards + `chats/<name>/*.jsonl`). Guards against zip bombs. |
+| 11 | Lorebook manager with AI entries | **Built into the existing Lore screens** | Search across lorebooks; in a lorebook, "Generate entries" proposes entries on a topic (skipping ones already there) and adds only the ones you tick; each entry has "Write/Improve with AI" with undo. A character's lorebook gives the model that character as context. No second lorebook UI. |
+| 12 | Media localization and integrity | **Built** | "Media check" saves the remote images cards link to and points the cards at the copies (a version is kept; the original link is remembered, so a lost file can be downloaded again). The integrity check finds lost files, stray files, unused media and broken avatar/gallery links, and fixes only what you tick. Media counts as used if its id appears anywhere in the database, version history and trash included, so nothing still referenced is ever offered for deletion. Everloom's database ids already avoid SillyTavern's shared-name gallery problem, so no workaround was copied. |
+| 13 | Custom CSS and assistant | **Built** | Snippets you can add, enable, reorder, rename, duplicate and delete. The assistant knows the design tokens and stable `ev-*` class hooks, writes and revises snippets, and its output is cleaned like everything else (no `@import`, no remote `url()`, no legacy script-in-CSS). Settings never gets custom CSS, and `?safe-mode` turns it off for the browser session. |
+| 14 | Online sources | **Built for Chub; others checked and not built** | See below. |
+
+**Online sources in detail.** One provider interface (search, preview, import, latest version, link recognition), with the server doing all fetching: cached (search 10 min, previews 30 min, update checks always fresh), rate limited per provider (bursts of 5, then 2 a second; pictures 24 then 8), pictures proxied, and everything through the same guard that stops content from making the server call loopback, private or link-local addresses. Imports link the character to its source; search shows "In library" and can hide owned ones; a link scanner finds unlinked cards that name their source page; update checks show field-level diffs and apply the fields you choose, keeping the previous version. Adult content is off by default and enforced on the server whatever the page asks for. An optional Chub API key is stored encrypted like the other secrets and never sent back to the browser.
+
+- **Chub**: built on the openly accessible endpoints established open-source clients use (`/search`, `/api/characters/{creator}/{name}?full=true`). A card whose creator hid its definition is refused, with no fallback to the card image or anything else. **Verification gap:** Chub's API and terms page answer "not available in your country" from the environment Everloom was built in, so the terms couldn't be read there and nothing could be recorded live; tests use fixtures built to the documented response shape (`tests/fixtures/sources/chub/README.md`). Check it from your own server before relying on it.
+- **Character Tavern, Wyvern, Pygmalion**: no public, documented catalog API was found, so they weren't built. Adding one is a single provider file once one exists.
+- **Not built, on purpose**: Cloudflare or bot-protection bypasses, headless-browser scraping, userscript bridges, and anything that recovers definitions a creator hid.
+
+**Also fixed along the way.** Pictures in creator notes never showed: the app's security policy only allows its own images and the sandboxed notes frame inherits it. They now load through an authenticated image proxy with the same address guard, which also keeps phones from contacting third-party hosts. Character writes now refresh other open devices.
 
 ---
 
 ## Model calls per turn, by preset
 
-CALLS_PLACEHOLDER
+Every model call is logged (Settings → World inspector → Model calls). Measured by `apps/server/test/cost.test.ts`, which plays the same 30 turns under each preset with off-screen characters present and counts calls by purpose; background calls (chronicler, consolidation, off-screen life, seeding, embeddings) run after the reply and never delay it.
+
+Measured over 30 turns with the mock model (apps/server/test/cost.test.ts).
+
+| Call | cheap | balanced | max |
+|---|---:|---:|---:|
+| chronicler | 0.03 | 0.03 | 0.10 |
+| consolidation | 0.00 | 0.10 | 0.23 |
+| memory embeddings | 0.00 | 0.50 | 1.00 |
+| off-screen life | 0.00 | 0.33 | 1.00 |
+| pre-read | 0.00 | 0.00 | 1.00 |
+| recall query embedding | 0.00 | 0.97 | 0.97 |
+| reply | 1.00 | 1.00 | 1.00 |
+| storyline seeding | 0.00 | 0.07 | 0.07 |
+| tracker | 1.00 | 1.00 | 1.00 |
+| **LLM calls / turn** | **2.03** | **2.53** | **4.40** |
+| embedding calls / turn | 0.00 | 1.47 | 1.97 |
+
+- **Cheap** = Phase 1's cost (one reply + one tracker call) plus a chronicler pass every 30 turns. Memory, gossip, dice, intent, threads and the pulse are all deterministic and free.
+- **Balanced** (default) adds semantic recall (one small embedding call per turn when an embeddings connection exists), consolidation, off-screen life every 3 turns and storyline seeding every 15.
+- **Max** adds the pre-read (a utility call *before* the reply, the only one that adds latency) and runs everything more often.
+- On-demand tools (studio, lorebook entries, recommender, CSS assistant) cost nothing until used.
+
+**Latency** (mock model, Send → first streamed token, balanced, median / p90): Phase 1 259 / 323 ms, Phase 2 264 / 327 ms (+2%).

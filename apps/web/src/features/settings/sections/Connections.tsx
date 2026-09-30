@@ -25,7 +25,7 @@ export default function ConnectionsSection() {
     const roles = [r.main === c.id && 'Main', r.utility === c.id && 'Utility', r.tts === c.id && 'Voice', r.image === c.id && 'Images', r.embeddings === c.id && 'Embeddings'].filter(Boolean) as string[];
     return roles.length ? <Badge tone="accent">{roles.join(' · ')}</Badge> : null;
   };
-  const roleSelect = (key: 'main' | 'utility' | 'embeddings' | 'tts' | 'image', label2: string, options: ConnectionDTO[], hint: string, emptyLabel: string) => (
+  const roleSelect = (key: 'main' | 'utility' | 'background' | 'embeddings' | 'tts' | 'image', label2: string, options: ConnectionDTO[], hint: string, emptyLabel: string) => (
     <Field label={label2} htmlFor={`role-${key}`} hint={hint}>
       <Select id={`role-${key}`} value={settings?.roles[key] ?? ''} onChange={(e) => update({ roles: { [key]: e.target.value || null } })}>
         <option value="">{emptyLabel}</option>
@@ -68,7 +68,8 @@ export default function ConnectionsSection() {
         <div className="flex flex-col gap-4">
           {roleSelect('main', 'Main model', llms, 'Used for story replies.', 'First connection')}
           {roleSelect('utility', 'Utility model', llms, 'Falls back to the main model.', 'Same as main model')}
-          {roleSelect('embeddings', 'Embeddings', llms.filter((c) => c.provider !== 'anthropic'), 'For semantic lorebook retrieval.', 'Same as main model')}
+          {roleSelect('background', 'Background model', llms, 'Memory chronicler and consolidation, off-screen life and storyline seeding. Runs after replies; a cheap model is fine.', 'Same as utility model')}
+          {roleSelect('embeddings', 'Embeddings', llms.filter((c) => c.provider !== 'anthropic'), 'Semantic memory recall and lorebook retrieval.', 'Same as main model')}
           {roleSelect('tts', 'Voice', list.filter((c) => c.provider.startsWith('tts-')), 'Used when voice provider is set to a connection.', 'None')}
           {roleSelect('image', 'Images', list.filter((c) => c.provider.startsWith('img-')), 'Portraits, sprites, backgrounds.', 'None')}
         </div>

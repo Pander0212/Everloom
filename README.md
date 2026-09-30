@@ -4,6 +4,8 @@ A self-hosted AI roleplay app for your phone, with a game layer built in.
 
 - **Roleplay frontend** — character cards (SillyTavern V1/V2/V3, PNG/WebP/JSON, round-trip), personas, lorebooks with SillyTavern-style World Info activation, presets with a prompt manager and inspector, macros, group chats, streaming, swipes, edit/branch/continue/impersonate, search, bookmarks, reasoning, memory summaries, voice and image generation. Works with OpenAI-compatible APIs (OpenRouter, DeepSeek, local servers…), Anthropic, Google Gemini and text-completion backends.
 - **Game layer** — after each reply a small model updates the game: time, weather, needs, items, money, quests, people, places, organizations and relationships. Every change is tied to the message and swipe that caused it, so swiping, editing, deleting or branching rolls the game back exactly. Time passing simulates the world (schedules, weather, birthdays, rumors, phone texts). There's a map with travel, an inventory, a journal, a calendar, a phone, a diary, a party, turn-based battles and a New Game wizard.
+- **Memory and a living world** — a memory that records who saw what (and who only heard about it), keeps secrets out of the wrong mouths, tracks facts as they change and recalls the right moment when it comes up again, all of it undone exactly by swipes and edits. People keep schedules and goals, talk to each other off-screen, relationships grow at a believable pace, background storylines creep forward, and dice decide risky actions. A World inspector shows what the model saw, every change, every model call, and a health check with fixes.
+- **Character library** — thousands of characters in a fast, filterable library with collections, batch actions, versions with diffs, duplicate finder, bundles (also SillyTavern zips), a chat history browser, a Character studio that writes and revises cards with you, AI-written lorebook entries, "What should I play?", saving linked images locally, custom CSS with an assistant, and browsing/importing from Chub with update checks.
 - **Yours** — one Linux server, your data, your API keys (encrypted on the server, never sent to the browser). Free and MIT licensed.
 
 Everloom listens on port **8787** (so it can sit next to SillyTavern on 8000).
@@ -74,10 +76,24 @@ It opens full screen like a normal app and keeps working through brief connectio
 
 Go to **Settings → Connections → Add connection** and pick a provider. Keys are stored encrypted on your server.
 
-Everloom uses two roles:
+Everloom uses up to four roles (**Settings → Connections**):
 
-- **Main** writes the story. Use the best model you're happy paying for.
-- **Utility** (optional) does bookkeeping: updating the game after each reply, summaries, the helper, NPC texts, map expansion and the New Game wizard. A small, cheap, fast model is ideal. Without one, Main does everything.
+- **Main** writes the story, and powers the Character studio and AI lorebook entries. Use the best model you're happy paying for.
+- **Utility** (optional) does bookkeeping: updating the game after each reply, the helper, NPC texts, map expansion, the New Game wizard, the recommender and the CSS assistant. A small, cheap, fast model is ideal. Without one, Main does everything.
+- **Background** (optional) runs after replies and never delays them: the memory chronicler and consolidation, off-screen life and storyline seeding. Falls back to Utility.
+- **Embeddings** (optional) make memory recall and lorebooks match by meaning, not just words. Any OpenAI-compatible or Gemini embeddings model; without one, recall uses keywords and everything else still works.
+
+### Cost presets
+
+**Settings → Game & trackers → World engine** has three presets (or switch things individually):
+
+| Preset | What runs | Model calls per turn (measured) |
+| --- | --- | --- |
+| **Cheap** | Reply + game update, memory with keyword recall, a chronicler pass every 30 turns. Dice, gossip, intent, storylines and the pulse are free (no model). | about 2.0, no embeddings |
+| **Balanced** (default) | Adds meaning-based recall, memory consolidation, off-screen life every 3 turns and new storylines every 15. | about 2.5 + 1.5 small embedding calls |
+| **Max** | Adds a pre-read of what you meant before each reply, and runs everything more often. | about 4.4 + 2 embedding calls |
+
+Everything beyond the reply and the game update runs in the background after the reply. Max's pre-read is the only extra call that comes before it. Details and the full table are in [docs/PHASE2_DECISIONS.md](docs/PHASE2_DECISIONS.md#model-calls-per-turn-by-preset); every call is listed in the World inspector.
 
 Keeping it cheap:
 
@@ -147,6 +163,7 @@ Set these in `.env` (Docker) or the environment:
 | `EVERLOOM_IMPORT_ROOTS` | `/import` in Docker, home folder otherwise | Colon-separated folders the SillyTavern importer may read |
 | `EVERLOOM_BACKUP_RETENTION` | `14` | Nightly backups to keep |
 | `SILLYTAVERN_DIR` | detected | Host path of an existing SillyTavern `data` folder, mounted read-only |
+| `EVERLOOM_FETCH_PRIVATE` | off | `1` lets images named in cards and online sources be fetched from private network addresses (LAN setups). Off, a card can't make the server call your network |
 | `LOG_LEVEL` | `warn` | `error`, `warn`, `info`, `debug` |
 
 ## Install without Docker
@@ -201,6 +218,7 @@ npm run dev            # server on :8787 and Vite on :5173 (proxied)
 npm test               # engine + server tests (Vitest)
 npm run test:e2e       # Playwright: phone, small phone, landscape and desktop in light and dark
 npm run mock-llm       # a fake model server for trying things without an API key
+npm run bench:memory   # the memory benchmark (Phase 1 vs now), see docs/PHASE2_DECISIONS.md
 npm run typecheck
 ```
 
@@ -242,6 +260,9 @@ It prints a new password, signs out every session and clears lockouts. (Without 
 - Strict Content-Security-Policy, HSTS (via Caddy), `nosniff`, no framing.
 - Uploads are checked by content, re-encoded (dropping EXIF/GPS) and size-limited; archive extraction rejects unsafe paths.
 - Everything except sign-in, first-run setup and the health check needs a session.
+- Content-driven fetches (images linked in cards, online sources, the image proxy) can't reach loopback, private or link-local addresses; the address is checked when connecting and on every redirect.
+- Creator notes render in a sandboxed frame that can't run scripts. Custom CSS is cleaned (no imports or remote resources) and never applies to Settings; add `?safe-mode` to any address to turn it off.
+- Online-source API keys are encrypted like the others. Adult content from online sources is off until you turn it on.
 
 ## License
 

@@ -15,6 +15,14 @@ export default function AboutSection() {
             </a>
             . Everloom is a separate, free implementation.
           </li>
+          <li>Memory and living-world ideas from World Engine, the owner's own extension, rebuilt here; no code copied.</li>
+          <li>
+            Character library ideas from{' '}
+            <a className="text-accent-text underline" href="https://github.com/Sillyanonymous/SillyTavern-CharacterLibrary" target="_blank" rel="noreferrer">
+              SillyTavern Character Library
+            </a>
+            , rebuilt here; no code copied.
+          </li>
           <li>File formats compatible with SillyTavern character cards, World Info and chats.</li>
           <li>Interface details adapted from uiverse.io (MIT) — see CREDITS.md for each author.</li>
           <li>Icons: Lucide (ISC). Fonts: Inter and Source Serif 4 (SIL OFL).</li>
