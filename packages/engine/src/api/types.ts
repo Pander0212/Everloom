@@ -216,6 +216,14 @@ export interface Settings {
   atmosphere: { enabled: boolean; particles: boolean };
   world: WorldSettings;
   library: LibrarySettings;
+  css: { snippets: CssSnippet[] };
+}
+
+export interface CssSnippet {
+  id: string;
+  name: string;
+  css: string;
+  enabled: boolean;
 }
 
 export interface FilterPreset {

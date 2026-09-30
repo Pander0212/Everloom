@@ -297,16 +297,14 @@ export default function LibraryPage() {
 
       {selecting ? (
         <div className="sticky bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+8px)] z-20 mt-4 flex items-center gap-1 rounded-lg bg-surface p-1.5 shadow-3 md:bottom-4 dark:bg-surface-2" role="toolbar" aria-label="Selected characters">
-          <IconButton icon={X} label="Stop selecting" onClick={() => setSelecting(false)} />
-          <span className="min-w-0 flex-1 truncate text-sm font-medium">{selected.size} selected</span>
-          <Button size="sm" variant="quiet" onClick={() => setSelected(selected.size === list.length ? new Set() : new Set(list.map((c) => c.id)))}>
-            {selected.size === list.length ? 'None' : 'All'}
-          </Button>
-          <IconButton icon={Tag} label="Add or remove tags" disabled={!selected.size} onClick={() => setTagDialog('tag')} />
-          <IconButton icon={Star} label="Favorite" disabled={!selected.size} onClick={() => void runBatch([...selected], { action: 'fav', value: true }, '{n} favorited')} />
-          <IconButton icon={Folder} label="Add to collection" disabled={!selected.size} onClick={() => setCollectFor([...selected])} />
-          <IconButton icon={Download} label="Export bundle" disabled={!selected.size} onClick={() => void downloadBundle([...selected]).catch(toastError)} />
-          <IconButton icon={Trash2} label="Delete selected" tone="danger" disabled={!selected.size} onClick={() => void remove([...selected])} />
+          <IconButton size="sm" icon={X} label="Stop selecting" onClick={() => setSelecting(false)} />
+          <span className="min-w-0 flex-1 whitespace-nowrap text-sm font-medium">{selected.size} selected</span>
+          <IconButton size="sm" icon={CheckSquare} active={selected.size === list.length && list.length > 0} label={selected.size === list.length ? 'Select none' : 'Select all shown'} onClick={() => setSelected(selected.size === list.length ? new Set() : new Set(list.map((c) => c.id)))} />
+          <IconButton size="sm" icon={Tag} label="Add or remove tags" disabled={!selected.size} onClick={() => setTagDialog('tag')} />
+          <IconButton size="sm" icon={Star} label="Favorite" disabled={!selected.size} onClick={() => void runBatch([...selected], { action: 'fav', value: true }, '{n} favorited')} />
+          <IconButton size="sm" icon={Folder} label="Add to collection" disabled={!selected.size} onClick={() => setCollectFor([...selected])} />
+          <IconButton size="sm" icon={Download} label="Export bundle" disabled={!selected.size} onClick={() => void downloadBundle([...selected]).catch(toastError)} />
+          <IconButton size="sm" icon={Trash2} label="Delete selected" tone="danger" disabled={!selected.size} onClick={() => void remove([...selected])} />
         </div>
       ) : null}
 

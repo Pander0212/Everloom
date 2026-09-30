@@ -61,9 +61,14 @@ export function startEvents() {
   });
   on('campaign.toast', (d) => d.changes?.length && toast({ title: 'Story update', lines: d.changes }));
   on('tracker.status', (d) => useLive.setState((s) => ({ tracker: { ...s.tracker, [d.messageId]: d.status } })));
+  // Bulk work (imports, scripts) can send hundreds of these; refetch once they settle.
+  let charTimer: ReturnType<typeof setTimeout> | undefined;
   on('characters.changed', () => {
-    void queryClient.invalidateQueries({ queryKey: ['characters'] });
-    void queryClient.invalidateQueries({ queryKey: ['collections'] });
+    clearTimeout(charTimer);
+    charTimer = setTimeout(() => {
+      void queryClient.invalidateQueries({ queryKey: ['characters'] });
+      void queryClient.invalidateQueries({ queryKey: ['collections'] });
+    }, 400);
   });
   on('memory.changed', () => void queryClient.invalidateQueries({ queryKey: ['memory'] }));
   on('chat.created', () => void queryClient.invalidateQueries({ queryKey: ['chats'] }));

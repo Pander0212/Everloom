@@ -4,7 +4,7 @@ import {
   DEFAULT_PRESET, type CardData, type PromptPreset,
 } from '@everloom/engine';
 import { createReadStream } from 'node:fs';
-import type { FastifyInstance } from 'fastify';
+import type { FastifyInstance, FastifyRequest } from 'fastify';
 import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
 import { listModels, testConnection } from '../llm/providers.js';
@@ -112,23 +112,28 @@ export function registerLibrary(app: FastifyInstance, ctx: AppContext) {
   // ---------------- characters
   app.get('/api/characters', async (req) => chars.listCharacters(ctx, owner(req)));
   app.get('/api/characters/:id', async (req) => chars.getCharacter(ctx, owner(req), (req.params as any).id));
+  /** Other tabs and devices refresh their library when a character changes. */
+  const changed = <T>(req: FastifyRequest, result: T): T => {
+    ctx.bus.publish(owner(req), 'characters.changed', {}, req.clientId);
+    return result;
+  };
   app.post('/api/characters', async (req) => {
     const body = (req.body ?? {}) as { card?: Partial<CardData>; avatar?: string };
     const card = { ...emptyCardData(), ...(body.card ?? {}) } as CardData;
     if (!card.name?.trim()) throw new HttpError(400, 'Name is required');
-    return chars.createCharacter(ctx, owner(req), card, { avatar: body.avatar ?? null });
+    return changed(req, chars.createCharacter(ctx, owner(req), card, { avatar: body.avatar ?? null }));
   });
-  app.patch('/api/characters/:id', async (req) => chars.updateCharacter(ctx, owner(req), (req.params as any).id, (req.body ?? {}) as any));
+  app.patch('/api/characters/:id', async (req) => changed(req, chars.updateCharacter(ctx, owner(req), (req.params as any).id, (req.body ?? {}) as any)));
   app.delete('/api/characters/:id', async (req) => {
     // Kept in the trash for a day, so the delete can be undone.
     const r = batch(ctx, owner(req), [(req.params as any).id], { action: 'delete' });
-    return { ok: true, undoId: r.undoId };
+    return changed(req, { ok: true, undoId: r.undoId });
   });
-  app.post('/api/characters/:id/duplicate', async (req) => chars.duplicateCharacter(ctx, owner(req), (req.params as any).id));
+  app.post('/api/characters/:id/duplicate', async (req) => changed(req, chars.duplicateCharacter(ctx, owner(req), (req.params as any).id)));
   app.post('/api/characters/import', async (req) => {
     const body = req.body as Buffer;
     if (!Buffer.isBuffer(body)) throw new HttpError(400, 'Send the card file as the request body');
-    return chars.importCard(ctx, owner(req), body);
+    return changed(req, await chars.importCard(ctx, owner(req), body));
   });
   app.get('/api/characters/:id/export', async (req, reply) => {
     const id = (req.params as any).id;
