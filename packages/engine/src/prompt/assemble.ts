@@ -308,7 +308,16 @@ export function assemblePrompt(input: AssemblyInput): AssembledPrompt {
     historyParts.unshift({ blockId: 'chatHistory', name: h.name, role: h.role, content, tokens, messageId: h.id });
     included++;
   }
-  const trimmed = history.length - included;
+  // When history has to be cut, cut at a multiple of 10 messages: the start of the history then
+  // stays the same for the next several turns, so provider prompt caching keeps working. What was
+  // cut is covered by the memory summaries; nothing is deleted.
+  const CHUNK = 10;
+  let trimmed = history.length - included;
+  if (trimmed > 0) {
+    const cut = Math.min(history.length - 1, Math.ceil(trimmed / CHUNK) * CHUNK);
+    while (history.length - historyParts.length < cut && historyParts.length > 1) remaining += historyParts.shift()!.tokens;
+    trimmed = history.length - historyParts.length;
+  }
 
   // Example-message anchors
   const emTop = input.worldInfo.emTop.join('\n');
@@ -354,7 +363,7 @@ export function assemblePrompt(input: AssemblyInput): AssembledPrompt {
     totalTokens: parts.reduce((s, p) => s + p.tokens, 0),
     budget,
     trimmedHistory: trimmed,
-    includedHistory: included,
+    includedHistory: historyParts.length,
     prefill,
   };
 }

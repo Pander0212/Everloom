@@ -4,13 +4,13 @@
  */
 import type { ChatDTO } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { AlertTriangle, Check, CheckCircle2, Copy, RefreshCw, Undo2, Wrench } from 'lucide-react';
+import { AlertTriangle, Check, CheckCircle2, Copy, Import, RefreshCw, Undo2, Wrench } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { get, post } from '@/lib/api';
 import { cx, relativeTime } from '@/lib/format';
-import { useCampaign } from '@/lib/queries';
+import { useCampaign, useLorebooks } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
-import { Badge, Button, confirm, EmptyState, Icon, IconButton, Menu, Segmented, Sheet, Spinner, TabPanel, Tabs } from '@/ui';
+import { Badge, Button, Checkbox, confirm, EmptyState, Field, Icon, IconButton, Menu, Segmented, Select, Sheet, Spinner, TabPanel, Tabs } from '@/ui';
 
 interface SceneDTO {
   source: 'last request' | 'preview';
@@ -62,6 +62,7 @@ export function WorldInspector({ chat, open, onOpenChange }: { chat: ChatDTO; op
     ...(game ? [{ value: 'changes', label: 'Changes' }] : []),
     { value: 'calls', label: 'Model calls' },
     ...(game ? [{ value: 'health', label: problems ? <span className="flex items-center gap-1.5">Health <Badge tone="warning">{problems}</Badge></span> : 'Health' }] : []),
+    ...(game ? [{ value: 'import', label: 'Import' }] : []),
   ];
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title="World inspector" description="What the narrator sees, what changed, and what it cost." size="lg">
@@ -79,6 +80,11 @@ export function WorldInspector({ chat, open, onOpenChange }: { chat: ChatDTO; op
         <TabPanel value="calls">
           <CallsPanel chatId={chat.id} open={open && tab === 'calls'} />
         </TabPanel>
+        {game ? (
+          <TabPanel value="import">
+            <ImportPanel chatId={chat.id} hasCard={!!chat.characterId} />
+          </TabPanel>
+        ) : null}
         {game ? (
           <TabPanel value="health">
             <HealthPanel chatId={chat.id} campaignId={chat.campaignId!} data={health.data} loading={health.isLoading} />
@@ -297,6 +303,124 @@ function HealthPanel({ chatId, campaignId, data, loading }: { chatId: string; ca
             ))}
           </ul>
         </section>
+      ) : null}
+    </div>
+  );
+}
+
+interface Proposal {
+  id: string;
+  kind: 'place' | 'person' | 'group' | 'fact';
+  label: string;
+  detail: string;
+  op: unknown;
+}
+
+function ImportPanel({ chatId, hasCard }: { chatId: string; hasCard: boolean }) {
+  const qc = useQueryClient();
+  const books = useLorebooks();
+  const [book, setBook] = useState('');
+  const [card, setCard] = useState(hasCard);
+  const [busy, setBusy] = useState(false);
+  const [list, setList] = useState<Proposal[] | null>(null);
+  const [keep, setKeep] = useState<Set<string>>(new Set());
+  const read = async () => {
+    setBusy(true);
+    try {
+      const r = await post<{ proposals: Proposal[] }>(`/api/chats/${chatId}/world-import`, { lorebookId: book || null, includeCard: card });
+      setList(r.proposals);
+      setKeep(new Set(r.proposals.map((p) => p.id)));
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const apply = async () => {
+    if (!list) return;
+    setBusy(true);
+    try {
+      const r = await post<{ applied: number; errors: string[] }>(`/api/chats/${chatId}/world-import/apply`, { ops: list.filter((p) => keep.has(p.id)).map((p) => p.op) });
+      toast({ title: `Added ${r.applied} to the world`, lines: r.errors.slice(0, 3), tone: 'success' });
+      setList(null);
+      await qc.invalidateQueries({ queryKey: ['inspector', chatId] });
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  const groups: Array<[Proposal['kind'], string]> = [
+    ['place', 'Places'],
+    ['person', 'People'],
+    ['group', 'Groups'],
+    ['fact', 'Facts'],
+  ];
+  return (
+    <div className="flex flex-col gap-4 pt-3">
+      <p className="text-sm text-fg-2">Read a lorebook (and the character card) and turn it into places, people, groups and facts. You choose what gets added; it can be undone from Changes.</p>
+      <Field label="Lorebook" htmlFor="wi-book">
+        <Select id="wi-book" value={book} onChange={(e) => setBook(e.target.value)}>
+          <option value="">None</option>
+          {(books.data ?? []).map((b) => (
+            <option key={b.id} value={b.id}>
+              {b.name}
+            </option>
+          ))}
+        </Select>
+      </Field>
+      {hasCard ? (
+        <label className="flex items-center gap-2.5 text-sm">
+          <Checkbox checked={card} onChange={setCard} label="Also read the character card" />
+          Also read the character card
+        </label>
+      ) : null}
+      <div>
+        <Button variant="secondary" icon={Import} loading={busy && !list} disabled={!book && !card} onClick={read}>
+          Read and propose
+        </Button>
+      </div>
+      {list ? (
+        list.length ? (
+          <>
+            {groups.map(([kind, title]) => {
+              const items = list.filter((p) => p.kind === kind);
+              if (!items.length) return null;
+              return (
+                <section key={kind}>
+                  <h3 className="text-sm font-semibold text-fg-2">{title}</h3>
+                  <ul className="mt-1 flex flex-col divide-y divide-line">
+                    {items.map((p) => (
+                      <li key={p.id} className="flex items-start gap-3 py-2.5">
+                        <Checkbox
+                          checked={keep.has(p.id)}
+                          label={`Add ${p.label}`}
+                          onChange={(v) =>
+                            setKeep((k) => {
+                              const n = new Set(k);
+                              if (v) n.add(p.id);
+                              else n.delete(p.id);
+                              return n;
+                            })
+                          }
+                        />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm font-medium">{p.label}</p>
+                          {p.detail ? <p className="text-xs text-fg-2">{p.detail}</p> : null}
+                        </div>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              );
+            })}
+            <Button variant="primary" block loading={busy} disabled={!keep.size} onClick={apply}>
+              Add {keep.size} to the world
+            </Button>
+          </>
+        ) : (
+          <EmptyState title="Nothing found" body="The model found no places, people or facts in that text." />
+        )
       ) : null}
     </div>
   );

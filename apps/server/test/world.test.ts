@@ -111,3 +111,20 @@ it('seeds a storyline in the background when fewer than two run', async () => {
   expect(t.bornTurn).toBe(15);
   expect(t.stages).toHaveLength(4);
 });
+
+it('imports a world from a lorebook: proposals first, then only what the owner keeps', async () => {
+  const chat = await setup();
+  const book = (await c.req('POST', '/api/lorebooks', { name: 'Northcrest', book: { entries: { 0: { uid: 0, key: ['Lantern'], content: 'The Lantern is a small bar on Market Row.', comment: 'The Lantern' } } } })).json;
+  const r = (await c.req('POST', `/api/chats/${chat.id}/world-import`, { lorebookId: book.id, includeCard: true })).json;
+  expect(r.proposals.map((p: any) => p.kind)).toEqual(expect.arrayContaining(['place', 'person', 'group', 'fact']));
+  // Nothing applied yet.
+  expect(Object.values((await state(chat)).orgs)).toEqual([]);
+  const keep = r.proposals.filter((p: any) => p.kind !== 'person').map((p: any) => p.op);
+  const a = (await c.req('POST', `/api/chats/${chat.id}/world-import/apply`, { ops: keep })).json;
+  expect(a.applied).toBe(keep.length);
+  const s = await state(chat);
+  expect(Object.values(s.locations).map((l: any) => l.name)).toContain('Northcrest');
+  expect(Object.values(s.orgs).map((o: any) => o.name)).toContain('The Ravens');
+  const calls = (await c.req('GET', `/api/calls?chatId=${chat.id}`)).json;
+  expect(calls.find((x: any) => x.purpose === 'world import').role).toBe('utility');
+});

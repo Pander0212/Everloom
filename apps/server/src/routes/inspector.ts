@@ -6,6 +6,9 @@ import { opLogFor, undoEntry } from '../services/campaigns.js';
 import { getChat } from '../services/chats.js';
 import { checkHealth, dismissUnresolved, fixIssue, resolveUnresolved } from '../services/health.js';
 import { parse } from '../util/validate.js';
+import { appendOps } from '../services/campaigns.js';
+import { proposeWorld } from '../services/worldimport.js';
+import { validateOps } from '@everloom/engine';
 import { HttpError } from '../context.js';
 
 function campaignOf(ctx: AppContext, o: string, chatId: string) {
@@ -36,6 +39,22 @@ export function registerInspector(app: FastifyInstance, ctx: AppContext) {
     if (b.action === 'dismiss') dismissUnresolved(ctx, o, campaignId, b.name);
     else resolveUnresolved(ctx, o, campaignId, chat.id, { name: b.name, action: b.action, kind: b.kind, targetId: b.targetId });
     return checkHealth(ctx, o, campaignId);
+  });
+
+  /** Read a lorebook (and the card) into proposed places, people, groups and facts. */
+  app.post('/api/chats/:id/world-import', async (req) => {
+    const b = parse(z.object({ lorebookId: z.string().max(80).nullable().optional(), includeCard: z.boolean().default(false) }), req.body);
+    return { proposals: await proposeWorld(ctx, owner(req), (req.params as { id: string }).id, b) };
+  });
+
+  /** Apply the proposals the owner kept, as their own (undoable) change. */
+  app.post('/api/chats/:id/world-import/apply', async (req) => {
+    const o = owner(req);
+    const { chat, campaignId } = campaignOf(ctx, o, (req.params as { id: string }).id);
+    const b = parse(z.object({ ops: z.array(z.unknown()).max(80) }), req.body);
+    const v = validateOps(b.ops);
+    const r = appendOps(ctx, o, campaignId, { chatId: chat.id, messageId: null, swipeId: null, source: 'user', ops: v.ok, origin: req.clientId });
+    return { applied: r.applied.length, summary: r.summary, errors: [...v.rejected.map((x) => x.error), ...r.errors.map((e) => e.error)] };
   });
 
   /** Every change to the world, newest first, with where it came from. */

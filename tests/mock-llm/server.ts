@@ -79,6 +79,7 @@ function classify(messages: any[]): string {
   if (/summarize stories/i.test(sys)) return 'summary';
   if (/chronicler of a roleplay story/i.test(sys)) return 'chronicle';
   if (/report its concrete intent/i.test(sys)) return 'preread';
+  if (/structured game world/i.test(sys)) return 'worldimport';
   if (/off-screen between two characters/i.test(sys)) return 'social';
   if (/slow-burning background storylines/i.test(sys)) return 'seed';
   if (/condense story memories/i.test(sys)) return 'consolidate';
@@ -113,6 +114,13 @@ function answerFor(kind: string, messages: any[]): string {
       for (const m of all.matchAll(/^\[(\w+)\] \((\w+)\)\n((?:- .*\n?)+)/gm)) out[m[1]] = { title: `${m[2]} ${m[1]}`, text: `In short: ${m[3].trim().split('\n').map((l) => l.slice(2).replace(/\.$/, '')).join('; ')}.` };
       return JSON.stringify({ summaries: out });
     }
+    case 'worldimport':
+      return JSON.stringify({
+        places: [{ name: 'Northcrest', parent: null, kind: 'city', description: 'A rain-soaked market town.' }, { name: 'The Lantern', parent: 'Northcrest', kind: 'building', description: 'A small bar on Market Row.' }],
+        people: [{ name: 'Iris Thorne', role: 'Bartender', location: 'The Lantern', description: 'Quiet and observant.' }],
+        groups: [{ name: 'The Ravens', type: 'band', purpose: 'A local band looking for a singer.', location: 'Northcrest' }],
+        facts: ['It has rained for three days.'],
+      });
     case 'preread':
       return JSON.stringify(/\bdance\b/i.test(all) ? { move: null, minutes: 30, check: { skill: 'agility', difficulty: 'hard' } } : { move: null, minutes: 0, check: null });
     case 'social': {

@@ -91,6 +91,18 @@ describe('prompt assembly', () => {
     expect(r.messages.at(-1)!.content).toContain('message number 199');
   });
 
+  it('cuts history in chunks of 10 so the start of the prompt stays stable as the chat grows', () => {
+    const mk = (n: number) => Array.from({ length: n }, (_, i) => ({ role: i % 2 ? 'user' : 'assistant', name: 'x', content: `message number ${i} `.repeat(20) })) as any;
+    const firstIncluded = (n: number) => {
+      const r = assemblePrompt(input({ history: mk(n), maxContext: 3000, maxResponse: 500 }));
+      expect(r.trimmedHistory % 10).toBe(0);
+      return r.messages.find((m) => m.content.includes('message number'))!.content.match(/message number (\d+)/)![1];
+    };
+    const starts = Array.from({ length: 12 }, (_, i) => firstIncluded(200 + i));
+    // Over 12 new messages the start moves at most twice (instead of every message).
+    expect(new Set(starts).size).toBeLessThanOrEqual(2);
+  });
+
   it('adds impersonation and continue nudges', () => {
     expect(assemblePrompt(input({ type: 'impersonate' })).messages.at(-1)!.content).toContain('point of view of Anala');
     expect(assemblePrompt(input({ type: 'continue' })).messages.at(-1)!.content).toContain('Continue');
