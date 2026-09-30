@@ -3,7 +3,7 @@ import { useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ArrowLeft, BookText, Brain, FastForward, History, MoreHorizontal, NotebookPen, Search, ScrollText, Sparkles, Telescope, UserRoundPen } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { del, patch, post } from '@/lib/api';
 import { useLive } from '@/lib/events';
 import { cx } from '@/lib/format';
@@ -85,6 +85,15 @@ export default function StoryView() {
     if (!el) return;
     setStuck(el.scrollHeight - el.scrollTop - el.clientHeight < 120);
   };
+  // Opened from a search hit (?m=<message id>): jump there once the messages are in.
+  const [params, setParams] = useSearchParams();
+  const wantMsg = params.get('m');
+  useEffect(() => {
+    if (!wantMsg || !list.some((m) => m.id === wantMsg)) return;
+    jumpTo(wantMsg);
+    setParams({}, { replace: true });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [wantMsg, list.length]);
   const jumpTo = (mid: string) => {
     const idx = list.findIndex((m) => m.id === mid);
     if (idx >= 0 && list.length - idx > limit) setLimit(list.length - idx + 10);

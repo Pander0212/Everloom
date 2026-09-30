@@ -158,3 +158,20 @@ describe('bundles', () => {
     expect((await c.req('POST', '/api/library/bundle/preview', Buffer.from('nope'), { 'content-type': 'application/zip' })).status).toBe(400);
   });
 });
+
+describe('chat history', () => {
+  it('searches inside the showing messages of every chat', async () => {
+    const a = await make({ name: 'Iris' });
+    const b = await make({ name: 'Kael' });
+    const c1 = (await c.req('POST', '/api/chats', { characterId: a.id, campaign: 'none' })).json;
+    const c2 = (await c.req('POST', '/api/chats', { characterId: b.id, campaign: 'none' })).json;
+    await c.req('POST', `/api/chats/${c1.id}/messages`, { role: 'user', text: 'Have you seen the Brass Key?' });
+    await c.req('POST', `/api/chats/${c1.id}/messages`, { role: 'user', text: 'The brass key again.' });
+    await c.req('POST', `/api/chats/${c2.id}/messages`, { role: 'user', text: 'Nothing here.' });
+    const r = (await c.req('GET', '/api/chat-search?q=brass%20key')).json;
+    expect(r).toHaveLength(1);
+    expect(r[0]).toMatchObject({ chatId: c1.id, count: 2 });
+    expect(r[0].snippet).toContain('Brass Key');
+    expect((await c.req('GET', '/api/chat-search?q=x')).json).toEqual([]);
+  });
+});

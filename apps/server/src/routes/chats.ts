@@ -76,6 +76,7 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
     const text = Buffer.isBuffer(req.body) ? (req.body as Buffer).toString('utf8') : String(req.body ?? '');
     return chats.importChat(ctx, owner(req), q.characterId, text);
   });
+  app.get('/api/chat-search', async (req) => chats.searchAllChats(ctx, owner(req), String((req.query as any).q ?? '')));
   app.get('/api/chats/:id/search', async (req) => chats.searchMessages(ctx, owner(req), (req.params as any).id, String((req.query as any).q ?? '')));
   // "Update memory now": read everything unread (even the newest messages), then fold.
   app.post('/api/chats/:id/summarize', async (req) => {

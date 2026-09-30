@@ -65,7 +65,7 @@ export function listChats(ctx: AppContext, owner: string, filter: { characterId?
     sql += ' AND c.group_id = ?';
     args.push(filter.groupId);
   }
-  return (ctx.db.prepare(sql + ' ORDER BY c.updated_at DESC LIMIT 500').all(...args) as any[]).map((r) => {
+  return (ctx.db.prepare(sql + ' ORDER BY c.updated_at DESC LIMIT 5000').all(...args) as any[]).map((r) => {
     const { metadata: _m, ...rest } = toChat(r);
     return { ...rest, lastMessage: String(rest.lastMessage ?? '').slice(0, 200) };
   });
@@ -351,6 +351,24 @@ export function searchMessages(ctx: AppContext, owner: string, chatId: string, q
     if (idx >= 0) out.push({ id: m.id, seq: m.seq, snippet: `${idx > 40 ? '…' : ''}${text.slice(Math.max(0, idx - 40), idx + needle.length + 60)}` });
   }
   return out.slice(0, 200);
+}
+
+/** Every chat whose showing messages contain the words: the first hit and how many. */
+export function searchAllChats(ctx: AppContext, owner: string, q: string): Array<{ chatId: string; messageId: string; seq: number; count: number; snippet: string }> {
+  const needle = q.trim().toLowerCase();
+  if (needle.length < 2) return [];
+  // A cheap prefilter in SQL on the stored swipes, then the exact check on the showing swipe.
+  const rows = ctx.db.prepare("SELECT id, chat_id, seq, swipe_id, swipes FROM messages WHERE owner_id = ? AND instr(lower(swipes), ?) > 0 ORDER BY chat_id, seq LIMIT 20000").all(owner, needle) as Array<{ id: string; chat_id: string; seq: number; swipe_id: number; swipes: string }>;
+  const out = new Map<string, { chatId: string; messageId: string; seq: number; count: number; snippet: string }>();
+  for (const r of rows) {
+    const text = (json<Array<{ text: string }>>(r.swipes, [])[r.swipe_id]?.text ?? '');
+    const idx = text.toLowerCase().indexOf(needle);
+    if (idx < 0) continue;
+    const hit = out.get(r.chat_id);
+    if (hit) hit.count++;
+    else out.set(r.chat_id, { chatId: r.chat_id, messageId: r.id, seq: r.seq, count: 1, snippet: `${idx > 40 ? '…' : ''}${text.slice(Math.max(0, idx - 40), idx + needle.length + 80)}` });
+  }
+  return [...out.values()];
 }
 
 // ---------------------------------------------------------------- import / export
