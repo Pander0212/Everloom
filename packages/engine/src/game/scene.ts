@@ -8,6 +8,7 @@
 import { currentHome, presentAt } from './home.js';
 import { formatMoney, shopOpen } from './economy.js';
 import { linesAt, nextDeparture } from './journey.js';
+import { inbox } from './comms.js';
 import { estimateTokens, truncate } from '../util/text.js';
 import { formatClock, formatDate, formatDuration, partOfDay } from './calendar.js';
 import { exitsFrom } from './injection.js';
@@ -203,6 +204,8 @@ export function buildSceneBlock(s: CampaignState, view: SceneView = {}, opts: Sc
     const next = nextDeparture(s, line, idx, idx === line.stops.length - 1 ? idx - 1 : idx + 1, now);
     add('LOCATION', `TRANSIT: ${line.name} (${line.mode}) to ${others.join(', ')}${next !== null ? `; next departure ${formatClock(next, s.meta.calendar)}` : ''}. Rides happen through the travel screen.`, 'world', 1);
   }
+  const letters = inbox(s).filter((m) => !m.read).slice(0, 3);
+  for (const m of letters) add('YOU', `MAIL: unread ${m.kind} from ${m.from} — "${m.subject}"`, 'quests', 1);
   const soon = Object.values(s.economy?.bills ?? {})
     .filter((b) => b.status === 'active' && (b.missed > 0 || b.nextDue - now <= 3 * 1440))
     .slice(0, 3);

@@ -26,6 +26,8 @@ export function registerGameExtras(app: FastifyInstance, ctx: AppContext) {
       owner(req),
       'You are a map designer for a roleplay game. Invent places that fit the setting. Reply with JSON only: {"nodes":[{"name":"...","kind":"city|town|village|district|building|room|wilds|road|station|dock|landmark|shop|service|danger|interior|home","description":"one sentence"}]}',
       `Setting style: ${state.meta.style}. Campaign: ${state.meta.title}.\nInside: ${path}${parent?.description ? ` — ${parent.description}` : ''}.\nLevel of detail: ${scene.level}.\nAlready on the map: ${existing.join(', ') || 'nothing yet'}.\nInvent ${b.count} new, distinct places.`,
+      1200,
+      'map expand',
     );
     const kinds = new Set(['city', 'town', 'village', 'district', 'building', 'room', 'wilds', 'road', 'station', 'dock', 'landmark', 'shop', 'service', 'danger', 'interior', 'home']);
     const ops: Op[] = [];
@@ -62,6 +64,7 @@ export function registerGameExtras(app: FastifyInstance, ctx: AppContext) {
       'You are a game designer setting up a roleplay campaign. Fill in only what is missing, keeping everything the player already chose. Reply with JSON only, using the same shape as the input config.',
       `Premise: ${b.premise || cfg.title}\nStyle: ${cfg.style}\nCurrent config:\n${JSON.stringify({ ...cfg, trackers: undefined }, null, 1).slice(0, 6000)}\n\nReturn JSON with any of: title, character {name,className,age}, appearance, currency {name,symbol,amount}, groups [{name,type,standing}], items [{name,qty,category}], skills [{name,kind,cost,costType,power,desc}], quests [{title,desc,objectives}], npcs [{name,role,personality,appearance}], location {world,region,local,description,kind}, facts [string]. Keep lists short (2–4 entries).`,
       1800,
+      'new game fill',
     );
     const pick = <K extends keyof NewGameConfig>(k: K, fallback: NewGameConfig[K]): NewGameConfig[K] => {
       const cur = cfg[k];

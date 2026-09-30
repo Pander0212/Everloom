@@ -708,6 +708,24 @@ export interface Mail {
   read: boolean;
   /** An outgoing letter that expects an answer: the reply arrives this long after delivery. */
   replyDue: number | null;
+  /** The reply to this outgoing letter has been queued. */
+  replied?: boolean;
+  /** An incoming letter whose words are written when it's first opened. */
+  pending?: boolean;
+  /** What it cost to send. */
+  cost?: number;
+}
+export interface PhoneGroup {
+  id: string;
+  name: string;
+  members: string[];
+}
+export interface PhoneApp {
+  id: string;
+  name: string;
+  icon: string;
+  /** What the app does, as an instruction to the utility model. */
+  prompt: string;
 }
 export interface FeedPost {
   id: string;
@@ -747,7 +765,12 @@ export interface CampaignState {
   worldLog: WorldLogEntry[];
   party: Record<string, PartyMember>;
   battle: Battle | null;
-  phone: { unread: Record<string, number>; pending: Array<{ id: string; npcId: string; at: number; reason: string }> };
+  phone: {
+    unread: Record<string, number>;
+    pending: Array<{ id: string; npcId: string; at: number; reason: string }>;
+    groups?: Record<string, PhoneGroup>;
+    apps?: Record<string, PhoneApp>;
+  };
   counters: Record<string, number>;
   /** NPC ↔ NPC feelings, keyed "fromId>toId". */
   bonds: Record<string, Bond>;

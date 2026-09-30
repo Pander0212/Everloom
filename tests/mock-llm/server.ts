@@ -91,6 +91,11 @@ function classify(messages: any[]): string {
   if (/helper companion/i.test(sys)) return 'helper';
   if (/map designer/i.test(sys)) return 'map';
   if (/diary entry/i.test(sys)) return 'diary';
+  if (/writing (a letter|an email) to/i.test(sys)) return 'letter';
+  if (/notice board \(short public|a social feed \(short public/i.test(sys)) return 'feed';
+  if (/in-world internet|archive of this world/i.test(sys)) return 'browser';
+  if (/", an app on/i.test(sys)) return 'app';
+  if (/on a voice call with/i.test(sys)) return 'call';
   if (/text message/i.test(sys) || /phone/i.test(sys)) return 'phone';
   if (/game designer/i.test(all)) return 'wizard';
   return 'story';
@@ -187,6 +192,18 @@ function answerFor(kind: string, messages: any[]): string {
       return JSON.stringify({ title: 'Rain and lanterns', text: 'Today Iris poured me tea and Tobias talked about the Ravens. I think I might sing.', mood: 'hopeful' });
     case 'phone':
       return 'hey, you still up? rehearsal was a mess lol';
+    case 'letter':
+      return 'Dear friend,\n\nThe mill wheel turns again and the river is high. Come by when the roads dry.\n\nYours, M.';
+    case 'feed': {
+      const author = /Authors to choose from: ([^,\n]+)/.exec(all)?.[1]?.trim() ?? 'Someone';
+      return JSON.stringify({ posts: [{ author, text: 'Fresh bread at dawn, first come first served.' }] });
+    }
+    case 'browser':
+      return JSON.stringify({ title: 'The Old Mill', source: 'Millbrook Gazette', sections: [{ heading: 'History', text: 'Built three generations ago on the river bend.' }, { heading: 'Today', text: 'Still grinds flour for the whole valley.' }] });
+    case 'app':
+      return 'Tomorrow: light rain. The day after: clearing, mild.';
+    case 'call':
+      return /they are calling you/.test(all) ? 'Hey! Good to hear from you.' : 'Sure, I can do that. Talk soon.';
     case 'wizard':
       return JSON.stringify({ opening: 'The rain has not stopped for three days when you arrive in Northcrest.', items: [{ name: 'Umbrella', category: 'tool' }], npcs: [{ name: 'Iris Thorne', role: 'Bartender' }], location: { world: 'Aurel', region: 'Greenmarch', local: 'Northcrest', description: 'A rain-soaked market town on the river.', kind: 'town' }, quests: [{ title: 'Dry Ground', desc: 'Find shelter before nightfall.', objectives: ['Find an inn'] }], facts: ['It has rained for three days.'] });
     default:

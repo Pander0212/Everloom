@@ -19,6 +19,7 @@ import { MAP_LEVELS } from './state.js';
 import { freeSpot } from './mapgen.js';
 import { arrive, logTrip } from './journey.js';
 import { defaultTravelOption, travelOptions } from './travel.js';
+import { processMail } from './comms.js';
 import { accrueInterest, processAssets, processBills, restockShops, pay } from './economy.js';
 import { HANDLERS3, type Kit } from './handlers3.js';
 import { homeBonus } from './home.js';
@@ -195,6 +196,7 @@ function simulateEconomy(s: CampaignState, from: number, to: number, changes: Ch
   processBills(s, from, to, changes, (t) => notifyPlayer(s, t));
   processAssets(s, from, to, changes);
   restockShops(s, to);
+  processMail(s, from, to, (t) => notifyPlayer(s, t));
 }
 
 /** A notice for the player: in the world log, and (in settings with phones) as a phone digest. */

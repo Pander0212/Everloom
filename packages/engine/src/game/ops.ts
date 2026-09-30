@@ -488,6 +488,8 @@ export const OP_REFERENCE = `Allowed ops (JSON objects with "type"):
 - {"type":"bond.delta","from":"Iris Thorne","to":"Tobias Moreno","affinity":3,"tension":-2}  how one person feels about another; small steps
 - {"type":"goal.set","npc":"Tobias Moreno","text":"Find a singer before Friday","target":"Market Square"}
 - {"type":"thread.resolve","text":"The missing ferryman"}  an ongoing storyline was settled
+- {"type":"mail.receive","from":"Mara Quill","kind":"letter","subject":"About the mill","body":"…"}  a letter (or email, where there is email) someone sends the player; it arrives after the delivery time for the distance
+- {"type":"feed.post","author":"Mara Quill","text":"…"}  a public post someone makes on the social feed or notice board
 - {"type":"transit.add","name":"Coast Line","mode":"train","stops":["Northcrest","Eastport","Gull Bay"],"first":"06:00","last":"22:00","every":60,"hop":40,"fare":3,"farePerStop":1}  a scheduled line the story establishes (train, bus, ferry, airship, shuttle…); rides happen in the travel screen
 - {"type":"route.require","from":"Old Gate","to":"Palace","requires":[{"kind":"standing","org":"Royal Guard","min":70},{"kind":"hours","open":"08:00","close":"18:00"}]}  conditions code checks before travel (kinds: discovered, fare, vehicle, item, standing, reputation, quest, partySize, notWanted, hours, weather)
 - {"type":"shop.upsert","name":"Copper Kettle","kind":"general","npc":"Mara Quill","location":"Market Square","open":480,"close":1200}  a shop the story establishes (kinds: general, food, tavern, smith, alchemist, clothier, books, magic, tech, pharmacy, market, stable); purchases happen in the shop screen, not through ops

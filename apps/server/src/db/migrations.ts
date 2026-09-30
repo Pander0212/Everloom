@@ -454,4 +454,13 @@ CREATE TABLE provider_cache (
 );
 `,
   },
+  {
+    version: 4,
+    name: 'phase 3 communication',
+    sql: `
+-- Group texts (npc_id "group:<id>" with the speaker kept per message) and phone calls.
+ALTER TABLE phone_messages ADD COLUMN kind TEXT NOT NULL DEFAULT 'text';
+ALTER TABLE phone_messages ADD COLUMN speaker_id TEXT;
+`,
+  },
 ];

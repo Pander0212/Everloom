@@ -7,6 +7,7 @@ import { buildApp, type BuiltApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { FIXTURES } from './helpers.js';
 import { STATE_VERSION } from '@everloom/engine';
+import { MIGRATIONS } from '../src/db/migrations.js';
 
 // tests/fixtures/phase1.db was written by the Phase-1 release (commit f1388bc) through its own API:
 // one campaign chat with a Tobias NPC, three turns, a pinned "fact" memory and a rolling summary.
@@ -39,7 +40,7 @@ it('upgrades a Phase-1 database in place, with a backup first and nothing lost',
   built = await buildApp(loadConfig({ dataDir: dir, webDir: path.join(dir, 'no-web'), logLevel: 'error' }), { logger: false });
   const db = built.ctx.db;
   // Schema is current and the pre-migration copy exists and is still a v1 database.
-  expect((db.prepare(`SELECT MAX(version) AS v FROM schema_migrations`).get() as { v: number }).v).toBe(3);
+  expect((db.prepare(`SELECT MAX(version) AS v FROM schema_migrations`).get() as { v: number }).v).toBe(MIGRATIONS.at(-1)!.version);
   const backups = readdirSync(path.join(dir, 'backups')).filter((f) => f.startsWith('pre-migration-v1-'));
   expect(backups).toHaveLength(1);
   const bak = new Database(path.join(dir, 'backups', backups[0]), { readonly: true });

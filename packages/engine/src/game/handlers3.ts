@@ -31,6 +31,7 @@ import { OpError } from './errors.js';
 import { arrive, blockers, carries, checkRequirements, linesAt, logTrip, planTrip, ticketName, ticketPrice } from './journey.js';
 import { allClasses, findClass, findNode, learn, learnProblems, xpSourceOn, xpToNext, type Who } from './progress.js';
 import { logWorld } from './simulate.js';
+import { courierFor, deliveryMinutes, hasEmail, mailKm, newMailId, replyDelay } from './comms.js';
 import { MIN_PER_DAY } from './calendar.js';
 import { AMENITIES, currentHome, defaultRooms, defaultStorage, findStorage, isAtHome, storedIn } from './home.js';
 import { defaultEffects, defaultSlot, guessCategory, iconForItem } from './items.js';
@@ -38,7 +39,7 @@ import type { ApplyContext } from './reducer.js';
 import type { OpOf, OpType } from './ops.js';
 import { findExact, findFuzzy, findItem, findNpc, nextCounter, uniqueId } from './resolve.js';
 import type { Change } from './simulate.js';
-import type { Account, CampaignState, Home, HouseholdMember, Item, Location, PartyMember, Route, ScheduleSlot } from './state.js';
+import type { Account, CampaignState, Home, HouseholdMember, Item, Location, Mail, PartyMember, Route, ScheduleSlot } from './state.js';
 
 export interface Kit {
   ctx: ApplyContext;
@@ -684,6 +685,93 @@ export const HANDLERS3: Handlers = {
       } else m.stats[op.stat] += op.points;
     }
     text(changes, `stat:${op.stat}`, op.stat.toUpperCase(), `+${op.points} ${op.stat.toUpperCase()}`);
+  },
+  // ---------------- mail, feed, phone
+  'mail.send': (s, op, { changes }) => {
+    if (op.kind === 'email' && !hasEmail(s)) throw new OpError('There is no email here; send a letter');
+    const npc = findNpc(s, op.to)?.npc;
+    if (!npc) throw new OpError(`You don't know anyone called "${op.to}"`);
+    const courier = op.kind === 'letter' ? courierFor(s, op.courier).id : null;
+    const cost = op.kind === 'letter' ? courierFor(s, op.courier).cost : 0;
+    if (cost) pay(s, cost, `${op.kind === 'letter' ? 'Letter' : 'Mail'} to ${npc.name}`, changes);
+    const id = newMailId(s);
+    const sentAt = s.time.minutes;
+    const deliverAt = sentAt + deliveryMinutes(s, op.kind, courier, mailKm(s, npc.id));
+    const m: Mail = { id, kind: op.kind, direction: 'out', npcId: npc.id, from: s.player.name, to: npc.name, subject: op.subject || '(no subject)', body: op.body, sentAt, deliverAt, courier, read: true, replyDue: null, cost };
+    if (op.expectReply && npc.status === 'alive') m.replyDue = deliverAt + replyDelay(s, m);
+    s.mail[id] = m;
+    text(changes, `mail:${id}`, npc.name, `${op.kind === 'letter' ? 'Letter' : 'Email'} sent to ${npc.name}`);
+  },
+  'mail.receive': (s, op, kit) => {
+    const npc = findNpc(s, op.from)?.npc;
+    const kind = op.kind === 'email' && hasEmail(s) ? 'email' : 'letter';
+    const id = newMailId(s);
+    const courier = kind === 'letter' ? courierFor(s, op.courier).id : null;
+    const deliverAt = s.time.minutes + deliveryMinutes(s, kind, courier, mailKm(s, npc?.id ?? null));
+    s.mail[id] = { id, kind, direction: 'in', npcId: npc?.id ?? null, from: npc?.name ?? op.from, to: s.player.name, subject: op.subject || '(no subject)', body: op.body ?? '', sentAt: s.time.minutes, deliverAt, courier, read: false, replyDue: null, pending: !op.body };
+    if (deliverAt <= s.time.minutes) kit.notify(`${kind === 'email' ? 'An email' : 'A letter'} from ${s.mail[id]!.from} arrived: ${s.mail[id]!.subject}`);
+  },
+  'mail.write': (s, op) => {
+    const m = s.mail[op.id];
+    if (!m) throw new OpError('No such letter');
+    m.body = op.body;
+    m.pending = false;
+  },
+  'mail.read': (s, op) => {
+    const m = s.mail[op.id];
+    if (!m) throw new OpError('No such letter');
+    if (m.deliverAt > s.time.minutes) throw new OpError("It hasn't arrived yet");
+    m.read = true;
+  },
+  'mail.delete': (s, op) => {
+    if (!s.mail[op.id]) throw new OpError('No such letter');
+    delete s.mail[op.id];
+  },
+  'feed.post': (s, op, { ctx }) => {
+    const npc = op.author ? findNpc(s, op.author)?.npc : null;
+    if (op.author && !npc && ctx.source === 'ai') throw new OpError(`Unknown author "${op.author}"`);
+    const n = nextCounter(s.counters, 'post');
+    s.feed.push({ id: `post_${n}`, at: s.time.minutes, npcId: npc?.id ?? null, author: npc?.name ?? op.author ?? s.player.name, text: op.text, likes: 0, liked: false, comments: [] });
+    if (s.feed.length > 200) s.feed.splice(0, s.feed.length - 200);
+  },
+  'feed.like': (s, op) => {
+    const p = s.feed.find((x) => x.id === op.id);
+    if (!p) throw new OpError('No such post');
+    p.liked = !p.liked;
+    p.likes += p.liked ? 1 : -1;
+  },
+  'feed.comment': (s, op) => {
+    const p = s.feed.find((x) => x.id === op.id);
+    if (!p) throw new OpError('No such post');
+    const npc = op.author ? findNpc(s, op.author)?.npc : null;
+    p.comments.push({ id: `${p.id}_c${p.comments.length + 1}`, author: npc?.name ?? op.author ?? s.player.name, text: op.text, at: s.time.minutes });
+  },
+  'phone.group': (s, op) => {
+    const groups = (s.phone.groups ??= {});
+    const existing = Object.values(groups).find((g) => normalizeName(g.name) === normalizeName(op.name));
+    if (op.remove) {
+      if (existing) delete groups[existing.id];
+      return;
+    }
+    const members = op.members.map((n) => {
+      const npc = findNpc(s, n)?.npc;
+      if (!npc) throw new OpError(`You don't know anyone called "${n}"`);
+      return npc.id;
+    });
+    if (members.length < 2) throw new OpError('A group needs at least two people');
+    const id = existing?.id ?? uniqueId(groups, 'grp', op.name);
+    groups[id] = { id, name: op.name, members: [...new Set(members)] };
+  },
+  'phone.app': (s, op) => {
+    const apps = (s.phone.apps ??= {});
+    const existing = Object.values(apps).find((a) => normalizeName(a.name) === normalizeName(op.name));
+    if (op.remove) {
+      if (existing) delete apps[existing.id];
+      return;
+    }
+    if (!op.prompt) throw new OpError('Describe what the app does');
+    const id = existing?.id ?? uniqueId(apps, 'app', op.name);
+    apps[id] = { id, name: op.name, icon: op.icon, prompt: op.prompt };
   },
   // ---------------- transit
   'transit.add': (s, op, kit) => {

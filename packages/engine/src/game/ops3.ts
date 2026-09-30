@@ -211,6 +211,32 @@ export const OpSchemas3 = {
   }),
   'skill.learn': z.object({ type: z.literal('skill.learn'), who: name.optional(), skill: name }),
   'stats.spend': z.object({ type: z.literal('stats.spend'), who: name.optional(), stat: z.enum(['atk', 'def', 'spd', 'mag', 'hp', 'mp']), points: int.min(1).max(99).default(1) }),
+  // ---- mail, feed, phone
+  'mail.send': z.object({
+    type: z.literal('mail.send'),
+    kind: z.enum(['letter', 'email']).default('letter'),
+    to: name,
+    subject: z.string().trim().max(160).default(''),
+    body: z.string().trim().min(1).max(8000),
+    courier: z.enum(['post', 'courier', 'bird', 'express']).optional(),
+    expectReply: z.boolean().default(true),
+  }),
+  'mail.receive': z.object({
+    type: z.literal('mail.receive'),
+    kind: z.enum(['letter', 'email']).default('letter'),
+    from: name,
+    subject: z.string().trim().max(160).default(''),
+    body: z.string().trim().max(8000).optional(),
+    courier: z.enum(['post', 'courier', 'bird', 'express']).optional(),
+  }),
+  'mail.write': z.object({ type: z.literal('mail.write'), id: z.string().max(80), body: z.string().trim().min(1).max(8000) }),
+  'mail.read': z.object({ type: z.literal('mail.read'), id: z.string().max(80) }),
+  'mail.delete': z.object({ type: z.literal('mail.delete'), id: z.string().max(80) }),
+  'feed.post': z.object({ type: z.literal('feed.post'), text: z.string().trim().min(1).max(1000), author: name.optional() }),
+  'feed.like': z.object({ type: z.literal('feed.like'), id: z.string().max(80) }),
+  'feed.comment': z.object({ type: z.literal('feed.comment'), id: z.string().max(80), text: z.string().trim().min(1).max(500), author: name.optional() }),
+  'phone.group': z.object({ type: z.literal('phone.group'), name, members: z.array(name).max(12).default([]), remove: z.boolean().optional() }),
+  'phone.app': z.object({ type: z.literal('phone.app'), name, icon: z.string().trim().max(30).default('sparkles'), prompt: z.string().trim().max(1500).default(''), remove: z.boolean().optional() }),
   // ---- transit
   'transit.add': z.object({
     type: z.literal('transit.add'),
@@ -233,4 +259,4 @@ export const OpSchemas3 = {
 } as const;
 
 /** Phase 3 ops the model may emit: things the story establishes, never the player's own money moves. */
-export const AI_OPS3 = ['currency.define', 'shop.upsert', 'bill.add', 'asset.add', 'home.add', 'room.add', 'household.add', 'household.update', 'transit.add', 'route.require'] as const;
+export const AI_OPS3 = ['currency.define', 'shop.upsert', 'bill.add', 'asset.add', 'home.add', 'room.add', 'household.add', 'household.update', 'transit.add', 'route.require', 'mail.receive', 'feed.post'] as const;
