@@ -3,6 +3,7 @@
  * The schemas are lenient on input (coercion, defaults) and strict on shape.
  */
 import { z } from 'zod';
+import { AI_OPS3, OpSchemas3 } from './ops3.js';
 
 const name = z.string().trim().min(1).max(120);
 const text = z.string().trim().max(4000);
@@ -20,6 +21,7 @@ const level = z.enum(['world', 'region', 'local', 'nearby', 'area']);
 const locKind = z.enum([
   'city', 'town', 'village', 'district', 'building', 'room', 'wilds', 'road', 'station', 'dock',
   'landmark', 'shop', 'service', 'danger', 'interior', 'home', 'vehicle', 'region', 'realm', 'other',
+  'airport', 'portal', 'stable', 'taxi', 'bank',
 ]);
 const weather = z.enum(['clear', 'cloudy', 'overcast', 'rain', 'storm', 'snow', 'fog', 'wind', 'heat']);
 const statsPartial = z.object({ atk: num.optional(), def: num.optional(), spd: num.optional(), mag: num.optional() }).partial();
@@ -379,6 +381,7 @@ export const OpSchemas = {
   }),
   /** Internal: immer patches, used for inverses. Never accepted from the AI. */
   patch: z.object({ type: z.literal('patch'), patches: z.array(z.any()) }),
+  ...OpSchemas3,
 } as const;
 
 export type OpType = keyof typeof OpSchemas;
@@ -386,8 +389,9 @@ export type Op = { [K in OpType]: z.infer<(typeof OpSchemas)[K]> }[OpType];
 export type OpOf<K extends OpType> = z.infer<(typeof OpSchemas)[K]>;
 
 /** Op types the tracker model / helper may emit. */
+const P3_TYPES = new Set(Object.keys(OpSchemas3));
 export const AI_OP_TYPES: OpType[] = (Object.keys(OpSchemas) as OpType[]).filter(
-  (t) => !['patch', 'battle.action', 'meta.update', 'world.seen', 'phone.read', 'databank.remove', 'databank.update', 'location.remove', 'npc.set', 'npc.merge', 'quest.remove', 'org.set', 'org.remove', 'location.set', 'thread.add'].includes(t),
+  (t) => (!P3_TYPES.has(t) || (AI_OPS3 as readonly string[]).includes(t)) && !['patch', 'battle.action', 'meta.update', 'world.seen', 'phone.read', 'databank.remove', 'databank.update', 'location.remove', 'npc.set', 'npc.merge', 'quest.remove', 'org.set', 'org.remove', 'location.set', 'thread.add'].includes(t),
 );
 
 export const OpSchema = z.discriminatedUnion(
@@ -481,4 +485,9 @@ export const OP_REFERENCE = `Allowed ops (JSON objects with "type"):
 - {"type":"npc.vitals","name":"Bram","state":"unconscious"}  states: awake, unconscious, dead (never the player)
 - {"type":"bond.delta","from":"Iris Thorne","to":"Tobias Moreno","affinity":3,"tension":-2}  how one person feels about another; small steps
 - {"type":"goal.set","npc":"Tobias Moreno","text":"Find a singer before Friday","target":"Market Square"}
-- {"type":"thread.resolve","text":"The missing ferryman"}  an ongoing storyline was settled`;
+- {"type":"thread.resolve","text":"The missing ferryman"}  an ongoing storyline was settled
+- {"type":"shop.upsert","name":"Copper Kettle","kind":"general","npc":"Mara Quill","location":"Market Square","open":480,"close":1200}  a shop the story establishes (kinds: general, food, tavern, smith, alchemist, clothier, books, magic, tech, pharmacy, market, stable); purchases happen in the shop screen, not through ops
+- {"type":"home.add","name":"Loft over the Kettle","kind":"apartment","location":"Market Square","ownership":"rented","rent":10}  the player gains a place to live (kinds: house, apartment, room, guild, castle, cabin, campsite, cave, vehicle)
+- {"type":"household.add","name":"Pip","home":"Rose Cottage","role":"dependent","relation":"child"}  someone lives at (or, role "guest", regularly visits) one of the player's homes
+- {"type":"bill.add","name":"Guild dues","kind":"dues","amount":5,"periodDays":30,"org":"Merchants Guild"}  a recurring payment the player agreed to
+- {"type":"asset.add","name":"Chestnut Horse","kind":"animal","value":40}  the player comes to own property, a vehicle, a business or an animal`;

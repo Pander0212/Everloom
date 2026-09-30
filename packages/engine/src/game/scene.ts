@@ -5,6 +5,8 @@
  * exactly as listed, and movement goes only to EXITS. It is fitted to a token budget by dropping
  * items in a fixed order (see DROP_ORDER); the core of the scene is never dropped.
  */
+import { currentHome, presentAt } from './home.js';
+import { formatMoney, shopOpen } from './economy.js';
 import { estimateTokens, truncate } from '../util/text.js';
 import { formatClock, formatDate, formatDuration, partOfDay } from './calendar.js';
 import { exitsFrom } from './injection.js';
@@ -152,7 +154,7 @@ export function buildSceneBlock(s: CampaignState, view: SceneView = {}, opts: Sc
   const p = s.player;
   const bars = Object.values(p.bars).filter((b) => b.id !== 'xp').map((b) => `${b.label} ${Math.round(b.cur)}/${b.max}`);
   add('YOU', `${p.name}${p.className ? `, ${p.className}` : ''}, level ${p.level}${p.age ? `, ${p.age}` : ''}${p.appearance ? ` — ${truncate(p.appearance, 160)}` : ''}`);
-  add('YOU', [...bars, `${s.meta.currency.name} ${p.currency}`].join(' · '));
+  add('YOU', [...bars, `Money ${formatMoney(s, p.currency)}`].join(' · '));
   const needs = Object.values(s.trackers).map((t) => `${t.label} ${Math.round(t.value)}/${t.max} (${trackerState(t).label})`);
   if (needs.length) add('YOU', needs.join(' · '));
   const statuses = Object.values(p.status).map((st) => st.name);
@@ -164,7 +166,7 @@ export function buildSceneBlock(s: CampaignState, view: SceneView = {}, opts: Sc
   for (const f of view.facts?.player ?? []) add('YOU', `FACT: ${truncate(f, 180)}`, 'person-detail', 1);
   const equipped = Object.values(s.inventory).filter((i) => i.equipped).map((i) => i.name);
   const carried = Object.values(s.inventory)
-    .filter((i) => !i.equipped)
+    .filter((i) => !i.equipped && !i.holder)
     .sort((a, b) => b.addedAt - a.addedAt)
     .slice(0, 10)
     .map((i) => (i.qty > 1 ? `${i.name} ×${i.qty}` : i.name));
@@ -181,6 +183,20 @@ export function buildSceneBlock(s: CampaignState, view: SceneView = {}, opts: Sc
     .filter((o) => o.mainLocationId === loc?.id || o.influence.some((i) => i.locationId === loc?.id || trail.some((t) => t.id === i.locationId)))
     .slice(0, 3);
   for (const o of orgs) add('LOCATION', `${o.name} (${o.type}) holds sway here — your standing: ${standingLabel(o.standing)}`, 'orgs', 1);
+  // Phase 3: home, shops, money due.
+  const home = s.homes ? currentHome(s) : null;
+  if (home) {
+    const people = presentAt(s, home).filter((x) => !x.member.npcId || s.npcs[x.member.npcId]?.locationId !== s.currentLocationId);
+    add('LOCATION', `HOME: ${home.name}${home.primary ? ' (your primary home)' : ''}, ${home.ownership}${people.length ? `. Home now: ${people.map((x) => `${x.member.name}${x.member.relation ? ` (${x.member.relation}${x.resident ? '' : ', visiting'})` : ''}${x.activity && x.activity !== 'at home' ? ` — ${x.activity}` : ''}`).join('; ')}` : '. Nobody else is home.'}`);
+  }
+  for (const shop of Object.values(s.economy?.shops ?? {}).filter((x) => x.locationId && x.locationId === loc?.id).slice(0, 3)) {
+    const keeper = shop.npcId ? s.npcs[shop.npcId]?.name : null;
+    add('LOCATION', `SHOP: ${shop.name} (${shop.kind})${keeper ? `, kept by ${keeper}` : ''} — ${shopOpen(s, shop) ? 'open' : 'closed now'}. Sales happen through the shop screen; narrate, don't change money or items for purchases.`, 'world', 1);
+  }
+  const soon = Object.values(s.economy?.bills ?? {})
+    .filter((b) => b.status === 'active' && (b.missed > 0 || b.nextDue - now <= 3 * 1440))
+    .slice(0, 3);
+  for (const b of soon) add('YOU', `BILL: ${b.name} ${b.missed ? `OVERDUE (${b.missed} missed)` : `due ${dayTag(s, b.nextDue)}`} — ${formatMoney(s, b.amount + b.owed)}`, 'quests', 1);
 
   // PRESENT
   const present = Object.values(s.npcs)

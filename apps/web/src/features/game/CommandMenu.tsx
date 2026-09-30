@@ -1,7 +1,7 @@
 import * as D from '@radix-ui/react-dialog';
 import type { LucideIcon } from 'lucide-react';
 import {
-  Archive, Backpack, BookMarked, BookOpen, Brain, CalendarDays, Cat, Contact, Database, FastForward, Flag, HelpCircle, Map, NotebookPen, PartyPopper, Phone, Search, Settings, Shield, Sparkles, Swords, UserRound, Users, UsersRound, Wand2, CloudSun, ScrollText, UserRoundPen, Dumbbell, Heart,
+  Archive, Backpack, BookMarked, BookOpen, Brain, CalendarDays, Cat, Contact, Database, FastForward, Flag, HelpCircle, Map, NotebookPen, PartyPopper, Phone, Search, Settings, Shield, Sparkles, Swords, UserRound, Users, UsersRound, Wand2, CloudSun, ScrollText, UserRoundPen, Dumbbell, Heart, Wallet, House, Hammer, Store, ArrowLeftRight,
 } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -28,7 +28,12 @@ export const TOOL_META = {
   activities: { label: 'Activities', icon: Dumbbell, group: 'Story', keywords: 'sleep work train cook rest wait' },
   battle: { label: 'Battle', icon: Swords, group: 'Story', keywords: 'fight combat' },
   persona: { label: 'Persona', icon: UserRound, group: 'Character', keywords: 'me lineage family' },
-  inventory: { label: 'Inventory', icon: Backpack, group: 'Character', keywords: 'items bag equipment' },
+  inventory: { label: 'Inventory', icon: Backpack, group: 'Character', keywords: 'items bag equipment party bag storage' },
+  money: { label: 'Money', icon: Wallet, group: 'Character', keywords: 'wallet bank bills rent loans assets currency exchange' },
+  home: { label: 'Home', icon: House, group: 'Character', keywords: 'house rooms household storage family sleep' },
+  crafting: { label: 'Crafting', icon: Hammer, group: 'Character', keywords: 'cook alchemy forge enchant recipes make' },
+  shop: { label: 'Shops', icon: Store, group: 'World', keywords: 'buy sell haggle store market' },
+  trade: { label: 'Trade', icon: ArrowLeftRight, group: 'World', keywords: 'barter exchange swap' },
   characters: { label: 'Characters', icon: Contact, group: 'Character', keywords: 'cards cast' },
   party: { label: 'Party', icon: UsersRound, group: 'Character', keywords: 'companions team' },
   social: { label: 'Social', icon: Heart, group: 'Character', keywords: 'relationships affection trust' },

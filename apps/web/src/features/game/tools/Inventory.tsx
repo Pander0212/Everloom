@@ -1,5 +1,5 @@
 import type { Item, ItemCategory, Op } from '@everloom/engine';
-import { defaultEffects, isUsable } from '@everloom/engine';
+import { defaultEffects, formatMoney, isAtHome, isUsable } from '@everloom/engine';
 import { Backpack, LayoutGrid, List, Plus, Search, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -51,7 +51,9 @@ export default function Inventory() {
   const [view, setView] = useState<'grid' | 'list'>('grid');
   const [openId, setOpenId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
-  const items = useMemo(() => Object.values(s?.inventory ?? {}), [s]);
+  // Whose items: yours (carried), the shared party bag, or a party member's.
+  const [holder, setHolder] = useState<string>('');
+  const items = useMemo(() => Object.values(s?.inventory ?? {}).filter((i) => (i.holder ?? '') === holder), [s, holder]);
   const cats = useMemo(() => [...new Set(items.map((i) => i.category))], [items]);
   const filtered = useMemo(() => {
     const n = q.trim().toLowerCase();
@@ -75,7 +77,7 @@ export default function Inventory() {
   return (
     <ToolSheet
       title="Inventory"
-      description={`${items.reduce((a, b) => a + b.qty, 0)} items · ${s.player.currency} ${s.meta.currency.name}`}
+      description={`${items.reduce((a, b) => a + b.qty, 0)} items${holder ? '' : ` · ${formatMoney(s, s.player.currency)}`}`}
       headerActions={<IconButton icon={view === 'grid' ? List : LayoutGrid} label={view === 'grid' ? 'List view' : 'Grid view'} onClick={() => setView(view === 'grid' ? 'list' : 'grid')} />}
       footer={
         <Button variant="secondary" icon={Plus} block onClick={() => setAdding(true)}>
@@ -83,6 +85,17 @@ export default function Inventory() {
         </Button>
       }
     >
+      {Object.keys(s.party).length ? (
+        <Select aria-label="Whose items" value={holder} onChange={(e) => setHolder(e.target.value)} className="mb-3">
+          <option value="">Yours</option>
+          <option value="party">Party bag (shared)</option>
+          {Object.values(s.party).map((m) => (
+            <option key={m.id} value={`member:${m.id}`}>
+              {m.name}
+            </option>
+          ))}
+        </Select>
+      ) : null}
       <div className="relative">
         <Icon icon={Search} size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" />
         <Input placeholder="Search items" aria-label="Search items" value={q} onChange={(e) => setQ(e.target.value)} className="pl-10" />
@@ -185,6 +198,30 @@ export default function Inventory() {
                   {it.equipped ? 'Unequip' : 'Equip'}
                 </Button>
               ) : null}
+              <Select
+                aria-label="Move to"
+                value=""
+                onChange={(e) => e.target.value && act([{ type: 'item.move', name: it.id, to: e.target.value } as Op], true)}
+              >
+                <option value="">Move to…</option>
+                {holder ? <option value="me">You</option> : null}
+                {holder !== 'party' && Object.keys(s.party).length ? <option value="party">Party bag</option> : null}
+                {Object.values(s.party)
+                  .filter((m) => holder !== `member:${m.id}`)
+                  .map((m) => (
+                    <option key={m.id} value={`member:${m.id}`}>
+                      {m.name}
+                    </option>
+                  ))}
+                {Object.values(s.homes)
+                  .filter((h) => isAtHome(s, h))
+                  .flatMap((h) => h.storage)
+                  .map((st) => (
+                    <option key={st.id} value={st.id}>
+                      {st.name} (home)
+                    </option>
+                  ))}
+              </Select>
               {containers.filter((c) => c.id !== it.id).length && it.category !== 'container' ? (
                 <Select aria-label="Move into container" value={it.containerId ?? ''} onChange={(e) => act([{ type: 'item.update', name: it.id, container: e.target.value || null } as Op])}>
                   <option value="">Loose in bag</option>

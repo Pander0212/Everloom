@@ -8,7 +8,8 @@ export type ToolId =
   | 'journal' | 'diary' | 'map' | 'orgs' | 'activities' | 'battle'
   | 'persona' | 'inventory' | 'characters' | 'party' | 'social'
   | 'databank' | 'phone' | 'npcs' | 'calendar' | 'atmosphere' | 'helper'
-  | 'status' | 'newgame' | 'log' | 'help';
+  | 'status' | 'newgame' | 'log' | 'help'
+  | 'money' | 'shop' | 'home' | 'crafting' | 'trade';
 
 export interface GameCtx {
   chat: ChatDTO;

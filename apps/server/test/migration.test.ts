@@ -6,6 +6,7 @@ import { afterEach, expect, it } from 'vitest';
 import { buildApp, type BuiltApp } from '../src/app.js';
 import { loadConfig } from '../src/config.js';
 import { FIXTURES } from './helpers.js';
+import { STATE_VERSION } from '@everloom/engine';
 
 // tests/fixtures/phase1.db was written by the Phase-1 release (commit f1388bc) through its own API:
 // one campaign chat with a Tobias NPC, three turns, a pinned "fact" memory and a rolling summary.
@@ -56,8 +57,10 @@ it('upgrades a Phase-1 database in place, with a backup first and nothing lost',
   expect(mem.summaries.map((s: any) => s.text)).toContain('Anala arrived at the Lantern and met Tobias.');
   // The campaign reads as the current state version, with its NPC intact.
   const camp = (await req('GET', `/api/campaigns/${chat.campaignId}`)).json;
-  expect(camp.state.version).toBe(2);
+  expect(camp.state.version).toBe(STATE_VERSION);
   expect(camp.state.bonds).toEqual({});
+  expect(camp.state.economy.accounts).toEqual({});
+  expect(camp.state.homes).toEqual({});
   expect(Object.values(camp.state.npcs).map((n: any) => n.name)).toContain('Tobias Moreno');
   expect((Object.values(camp.state.npcs)[0] as any).goals).toEqual([]);
   // A rebuild from the op log gives the same state as the stored one.

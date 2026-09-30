@@ -35,4 +35,8 @@ export * from './memory/index.js';
 export * from './game/scene.js';
 export * from './game/health.js';
 export * from './game/tick.js';
+export * from './game/economy.js';
+export * from './game/home.js';
+export * from './game/craft.js';
+export * from './game/errors.js';
 export * from './library/index.js';

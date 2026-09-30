@@ -17,6 +17,9 @@ import type { CampaignState, Location, MapLevel, Npc, Org, Relationship } from '
 import { MAP_LEVELS } from './state.js';
 import { freeSpot } from './mapgen.js';
 import { defaultTravelOption, travelOptions } from './travel.js';
+import { accrueInterest, processAssets, processBills, restockShops } from './economy.js';
+import { HANDLERS3, type Kit } from './handlers3.js';
+import { homeBonus } from './home.js';
 
 enablePatches();
 setAutoFreeze(false);
@@ -36,7 +39,8 @@ export interface ApplyResult {
   error?: string;
 }
 
-export class OpError extends Error {}
+export { OpError } from './errors.js';
+import { OpError } from './errors.js';
 
 // A model can move a feeling at most this far in one turn.
 const AI_RELATIONSHIP_STEP = 8;
@@ -166,6 +170,12 @@ function assertUnlocked(entity: { locked: boolean; name: string } | undefined, c
   }
 }
 
+function carriedPool(s: CampaignState): CampaignState['inventory'] {
+  const out: CampaignState['inventory'] = {};
+  for (const [id, it] of Object.entries(s.inventory)) if (!it.holder) out[id] = it;
+  return out;
+}
+
 function advanceTime(s: CampaignState, minutes: number, changes: Change[]) {
   const m = Math.max(0, Math.round(minutes));
   if (!m) return;
@@ -173,6 +183,21 @@ function advanceTime(s: CampaignState, minutes: number, changes: Change[]) {
   s.time.minutes = from + m;
   changes.push({ key: 'time', label: 'passed', delta: m, kind: 'time' });
   simulate(s, from, s.time.minutes, changes);
+  simulateEconomy(s, from, s.time.minutes, changes);
+}
+
+/** Money that moves with time: interest, bills (with consequences), business income, shop restocks. */
+function simulateEconomy(s: CampaignState, from: number, to: number, changes: Change[]) {
+  if (!s.economy) return;
+  accrueInterest(s, to);
+  processBills(s, from, to, changes, (t) => notifyPlayer(s, t));
+  processAssets(s, from, to, changes);
+  restockShops(s, to);
+}
+
+/** A notice for the player: in the world log, and (in settings with phones) as a phone digest. */
+function notifyPlayer(s: CampaignState, text: string) {
+  logWorld(s, s.time.minutes, 'reminder', text);
 }
 
 function addXp(s: CampaignState, amount: number, changes: Change[]) {
@@ -338,7 +363,8 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       addXp(s, ctx.source === 'ai' ? Math.min(op.amount, 500) : op.amount, changes);
       return;
     case 'item.add': {
-      const existing = findItem(s.inventory, op.name);
+      // New things land with the player; stacks held elsewhere (party bag, home storage) aren't merged into.
+      const existing = findItem(carriedPool(s), op.name);
       if (existing) {
         assertUnlocked(existing, ctx);
         existing.qty = clamp(existing.qty + op.qty, 0, 1_000_000);
@@ -365,12 +391,15 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
         locked: false,
         tags: op.tags ?? [],
         addedAt: s.time.minutes,
+        holder: null,
+        capacity: category === 'container' ? 6 : undefined,
       };
+      if (s.inventory[id]!.capacity === undefined) delete s.inventory[id]!.capacity;
       changes.push({ key: `item:${id}`, label: op.name, delta: op.qty, kind: 'item' });
       return;
     }
     case 'item.remove': {
-      const it = findItem(s.inventory, op.name);
+      const it = findItem(carriedPool(s), op.name) ?? findItem(s.inventory, op.name);
       if (!it) throw new OpError(`No item "${op.name}"`);
       assertUnlocked(it, ctx);
       const qty = Math.min(it.qty, op.qty);
@@ -383,7 +412,8 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       return;
     }
     case 'item.use': {
-      const it = findItem(s.inventory, op.name);
+      // Only what you carry can be used (not what's stored at home or in someone else's pack).
+      const it = findItem(carriedPool(s), op.name);
       if (!it) throw new OpError(`No item "${op.name}"`);
       assertUnlocked(it, ctx);
       const hasEffects = Object.keys(it.effects?.trackers ?? {}).length || Object.keys(it.effects?.bars ?? {}).length || it.effects?.status;
@@ -426,6 +456,14 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       if (op.container !== undefined) {
         const c = op.container ? findItem(s.inventory, op.container) : undefined;
         if (c && c.id === it.id) throw new OpError('An item cannot contain itself');
+        if (c) {
+          // One level of nesting, same holder, and within the container's capacity.
+          if (c.containerId) throw new OpError(`${c.name} is itself inside a container`);
+          if (it.category === 'container' && Object.values(s.inventory).some((x) => x.containerId === it.id)) throw new OpError(`Empty ${it.name} before putting it in another container`);
+          if ((c.holder ?? null) !== (it.holder ?? null)) throw new OpError(`${c.name} is somewhere else`);
+          const used = Object.values(s.inventory).filter((x) => x.containerId === c.id && x.id !== it.id).length;
+          if (c.capacity !== undefined && used >= c.capacity) throw new OpError(`${c.name} is full (${c.capacity})`);
+        }
         it.containerId = c?.id ?? null;
       }
       return;
@@ -1135,6 +1173,18 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
     case 'patch':
       applyPatches(s, op.patches as Patch[]);
       return;
+    default: {
+      const h = (HANDLERS3 as Record<string, (s: CampaignState, op: Op, kit: Kit) => void>)[op.type];
+      if (!h) throw new OpError(`Unsupported op "${(op as Op).type}"`);
+      h(s, op, {
+        ctx,
+        changes,
+        advanceTime: (m) => advanceTime(s, m, changes),
+        addXp: (a) => addXp(s, a, changes),
+        ensureLocation: (name) => ensureLocation(s, name, ctx, changes),
+        notify: (t) => notifyPlayer(s, t),
+      });
+    }
   }
 }
 
@@ -1161,15 +1211,19 @@ function runActivity(s: CampaignState, op: OpOf<'activity'>, changes: Change[]) 
   }
   // Time passes first (normal drift), then the activity's own effect lands on top.
   advanceTime(s, Math.round(hours * 60), changes);
+  // Doing it at home with the right amenities helps (a better bed, a bath, a study desk).
+  const bonus = op.kind === 'sleep' || op.kind === 'nap' ? homeBonus(s, 'sleep') : op.kind === 'bathe' ? homeBonus(s, 'bath') : op.kind === 'study' || op.kind === 'train' ? homeBonus(s, 'study') : 1;
+  const boost = (v: number) => (v > 0 ? v * bonus : v);
   applyEffects(
     s,
     {
-      trackers: Object.fromEntries(Object.entries(spec.perHour).map(([k, v]) => [k, v * hours])),
-      bars: Object.fromEntries(Object.entries(spec.bars ?? {}).map(([k, v]) => [k, v * hours])),
+      trackers: Object.fromEntries(Object.entries(spec.perHour).map(([k, v]) => [k, boost(v) * hours])),
+      bars: Object.fromEntries(Object.entries(spec.bars ?? {}).map(([k, v]) => [k, boost(v) * hours])),
     },
     changes,
   );
-  if (spec.xpPerHour) addXp(s, Math.round(spec.xpPerHour * hours), changes);
+  if (bonus > 1) changes.push({ key: `activity:${op.kind}:home`, label: 'Home', text: `+${Math.round((bonus - 1) * 100)}% from your home`, kind: 'text' });
+  if (spec.xpPerHour) addXp(s, Math.round(spec.xpPerHour * hours * bonus), changes);
   if (spec.payPerHour) {
     const pay = Math.round(spec.payPerHour * hours);
     s.player.currency += pay;

@@ -1,0 +1,152 @@
+/** Phase 3 op schemas: economy, homes and household, crafting. Merged into OpSchemas in ops.ts. */
+import { z } from 'zod';
+
+const name = z.string().trim().min(1).max(120);
+const shortText = z.string().trim().max(400);
+const num = z.coerce.number().refine(Number.isFinite, 'must be a finite number');
+const int = z.coerce.number().int();
+const money = num.min(0).max(1e9);
+const category = z.enum(['food', 'drink', 'weapon', 'armor', 'clothing', 'accessory', 'key', 'tool', 'material', 'consumable', 'medicine', 'book', 'container', 'quest', 'valuable', 'misc']);
+const slot = z.enum(['head', 'body', 'legs', 'feet', 'hands', 'weapon', 'offhand', 'accessory', 'back']);
+const stats = z.object({ atk: num.optional(), def: num.optional(), spd: num.optional(), mag: num.optional() }).partial();
+const effects = z.object({ trackers: z.record(z.string().max(40), num).optional(), bars: z.record(z.string().max(40), num).optional(), status: shortText.optional() });
+const scheduleSlot = z.object({
+  days: z.array(int.min(0).max(13)).max(14).default([]),
+  from: int.min(0).max(1439),
+  to: int.min(0).max(1440),
+  activity: shortText.default(''),
+  location: name.nullable().optional(),
+});
+const shopKind = z.enum(['general', 'food', 'tavern', 'smith', 'alchemist', 'clothier', 'books', 'magic', 'tech', 'pharmacy', 'market', 'stable', 'other']);
+const homeKind = z.enum(['house', 'apartment', 'room', 'guild', 'castle', 'cabin', 'campsite', 'cave', 'vehicle', 'other']);
+const discipline = z.enum(['cooking', 'alchemy', 'forge', 'enchantment', 'general']);
+
+export const OpSchemas3 = {
+  // ---- money
+  'currency.define': z.object({ type: z.literal('currency.define'), name, symbol: z.string().trim().min(1).max(8), rate: num.min(0.000001).max(1e6) }),
+  'currency.exchange': z.object({ type: z.literal('currency.exchange'), from: name, to: name, amount: money }),
+  'bank.open': z.object({ type: z.literal('bank.open'), name: name.optional(), bank: name.optional(), apr: num.min(0).max(1).optional() }),
+  'bank.deposit': z.object({ type: z.literal('bank.deposit'), account: name.optional(), amount: money, via: z.enum(['branch', 'app']).default('branch') }),
+  'bank.withdraw': z.object({ type: z.literal('bank.withdraw'), account: name.optional(), amount: money, via: z.enum(['branch', 'app']).default('branch') }),
+  'loan.take': z.object({ type: z.literal('loan.take'), lender: name, amount: money.min(1), apr: num.min(0).max(2).default(0.12), periodDays: int.min(1).max(365).default(30), installments: int.min(1).max(120).default(6) }),
+  'bill.add': z.object({
+    type: z.literal('bill.add'),
+    name,
+    kind: z.enum(['rent', 'subscription', 'dues', 'upkeep', 'loan', 'other']).default('other'),
+    amount: money,
+    periodDays: int.min(1).max(3650).default(30),
+    dueInDays: num.min(0).max(3650).optional(),
+    autopay: z.boolean().default(false),
+    home: name.optional(),
+    asset: name.optional(),
+    org: name.optional(),
+  }),
+  'bill.pay': z.object({ type: z.literal('bill.pay'), bill: name }),
+  'bill.set': z.object({ type: z.literal('bill.set'), bill: name, autopay: z.boolean().optional(), amount: money.optional(), end: z.boolean().optional() }),
+  'asset.add': z.object({
+    type: z.literal('asset.add'),
+    name,
+    kind: z.enum(['property', 'vehicle', 'business', 'animal', 'other']).default('other'),
+    value: money.default(0),
+    upkeep: money.default(0),
+    income: money.default(0),
+    periodDays: int.min(1).max(365).default(30),
+    location: name.optional(),
+    modes: z.array(z.string().max(30)).max(6).optional(),
+    status: z.enum(['owned', 'rented', 'borrowed']).default('owned'),
+    /** Buy it now at `value` (the player's own purchase). */
+    buy: z.boolean().default(false),
+  }),
+  'asset.sell': z.object({ type: z.literal('asset.sell'), name }),
+  // ---- shops and trade
+  'shop.upsert': z.object({
+    type: z.literal('shop.upsert'),
+    name,
+    kind: shopKind.optional(),
+    npc: name.optional(),
+    location: name.optional(),
+    org: name.optional(),
+    open: int.min(0).max(1440).optional(),
+    close: int.min(0).max(1440).optional(),
+    days: z.array(int.min(0).max(13)).max(14).optional(),
+    restockDays: int.min(0).max(365).optional(),
+    stock: z.array(z.object({ name, category: category.optional(), price: money, qty: int.min(0).max(9999).default(5), desc: shortText.optional(), slot: slot.optional(), stats: stats.optional(), effects: effects.optional() })).max(40).optional(),
+  }),
+  'shop.buy': z.object({ type: z.literal('shop.buy'), shop: name, item: name, qty: int.min(1).max(999).default(1) }),
+  'shop.sell': z.object({ type: z.literal('shop.sell'), shop: name, item: name, qty: int.min(1).max(999).default(1) }),
+  'shop.haggle': z.object({ type: z.literal('shop.haggle'), shop: name }),
+  'trade.exchange': z.object({
+    type: z.literal('trade.exchange'),
+    npc: name,
+    give: z.array(z.object({ name, qty: int.min(1).max(9999).default(1) })).max(12).default([]),
+    /** Money the player adds (negative = money the NPC adds). */
+    pay: num.min(-1e9).max(1e9).default(0),
+    receive: z.array(z.object({ name, qty: int.min(1).max(9999).default(1), value: money.optional(), category: category.optional() })).max(12).default([]),
+  }),
+  /** Move an item between the player, the party bag, a party member and home storage. */
+  'item.move': z.object({ type: z.literal('item.move'), name, qty: int.min(1).max(1_000_000).optional(), to: name }),
+  // ---- homes and household
+  'home.add': z.object({
+    type: z.literal('home.add'),
+    name,
+    kind: homeKind.default('house'),
+    location: name.optional(),
+    ownership: z.enum(['owned', 'rented', 'borrowed']).default('owned'),
+    rent: money.optional(),
+    periodDays: int.min(1).max(365).default(30),
+    primary: z.boolean().optional(),
+  }),
+  'home.update': z.object({ type: z.literal('home.update'), home: name, name: name.optional(), primary: z.boolean().optional(), notes: z.string().max(2000).optional() }),
+  'home.remove': z.object({ type: z.literal('home.remove'), home: name }),
+  'room.add': z.object({ type: z.literal('room.add'), home: name, name, purpose: shortText.optional(), amenities: z.array(z.string().max(30)).max(8).optional() }),
+  'room.update': z.object({
+    type: z.literal('room.update'),
+    home: name,
+    room: name,
+    name: name.optional(),
+    addAmenity: z.string().max(30).optional(),
+    removeAmenity: z.string().max(30).optional(),
+    upgrade: z.boolean().optional(),
+    remove: z.boolean().optional(),
+  }),
+  'storage.add': z.object({ type: z.literal('storage.add'), home: name, name, capacity: int.min(1).max(500).default(10) }),
+  'household.add': z.object({
+    type: z.literal('household.add'),
+    name,
+    home: name,
+    npc: name.optional(),
+    role: z.enum(['head', 'resident', 'dependent', 'guardian', 'guest']).default('resident'),
+    relation: shortText.default(''),
+    schedule: z.array(scheduleSlot).max(12).optional(),
+  }),
+  'household.update': z.object({
+    type: z.literal('household.update'),
+    member: name,
+    home: name.optional(),
+    role: z.enum(['head', 'resident', 'dependent', 'guardian', 'guest']).optional(),
+    relation: shortText.optional(),
+    schedule: z.array(scheduleSlot).max(12).optional(),
+  }),
+  'household.remove': z.object({ type: z.literal('household.remove'), member: name }),
+  /** Invite someone over: they visit your current home for a few hours from now. */
+  'home.invite': z.object({ type: z.literal('home.invite'), npc: name, hours: num.min(0.5).max(72).default(3) }),
+  // ---- crafting
+  'recipe.add': z.object({
+    type: z.literal('recipe.add'),
+    name,
+    discipline,
+    ingredients: z.array(z.object({ name, qty: int.min(1).max(99).default(1) })).min(1).max(8),
+    station: z.string().max(30).nullable().optional(),
+    level: int.min(0).max(20).default(0),
+    minutes: int.min(5).max(24 * 60).default(60),
+    difficulty: z.enum(['easy', 'normal', 'hard', 'very hard']).default('normal'),
+    result: z.object({ name, qty: int.min(1).max(99).default(1), category: category.default('misc'), value: money.default(0), effects: effects.optional(), stats: stats.optional(), slot: slot.nullable().optional() }),
+    enchant: z.object({ effect: shortText, stats: stats.optional() }).nullable().optional(),
+    source: z.enum(['ai', 'user']).default('user'),
+  }),
+  'recipe.remove': z.object({ type: z.literal('recipe.remove'), recipe: name }),
+  craft: z.object({ type: z.literal('craft'), recipe: name, target: name.optional() }),
+} as const;
+
+/** Phase 3 ops the model may emit: things the story establishes, never the player's own money moves. */
+export const AI_OPS3 = ['currency.define', 'shop.upsert', 'bill.add', 'asset.add', 'home.add', 'room.add', 'household.add', 'household.update'] as const;

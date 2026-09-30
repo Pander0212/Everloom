@@ -29,6 +29,11 @@ const TOOLS: Partial<Record<ToolId, React.LazyExoticComponent<(p: { arg?: string
   atmosphere: lazy(() => import('./tools/AtmosphereTool')),
   helper: lazy(() => import('./tools/Helper')),
   help: lazy(() => import('./tools/Help')),
+  money: lazy(() => import('./tools/Money')),
+  shop: lazy(() => import('./tools/Shop')),
+  home: lazy(() => import('./tools/Home')),
+  crafting: lazy(() => import('./tools/Crafting')),
+  trade: lazy(() => import('./tools/Trade')),
 };
 
 export interface GameLayerProps {

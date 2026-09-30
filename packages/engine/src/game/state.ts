@@ -1,6 +1,6 @@
 /** Versioned campaign state. Everything here is plain JSON so it can be stored, diffed and replayed. */
 
-export const STATE_VERSION = 2;
+export const STATE_VERSION = 3;
 
 export type Style = 'fantasy' | 'modern' | 'scifi';
 export type MapLevel = 'world' | 'region' | 'local' | 'nearby' | 'area';
@@ -8,7 +8,9 @@ export const MAP_LEVELS: MapLevel[] = ['world', 'region', 'local', 'nearby', 'ar
 
 export type LocationKind =
   | 'city' | 'town' | 'village' | 'district' | 'building' | 'room' | 'wilds' | 'road' | 'station' | 'dock'
-  | 'landmark' | 'shop' | 'service' | 'danger' | 'interior' | 'home' | 'vehicle' | 'region' | 'realm' | 'other';
+  | 'landmark' | 'shop' | 'service' | 'danger' | 'interior' | 'home' | 'vehicle' | 'region' | 'realm' | 'other'
+  // Phase 3 transit hubs (station and dock above are hubs too).
+  | 'airport' | 'portal' | 'stable' | 'taxi' | 'bank';
 
 export interface Bar {
   id: string;
@@ -75,6 +77,15 @@ export interface Player {
   birthday: { month: number; day: number } | null;
   /** What they're wearing and when that was last shown (game minutes). */
   outfit: Outfit | null;
+  classId?: string | null;
+  statPoints?: number;
+  /** Skill-tree node id → rank. */
+  skillRanks?: Record<string, number>;
+  /** Public reputation, -100..100. */
+  reputation?: number;
+  /** Wanted level, 0 (none) .. 5. */
+  wanted?: number;
+  crafting?: Partial<Record<Discipline, { level: number; xp: number }>>;
 }
 
 export interface Outfit {
@@ -152,7 +163,17 @@ export interface Item {
   locked: boolean;
   tags: string[];
   addedAt: number;
+  /** Who holds it: null = the player; 'party' = the shared party bag; 'member:<id>'; 'store:<storageId>' at a home. */
+  holder?: string | null;
+  /** Containers: how many stacks fit inside. */
+  capacity?: number;
+  /** Crafted gear: poor, common, fine, superior, masterwork. */
+  quality?: Quality;
+  enchantSlots?: number;
+  enchantments?: string[];
 }
+
+export type Quality = 'poor' | 'common' | 'fine' | 'superior' | 'masterwork';
 
 export interface Location {
   id: string;
@@ -181,7 +202,22 @@ export interface Route {
   mode: RouteMode;
   /** Optional fixed travel minutes (overrides distance). */
   minutes: number | null;
+  requires?: Requirement[];
 }
+
+/** A condition checked by code before travel (routes, transit lines, places). */
+export type Requirement =
+  | { kind: 'discovered' }
+  | { kind: 'fare'; amount: number }
+  | { kind: 'vehicle'; mode: string }
+  | { kind: 'item'; name: string }
+  | { kind: 'standing'; org: string; min: number }
+  | { kind: 'reputation'; min: number }
+  | { kind: 'quest'; title: string; state: 'active' | 'done' }
+  | { kind: 'partySize'; max: number }
+  | { kind: 'notWanted'; max: number }
+  | { kind: 'hours'; open: number; close: number }
+  | { kind: 'weather'; not: WeatherKind[] };
 
 export interface ScheduleSlot {
   id: string;
@@ -316,6 +352,31 @@ export interface PartyMember {
   skills: string[];
   /** The narrator may describe what happens to them but never voice them. */
   sovereign: boolean;
+  row?: 'front' | 'back';
+  /** In the active party (the rest are reserves). */
+  active?: boolean;
+  roleKind?: PartyRole | null;
+  tactics?: Tactics;
+  xp?: number;
+  classId?: string | null;
+  statPoints?: number;
+  skillRanks?: Record<string, number>;
+  /** Extra vitals shown for this member (e.g. Sanity), id → value. */
+  vitals?: Record<string, { label: string; cur: number; max: number }>;
+  injuries?: string[];
+}
+
+export type PartyRole = 'tank' | 'healer' | 'damage' | 'support' | 'scout';
+export interface TacticRule {
+  /** e.g. "heal when an ally is under 30%" → { when: 'allyHpBelow', value: 30, do: 'heal' } */
+  when: 'allyHpBelow' | 'selfHpBelow' | 'enemyBroken' | 'always';
+  value: number;
+  do: 'heal' | 'defend' | 'attackWeakest' | 'attackStrongest' | 'skill';
+  skill?: string;
+}
+export interface Tactics {
+  preset: 'balanced' | 'aggressive' | 'defensive' | 'heal-first' | 'conserve';
+  rules: TacticRule[];
 }
 
 export interface Combatant {
@@ -334,6 +395,18 @@ export interface Combatant {
   alive: boolean;
   isPlayer: boolean;
   skills: string[];
+  row?: 'front' | 'back';
+  /** Break gauge: hits on a weakness drain it; at 0 the combatant is broken for a while. */
+  breakMax?: number;
+  breakCur?: number;
+  brokenTurns?: number;
+  weaknesses?: string[];
+  /** What an enemy will do on its next turn (shown to the player). */
+  intent?: { kind: 'attack' | 'heavy' | 'charge' | 'heal' | 'defend'; target: string | null; label: string } | null;
+  /** In reserve (party only): can be swapped in. */
+  reserve?: boolean;
+  /** Party member id this combatant came from. */
+  memberId?: string | null;
 }
 
 export interface Battle {
@@ -347,6 +420,8 @@ export interface Battle {
   status: 'active' | 'won' | 'lost' | 'fled';
   rewards: { xp: number; currency: number; items: string[] } | null;
   startedAt: number;
+  /** Who acts first among the party and speaks for it. */
+  leader?: string;
 }
 
 export interface CalendarConfig {
@@ -359,6 +434,264 @@ export interface CalendarConfig {
   /** Tokens: {weekday} {month} {mon} {day} {year} {mm} {dd}. */
   dateFormat: string;
   clock: '12h' | '24h';
+}
+
+// ------------------------------------------------------------------ Phase 3: economy
+
+export interface Denomination {
+  name: string;
+  symbol: string;
+  /** Worth in main-currency units (Gold = 1, Silver = 0.1, Copper = 0.01). */
+  value: number;
+}
+export interface ExtraCurrency {
+  id: string;
+  name: string;
+  symbol: string;
+  /** Main-currency units per 1 of this currency. */
+  rate: number;
+}
+export interface Account {
+  id: string;
+  name: string;
+  bankLocationId: string | null;
+  balance: number;
+  /** Yearly interest, e.g. 0.02 = 2%. */
+  apr: number;
+  /** Game day index interest was last added. */
+  lastAccrued: number;
+}
+export interface Loan {
+  id: string;
+  lender: string;
+  principal: number;
+  balance: number;
+  apr: number;
+  installment: number;
+  periodDays: number;
+  status: 'active' | 'paid' | 'defaulted';
+  billId: string | null;
+}
+export type BillKind = 'rent' | 'subscription' | 'dues' | 'upkeep' | 'loan' | 'other';
+export interface Bill {
+  id: string;
+  name: string;
+  kind: BillKind;
+  amount: number;
+  periodDays: number;
+  /** Game minute it's next due. */
+  nextDue: number;
+  autopay: boolean;
+  /** Consecutive missed payments. */
+  missed: number;
+  /** Late fees owed on top of the next payment. */
+  owed: number;
+  status: 'active' | 'ended';
+  homeId: string | null;
+  assetId: string | null;
+  loanId: string | null;
+  orgId: string | null;
+}
+export interface Asset {
+  id: string;
+  name: string;
+  kind: 'property' | 'vehicle' | 'business' | 'animal' | 'other';
+  value: number;
+  upkeep: number;
+  income: number;
+  periodDays: number;
+  nextPayout: number;
+  locationId: string | null;
+  /** Travel modes this asset provides (vehicles, mounts). */
+  modes: string[];
+  status: 'owned' | 'rented' | 'borrowed' | 'lost';
+  billId: string | null;
+}
+export interface LedgerEntry {
+  id: string;
+  at: number;
+  text: string;
+  amount: number;
+  /** 'wallet', an account id, or an extra currency id. */
+  where: string;
+}
+export type ShopKind = 'general' | 'food' | 'tavern' | 'smith' | 'alchemist' | 'clothier' | 'books' | 'magic' | 'tech' | 'pharmacy' | 'market' | 'stable' | 'other';
+export interface ShopStock {
+  id: string;
+  name: string;
+  category: ItemCategory;
+  basePrice: number;
+  qty: number;
+  maxQty: number;
+  desc: string;
+  effects?: ItemEffects;
+  slot?: EquipSlot | null;
+  stats?: Partial<Stats>;
+}
+export interface Shop {
+  id: string;
+  name: string;
+  kind: ShopKind;
+  npcId: string | null;
+  locationId: string | null;
+  orgId: string | null;
+  /** Opening hours, minutes of day (close < open wraps midnight); days empty = every day. */
+  open: number;
+  close: number;
+  days: number[];
+  stock: Record<string, ShopStock>;
+  restockDays: number;
+  lastRestock: number;
+  /** Today's haggling result (price multiplier) and the day it applies to. */
+  haggle: { day: number; mult: number } | null;
+}
+export interface Economy {
+  denominations: Denomination[];
+  currencies: Record<string, ExtraCurrency>;
+  /** Balances of extra currencies (the main one is player.currency). */
+  wallet: Record<string, number>;
+  accounts: Record<string, Account>;
+  loans: Record<string, Loan>;
+  bills: Record<string, Bill>;
+  assets: Record<string, Asset>;
+  shops: Record<string, Shop>;
+  ledger: LedgerEntry[];
+}
+
+// ------------------------------------------------------------------ Phase 3: homes and crafting
+
+export type HomeKind = 'house' | 'apartment' | 'room' | 'guild' | 'castle' | 'cabin' | 'campsite' | 'cave' | 'vehicle' | 'other';
+export interface Room {
+  id: string;
+  name: string;
+  purpose: string;
+  /** Amenity ids (see AMENITIES): bed, kitchen, forge, alchemy, enchanting, workbench, bath… */
+  amenities: string[];
+  level: number;
+}
+export interface Storage {
+  id: string;
+  name: string;
+  capacity: number;
+}
+export interface Home {
+  id: string;
+  name: string;
+  kind: HomeKind;
+  locationId: string | null;
+  ownership: 'owned' | 'rented' | 'borrowed' | 'lost';
+  primary: boolean;
+  rooms: Room[];
+  storage: Storage[];
+  billId: string | null;
+  notes: string;
+}
+export type HouseholdRole = 'head' | 'resident' | 'dependent' | 'guardian' | 'guest';
+export interface HouseholdMember {
+  id: string;
+  name: string;
+  npcId: string | null;
+  homeId: string;
+  role: HouseholdRole;
+  relation: string;
+  /** Where they are when not at home (work, school), or when a guest visits: slots with a place. */
+  schedule: ScheduleSlot[];
+}
+export type Discipline = 'cooking' | 'alchemy' | 'forge' | 'enchantment' | 'general';
+export interface Recipe {
+  id: string;
+  name: string;
+  discipline: Discipline;
+  ingredients: Array<{ name: string; qty: number }>;
+  /** Amenity id needed (kitchen, forge…); a matching public place also works. */
+  station: string | null;
+  level: number;
+  minutes: number;
+  difficulty: 'easy' | 'normal' | 'hard' | 'very hard';
+  result: { name: string; qty: number; category: ItemCategory; value: number; effects?: ItemEffects; stats?: Partial<Stats>; slot?: EquipSlot | null };
+  /** Enchantment recipes add this to an item instead of making one. */
+  enchant?: { effect: string; stats?: Partial<Stats> } | null;
+  source: 'builtin' | 'ai' | 'user';
+}
+
+// ------------------------------------------------------------------ Phase 3: travel, progression, communication
+
+export interface TransitLine {
+  id: string;
+  name: string;
+  /** Travel mode id (train, ferry, bus, airship…). */
+  mode: string;
+  stops: string[];
+  /** Minutes of day of the first and last departure from the first stop, and the interval. */
+  first: number;
+  last: number;
+  every: number;
+  days: number[];
+  /** Minutes between consecutive stops. */
+  hop: number;
+  fare: number;
+  farePerStop: number;
+  requires: Requirement[];
+}
+export interface TravelEntry {
+  id: string;
+  at: number;
+  from: string;
+  to: string;
+  mode: string;
+  minutes: number;
+  cost: number;
+}
+export interface ClassDef {
+  id: string;
+  name: string;
+  desc: string;
+  growth: Partial<Stats>;
+  hpPerLevel: number;
+  mpPerLevel: number;
+  builtin: boolean;
+}
+export interface SkillNode {
+  id: string;
+  name: string;
+  desc: string;
+  classId: string | null;
+  kind: Skill['kind'];
+  cost: number;
+  costType: Skill['costType'];
+  power: number;
+  element: string | null;
+  target: TargetKind;
+  maxRank: number;
+  requires: { level?: number; skills?: string[]; item?: string; quest?: string };
+  source: 'builtin' | 'ai' | 'user';
+}
+export type TargetKind = 'single' | 'all' | 'row' | 'random' | 'self' | 'ally' | 'allies';
+export interface Mail {
+  id: string;
+  kind: 'letter' | 'email';
+  direction: 'in' | 'out';
+  npcId: string | null;
+  from: string;
+  to: string;
+  subject: string;
+  body: string;
+  sentAt: number;
+  deliverAt: number;
+  courier: 'post' | 'courier' | 'bird' | 'express' | null;
+  read: boolean;
+  /** An outgoing letter that expects an answer: the reply arrives this long after delivery. */
+  replyDue: number | null;
+}
+export interface FeedPost {
+  id: string;
+  at: number;
+  npcId: string | null;
+  author: string;
+  text: string;
+  likes: number;
+  liked: boolean;
+  comments: Array<{ id: string; author: string; text: string; at: number }>;
 }
 
 export interface CampaignState {
@@ -395,6 +728,18 @@ export interface CampaignState {
   threads: Record<string, Thread>;
   /** Names the player deleted; the model may not re-create them. */
   forgotten: string[];
+  // Phase 3
+  economy: Economy;
+  homes: Record<string, Home>;
+  household: Record<string, HouseholdMember>;
+  recipes: Record<string, Recipe>;
+  transit: Record<string, TransitLine>;
+  travelLog: TravelEntry[];
+  classes: Record<string, ClassDef>;
+  skillTree: Record<string, SkillNode>;
+  partyMeta: { leader: string; maxActive: number };
+  mail: Record<string, Mail>;
+  feed: FeedPost[];
 }
 
 export type WeatherKind = 'clear' | 'cloudy' | 'overcast' | 'rain' | 'storm' | 'snow' | 'fog' | 'wind' | 'heat';
@@ -462,6 +807,12 @@ export function createInitialState(opts: Partial<{ title: string; style: Style; 
       appearance: '',
       birthday: null,
       outfit: null,
+      classId: null,
+      statPoints: 0,
+      skillRanks: {},
+      reputation: 0,
+      wanted: 0,
+      crafting: {},
     },
     trackers: defaultTrackers(),
     inventory: {},
@@ -482,7 +833,35 @@ export function createInitialState(opts: Partial<{ title: string; style: Style; 
     bonds: {},
     threads: {},
     forgotten: [],
+    ...phase3Defaults(style),
   };
+}
+
+/** Everything Phase 3 added, empty, for a new campaign or an upgraded one. */
+export function phase3Defaults(style: Style): Pick<CampaignState, 'economy' | 'homes' | 'household' | 'recipes' | 'transit' | 'travelLog' | 'classes' | 'skillTree' | 'partyMeta' | 'mail' | 'feed'> {
+  return {
+    economy: { denominations: defaultDenominations(style), currencies: {}, wallet: {}, accounts: {}, loans: {}, bills: {}, assets: {}, shops: {}, ledger: [] },
+    homes: {},
+    household: {},
+    recipes: {},
+    transit: {},
+    travelLog: [],
+    classes: {},
+    skillTree: {},
+    partyMeta: { leader: 'player', maxActive: 4 },
+    mail: {},
+    feed: [],
+  };
+}
+
+export function defaultDenominations(style: Style): Denomination[] {
+  if (style === 'fantasy')
+    return [
+      { name: 'Gold', symbol: 'g', value: 1 },
+      { name: 'Silver', symbol: 's', value: 0.1 },
+      { name: 'Copper', symbol: 'c', value: 0.01 },
+    ];
+  return [];
 }
 
 /** Upgrade older state shapes. Add a step per version bump. */
@@ -492,8 +871,8 @@ export function migrateState(raw: any): CampaignState {
   if (!s.version || s.version < 1) {
     s = { ...createInitialState(), ...s, version: 1 };
   }
-  // Fill any missing top-level collections defensively.
-  const base = createInitialState();
+  // Fill any missing top-level collections defensively (in the campaign's own genre).
+  const base = createInitialState({ style: s.meta?.style });
   for (const key of Object.keys(base) as Array<keyof CampaignState>) {
     if (s[key] === undefined) (s as any)[key] = base[key];
   }
@@ -505,6 +884,15 @@ export function migrateState(raw: any): CampaignState {
     for (const id of Object.keys(s.relationships ?? {})) s.relationships[id] = { desire: 0, tension: 0, ...s.relationships[id] };
     for (const id of Object.keys(s.databank ?? {})) s.databank[id] = { kind: 'fact', trend: null, status: 'active', ...s.databank[id] };
     for (const id of Object.keys(s.party ?? {})) s.party[id] = { sovereign: false, ...s.party[id] };
+  }
+  if (s.version < 3) {
+    // Phase 3: economy, homes, crafting, transit, progression, mail. Everything is added; nothing changes meaning.
+    const add = phase3Defaults(s.meta?.style ?? 'fantasy');
+    s = { ...s, ...Object.fromEntries(Object.entries(add).filter(([k]) => s[k] === undefined)), version: 3 };
+    s.player = { classId: null, statPoints: 0, skillRanks: {}, reputation: 0, wanted: 0, crafting: {}, ...s.player };
+    const members = Object.values(s.party ?? {}) as any[];
+    members.forEach((m, i) => (s.party[m.id] = { row: 'front', active: i < 4, roleKind: null, tactics: { preset: 'balanced', rules: [] }, xp: 0, classId: null, statPoints: 0, skillRanks: {}, vitals: {}, injuries: [], ...m }));
+    for (const id of Object.keys(s.inventory ?? {})) s.inventory[id] = { holder: null, ...s.inventory[id] };
   }
   return s as CampaignState;
 }
