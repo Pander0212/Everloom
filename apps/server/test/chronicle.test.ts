@@ -130,25 +130,29 @@ describe('consolidation', () => {
     const r = await runConsolidation(ctx, o, chat.id, { useModel: true });
     expect(r).toMatchObject({ ok: true, scenes: 1, days: 1, usedModel: true });
     let mem = loadMemoryState(ctx, o, scope);
-    const scene = mem.items.find((m) => m.kind === 'scene')!;
+    expect(mem.scenes).toHaveLength(1);
+    const scene = mem.scenes[0];
     expect(scene.text).toContain('In short: Iris poured iced lemon tea');
     expect(scene.text).toContain('Bram died defending the gate'); // the milestone is carried
     expect(scene.importance).toBe(3);
-    // The folded beats leave recall; the secret beat (different witnesses) stays on its own.
-    expect(mem.items.map((m) => m.text).sort()).toEqual([scene.text, 'Iris told Anala where the key is'].sort());
+    // The secret beat (different witnesses) is not folded in; the folded beats stay recallable.
+    expect(mem.all.filter((m) => m.foldedInto === scene.id).map((m) => m.text).sort()).toEqual(['Bram died defending the gate', 'Iris poured iced lemon tea', 'Tobias arrived late from rehearsal']);
+    expect(mem.items.map((m) => m.text)).toContain('Tobias arrived late from rehearsal');
+    // The day summary covers the day's beats and the scene, so the recap shows the day alone.
     expect(mem.summaries.map((s) => s.level)).toEqual(['day']);
+    expect(mem.summaries[0].covers).toContain(scene.id);
     // Consolidation is idempotent.
     expect(await runConsolidation(ctx, o, chat.id, { useModel: true })).toMatchObject({ scenes: 0, days: 0 });
     // Permanently losing a folded beat drops the scene and its day summary; the rest unfold.
     const tobias = mem.all.find((m) => m.text.startsWith('Tobias'))!;
     await c.req('DELETE', `/api/memory/items/${tobias.id}`);
     mem = loadMemoryState(ctx, o, scope);
-    expect(mem.items.some((m) => m.kind === 'scene')).toBe(false);
+    expect(mem.scenes).toEqual([]);
     expect(mem.items.map((m) => m.text)).toEqual(expect.arrayContaining(['Iris poured iced lemon tea', 'Bram died defending the gate']));
     expect(mem.summaries).toEqual([]);
     // Two beats left is too few for a scene, but the day is still summarized, in plain text without the model.
     const r2 = await runConsolidation(ctx, o, chat.id, { useModel: false });
     expect(r2).toMatchObject({ scenes: 0, days: 1, usedModel: false });
-    expect(loadMemoryState(ctx, o, scope).summaries[0].text).toContain('Bram died defending the gate.');
+    expect(loadMemoryState(ctx, o, scope).summaries[0].text).toContain('Bram died defending the gate');
   });
 });

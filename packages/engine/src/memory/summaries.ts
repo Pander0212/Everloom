@@ -68,22 +68,32 @@ export function groupByDay<T extends { fromTime: number }>(items: T[]): Map<numb
 }
 
 /**
- * The STORY SO FAR for the scene block: chapter summaries, then every day or scene summary not
- * folded into a chapter, then milestones not covered by any summary. Over budget, the oldest
+ * The STORY SO FAR for the scene block, oldest first: chapters, then days not inside a chapter,
+ * then finished scenes not inside a day, then milestones nothing shown covers. Pass scene
+ * memories as level 'scene' items whose `covers` are their folded beats. Over budget, the oldest
  * ordinary lines go first; a line carrying a milestone is never dropped (it is shortened instead).
  */
 export function storySoFar(summaries: SummaryItem[], milestones: MemoryItem[], maxChars = 1600): string[] {
   const order = (a: SummaryItem, b: SummaryItem) => a.fromTime - b.fromTime || a.seq - b.seq;
-  const chapters = summaries.filter((s) => s.level === 'chapter').sort(order);
-  const inChapter = new Set(chapters.flatMap((c) => c.covers));
-  const rest = summaries.filter((s) => s.level !== 'chapter' && !inChapter.has(s.id)).sort(order);
-  const covered = new Set([...chapters, ...rest].flatMap((s) => s.covers));
-  // A chapter covers summaries, which cover memories: follow one level down.
-  for (const c of chapters) for (const id of c.covers) for (const s of summaries) if (s.id === id) for (const m of s.covers) covered.add(m);
-  const loose = milestones.filter((m) => !covered.has(m.id)).sort((a, b) => a.seq - b.seq);
+  const byId = new Map(summaries.map((x) => [x.id, x]));
+  const covered = new Set<string>();
+  const walk = (id: string) => {
+    if (covered.has(id)) return;
+    covered.add(id);
+    for (const c of byId.get(id)?.covers ?? []) walk(c);
+  };
+  const shown: SummaryItem[] = [];
+  for (const level of ['chapter', 'day', 'scene'] as const) {
+    for (const x of summaries.filter((y) => y.level === level).sort(order)) {
+      if (covered.has(x.id)) continue;
+      shown.push(x);
+      for (const c of x.covers) walk(c);
+    }
+  }
+  // Secret milestones are recalled (with who knows) rather than recapped as common knowledge.
+  const loose = milestones.filter((m) => !covered.has(m.id) && !m.secret).sort((a, b) => a.seq - b.seq);
   const lines: Array<{ text: string; keep: boolean }> = [
-    ...chapters.map((c) => ({ text: c.text, keep: c.importance >= 3 })),
-    ...rest.map((d) => ({ text: d.text, keep: d.importance >= 3 })),
+    ...shown.map((x) => ({ text: x.text, keep: x.importance >= 3 })),
     ...loose.map((m) => ({ text: m.text, keep: true })),
   ];
   const cost = () => lines.reduce((n, l) => n + l.text.length, 0);

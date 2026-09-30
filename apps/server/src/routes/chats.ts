@@ -84,34 +84,6 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
     const c = await runConsolidation(ctx, owner(req), id, { useModel: getSettings(ctx, owner(req)).world.consolidate });
     return { ...r, ok: r.ok || c.scenes + c.days + c.chapters > 0, consolidated: c };
   });
-  app.get('/api/chats/:id/memories', async (req) => {
-    const chat = chats.getChat(ctx, owner(req), (req.params as any).id);
-    return ctx.db.prepare("SELECT id, text, pinned, created_at AS createdAt FROM memories WHERE owner_id = ? AND kind = 'fact' AND (chat_id = ? OR character_id = ?) ORDER BY pinned DESC, updated_at DESC").all(owner(req), chat.id, chat.characterId);
-  });
-  app.post('/api/chats/:id/memories', async (req) => {
-    const chat = chats.getChat(ctx, owner(req), (req.params as any).id);
-    const b = parse(z.object({ text: z.string().trim().min(1).max(1000), pinned: z.boolean().optional() }), req.body);
-    const id = `mem_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
-    ctx.db.prepare("INSERT INTO memories (id, owner_id, chat_id, character_id, kind, text, pinned, created_at, updated_at) VALUES (?, ?, ?, ?, 'fact', ?, ?, ?, ?)").run(id, owner(req), chat.id, chat.characterId, b.text, b.pinned ? 1 : 0, Date.now(), Date.now());
-    indexDoc(ctx, owner(req), chat.campaignId, 'memory', id, 'Memory', b.text);
-    return { id };
-  });
-  app.patch('/api/memories/:id', async (req) => {
-    const b = parse(z.object({ text: z.string().trim().min(1).max(1000).optional(), pinned: z.boolean().optional() }), req.body);
-    const id = (req.params as any).id;
-    const row = ctx.db.prepare('SELECT * FROM memories WHERE id = ? AND owner_id = ?').get(id, owner(req)) as any;
-    if (!row) throw new HttpError(404, 'Memory not found');
-    ctx.db.prepare('UPDATE memories SET text = ?, pinned = ?, updated_at = ? WHERE id = ?').run(b.text ?? row.text, b.pinned === undefined ? row.pinned : b.pinned ? 1 : 0, Date.now(), id);
-    indexDoc(ctx, owner(req), null, 'memory', id, 'Memory', b.text ?? row.text);
-    return { ok: true };
-  });
-  app.delete('/api/memories/:id', async (req) => {
-    ctx.db.prepare('DELETE FROM memories WHERE id = ? AND owner_id = ?').run((req.params as any).id, owner(req));
-    ctx.db.prepare("DELETE FROM search_fts WHERE owner_id = ? AND kind = 'memory' AND ref_id = ?").run(owner(req), (req.params as any).id);
-    return { ok: true };
-  });
-
-  // ---------------- generation
   app.post('/api/chats/:id/generate', async (req, reply) => {
     const b = parse(
       z.object({ type: z.enum(['normal', 'swipe', 'regenerate', 'continue', 'impersonate']).default('normal'), text: z.string().max(100_000).optional(), characterId: z.string().nullable().optional(), target: z.string().max(120).nullable().optional() }),

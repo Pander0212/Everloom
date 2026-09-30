@@ -64,6 +64,7 @@ export function buildChroniclePrompt(input: { messages: ChronicleMessage[]; know
 ${body}
 
 Record the events worth remembering later: promises, discoveries, conflicts, gifts, confessions, arrivals, deaths, decisions. One line each, past tense, with names. Skip small talk.
+A secret or whisper goes in "memories" with "private": true and never in the summary.
 Standing facts that became true (occupation, rank, home, relationship) go in "facts"; set "changed": true only when the text shows the fact changing.
 Reply with JSON only:
 {"memories": [{"text": "...", "about": ["names involved"], "importance": 1|2|3, "private": false, "to": []}],
@@ -158,7 +159,8 @@ export interface DayPlan {
  */
 export function planDays(items: MemoryItem[], today: number, covered: Set<string>, opts: { minItems?: number } = {}): DayPlan[] {
   const byDay = new Map<number, MemoryItem[]>();
-  for (const m of items) {
+  // Secrets never go into a summary: a summary is shared background, a secret is not.
+  for (const m of items.filter((x) => !x.secret)) {
     const d = Math.floor(m.gameTime / 1440);
     if (d >= today) continue;
     (byDay.get(d) ?? byDay.set(d, []).get(d)!).push(m);

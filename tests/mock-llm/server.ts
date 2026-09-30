@@ -106,7 +106,8 @@ function answerFor(kind: string, messages: any[]): string {
     case 'consolidate': {
       // One summary per group, built from the group's first line so tests can see which is which.
       const out: Record<string, { title: string; text: string }> = {};
-      for (const m of all.matchAll(/^\[(\w+)\] \((\w+)\)\n- (.*)$/gm)) out[m[1]] = { title: `${m[2]} ${m[1]}`, text: `In short: ${m[3]}` };
+      // Like a faithful model: every line of the group, condensed into one paragraph.
+      for (const m of all.matchAll(/^\[(\w+)\] \((\w+)\)\n((?:- .*\n?)+)/gm)) out[m[1]] = { title: `${m[2]} ${m[1]}`, text: `In short: ${m[3].trim().split('\n').map((l) => l.slice(2).replace(/\.$/, '')).join('; ')}.` };
       return JSON.stringify({ summaries: out });
     }
     case 'test':

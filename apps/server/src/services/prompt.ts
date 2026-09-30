@@ -1,6 +1,6 @@
 /** Builds the full prompt for a chat turn. Shared by generation and the prompt inspector. */
 import {
-  assemblePrompt, buildSceneBlock, checkWorldInfo, createRng, formatClock, formatDate, INLINE_INSTRUCTION, seedFrom, storySoFar,
+  assemblePrompt, PLAYER, buildSceneBlock, checkWorldInfo, createRng, formatClock, formatDate, INLINE_INSTRUCTION, seedFrom, storySoFar,
   type PersonMemoryView, type SceneBlock,
   stripInlineTags, type AssembledPrompt, type CampaignState, type ChatDTO, type CharacterDTO, type HistoryMessage, type MacroContext,
   type MessageDTO, type PersonaDTO, type ScanEntry, type Settings,
@@ -189,11 +189,18 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     chatCharacters: pc.members.map((m) => m.id),
     semantic: world.semantic,
     playerLimit: world.recallLimit,
+    focus: lastUser ? textOf(lastUser) : undefined,
+    names: [pc.userName, ...pc.members.map((m) => m.name)],
   });
   const factsBy: Record<string, string[]> = {};
   for (const f of scene.facts) (factsBy[f.entityId] ??= []).push(f.text);
   const recap = storySoFar(scene.summaries, scene.milestones);
-  const recalled = scene.result.player.map((r) => ({ text: r.m.text, gameTime: r.m.gameTime, heard: r.k.kind === 'heard' }));
+  const recalled = scene.result.player.map((r) => ({
+    text: r.m.text,
+    gameTime: r.m.gameTime,
+    heard: r.k.kind === 'heard',
+    secretWith: r.m.secret ? r.m.witnesses.filter((w) => w !== PLAYER).map((w) => nameOfPerson(state, w, names)) : undefined,
+  }));
   if (state && settings.tracker.injectState) {
     const known = search(ctx, owner, recentText, { campaignId: chat.campaignId, kinds: ['fact', 'runin', 'diary'], limit: 4 }).map((h) => (h.title ? `${h.title}: ${h.body}` : h.body));
     const texts = recentPhoneTexts(ctx, owner, chat.campaignId!, state);
@@ -205,9 +212,12 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
         doesNotKnow: p.doesNotKnow.map((r) => r.m.text),
       };
     }
+    // Named in what the player just said first, then in the rest of the recent text.
     const referenced = new Set<string>();
-    const low = recentText.toLowerCase();
-    for (const n of Object.values(state.npcs)) if (low.includes(n.name.toLowerCase().split(' ')[0])) referenced.add(n.id);
+    for (const text of [lastUser ? textOf(lastUser) : '', recentText]) {
+      const low = text.toLowerCase();
+      for (const n of Object.values(state.npcs)) if (low.includes(n.name.toLowerCase().split(' ')[0])) referenced.add(n.id);
+    }
     const extraPresent = scene.present.filter((id) => id.startsWith('char:')).map((id) => ({ id, name: nameOfPerson(state, id, names) }));
     sceneBlock = buildSceneBlock(
       state,

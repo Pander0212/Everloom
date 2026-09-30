@@ -61,6 +61,7 @@ export function startEvents() {
   });
   on('campaign.toast', (d) => d.changes?.length && toast({ title: 'Story update', lines: d.changes }));
   on('tracker.status', (d) => useLive.setState((s) => ({ tracker: { ...s.tracker, [d.messageId]: d.status } })));
+  on('memory.changed', () => void queryClient.invalidateQueries({ queryKey: ['memory'] }));
   on('chat.created', () => void queryClient.invalidateQueries({ queryKey: ['chats'] }));
   on('chat.deleted', () => void queryClient.invalidateQueries({ queryKey: ['chats'] }));
   on('chat.updated', (d) => {

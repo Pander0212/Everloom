@@ -5,7 +5,7 @@
  *  - lexical   BM25 rank from SQLite FTS5 against the recent conversation (0..1)
  *  - semantic  cosine similarity from embeddings, when available (0..1)
  *  - entities  how much the memory is ABOUT the people standing here (coverage × intimacy)
- *  - place     it happened here
+ *  - place     it happened where the player is now, or at a place named in the recent text
  *  - named     someone it's about was named in the recent text
  *  - importance, recency, pinned
  *
@@ -28,13 +28,15 @@ export interface RecallWeights {
   pinned: number;
 }
 
+// Tuned on tests/memory-bench: what the conversation is about (lexical, semantic, names) must be
+// able to outrank "someone here was involved", or every scene recalls the same few memories.
 export const DEFAULT_RECALL_WEIGHTS: RecallWeights = Object.freeze({
-  lexical: 4,
+  lexical: 8,
   semantic: 5,
-  entities: 6,
-  place: 1.5,
-  named: 2,
-  importance: 2,
+  entities: 2.5,
+  place: 3,
+  named: 2.5,
+  importance: 1.5,
   recency: 1.5,
   pinned: 3,
 });
@@ -51,6 +53,8 @@ export interface RecallContext {
   semantic?: Map<string, number>;
   /** People named in the recent conversation. */
   named?: Set<string>;
+  /** Places named in the recent conversation (location ids). */
+  namedPlaces?: Set<string>;
   /** Game minutes for recency to halve (default 3 days). */
   halfLife?: number;
 }
@@ -85,7 +89,7 @@ export function scoreMemory(m: MemoryItem, ctx: RecallContext, w: RecallWeights 
   const lexical = ctx.lexical?.get(m.id) ?? 0;
   const semantic = Math.max(0, ctx.semantic?.get(m.id) ?? 0);
   const entities = specificity(cast, present);
-  const place = m.locationId && m.locationId === ctx.locationId ? 1 : 0;
+  const place = m.locationId && ctx.namedPlaces?.has(m.locationId) ? 1 : m.locationId && m.locationId === ctx.locationId ? 0.3 : 0;
   const named = ctx.named && cast.some((id) => id !== PLAYER && ctx.named!.has(id)) ? 1 : 0;
   const importance = (m.importance - 1) / 2;
   const half = ctx.halfLife ?? 3 * 1440;
@@ -114,7 +118,7 @@ function roundAll<T extends Record<string, number>>(o: T): T {
 
 /** A memory is "relevant" only if something ties it to this scene — not just being recent. */
 export function isRelevant(s: ScoreBreakdown): boolean {
-  return s.lexical > 0 || s.semantic > 0.3 * DEFAULT_RECALL_WEIGHTS.semantic || s.entities > 0 || s.named > 0 || s.pinned > 0 || s.importance >= DEFAULT_RECALL_WEIGHTS.importance;
+  return s.lexical > 0 || s.semantic > 0.3 * DEFAULT_RECALL_WEIGHTS.semantic || s.entities > 0 || s.named > 0 || s.pinned > 0 || s.place >= DEFAULT_RECALL_WEIGHTS.place || s.importance >= DEFAULT_RECALL_WEIGHTS.importance;
 }
 
 const STOP = new Set('the and for with that this was were had has have his her him she they them their you your from into onto about over under then than when what which who whom whose where while after before again also just very more most some any each other such only own same not but are its it’s it\'s one two there here said says told asked'.split(' '));
@@ -199,7 +203,8 @@ export function recall(memories: MemoryItem[], heard: HeardIndex, ctx: RecallCon
     const ranked = rank(id, memories, heard, ctx, w);
     const relevant = ranked.filter((r) => isRelevant(r.score));
     // Guarantee: at least one memory per person who knows anything — prefer one ABOUT them.
-    let pick = dedupe(relevant, threshold).slice(0, opts.perPersonLimit ?? 2);
+    // Someone spoken to or about gets more room.
+    let pick = dedupe(relevant, threshold).slice(0, (opts.perPersonLimit ?? 2) + (ctx.named?.has(id) ? 2 : 0));
     if (!pick.length && ranked.length) pick = [ranked.find((r) => r.m.participants.includes(id)) ?? ranked[0]];
     const known = new Set(ranked.map((r) => r.m.id));
     const doesNotKnow = player

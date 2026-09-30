@@ -148,7 +148,32 @@ See **A.18** for the full design and the benchmark. In short: **improved** on ev
 
 ### A.18 Memory (top priority)
 
-MEMORY_DESIGN_PLACEHOLDER
+**What a memory is.** An event with participants (who it's *about*) and witnesses (who *saw* it — not the same thing), a place, a game time, an importance (1 ordinary, 2 lasting, 3 milestone), a secret flag and the message+swipe it came from. Standing truths ("Mara is a knight") are separate *facts* with a slot key, versioned: a change the story shows supersedes the old value (history kept, citation kept), a contradiction without a shown change becomes a *conflict* for the player to settle, and a model-proposed fact must pass the evidence firewall. Summaries sit above: finished scenes fold into scene memories, finished days into day summaries, piled-up summaries into chapters; all editable, and milestones are carried up verbatim when prose drops them.
+
+**Who knows what.** Witnesses know first-hand. Off-screen gossip passes non-secret memories between people standing together, deterministically, one retelling at a time (distortion 1 = heard secondhand, 2+ = rumour, dies past 3). Secrets never travel and never go into a summary; when one is recalled for the player it carries "(secret — only you and X know)". Each person present in the scene block gets KNOWS / HEARD / DOES NOT KNOW lines scoped to them.
+
+**Recall.** Hybrid score per memory: BM25 from SQLite FTS5 (squared, relative to the best match, and computed on what the player *just said* with the wider recent text at 60%); embedding similarity when an embeddings connection exists; how much it's about the people here; a place the player named (or, weakly, the current place); people named recently; importance; recency (half-life 3 game days); pinned. Names of people are taken out of the keyword query (they have their own signal, and otherwise every memory about a person outranks the one being asked about); so are the words of a place the player names ("Temple of Dawn" must not match "guard the gate at dawn"). Near-duplicates are collapsed; every person present gets at least one memory they know; someone spoken to gets more room. Each recall keeps its score breakdown for "Why recalled?".
+
+**Writers.** The per-turn tracker pass (same call as before, no extra cost) writes the turn's events and facts. The background *chronicler* reads unread stretches of chat every N turns (N by turn number, so swipes never shift it) with a watermark that only counts runs whose last message is still live, never advances on a failed or garbled call, and never re-reads; it replaces Phase 1's rolling summarizer and is the only writer for chats without a game. *Consolidation* folds with the background model or, when that's off, in plain text.
+
+**Swipe-safe by construction.** Every row is anchored to message+swipe like the op log, and "live" is computed at read time: a swipe hides what the other take wrote, swiping back restores it without a new call, an edit or regenerate deletes what the old text caused, deleting a message deletes what it caused and whatever was built from it (a folded scene, a day summary). Branches copy memory up to the branch point.
+
+**Benchmark** (`tests/memory-bench`, `npm run bench:memory`). A deterministic 320-turn synthetic campaign: 12 people, 8 places, ~11 game days, secrets told in private, facts that change, and 64 questions asked at least 20 turns after the event — by keyword, by person + place, "does the person here remember what they saw", secrets that someone present must not know, and current facts. It runs through the real server pipeline (messages → tracker pass → memory writers → chronicler and consolidation) and reads the scene block exactly as a reply would. Phase 1 is re-created beside it (rolling 250-word summary every 24 messages, 5 facts per rewrite, 12 newest shown, 6 full-text hits); in mock mode its summarizer is an idealized stand-in that never invents anything and keeps important events longest, so the old numbers are, if anything, flattering. A real-model mode sends the prose to a real model (`MEMORY_BENCH_URL`, `MEMORY_BENCH_MODEL`, `MEMORY_BENCH_KEY`).
+
+| Metric (mock mode, balanced, 320 turns) | Phase 1 | Phase 2 |
+| --- | --- | --- |
+| Recall hit rate | 28% | 86% |
+| — by keyword | 7% | 100% |
+| — by person + place | 50% | 71% |
+| Person present remembers what they saw | 7% | 93% |
+| Knowledge-leak rate (lower is better) | 14% | 0% |
+| Current fact shown | 57% | 100% |
+| Stale-fact rate (lower is better) | 29% | 0% |
+| Memory tokens per prompt (avg / max) | 657 / 702 | 790 / 901 |
+
+To check the tuning didn't just fit one campaign, a second campaign that was never used for tuning (`--seed 7`, 69 questions): recall 31% → 100%, person 7% → 100%, leaks 29% → 0%, current fact 42% → 100%, stale facts 17% → 0%, tokens 647 → 782.
+
+How it got there (each step measured on the benchmark): the first version recalled only 45% and leaked 21%. Fixes, in order: BM25-proportional keyword scores instead of rank-flattened ones and more weight on them than on "someone here was involved" (keyword recall 60% → 100%); folded beats stay recallable, with scene summaries moved to the recap layer (details were being lost in folds); secrets kept out of day summaries and marked when recalled (leaks → 0%); people's names out of the keyword query (person recall 29% → 86%); facts about people named but not present shown under STORY SO FAR (current fact 14% → 100%); a place counts as named only when the player names it, and its words leave the keyword query (person + place 57% → 71%). The regression test `apps/server/test/memory-bench.test.ts` runs 200 turns and fails if recall, leaks, facts, token cost or call counts slip. It costs about 20% more prompt tokens than Phase 1's summary, spent on per-person knowledge lines that Phase 1 didn't have at all.
 
 ---
 

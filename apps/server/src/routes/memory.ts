@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
 import { listCalls } from '../services/calls.js';
+import { chronicleStatus } from '../services/chronicle.js';
 import { getState } from '../services/campaigns.js';
 import { characterRefs } from '../services/campaigns.js';
 import { getChat, getGroup, listMessages } from '../services/chats.js';
@@ -14,6 +15,7 @@ import {
   lastRecall,
   lexicalScores,
   loadMemoryState,
+  namedIn,
   nameOfPerson,
   presentIds,
   resolveConflict,
@@ -58,7 +60,8 @@ export function registerMemory(app: FastifyInstance, ctx: AppContext) {
     const mem = loadMemoryState(ctx, o, scopeOf(chat));
     const heard = new HeardIndex(mem.heard);
     const person = (id: string) => ({ id, name: nameOfPerson(state, id, names) });
-    const folded = new Set(mem.all.filter((m) => m.foldedInto && !mem.items.some((i) => i.id === m.id)).map((m) => m.id));
+    const sceneIds = new Set(mem.scenes.map((s) => s.id));
+    const folded = new Set(mem.all.filter((m) => m.foldedInto && sceneIds.has(m.foldedInto)).map((m) => m.id));
     let list: MemoryRow[] = q.include === 'active' ? mem.all.filter((m) => !m.forgotten) : mem.all;
     if (q.q?.trim()) {
       const hits = lexicalScores(ctx, o, scopeOf(chat), q.q, new Set(list.map((m) => m.id)), 200);
@@ -105,6 +108,9 @@ export function registerMemory(app: FastifyInstance, ctx: AppContext) {
         .map((s) => ({ id: s.id, level: s.level, title: s.title, text: s.text, importance: s.importance, edited: s.edited, fromTime: s.fromTime, toTime: s.toTime })),
     };
   });
+
+  /** How far the chronicler has read. */
+  app.get('/api/chats/:id/memory/status', async (req) => chronicleStatus(ctx, owner(req), (req.params as { id: string }).id));
 
   /** A note the player writes by hand: never tied to a message, so swipes don't remove it. */
   app.post('/api/chats/:id/memory', async (req) => {
@@ -177,16 +183,20 @@ export function registerMemory(app: FastifyInstance, ctx: AppContext) {
     const mem = loadMemoryState(ctx, o, scopeOf(chat));
     const m = mem.all.find((x) => x.id === itemId);
     if (!m) throw new HttpError(404, 'Memory not found');
-    const recent = listMessages(ctx, o, chat.id)
-      .filter((x) => !x.hidden)
-      .slice(-3)
-      .map((x) => x.swipes[x.swipeId]?.text ?? '')
-      .join('\n');
+    // Scored exactly as the last recall scored it (same lexical, semantic and name signals);
+    // before any recall, against the last few messages.
     const present = presentIds(state, names.cardIds);
-    const lexical = lexicalScores(ctx, o, scopeOf(chat), recent, new Set(mem.items.map((x) => x.id)));
-    const named = new Set<string>();
-    if (state) for (const n of Object.values(state.npcs)) if (recent.toLowerCase().includes(n.name.toLowerCase().split(' ')[0])) named.add(n.id);
-    const score = scoreMemory(m, { now: state?.time.minutes ?? 0, present, locationId: state?.currentLocationId ?? null, lexical, named });
+    let rctx = lastRecall.get(chat.id)?.ctx;
+    if (!rctx) {
+      const recent = listMessages(ctx, o, chat.id)
+        .filter((x) => !x.hidden)
+        .slice(-3)
+        .map((x) => x.swipes[x.swipeId]?.text ?? '')
+        .join('\n');
+      const n = namedIn(state, recent);
+      rctx = { now: state?.time.minutes ?? 0, present, locationId: state?.currentLocationId ?? null, lexical: lexicalScores(ctx, o, scopeOf(chat), recent, new Set(mem.items.map((x) => x.id))), named: n.people, namedPlaces: n.places };
+    }
+    const score = scoreMemory(m, rctx);
     const heard = new HeardIndex(mem.heard);
     const last = lastRecall.get(chat.id);
     const usedFor = last

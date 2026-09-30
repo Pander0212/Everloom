@@ -39,7 +39,7 @@ export interface SceneView {
   /** Recap lines (chapter/day summaries and milestones), oldest first. */
   storySoFar?: string[];
   /** What the player remembers that bears on this scene, best first. */
-  recalled?: Array<{ text: string; gameTime: number; heard?: boolean }>;
+  recalled?: Array<{ text: string; gameTime: number; heard?: boolean; /** A secret: the only people (besides the player) who know it. */ secretWith?: string[] }>;
   /** Databank facts that match the conversation (the player's own notes). */
   known?: string[];
   /** Per-person memory lines, keyed by person id. */
@@ -220,8 +220,19 @@ export function buildSceneBlock(s: CampaignState, view: SceneView = {}, opts: Sc
   // STORY SO FAR: recap (oldest first, oldest dropped first) then what you remember here.
   const recap = view.storySoFar ?? [];
   recap.forEach((line, i) => add('STORY SO FAR', truncate(line, 700), 'recap-old', i));
-  (view.recalled ?? []).forEach((r, i) => add('STORY SO FAR', `- [${dayTag(s, r.gameTime)}] ${r.heard ? '(heard) ' : ''}${truncate(r.text, 240)}`, 'recap-old', 100 - i));
+  const secretTag = (w: string[]) => `(secret — only you${w.length ? ` and ${w.join(', ')}` : ''} know) `;
+  (view.recalled ?? []).forEach((r, i) => add('STORY SO FAR', `- [${dayTag(s, r.gameTime)}] ${r.heard ? '(heard) ' : ''}${r.secretWith ? secretTag(r.secretWith) : ''}${truncate(r.text, 240)}`, 'recap-old', 100 - i));
   (view.known ?? []).slice(0, 4).forEach((k, i) => add('STORY SO FAR', `- (known) ${truncate(k, 200)}`, 'recap-old', 50 - i));
+  // People talked about who aren't here: what is currently true about them.
+  const here = new Set([...present.map((x) => x.n.id), ...party.map((m) => m.npcId).filter(Boolean)]);
+  [...referenced]
+    .filter((id) => !here.has(id) && s.npcs[id] && view.facts?.[id]?.length)
+    .slice(0, 3)
+    .forEach((id, i) => {
+      const n = s.npcs[id];
+      const at = n.locationId ? s.locations[n.locationId]?.name : undefined;
+      add('STORY SO FAR', `- ${n.name} (not here${at ? `; last known at ${at}` : ''}) — FACTS: ${view.facts![id].slice(0, 4).map((f) => truncate(f, 120)).join('; ')}`, 'person-detail', 3 - i);
+    });
 
   // QUESTS
   Object.values(s.quests)
@@ -296,7 +307,7 @@ export const NARRATOR_CONTRACT = `How to use the WORLD STATE block:
 - KNOWS (was there): they witnessed it. HEARD SECONDHAND: they were told. HEARD AS RUMOUR (may be garbled): they heard a distorted version. DOES NOT KNOW: they must not know or act on it unless someone tells them in the story.
 - WARNING: lines bind (an UNCONSCIOUS person cannot act or speak).
 - PARTY members travel with the player. A sovereign party member may be described, but never write their words, thoughts, decisions or voluntary actions.
-- STORY SO FAR is background the player remembers. Don't re-narrate it.
+- STORY SO FAR is background the player remembers. Don't re-narrate it. A line marked (secret — only you and …) is known to no one else.
 - QUESTS are open goals. COMING UP lists what is due, with the time until it.
 - THE WORLD RIGHT NOW is private continuity for you, not news anyone present has heard.
 - SOMETHING HAPPENS is an event for this turn: weave it in naturally and never announce that it was rolled.

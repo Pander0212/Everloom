@@ -24,6 +24,7 @@ import {
   type Importance,
   type MemoryItem,
   type MemoryKind,
+  type RecallContext,
   type RecallResult,
   type SummaryItem,
 } from '@everloom/engine';
@@ -159,8 +160,10 @@ function toSummary(r: any): SummaryRow {
 }
 
 export interface MemoryState {
-  /** Live memories usable for recall (not forgotten, not folded into a live scene memory). */
+  /** Live memories usable for recall: beats, chronicle lines and notes (not forgotten). Beats stay recallable after folding. */
   items: MemoryRow[];
+  /** Valid scene memories (folded finished scenes): the recap layer between beats and days. */
+  scenes: MemoryRow[];
   /** Every live memory including folded and forgotten ones (for the timeline). */
   all: MemoryRow[];
   heard: HeardItem[];
@@ -185,7 +188,8 @@ export function loadMemoryState(ctx: AppContext, owner: string, scope: MemScope)
   const validScene = (id: string) => (foldedAll.get(id) ?? []).every((b) => liveIds.has(b));
   const all = rows.filter((r) => r.kind !== 'scene' || validScene(r.id));
   const allIds = new Set(all.map((r) => r.id));
-  const items = all.filter((r) => !r.forgotten && !(r.foldedInto && allIds.has(r.foldedInto)));
+  const items = all.filter((r) => !r.forgotten && r.kind !== 'scene');
+  const scenes = all.filter((r) => !r.forgotten && r.kind === 'scene');
 
   const heardRows = ctx.db.prepare(`SELECT h.* FROM mem_heard h WHERE h.owner_id = ? AND ${scopeSql(scope, 'h').sql} AND ${liveSql('h')}`).all(owner, ...scopeSql(scope, 'h').args) as any[];
   const heard = heardRows.filter((h) => allIds.has(h.memory_id)).map((h) => ({ memoryId: h.memory_id, viewer: h.viewer, distortion: h.distortion, from: h.from_id }));
@@ -209,7 +213,7 @@ export function loadMemoryState(ctx: AppContext, owner: string, scope: MemScope)
   // A summary is valid while everything it was built from still exists.
   const summaryIds = new Set(summaryRows.map((s) => s.id));
   const summaries = summaryRows.filter((s) => s.edited || s.covers.every((id) => allIds.has(id) || summaryIds.has(id)));
-  return { items, all, heard, facts, summaries };
+  return { items, scenes, all, heard, facts, summaries };
 }
 
 // ------------------------------------------------------------------ writing
@@ -606,31 +610,72 @@ async function semanticScores(ctx: AppContext, owner: string, chatId: string, id
 export interface SceneRecall {
   result: RecallResult;
   facts: FactRow[];
-  summaries: SummaryRow[];
+  summaries: SummaryItem[];
   milestones: MemoryRow[];
   present: string[];
   /** Every scored candidate for "why was this recalled?". */
   explain: Array<{ id: string; viewer: string; total: number }>;
 }
 
-/** Full-text scores for live memory ids: best match 1.0, falling with rank. */
-export function lexicalScores(ctx: AppContext, owner: string, scope: MemScope, query: string, liveIds: Set<string>, limit = 40): Map<string, number> {
-  const out = new Map<string, number>();
-  const q = ftsQuery(query, 24);
-  if (!q) return out;
+/**
+ * Full-text scores for live memory ids, proportional to BM25 (best match 1.0): a memory matching
+ * two rare words beats one matching a common word. With `focus` (what the player just said), those
+ * matches count fully and the wider recent text at 60%.
+ */
+export function lexicalScores(ctx: AppContext, owner: string, scope: MemScope, query: string, liveIds: Set<string>, limit = 40, focus?: string, skipWords?: Set<string>): Map<string, number> {
   const w = scope.campaignId ? { sql: 'campaign_id = ?', args: [scope.campaignId] } : { sql: "chat_id = ? AND campaign_id = ''", args: [scope.chatId] };
-  try {
-    const rows = ctx.db.prepare(`SELECT item_id FROM mem_fts WHERE mem_fts MATCH ? AND owner_id = ? AND ${w.sql} AND kind = 'memory' ORDER BY bm25(mem_fts) LIMIT ?`).all(q, owner, ...w.args, limit * 3) as Array<{ item_id: string }>;
-    let rank = 0;
-    for (const r of rows) {
-      if (!liveIds.has(r.item_id)) continue;
-      out.set(r.item_id, Math.max(0.2, 1 - rank / limit));
-      if (++rank >= limit) break;
+  // Names of people and places have their own signals; as search words they'd make every memory
+  // about someone outrank the one the question is actually about.
+  const strip = (text: string) => (skipWords?.size ? text.replace(/[\p{L}\p{N}]+/gu, (x) => (skipWords.has(x.toLowerCase()) ? ' ' : x)) : text);
+  const one = (text: string, weight: number, into: Map<string, number>) => {
+    const q = ftsQuery(strip(text), 24);
+    if (!q) return;
+    try {
+      const rows = ctx.db.prepare(`SELECT item_id, bm25(mem_fts) AS s FROM mem_fts WHERE mem_fts MATCH ? AND owner_id = ? AND ${w.sql} AND kind = 'memory' ORDER BY s LIMIT ?`).all(q, owner, ...w.args, limit * 3) as Array<{ item_id: string; s: number }>;
+      const live = rows.filter((r) => liveIds.has(r.item_id)).slice(0, limit);
+      const best = live[0]?.s;
+      if (!best) return;
+      // Squared: matching every rare word of the question is worth far more than matching one.
+      for (const r of live) into.set(r.item_id, Math.max(into.get(r.item_id) ?? 0, Math.round((r.s / best) ** 2 * weight * 1000) / 1000));
+    } catch {
+      /* bad query: no lexical signal */
     }
-  } catch {
-    /* bad query: no lexical signal */
+  };
+  const out = new Map<string, number>();
+  one(query, focus ? 0.6 : 1, out);
+  if (focus) one(focus, 1, out);
+  return out;
+}
+
+/**
+ * Words of every known person's name (for keeping them out of keyword search). Place names stay
+ * searchable: they are often ordinary words ("The Lantern").
+ */
+export function nameWords(state: CampaignState | null, extra: string[] = []): Set<string> {
+  const out = new Set<string>();
+  const add = (n: string) => {
+    for (const w of n.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []) if (w.length >= 3) out.add(w);
+  };
+  for (const n of extra) add(n);
+  if (state) {
+    for (const n of Object.values(state.npcs)) add(n.name);
   }
   return out;
+}
+
+/** People and places named in a text: NPC ids by first name or full name, location ids by name. */
+export function namedIn(state: CampaignState | null, text: string): { people: Set<string>; places: Set<string> } {
+  const people = new Set<string>();
+  const places = new Set<string>();
+  if (!state) return { people, places };
+  const low = text.toLowerCase();
+  const word = (w: string) => new RegExp(`\\b${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'i').test(low);
+  for (const n of Object.values(state.npcs)) {
+    const first = n.name.toLowerCase().split(' ')[0];
+    if (first.length >= 3 && word(first)) people.add(n.id);
+  }
+  for (const l of Object.values(state.locations)) if (l.name.length >= 3 && low.includes(l.name.toLowerCase())) places.add(l.id);
+  return { people, places };
 }
 
 export async function recallForScene(
@@ -639,29 +684,35 @@ export async function recallForScene(
   chat: ChatDTO,
   state: CampaignState | null,
   recentText: string,
-  opts: { chatCharacters: string[]; semantic: boolean; playerLimit?: number; semanticTimeoutMs?: number },
+  opts: { chatCharacters: string[]; semantic: boolean; playerLimit?: number; semanticTimeoutMs?: number; focus?: string; names?: string[] },
 ): Promise<SceneRecall> {
   const scope = scopeOf(chat);
   const mem = loadMemoryState(ctx, owner, scope);
   const present = presentIds(state, opts.chatCharacters);
   const liveIds = new Set(mem.items.map((m) => m.id));
-  const lexical = lexicalScores(ctx, owner, scope, recentText, liveIds);
-  const semantic = opts.semantic ? await semanticScores(ctx, owner, chat.id, [...liveIds], recentText, opts.semanticTimeoutMs ?? 2500) : new Map<string, number>();
-  const named = new Set<string>();
-  const low = recentText.toLowerCase();
-  if (state) for (const n of Object.values(state.npcs)) if (low.includes(n.name.toLowerCase().split(' ')[0])) named.add(n.id);
-  const result = recall(mem.items, new HeardIndex(mem.heard), { now: state?.time.minutes ?? 0, present, locationId: state?.currentLocationId ?? null, lexical, semantic, named }, { playerLimit: opts.playerLimit ?? 6 });
+  // People and places named anywhere recently matter; a place only when the player names it (the
+  // narration names the current place all the time). Named places are scored as places, so their
+  // words ("Temple of Dawn") don't also match memories as ordinary words ("at dawn").
+  const named = namedIn(state, opts.focus ? `${opts.focus}\n${recentText.slice(-1500)}` : recentText).people;
+  const namedPlaces = namedIn(state, opts.focus ?? '').places;
+  const skip = nameWords(state, [...(opts.names ?? []), ...[...namedPlaces].map((id) => state?.locations[id]?.name ?? '')]);
+  const lexical = lexicalScores(ctx, owner, scope, recentText, liveIds, 40, opts.focus, skip);
+  const semantic = opts.semantic ? await semanticScores(ctx, owner, chat.id, [...liveIds], opts.focus || recentText, opts.semanticTimeoutMs ?? 1200) : new Map<string, number>();
+  const recallCtx: RecallContext = { now: state?.time.minutes ?? 0, present, locationId: state?.currentLocationId ?? null, lexical, semantic, named, namedPlaces };
+  const result = recall(mem.items, new HeardIndex(mem.heard), recallCtx, { playerLimit: opts.playerLimit ?? 6 });
   const facts = currentFacts(mem.facts) as FactRow[];
   const explain = [
     ...result.player.map((r) => ({ id: r.m.id, viewer: PLAYER, total: r.score.total })),
     ...result.people.flatMap((p) => [...p.knows, ...p.heard].map((r) => ({ id: r.m.id, viewer: p.id, total: r.score.total }))),
   ];
-  lastRecall.set(chat.id, { at: Date.now(), result, present });
-  return { result, facts, summaries: mem.summaries, milestones: mem.items.filter((m) => m.importance >= 3), present, explain };
+  lastRecall.set(chat.id, { at: Date.now(), result, present, ctx: recallCtx });
+  // Scene memories join the recap as the layer below days.
+  const sceneSummaries: SummaryItem[] = mem.scenes.map((m) => ({ id: m.id, level: 'scene', title: '', text: m.text, fromTime: m.gameTime, toTime: m.gameTime, covers: mem.all.filter((b) => b.foldedInto === m.id).map((b) => b.id), importance: m.importance, seq: m.seq }));
+  return { result, facts, summaries: [...mem.summaries, ...sceneSummaries], milestones: mem.items.filter((m) => m.importance >= 3), present, explain };
 }
 
 /** The most recent recall per chat, for "why was this recalled?". */
-export const lastRecall = new Map<string, { at: number; result: RecallResult; present: string[] }>();
+export const lastRecall = new Map<string, { at: number; result: RecallResult; present: string[]; ctx: RecallContext }>();
 
 // ------------------------------------------------------------------ player controls
 

@@ -178,11 +178,14 @@ export async function runConsolidation(ctx: AppContext, owner: string, chatId: s
       for (const cc of byId.get(c)?.covers ?? []) inSummary.add(cc);
     }
     // A scene memory counts as summarized when every beat folded into it already is.
-    for (const sc of mem.items.filter((m) => m.kind === 'scene')) {
+    for (const sc of mem.scenes) {
       const beats = mem.all.filter((b) => b.foldedInto === sc.id);
       if (beats.length && beats.every((b) => inSummary.has(b.id))) inSummary.add(sc.id);
     }
-    const days = state ? planDays(mem.items.filter((m) => !(m.foldedInto && mem.items.some((x) => x.id === m.foldedInto))), Math.floor(now / 1440), inSummary).slice(0, 3) : [];
+    const days = state ? planDays(mem.items, Math.floor(now / 1440), inSummary).slice(0, 3) : [];
+    // A day also covers the finished scenes inside it, so the recap shows the day instead of them.
+    const sceneBeats = new Map(mem.scenes.map((sc) => [sc.id, mem.all.filter((b) => b.foldedInto === sc.id).map((b) => b.id)]));
+    const scenesOfDay = (ids: Set<string>) => [...sceneBeats].filter(([, beats]) => beats.length > 0 && beats.every((b) => ids.has(b))).map(([id]) => id);
     const chapter = planChapter(mem.summaries);
     if (!scenes.length && !days.length && !chapter) return res;
 
@@ -216,7 +219,7 @@ export async function runConsolidation(ctx: AppContext, owner: string, chatId: s
           const r = exists.get(b.id) as { folded_into: string | null } | undefined;
           return r && !r.folded_into;
         })) return;
-        insertMemory(ctx, owner, scope, anchor, 'consolidate', {
+        const made = insertMemory(ctx, owner, scope, anchor, 'consolidate', {
           kind: 'scene',
           text: textFor(`s${i}`, s.beats),
           participants: s.participants,
@@ -227,11 +230,12 @@ export async function runConsolidation(ctx: AppContext, owner: string, chatId: s
           secret: s.secret,
           foldedFrom: s.beats.map((b) => b.id),
         });
+        sceneBeats.set(made.id, s.beats.map((b) => b.id));
         res.scenes++;
       });
       days.forEach((d, i) => {
         if (!d.items.every((m) => exists.get(m.id))) return;
-        insertSummary(ctx, owner, scope, anchor, { level: 'day', title: prose.get(`d${i}`)?.title || `Day ${d.day + 1}`, text: textFor(`d${i}`, d.items), fromTime: d.day * 1440, toTime: d.day * 1440 + 1439, covers: d.items.map((m) => m.id), importance: d.importance });
+        insertSummary(ctx, owner, scope, anchor, { level: 'day', title: prose.get(`d${i}`)?.title || `Day ${d.day + 1}`, text: textFor(`d${i}`, d.items), fromTime: d.day * 1440, toTime: d.day * 1440 + 1439, covers: [...d.items.map((m) => m.id), ...scenesOfDay(new Set(d.items.map((m) => m.id)))], importance: d.importance });
         res.days++;
       });
       if (chapter) {
@@ -261,10 +265,25 @@ export function afterTurn(ctx: AppContext, owner: string, chatId: string): { chr
   const turn = (ctx.db.prepare("SELECT COUNT(*) AS n FROM messages WHERE chat_id = ? AND role = 'assistant' AND hidden = 0").get(chatId) as { n: number }).n;
   const due = { chronicler: w.chronicler && turn > 0 && turn % Math.max(1, w.chronicleEvery) === 0, consolidate: turn > 0 && turn % Math.max(1, w.consolidateEvery) === 0, embed: w.semantic };
   const chat = getChat(ctx, owner, chatId);
-  void (async () => {
-    if (due.chronicler) await runChronicler(ctx, owner, chatId);
-    if (due.consolidate) await runConsolidation(ctx, owner, chatId, { useModel: w.consolidate });
-    if (due.embed) await embedPending(ctx, owner, scopeOf(chat), chatId);
-  })().catch(() => {});
+  const prev = background.get(chatId) ?? Promise.resolve();
+  const p = prev
+    .then(async () => {
+      if (due.chronicler) await runChronicler(ctx, owner, chatId);
+      if (due.consolidate) await runConsolidation(ctx, owner, chatId, { useModel: w.consolidate });
+      if (due.embed) await embedPending(ctx, owner, scopeOf(chat), chatId);
+    })
+    .catch(() => {})
+    .finally(() => {
+      if (background.get(chatId) === p) background.delete(chatId);
+    });
+  background.set(chatId, p);
   return due;
+}
+
+/** Background memory work queued per chat (one after another, never two at once). */
+const background = new Map<string, Promise<void>>();
+
+/** Resolves when the chat's queued background memory work is done (tests, benchmark, shutdown). */
+export function settleBackground(chatId: string): Promise<void> {
+  return background.get(chatId) ?? Promise.resolve();
 }
