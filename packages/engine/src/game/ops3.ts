@@ -240,7 +240,7 @@ export const OpSchemas3 = {
   // ---- stage and audio
   'fx.play': z.object({
     type: z.literal('fx.play'),
-    effect: z.enum(['shake', 'flash', 'fade', 'blur', 'vignette', 'heartbeat', 'sparkle', 'rain', 'snow', 'glitch']),
+    effect: z.enum(['shake', 'flash', 'fade', 'blur', 'vignette', 'heartbeat', 'sparkle', 'rain', 'snow', 'glitch', 'fog', 'embers', 'lightning']),
     intensity: num.min(0).max(1).default(0.6),
     seconds: num.min(0.2).max(10).default(1.2),
   }),
@@ -261,7 +261,7 @@ export const OpSchemas3 = {
           text: z.string().trim().min(1).max(2000),
           speaker: z.string().trim().max(80).optional(),
           background: z.string().max(80).nullable().optional(),
-          fx: z.enum(['shake', 'flash', 'fade', 'blur', 'vignette', 'heartbeat', 'sparkle', 'rain', 'snow', 'glitch']).optional(),
+          fx: z.enum(['shake', 'flash', 'fade', 'blur', 'vignette', 'heartbeat', 'sparkle', 'rain', 'snow', 'glitch', 'fog', 'embers', 'lightning']).optional(),
           mood: z.string().trim().max(30).optional(),
           seconds: num.min(1).max(30).optional(),
         }),

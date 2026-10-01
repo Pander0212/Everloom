@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { AI_OP_TYPES, applyOp, applyOps, createInitialState, invertOps, OpSchemas, validateOps, type CampaignState, type Op, type OpType } from '../src/index.js';
+import { AI_OP_TYPES, applyOp, applyOps, createInitialState, invertOps, OpSchemas, pickPlaylist, validateOps, type CampaignState, type Op, type OpType, type Playlist } from '../src/index.js';
 
 const ALL = Object.keys(OpSchemas) as OpType[];
 const v = (op: unknown): Op => {
@@ -69,5 +69,39 @@ describe('stage', () => {
     const r = applyOps(s0, ops.map(v), { source: 'user' });
     expect(r.errors).toEqual([]);
     expect(invertOps(r.state, r.inverses)).toEqual(s0);
+  });
+});
+
+describe('music for the moment', () => {
+  const lists: Playlist[] = [
+    { id: 'a', name: 'Calm', mood: 'calm', tracks: ['m1'] },
+    { id: 'b', name: 'Fights', mood: 'battle', tracks: ['m2'] },
+    { id: 'c', name: 'Tavern nights', mood: 'calm', place: 'building', time: 'night', tracks: ['m3'] },
+    { id: 'd', name: 'Any building', mood: 'calm', place: 'building', tracks: ['m4'] },
+    { id: 'e', name: 'Nights', mood: 'calm', time: 'night', tracks: ['m5'] },
+    { id: 'f', name: 'Empty', mood: 'tense', tracks: [] },
+  ];
+  const at = (hour: number) => {
+    let s = createInitialState({ style: 'fantasy' });
+    s = ok(s, { type: 'location.upsert', name: 'The Lantern', kind: 'building' });
+    s = ok(s, { type: 'location.move', to: 'The Lantern' });
+    return ok(s, { type: 'time.until', hour });
+  };
+  it('a scene request wins; battles get the battle playlist; then the most specific place and time', () => {
+    expect(pickPlaylist(at(22), lists)?.id).toBe('c');
+    expect(pickPlaylist(at(12), lists)?.id).toBe('d');
+    let s = ok(at(12), { type: 'music.set', mood: 'calm' });
+    expect(pickPlaylist(s, lists)?.id).toBe('a');
+    s = ok(s, { type: 'battle.start', enemies: [{ name: 'Rat', level: 1, count: 1 }] });
+    expect(pickPlaylist(s, lists)?.id).toBe('b');
+    s = ok(s, { type: 'music.set', playlist: 'Tavern nights' });
+    expect(pickPlaylist(s, lists)?.id).toBe('c');
+    // A playlist with no tracks is never picked.
+    expect(pickPlaylist(ok(at(12), { type: 'music.set', mood: 'tense' }), lists)?.id).toBe('d');
+  });
+  it('new effects are valid ops', () => {
+    let s = createInitialState({ style: 'fantasy' });
+    for (const effect of ['fog', 'embers', 'lightning'] as const) s = ok(s, { type: 'fx.play', effect });
+    expect(s.stage!.cues.map((c) => c.effect)).toEqual(['fog', 'embers', 'lightning']);
   });
 });

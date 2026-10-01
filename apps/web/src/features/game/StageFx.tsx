@@ -6,13 +6,31 @@
 import type { CampaignState, Cutscene, FxKind, Op } from '@everloom/engine';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
+import { useSettings } from '@/lib/queries';
 import { Button } from '@/ui';
 import { useGame } from './context';
+
+/** Every scene effect, in quick-menu order. */
+export const FX_LIST: Array<{ id: FxKind; label: string }> = [
+  { id: 'shake', label: 'Shake' },
+  { id: 'flash', label: 'Flash' },
+  { id: 'fade', label: 'Fade' },
+  { id: 'blur', label: 'Blur' },
+  { id: 'vignette', label: 'Vignette' },
+  { id: 'heartbeat', label: 'Heartbeat' },
+  { id: 'sparkle', label: 'Sparkle' },
+  { id: 'rain', label: 'Rain' },
+  { id: 'snow', label: 'Snow' },
+  { id: 'fog', label: 'Fog' },
+  { id: 'embers', label: 'Embers' },
+  { id: 'lightning', label: 'Lightning' },
+  { id: 'glitch', label: 'Glitch' },
+];
 
 type Playing = { id: string; effect: FxKind; intensity: number; seconds: number };
 
 /** New cue ids since the last render (a cue that reappears after a rollback plays again). */
-function useNewCues(s: CampaignState | null) {
+function useNewCues(s: CampaignState | null, off: readonly string[]) {
   const seen = useRef<Set<string> | null>(null);
   const [fresh, setFresh] = useState<Playing[]>([]);
   useEffect(() => {
@@ -20,7 +38,7 @@ function useNewCues(s: CampaignState | null) {
     const ids = new Set(cues.map((c) => c.id));
     // First render: what's already there has been seen.
     if (seen.current) {
-      const add = cues.filter((c) => !seen.current!.has(c.id));
+      const add = cues.filter((c) => !seen.current!.has(c.id) && !off.includes(c.effect));
       if (add.length) setFresh((f) => [...f, ...add]);
     }
     seen.current = ids;
@@ -43,8 +61,33 @@ function Effect({ fx, onDone }: { fx: Playing; onDone: () => void }) {
     return () => clearTimeout(t);
   }, []); // eslint-disable-line react-hooks/exhaustive-deps
   // Shake, blur and glitch move the story itself (see useSceneMotion); here only overlays.
-  if (fx.effect === 'sparkle' || fx.effect === 'rain' || fx.effect === 'snow') {
+  if (fx.effect === 'fog') {
+    // Two soft banks drifting past each other; with reduced motion they only fade in and out.
+    const bank = (from: string, to: string, top: string, i: number) => (
+      <motion.div
+        key={i}
+        className="absolute h-1/2 w-[160%] rounded-[50%]"
+        style={{ top, left: '-30%', background: 'radial-gradient(ellipse at center, rgb(235 238 242 / 0.55), transparent 70%)', filter: 'blur(24px)' }}
+        initial={{ x: reduce ? 0 : from, opacity: 0 }}
+        animate={{ x: reduce ? 0 : to, opacity: [0, 0.35 + fx.intensity * 0.5, 0.35 + fx.intensity * 0.5, 0] }}
+        transition={{ duration: fx.seconds, ease: 'linear' }}
+      />
+    );
+    return (
+      <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true" data-fx="fog">
+        {bank('-12%', '10%', '20%', 0)}
+        {bank('10%', '-12%', '45%', 1)}
+      </div>
+    );
+  }
+  if (fx.effect === 'lightning') {
+    // Two quick strikes; reduced motion gets one soft, slow flash (no strobing either way).
+    const k = reduce ? [0, 0.3, 0] : [0, 0.85 * fx.intensity + 0.15, 0.1, 0.6 * fx.intensity + 0.1, 0];
+    return <motion.div className="pointer-events-none absolute inset-0 z-40 bg-white" data-fx="lightning" aria-hidden="true" initial={{ opacity: 0 }} animate={{ opacity: k }} transition={{ duration: reduce ? 1.2 : Math.min(fx.seconds, 0.9), times: reduce ? undefined : [0, 0.08, 0.25, 0.33, 1] }} />;
+  }
+  if (fx.effect === 'sparkle' || fx.effect === 'rain' || fx.effect === 'snow' || fx.effect === 'embers') {
     const n = reduce ? 0 : Math.round(12 + fx.intensity * 30);
+    const rises = fx.effect === 'sparkle' || fx.effect === 'embers';
     return (
       <div className="pointer-events-none absolute inset-0 overflow-hidden" aria-hidden="true" data-fx={fx.effect}>
         {Array.from({ length: n }, (_, i) => {
@@ -54,10 +97,10 @@ function Effect({ fx, onDone }: { fx: Playing; onDone: () => void }) {
           return (
             <motion.span
               key={i}
-              className={fx.effect === 'rain' ? 'absolute top-0 h-6 w-px bg-white/60' : 'absolute top-0 text-white/80'}
+              className={fx.effect === 'rain' ? 'absolute top-0 h-6 w-px bg-white/60' : fx.effect === 'embers' ? 'absolute top-0 size-1.5 rounded-full bg-[rgb(255_150_60)] shadow-[0_0_6px_rgb(255_120_40)]' : 'absolute top-0 text-white/80'}
               style={{ left: `${x}%`, fontSize: fx.effect === 'sparkle' ? 14 : 8 }}
-              initial={{ y: fx.effect === 'sparkle' ? '40vh' : -30, opacity: 0 }}
-              animate={{ y: fx.effect === 'sparkle' ? '10vh' : '100vh', opacity: [0, 1, 0] }}
+              initial={{ y: fx.effect === 'embers' ? '95vh' : fx.effect === 'sparkle' ? '40vh' : -30, opacity: 0 }}
+              animate={{ y: fx.effect === 'embers' ? '35vh' : rises ? '10vh' : '100vh', x: fx.effect === 'embers' ? [0, (i % 2 ? 1 : -1) * 18, 0] : 0, opacity: [0, 1, 0] }}
               transition={{ duration: fx.effect === 'rain' ? 0.6 : fx.seconds, delay: delay * fx.seconds * 0.5, repeat: fx.effect === 'rain' ? Math.ceil(fx.seconds / 0.6) : 0, ease: 'linear' }}
             >
               {glyph}
@@ -74,14 +117,14 @@ function Effect({ fx, onDone }: { fx: Playing; onDone: () => void }) {
 }
 
 /** Movement effects applied to the scene container: shake, blur, glitch. */
-export function useSceneMotion(s: CampaignState | null) {
+export function useSceneMotion(s: CampaignState | null, off: readonly string[] = []) {
   const reduce = useReducedMotion();
   const [anim, setAnim] = useState<Record<string, unknown> | null>(null);
   const seen = useRef<Set<string> | null>(null);
   useEffect(() => {
     const cues = s?.stage?.cues ?? [];
     if (seen.current) {
-      const c = cues.find((x) => !seen.current!.has(x.id) && ['shake', 'blur', 'glitch'].includes(x.effect));
+      const c = cues.find((x) => !seen.current!.has(x.id) && ['shake', 'blur', 'glitch'].includes(x.effect) && !off.includes(x.effect));
       if (c) {
         const a = c.intensity * 14;
         const d = c.seconds;
@@ -101,9 +144,12 @@ export function useSceneMotion(s: CampaignState | null) {
   return anim;
 }
 
+const NO_FX: string[] = [];
+
 export function StageFxLayer() {
   const { state } = useGame();
-  const { fresh, done } = useNewCues(state);
+  const off = useSettings().data?.stage?.fxOff ?? NO_FX;
+  const { fresh, done } = useNewCues(state, off);
   return (
     <div className="pointer-events-none fixed inset-0 z-[35]" data-testid="fx-layer">
       <AnimatePresence>

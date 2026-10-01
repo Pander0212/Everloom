@@ -215,12 +215,17 @@ export interface Settings {
     musicVolume: number;
     ambientVolume: number;
     crossfadeMs: number;
-    playlists: Array<{ id: string; name: string; mood: string; tracks: string[] }>;
+    /**
+     * Music by context. A playlist plays when the scene asks for it by name or mood; otherwise one
+     * tagged "battle" plays during battles, then one that fits the place (a location kind or
+     * name) and the time of day.
+     */
+    playlists: Array<{ id: string; name: string; mood: string; tracks: string[]; place?: string; time?: 'day' | 'night' }>;
     /** Owner's own loops per ambience kind (media ids); others are synthesized. */
     ambientFiles: Record<string, string>;
   };
   /** Stage extras: speech bubbles, and Live2D (off by default; needs the owner's own Cubism Core). */
-  stage: { bubbles: boolean; live2d: boolean };
+  stage: { bubbles: boolean; live2d: boolean; /** Scene effects the owner turned off. */ fxOff?: string[] };
   roles: { main: string | null; utility: string | null; background: string | null; embeddings: string | null; tts: string | null; image: string | null };
   activePresetId: string | null;
   defaultPersonaId: string | null;

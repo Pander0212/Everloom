@@ -9,6 +9,7 @@ import { qk, useSettings } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
 import { Badge, Button, EmptyState, Field, FileButton, IconButton, Input, Select, Sheet, Slider, TabPanel, Tabs, Textarea, ToggleRow } from '@/ui';
 import { useGame } from '../context';
+import { FX_LIST } from '../StageFx';
 import { NoCampaign, ToolSheet } from './ToolSheet';
 
 const MOODS = ['calm', 'tense', 'battle', 'romantic', 'sad', 'mysterious', 'joyful'];
@@ -32,14 +33,15 @@ export default function StageTool({ arg }: { arg?: string }) {
         value={tab}
         onChange={setTab}
         tabs={[
-          { value: 'cutscenes', label: 'Cutscenes' },
+          { value: 'cutscenes', label: 'Scene' },
           { value: 'sound', label: 'Sound' },
           { value: 'sprites', label: 'Sprites' },
           { value: 'voices', label: 'Voices' },
         ]}
       >
-        <TabPanel value="cutscenes" className="pt-4">
+        <TabPanel value="cutscenes" className="flex flex-col gap-5 pt-4">
           <Cutscenes />
+          <StageOptions />
         </TabPanel>
         <TabPanel value="sound" className="pt-4">
           <Sound />
@@ -186,6 +188,50 @@ function Cutscenes() {
   );
 }
 
+/** How the stage looks: speech bubbles and which scene effects may play. */
+function StageOptions() {
+  const settings = useSettings();
+  const qc = useQueryClient();
+  return (
+    <div className="flex flex-col gap-3">
+      <section aria-label="Scene effects" className="rounded-md border border-line p-3">
+        <h3 className="mb-1 text-sm font-medium">Scene effects</h3>
+        <p className="mb-2 text-xs text-fg-2">Effects the story or you can play. Turn off any you'd rather not see; with reduced motion on, they're already gentle.</p>
+        <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-3">
+          {FX_LIST.map((f) => {
+            const off = settings.data?.stage?.fxOff ?? [];
+            const on = !off.includes(f.id);
+            return (
+              <label key={f.id} className="flex min-h-10 items-center gap-2 rounded-md bg-surface-2 px-3 text-sm">
+                <input
+                  type="checkbox"
+                  className="size-4 accent-[var(--accent)]"
+                  checked={on}
+                  onChange={async (e) => {
+                    const next = e.target.checked ? off.filter((x) => x !== f.id) : [...off, f.id];
+                    await patch('/api/settings', { stage: { ...settings.data?.stage, fxOff: next } });
+                    await qc.invalidateQueries({ queryKey: qk.settings });
+                  }}
+                />
+                {f.label}
+              </label>
+            );
+          })}
+        </div>
+      </section>
+      <ToggleRow
+        label="Speech bubbles"
+        description="Quoted lines appear as bubbles over the speaker on the stage."
+        checked={settings.data?.stage?.bubbles === true}
+        onChange={async (v) => {
+          await patch('/api/settings', { stage: { ...settings.data?.stage, bubbles: v } });
+          await qc.invalidateQueries({ queryKey: qk.settings });
+        }}
+      />
+    </div>
+  );
+}
+
 // ------------------------------------------------------------------ sound
 
 function Sound() {
@@ -206,6 +252,20 @@ function Sound() {
     }
   };
   const now = s?.stage;
+  // Places a playlist can belong to: kinds of place in this world (any tavern…), then named places.
+  const locs = Object.values(s?.locations ?? {});
+  const placeOptions = [
+    ...new Map(
+      [
+        ...[...new Set(locs.map((l) => l.kind))].sort().map((k) => ({ value: k, label: `Any ${k}` })),
+        ...locs
+          .map((l) => l.name)
+          .sort((x, y) => x.localeCompare(y))
+          .slice(0, 60)
+          .map((n) => ({ value: n, label: n })),
+      ].map((o) => [o.value.toLowerCase(), o]),
+    ).values(),
+  ];
   return (
     <div className="flex flex-col gap-5">
       <section aria-label="Now">
@@ -233,7 +293,7 @@ function Sound() {
         </div>
       </section>
       <section aria-label="Music" className="flex flex-col gap-2">
-        <ToggleRow label="Music" description="Plays the playlist that matches the scene's mood, fading between tracks." checked={a.music} onChange={(v) => save({ music: v })} />
+        <ToggleRow label="Music" description="Plays the playlist the scene calls for: its mood, the battle playlist in a fight, or one for this place and time of day. Tracks crossfade." checked={a.music} onChange={(v) => save({ music: v })} />
         <Slider label="Music volume" min={0} max={1} step={0.05} value={a.musicVolume} onChange={(v) => save({ musicVolume: v })} />
         <ToggleRow label="Ambience" description="Rain, wind, the city at night… Your own loops if you add them, otherwise generated in the browser." checked={a.ambient} onChange={(v) => save({ ambient: v })} />
         <Slider label="Ambience volume" min={0} max={1} step={0.05} value={a.ambientVolume} onChange={(v) => save({ ambientVolume: v })} />
@@ -250,7 +310,22 @@ function Sound() {
                   <Badge>{p.mood}</Badge>
                   <IconButton size="sm" icon={Trash2} label={`Delete ${p.name}`} onClick={() => save({ playlists: a.playlists.filter((x) => x.id !== p.id) })} />
                 </div>
-                <p className="mt-1 text-xs text-fg-2">{p.tracks.length} track{p.tracks.length === 1 ? '' : 's'}</p>
+                <p className="mt-1 text-xs text-fg-2">{p.tracks.length} track{p.tracks.length === 1 ? '' : 's'}{p.mood === 'battle' ? ' · plays during battles' : ''}</p>
+                <div className="mt-2 grid grid-cols-2 gap-2">
+                  <Select aria-label={`${p.name}: place`} value={p.place ?? ''} onChange={(e) => save({ playlists: a.playlists.map((x) => (x.id === p.id ? { ...x, place: e.target.value || undefined } : x)) })}>
+                    <option value="">Any place</option>
+                    {placeOptions.map((o) => (
+                      <option key={o.value} value={o.value}>
+                        {o.label}
+                      </option>
+                    ))}
+                  </Select>
+                  <Select aria-label={`${p.name}: time of day`} value={p.time ?? ''} onChange={(e) => save({ playlists: a.playlists.map((x) => (x.id === p.id ? { ...x, time: (e.target.value || undefined) as 'day' | 'night' | undefined } : x)) })}>
+                    <option value="">Any time</option>
+                    <option value="day">Day</option>
+                    <option value="night">Night</option>
+                  </Select>
+                </div>
                 <FileButton
                   accept="audio/*"
                   multiple
@@ -274,7 +349,7 @@ function Sound() {
             ))}
           </ul>
         ) : (
-          <p className="mb-3 text-sm text-fg-2">Make a playlist for a mood and add your own music files. Nothing ships with Everloom.</p>
+          <p className="mb-3 text-sm text-fg-2">Make a playlist for a mood (or a place, or the night) and add your own music files. Nothing ships with Everloom.</p>
         )}
         <div className="flex gap-2">
           <Input aria-label="Playlist name" placeholder="New playlist" value={plName} onChange={(e) => setPlName(e.target.value)} maxLength={60} />
@@ -423,15 +498,6 @@ function Sprites({ chatCharacterIds }: { chatCharacterIds: string[] }) {
           })}
         </ul>
       ) : null}
-      <ToggleRow
-        label="Speech bubbles"
-        description="Quoted lines appear as bubbles over the speaker on the stage."
-        checked={settings.data?.stage?.bubbles === true}
-        onChange={async (v) => {
-          await patch('/api/settings', { stage: { ...settings.data?.stage, bubbles: v } });
-          await qc.invalidateQueries({ queryKey: qk.settings });
-        }}
-      />
       <Live2DSettings c={c} enabled={settings.data?.stage?.live2d === true} />
     </div>
   );

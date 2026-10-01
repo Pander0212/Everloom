@@ -658,7 +658,7 @@ export interface TravelEntry {
   minutes: number;
   cost: number;
 }
-export type FxKind = 'shake' | 'flash' | 'fade' | 'blur' | 'vignette' | 'heartbeat' | 'sparkle' | 'rain' | 'snow' | 'glitch';
+export type FxKind = 'shake' | 'flash' | 'fade' | 'blur' | 'vignette' | 'heartbeat' | 'sparkle' | 'rain' | 'snow' | 'glitch' | 'fog' | 'embers' | 'lightning';
 export type StagePosition = 'left' | 'center' | 'right' | 'off';
 export type StageAnim = 'none' | 'bounce' | 'nod' | 'shake' | 'slide-in' | 'fade-in';
 export type AmbientKind = 'auto' | 'none' | 'rain' | 'storm' | 'wind' | 'city' | 'crowd' | 'forest' | 'sea' | 'fire' | 'night';

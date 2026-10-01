@@ -1,8 +1,8 @@
-import type { CampaignDTO, CharacterDTO, ChatDTO, FxKind, MessageDTO, Op, StageAnim, StageLayer } from '@everloom/engine';
+import type { CampaignDTO, CharacterDTO, ChatDTO, MessageDTO, Op, StageAnim, StageLayer } from '@everloom/engine';
 import { stripInlineTags } from '@everloom/engine';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, History, RefreshCw, Sparkles } from 'lucide-react';
-import { AnimatePresence, motion } from 'motion/react';
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { get } from '@/lib/api';
 import { cx } from '@/lib/format';
@@ -13,22 +13,14 @@ import { Avatar, IconButton, Popover, Sheet } from '@/ui';
 import type { MessageActions } from '@/features/story/Message';
 import { Atmosphere } from './Atmosphere';
 import { useGame } from './context';
-import { useSceneMotion } from './StageFx';
+import { FX_LIST, useSceneMotion } from './StageFx';
 
 const Live2DSprite = lazy(() => import('./Live2DSprite'));
 
-export const FX_LIST: Array<{ id: FxKind; label: string }> = [
-  { id: 'shake', label: 'Shake' },
-  { id: 'flash', label: 'Flash' },
-  { id: 'fade', label: 'Fade' },
-  { id: 'blur', label: 'Blur' },
-  { id: 'vignette', label: 'Vignette' },
-  { id: 'heartbeat', label: 'Heartbeat' },
-  { id: 'sparkle', label: 'Sparkle' },
-  { id: 'rain', label: 'Rain' },
-  { id: 'snow', label: 'Snow' },
-  { id: 'glitch', label: 'Glitch' },
-];
+
+/** Gentle life on the sprite: breathing while idle, a small bob while its line is being spoken. */
+const IDLE = { scaleY: [1, 1.012, 1], transition: { duration: 4.2, repeat: Infinity, ease: 'easeInOut' } };
+const SPEAKING = { y: [0, -5, 0], transition: { duration: 0.45, repeat: Infinity, ease: 'easeInOut' } };
 
 const X: Record<string, string> = { left: '18%', center: '50%', right: '82%' };
 const ANIM: Record<StageAnim, Record<string, unknown> | null> = {
@@ -106,7 +98,9 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const settings = useSettings();
   const live2dOn = settings.data?.stage?.live2d === true;
   const live2d = useQuery({ queryKey: ['live2d'], queryFn: () => get<{ coreInstalled: boolean; coreUrl: string | null; models: Record<string, string> }>('/api/live2d'), enabled: live2dOn });
-  const sceneAnim = useSceneMotion(campaign?.state ?? null);
+  const fxOff = settings.data?.stage?.fxOff ?? [];
+  const sceneAnim = useSceneMotion(campaign?.state ?? null, fxOff);
+  const reduceMotion = useReducedMotion();
   const layers = Object.values(campaign?.state?.stage?.layers ?? {});
   const layerFor = (c: CharacterDTO): StageLayer | undefined => layers.find((l) => l.name.toLowerCase() === c.name.toLowerCase() || l.name.toLowerCase().split(' ')[0] === c.name.toLowerCase().split(' ')[0]);
   const directed = layers.length > 0;
@@ -138,9 +132,14 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const isLast = m && m.id === visible[visible.length - 1]?.id;
   // Speech bubbles: spoken lines over the speaker, narration above (only once the line is complete).
   const split = settings.data?.stage?.bubbles && m?.role === 'assistant' && !live ? splitSpeech(text) : null;
-  const bubble = split?.speech ? split : null;
+  // Tapping a bubble opens the whole line in the dialogue box (until the next line).
+  const [expanded, setExpanded] = useState<string | null>(null);
+  const lineKey = `${m?.id}:${m?.swipeId}`;
+  const bubble = split?.speech && expanded !== lineKey ? split : null;
   const speakerLayer = speaker ? layerFor(speaker) : undefined;
   const bubbleSide = speakerLayer?.position && speakerLayer.position !== 'off' ? speakerLayer.position : 'center';
+  // Whose line is being spoken right now (streaming or still typing out).
+  const speakingId = speaker && (live != null || !tw.complete) ? speaker.id : null;
   void qc;
 
   return (
@@ -172,13 +171,20 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
                 animate={{ opacity: active ? 1 : 0.55, scale: active ? 1 : 0.96, ...((layer && ANIM[layer.anim]) || {}) } as any}
                 transition={t.slow}
               >
-                {model ? (
-                  <Suspense fallback={img}>
-                    <Live2DSprite coreUrl={live2d.data!.coreUrl!} modelUrl={model} expression={expr} fallback={img} />
-                  </Suspense>
-                ) : (
-                  <AnimatePresence initial={false}>{img}</AnimatePresence>
-                )}
+                <motion.div
+                  className="absolute inset-0"
+                  style={{ transformOrigin: '50% 100%' }}
+                  data-motion={reduceMotion ? 'still' : speakingId === c.id ? 'speaking' : 'idle'}
+                  animate={(reduceMotion ? { y: 0, scaleY: 1 } : speakingId === c.id ? SPEAKING : IDLE) as any}
+                >
+                  {model ? (
+                    <Suspense fallback={img}>
+                      <Live2DSprite coreUrl={live2d.data!.coreUrl!} modelUrl={model} expression={expr} fallback={img} />
+                    </Suspense>
+                  ) : (
+                    <AnimatePresence initial={false}>{img}</AnimatePresence>
+                  )}
+                </motion.div>
               </motion.div>
             );
           })}
@@ -188,7 +194,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
       <div className="absolute right-3 top-3 z-20">
         <Popover trigger={<IconButton icon={Sparkles} label="Scene effects" className="!bg-surface/90 shadow-1" />} side="bottom" align="end">
           <div className="grid w-56 grid-cols-2 gap-1 p-1" role="group" aria-label="Scene effects">
-            {FX_LIST.map((f) => (
+            {FX_LIST.filter((f) => !fxOff.includes(f.id)).map((f) => (
               <button key={f.id} className="pressable rounded-md px-3 py-2 text-left text-sm hover:bg-surface-2" onClick={() => void apply({ type: 'fx.play', effect: f.id } as Op, { quiet: true })}>
                 {f.label}
               </button>
@@ -206,7 +212,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
               <IconButton size="sm" icon={History} label="History" className="!bg-surface shadow-1" onClick={() => setLog(true)} />
             </div>
             {bubble ? (
-              <button type="button" onClick={() => (idx < visible.length - 1 ? setIdx(idx + 1) : undefined)} className="block w-full text-left" aria-label="Dialogue — tap to advance">
+              <button type="button" onClick={() => setExpanded(lineKey)} className="block w-full text-left" aria-label="Speech bubble — tap for the full line">
                 {bubble.narration ? <p className="story mb-2 rounded-md bg-surface/85 px-3 py-2 text-[14px] italic text-fg-2 shadow-1">{bubble.narration}</p> : null}
                 <span className="relative block rounded-2xl bg-surface px-4 py-3 shadow-3" data-testid="speech-bubble" style={{ marginLeft: bubbleSide === 'right' ? 'auto' : bubbleSide === 'center' ? 'auto' : 0, marginRight: bubbleSide === 'left' ? 'auto' : bubbleSide === 'center' ? 'auto' : 0, maxWidth: '85%' }}>
                   <span className="story block text-[17px]">{bubble.speech}</span>

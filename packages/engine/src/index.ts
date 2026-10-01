@@ -25,6 +25,7 @@ export * from './game/simulate.js';
 export * from './game/battle.js';
 export * from './game/reducer.js';
 export * from './game/replay.js';
+export * from './game/music.js';
 export * from './game/injection.js';
 export * from './game/tracker.js';
 export * from './api/types.js';

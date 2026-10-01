@@ -50,7 +50,7 @@ test.describe('stage and sound', () => {
   });
   // Settings are shared by every spec: leave the stage and sound as the defaults found them.
   test.afterEach(async ({ page }) => {
-    await api(page, 'PATCH', '/api/settings', { stage: { bubbles: false, live2d: false }, audio: { music: false, ambient: false, playlists: [] } });
+    await api(page, 'PATCH', '/api/settings', { stage: { bubbles: false, live2d: false, fxOff: [] }, audio: { music: false, ambient: false, playlists: [] } });
   });
 
   test('play a cutscene from the tool, step through it and skip', async ({ page, errors }) => {
@@ -78,12 +78,26 @@ test.describe('stage and sound', () => {
     await page.getByRole('button', { name: 'Switch to stage mode' }).click();
     await expect(page.getByTestId('stage-sprite')).toHaveAttribute('data-position', 'left');
     await expect(page.getByTestId('speech-bubble')).toContainText('You made it');
+    // The sprite breathes while idle (or holds still with reduced motion).
+    await expect(page.getByTestId('stage-sprite').locator('[data-motion]')).toHaveAttribute('data-motion', /idle|still/);
+    // Tapping the bubble opens the whole line in the dialogue box.
+    await page.getByRole('button', { name: 'Speech bubble — tap for the full line' }).click();
+    await expect(page.getByTestId('speech-bubble')).toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Dialogue — tap to reveal or advance' })).toContainText('she says');
 
     await page.getByRole('button', { name: 'Scene effects' }).click();
     await page.getByRole('group', { name: 'Scene effects' }).getByRole('button', { name: 'Flash' }).click();
     await expect(page.locator('[data-fx="flash"]')).toHaveCount(1);
     const s = await state(page, chat.campaignId);
     expect(s.stage.cues.at(-1).effect).toBe('flash');
+    // An effect turned off disappears from the quick menu.
+    await api(page, 'PATCH', '/api/settings', { stage: { bubbles: true, live2d: false, fxOff: ['lightning'] } });
+    await page.reload();
+    await page.getByRole('button', { name: 'Scene effects' }).click();
+    const menu = page.getByRole('group', { name: 'Scene effects' });
+    await expect(menu.getByRole('button', { name: 'Fog' })).toBeVisible();
+    await expect(menu.getByRole('button', { name: 'Lightning' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
     // Live2D is off by default, so nothing asks for a Cubism Core.
     expect(await page.locator('script[src*="live2d"]').count()).toBe(0);
     expect(errors).toEqual([]);

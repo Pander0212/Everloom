@@ -4,7 +4,7 @@
  * and the hour), using the owner's own loop when they set one and a synthesized one otherwise, so
  * no sound files ship with Everloom. Nothing plays until the owner turns it on and touches the page.
  */
-import type { AmbientKind, CampaignState } from '@everloom/engine';
+import { pickPlaylist, type AmbientKind, type CampaignState } from '@everloom/engine';
 import { useEffect, useRef } from 'react';
 import { useSettings } from '@/lib/queries';
 import { useGame } from './context';
@@ -260,14 +260,7 @@ export function AudioDirector() {
   const amb = useRef<{ kind: string; synth?: Synth; el?: HTMLAudioElement } | null>(null);
 
   // Music: which playlist, then play its tracks in turn with a crossfade.
-  const playlist = (() => {
-    if (!a?.music || !s?.stage) return null;
-    const lists = a.playlists ?? [];
-    const byName = s.stage.music.playlist ? lists.find((p) => p.name.toLowerCase() === s.stage!.music.playlist!.toLowerCase()) : null;
-    const byMood = s.stage.music.mood ? lists.find((p) => p.mood.toLowerCase() === s.stage!.music.mood) : null;
-    const pick = byName ?? byMood ?? null;
-    return pick && pick.tracks.length ? pick : null;
-  })();
+  const playlist = a?.music && s ? pickPlaylist(s, a.playlists ?? []) : null;
   useEffect(() => {
     const decks = getPlayers().decks;
     const [d0, d1] = decks;

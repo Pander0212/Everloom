@@ -491,7 +491,7 @@ export const OP_REFERENCE = `Allowed ops (JSON objects with "type"):
 - {"type":"thread.resolve","text":"The missing ferryman"}  an ongoing storyline was settled
 - {"type":"mail.receive","from":"Mara Quill","kind":"letter","subject":"About the mill","body":"…"}  a letter (or email, where there is email) someone sends the player; it arrives after the delivery time for the distance
 - {"type":"feed.post","author":"Mara Quill","text":"…"}  a public post someone makes on the social feed or notice board
-- {"type":"fx.play","effect":"shake","intensity":0.7}  a screen effect for a dramatic beat (shake, flash, fade, blur, vignette, heartbeat, sparkle, rain, snow, glitch); use sparingly
+- {"type":"fx.play","effect":"shake","intensity":0.7}  a screen effect for a dramatic beat (shake, flash, fade, blur, vignette, heartbeat, sparkle, rain, snow, fog, embers, lightning, glitch); use sparingly
 - {"type":"stage.layer","character":"Mara Quill","position":"left","expression":"joy","anim":"bounce"}  stage direction for a character's sprite (positions: left, center, right, off; anims: none, bounce, nod, shake, slide-in, fade-in)
 - {"type":"music.set","mood":"tense"}  the music's mood (calm, tense, battle, romantic, sad, mysterious, joyful)   {"type":"ambient.set","kind":"rain"}  background sound (auto, none, rain, storm, wind, city, crowd, forest, sea, fire, night)
 - {"type":"transit.add","name":"Coast Line","mode":"train","stops":["Northcrest","Eastport","Gull Bay"],"first":"06:00","last":"22:00","every":60,"hop":40,"fare":3,"farePerStop":1}  a scheduled line the story establishes (train, bus, ferry, airship, shuttle…); rides happen in the travel screen
