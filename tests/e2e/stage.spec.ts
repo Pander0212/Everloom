@@ -1,5 +1,6 @@
 import { api, expect, mockControl, test } from './fixtures';
 import type { Page } from '@playwright/test';
+import { zipSync } from 'fflate';
 
 async function openTool(page: Page, name: string) {
   await page.getByRole('button', { name: 'Actions and tools' }).click();
@@ -155,6 +156,34 @@ test.describe('stage and sound', () => {
     await expect.poll(async () => { const d = await decks(); const a = d.find((x) => x.track === calm)?.volume ?? 0; const b = d.find((x) => x.track === tense)?.volume ?? 0; return a > 0.05 && b > 0.05; }, { intervals: [100] }).toBe(true);
     await expect.poll(async () => (await decks()).find((d) => d.track === tense)?.volume ?? 0).toBeGreaterThan(0.45);
     await expect.poll(async () => (await decks()).find((d) => d.track === calm)?.paused).toBe(true);
+    expect(errors).toEqual([]);
+  });
+
+  test('asset library: import a zip, give an expression set to a character, set a background', async ({ page, errors }) => {
+    const { ch, chat } = await story(page);
+    const png = new Uint8Array(Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==', 'base64'));
+    const zip = Buffer.from(zipSync({ 'Iris/happy.png': png, 'Iris/neutral.png': png, 'backgrounds/street.png': png }));
+    await page.goto(`/chat/${chat.id}`);
+    await openTool(page, 'Stage & sound');
+    await page.getByRole('tab', { name: 'Sprites' }).click();
+    await page.getByRole('button', { name: 'Asset library' }).click();
+    const lib = page.getByRole('dialog', { name: 'Asset library' });
+    const chooser = page.waitForEvent('filechooser');
+    await lib.getByRole('button', { name: 'Import a zip' }).click();
+    await (await chooser).setFiles({ name: 'Iris pack.zip', mimeType: 'application/zip', buffer: zip });
+    const sets = lib.getByRole('region', { name: 'Expression sets' });
+    await expect(sets).toContainText('Iris');
+    await expect(sets).toContainText('2 expressions');
+    await sets.getByRole('button', { name: 'Give to Iris Vale' }).click();
+    await expect.poll(async () => Object.keys((await api(page, 'GET', `/api/characters/${ch.id}`)).game?.expressions ?? {}).sort()).toEqual(['joy', 'neutral']);
+
+    await lib.getByRole('radiogroup', { name: 'Type' }).getByRole('radio', { name: 'Backgrounds' }).click();
+    await lib.getByRole('button', { name: 'street, background' }).click();
+    await page.getByRole('dialog', { name: 'street' }).getByRole('button', { name: 'Background for this chat' }).click();
+    const bg = (await api(page, 'GET', '/api/assets?type=background')).assets[0].id;
+    await expect.poll(async () => (await api(page, 'GET', `/api/chats/${chat.id}`)).metadata.background).toBe(bg);
+    // Clean up so other specs start from an empty library.
+    for (const a of (await api(page, 'GET', '/api/assets')).assets) await api(page, 'DELETE', `/api/assets/${a.id}`);
     expect(errors).toEqual([]);
   });
 });

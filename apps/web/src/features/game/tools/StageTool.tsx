@@ -1,7 +1,7 @@
 /** Stage & sound: cutscenes, music and ambience, the sprite library, voices and optional Live2D. */
 import { EMOTIONS, type CharacterDTO, type Op } from '@everloom/engine';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { Clapperboard, Music, Play, Plus, Sparkles, Trash2, Upload, Volume2 } from 'lucide-react';
+import { Clapperboard, Library, Music, Play, Plus, Sparkles, Trash2, Upload, Volume2 } from 'lucide-react';
 import { useState } from 'react';
 import { del, get, patch, post, upload } from '@/lib/api';
 import { cx } from '@/lib/format';
@@ -10,6 +10,7 @@ import { toast, toastError } from '@/lib/store';
 import { Badge, Button, EmptyState, Field, FileButton, IconButton, Input, Select, Sheet, Slider, TabPanel, Tabs, Textarea, ToggleRow } from '@/ui';
 import { useGame } from '../context';
 import { FX_LIST } from '../StageFx';
+import { AssetLibrary } from './AssetLibrary';
 import { NoCampaign, ToolSheet } from './ToolSheet';
 
 const MOODS = ['calm', 'tense', 'battle', 'romantic', 'sad', 'mysterious', 'joyful'];
@@ -416,6 +417,8 @@ function useCastCharacters(ids: string[]) {
 
 function Sprites({ chatCharacterIds }: { chatCharacterIds: string[] }) {
   const qc = useQueryClient();
+  const { chat } = useGame();
+  const [libOpen, setLibOpen] = useState(false);
   const settings = useSettings();
   const cast = useCastCharacters(chatCharacterIds);
   const [pick, setPick] = useState<string>('');
@@ -460,6 +463,10 @@ function Sprites({ chatCharacterIds }: { chatCharacterIds: string[] }) {
           Add many
         </FileButton>
       </div>
+      <Button variant="secondary" icon={Library} onClick={() => setLibOpen(true)}>
+        Asset library
+      </Button>
+      <AssetLibrary open={libOpen} onOpenChange={setLibOpen} cast={cast} chat={chat} />
       {c ? (
         <ul className="grid grid-cols-3 gap-2 sm:grid-cols-5" aria-label={`${c.name} sprites`}>
           {EMOTIONS.map((emo) => {

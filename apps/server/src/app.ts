@@ -23,6 +23,7 @@ import { registerComms } from './routes/comms.js';
 import { registerBridge } from './routes/bridge.js';
 import { registerCustomize } from './routes/customize.js';
 import { registerLive2d } from './routes/live2d.js';
+import { registerAssetRoutes } from './routes/assets.js';
 import { recordError } from './services/diagnostics.js';
 import { backfillMeta } from './services/characters.js';
 import { registerInspector } from './routes/inspector.js';
@@ -118,6 +119,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerBridge(app, ctx);
   registerCustomize(app, ctx, VERSION);
   registerLive2d(app, ctx);
+  registerAssetRoutes(app, ctx);
   registerSystem(app, ctx);
 
   const indexFile = path.join(cfg.webDir, 'index.html');
