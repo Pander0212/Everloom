@@ -14,6 +14,8 @@ import { parse } from '../util/validate.js';
 const HELPER_OPS: OpType[] = [
   'item.add', 'item.remove', 'currency.delta', 'tracker.set', 'tracker.delta', 'time.advance', 'weather.set', 'quest.add', 'quest.update',
   'databank.add', 'event.add', 'npc.upsert', 'location.upsert', 'relationship.delta', 'status.add', 'status.remove',
+  // New skills and classes that fit the story, which the player confirms before they exist.
+  'skillnode.add', 'class.define',
 ];
 
 export function lastMessageId(ctx: AppContext, chatId: string): string | null {
@@ -207,7 +209,7 @@ export function registerSocial(app: FastifyInstance, ctx: AppContext) {
       'You help the player understand their game (needs, items, quests, map, time), suggest what to do next, and explain app features (swipes, lorebooks, presets, map travel, New Game, phone, diary).',
       'You never write the story itself. If the player asks you to change the game state, propose changes as ops for them to accept.',
       'Reply with JSON only: {"reply":"your answer (max 80 words)","ops":[optional list of ops]}',
-      `Allowed ops: ${HELPER_OPS.join(', ')}. Examples: {"type":"item.add","name":"Bread","qty":2}, {"type":"tracker.set","id":"hunger","value":10}, {"type":"time.advance","minutes":60}.`,
+      `Allowed ops: ${HELPER_OPS.join(', ')}. Examples: {"type":"item.add","name":"Bread","qty":2}, {"type":"tracker.set","id":"hunger","value":10}, {"type":"time.advance","minutes":60}, {"type":"skillnode.add","name":"Lullaby","kind":"debuff","target":"all","level":3,"after":["Song"]}.`,
     ].join('\n');
     const user = [s ? `Game state:\n${briefState(s)}` : 'No game is running in this chat.', chat ? `Recent story:\n${recentStory(ctx, chat.id, 4, 2500)}` : '', `Conversation:\n${history.map((h) => `${h.role === 'user' ? 'Player' : b.name}: ${h.text}`).join('\n')}`].filter(Boolean).join('\n\n');
     const out = await utilityJson<{ reply?: string; ops?: unknown[] }>(ctx, o, system, user, 700, 'helper');

@@ -204,7 +204,7 @@ export function logTrip(s: CampaignState, from: string | null, to: string, mode:
   if (s.travelLog.length > 200) s.travelLog.splice(0, s.travelLog.length - 200);
 }
 
-const OVERLAND = new Set(['walk', 'run', 'horse', 'carriage', 'caravan', 'bike', 'car', 'hovercar']);
+const OVERLAND = new Set(['walk', 'run', 'horse', 'carriage', 'caravan', 'bike', 'motorcycle', 'car', 'hovercar']);
 
 const ENCOUNTERS: Record<Style, string[]> = {
   fantasy: ['Bandits were watching the road', 'A merchant caravan with a broken axle asked for help', 'Wolf tracks followed you for a mile', 'A wandering pilgrim shared news from afar', 'A toll-keeper demanded coin at a bridge'],
@@ -234,13 +234,14 @@ export function arrive(s: CampaignState, dest: Location, mode: string, minutes: 
     if (t.direction === 'need' && pct >= 0.75) notes.push(`${t.label} is high (${Math.round(t.value)})`);
   }
   const wanted = s.player.wanted ?? 0;
+  const events = s.meta.arrivalEvents !== false;
   const roll1 = rng.next();
-  if (HUB_KINDS.includes(dest.kind) && wanted > 0) {
+  if (events && HUB_KINDS.includes(dest.kind) && wanted > 0) {
     notes.push(roll1 < Math.min(0.9, wanted * 0.2) ? `Checkpoint: the guards recognise you (wanted ${wanted})` : 'Checkpoint: you pass without trouble');
   }
   const roll2 = rng.next();
   const danger = dest.kind === 'danger' || dest.kind === 'wilds' || dest.tags.includes('dangerous');
-  if (OVERLAND.has(mode) && minutes >= 90 && roll2 < (danger ? 0.3 : 0.12)) {
+  if (events && OVERLAND.has(mode) && minutes >= 90 && roll2 < (danger ? 0.3 : 0.12)) {
     const list = ENCOUNTERS[s.meta.style] ?? ENCOUNTERS.fantasy;
     notes.push(`On the way: ${list[rng.int(0, list.length - 1)]}`);
   }

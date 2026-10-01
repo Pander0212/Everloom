@@ -1192,6 +1192,7 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
       if (op.currencySymbol !== undefined) s.meta.currency.symbol = op.currencySymbol;
       if (op.dayLengthMode) s.meta.dayLength.mode = op.dayLengthMode;
       if (op.realMinutesPerDay) s.meta.dayLength.realMinutesPerDay = op.realMinutesPerDay;
+      if (op.arrivalEvents !== undefined) s.meta.arrivalEvents = op.arrivalEvents;
       if (op.calendar && typeof op.calendar === 'object' && Array.isArray(op.calendar.months) && op.calendar.months.length) {
         const c = op.calendar;
         s.meta.calendar = {

@@ -99,6 +99,16 @@ describe('phone, helper and diary', () => {
     expect(Array.isArray(list)).toBe(true);
   });
 
+  it('helper can propose a new skill; it joins the skill tree only when accepted', async () => {
+    const { client, chat } = await setup();
+    const a = await client.req('POST', '/api/helper/ask', { chatId: chat.id, text: 'Could I learn a new skill?' });
+    expect(a.json.proposal.map((o: any) => o.type)).toEqual(['skillnode.add']);
+    const names = async () => Object.values((await client.req('GET', `/api/campaigns/${chat.campaignId}`)).json.state.skillTree).map((n: any) => n.name);
+    expect(await names()).not.toContain('Lullaby');
+    await client.req('POST', `/api/helper/${a.json.id}/accept`, { chatId: chat.id });
+    expect(await names()).toContain('Lullaby');
+  });
+
   it('drafts, saves, edits and searches diary entries', async () => {
     const { client, chat } = await setup();
     const d = await client.req('POST', `/api/campaigns/${chat.campaignId}/diary/draft`, { chatId: chat.id });

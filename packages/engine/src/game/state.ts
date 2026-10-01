@@ -784,6 +784,8 @@ export interface CampaignState {
     currency: { name: string; symbol: string };
     calendar: CalendarConfig;
     dayLength: { mode: 'turns' | 'realtime'; realMinutesPerDay: number };
+    /** Checkpoints and road encounters on arrival (on unless turned off; who's there is always noted). */
+    arrivalEvents?: boolean;
   };
   time: { minutes: number };
   weather: { kind: WeatherKind; tempC: number; since: number };

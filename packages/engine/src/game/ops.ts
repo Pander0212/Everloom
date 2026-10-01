@@ -379,6 +379,7 @@ export const OpSchemas = {
     currencySymbol: z.string().max(8).optional(),
     dayLengthMode: z.enum(['turns', 'realtime']).optional(),
     realMinutesPerDay: num.min(1).max(1440).optional(),
+    arrivalEvents: z.boolean().optional(),
     calendar: z.any().optional(),
   }),
   /** Internal: immer patches, used for inverses. Never accepted from the AI. */

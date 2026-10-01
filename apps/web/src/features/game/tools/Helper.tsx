@@ -52,6 +52,10 @@ function describeOp(op: any): string {
       return `Remember: ${op.text}`;
     case 'event.add':
       return `Calendar: ${op.title}`;
+    case 'skillnode.add':
+      return `New skill to learn: ${op.name}${op.class ? ` (${op.class})` : ''}${op.level > 1 ? `, from level ${op.level}` : ''}`;
+    case 'class.define':
+      return `New class: ${op.name}`;
     default:
       return op.type.replace('.', ' ');
   }

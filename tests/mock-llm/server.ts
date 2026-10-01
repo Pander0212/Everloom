@@ -186,6 +186,7 @@ function answerFor(kind: string, messages: any[]): string {
     case 'test':
       return 'ready';
     case 'helper':
+      if (/Player: [^\n]*\bskill\b/i.test(all)) return JSON.stringify({ reply: 'A song that lulls foes would suit you.', ops: [{ type: 'skillnode.add', name: 'Lullaby', kind: 'debuff', target: 'all', level: 1 }] });
       return JSON.stringify({ reply: 'Here is a potion idea for you.', ops: [{ type: 'item.add', name: 'Minor Healing Potion', qty: 1, category: 'consumable' }] });
     case 'map':
       return JSON.stringify({ nodes: [{ name: 'Lantern Row', kind: 'district', description: 'A lane of paper lanterns.' }, { name: 'Old Pier', kind: 'dock', description: 'Creaking boards over dark water.' }] });

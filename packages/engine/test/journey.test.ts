@@ -214,7 +214,21 @@ describe('history and arrival', () => {
     const m = createInitialState({ style: 'modern' });
     const modes = (s: CampaignState) => travelOptions({ ...s, locations: {} } as CampaignState, null, 'x').map((o) => o.mode);
     expect(modes(f)).toEqual(expect.arrayContaining(['walk', 'horse', 'caravan', 'airship']));
-    expect(modes(m)).toEqual(expect.arrayContaining(['walk', 'bus', 'subway', 'car']));
+    expect(modes(m)).toEqual(expect.arrayContaining(['walk', 'bus', 'subway', 'car', 'motorcycle', 'boat']));
+    expect(modes(f)).toContain('boat');
+    expect(modes(f)).not.toContain('motorcycle');
+  });
+
+  it('events on the way can be turned off; who is there is still noted', () => {
+    let s = city();
+    s = ok(s, { type: 'npc.upsert', name: 'Mara Quill', location: 'Gull Bay' });
+    s.player.wanted = 5;
+    s = ok(s, { type: 'meta.update', arrivalEvents: false });
+    const a = ok(s, { type: 'transit.ride', line: 'Coast Line', to: 'Gull Bay' });
+    expect(a.arrival!.notes).toContain('Here: Mara Quill');
+    expect(a.arrival!.notes.some((n) => n.startsWith('Checkpoint:'))).toBe(false);
+    const on = ok(ok(s, { type: 'meta.update', arrivalEvents: true }), { type: 'transit.ride', line: 'Coast Line', to: 'Gull Bay' });
+    expect(on.arrival!.notes.some((n) => n.startsWith('Checkpoint:'))).toBe(true);
   });
 });
 

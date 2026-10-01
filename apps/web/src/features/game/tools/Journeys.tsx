@@ -1,6 +1,6 @@
 import { blockers, carries, checkRequirements, formatClock, formatDate, formatDuration, formatMoney, linesAt, planTrip, recentPlaces, ticketName, ticketPrice, type CampaignState, type Location, type Op, type TransitLine } from '@everloom/engine';
 import { History, MapPin, TrainFront } from 'lucide-react';
-import { Badge, Button, EmptyState, Icon, Sheet } from '@/ui';
+import { Badge, Button, EmptyState, Icon, Sheet, ToggleRow } from '@/ui';
 import { useGame } from '../context';
 
 const H = ({ children }: { children: string }) => <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-3">{children}</h3>;
@@ -69,7 +69,7 @@ function LineRow({ s, line, only, onRide, onTicket }: { s: CampaignState; line: 
 
 /** Where you've been and how you can get around from here. */
 export function JourneySheet({ open, onOpenChange, onShow }: { open: boolean; onOpenChange: (o: boolean) => void; onShow: (loc: Location) => void }) {
-  const { state: s } = useGame();
+  const { state: s, apply } = useGame();
   if (!s) return null;
   const arrival = s.arrival && s.arrival.locationId === s.currentLocationId ? s.arrival : null;
   const recent = recentPlaces(s, 6);
@@ -127,6 +127,12 @@ export function JourneySheet({ open, onOpenChange, onShow }: { open: boolean; on
             <EmptyState icon={History} title="No journeys yet" />
           )}
         </section>
+        <ToggleRow
+          label="Events on the way"
+          description="Checkpoints when you're wanted and the odd encounter on long trips. Who's there when you arrive is always noted."
+          checked={s.meta.arrivalEvents !== false}
+          onChange={(v) => void apply({ type: 'meta.update', arrivalEvents: v } as Op, { quiet: true })}
+        />
       </div>
     </Sheet>
   );
