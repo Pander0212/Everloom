@@ -1,9 +1,11 @@
 import { formatClock, formatDate, trackerState, type CampaignState } from '@everloom/engine';
-import { Cloud, CloudFog, CloudLightning, CloudRain, CloudSnow, Coins, MapPin, Sun, SunDim, Thermometer, Wind } from 'lucide-react';
+import { Cloud, CloudFog, CloudLightning, CloudRain, CloudSnow, Coins, GripVertical, MapPin, PanelTop, Sun, SunDim, Thermometer, Wind } from 'lucide-react';
 import { motion } from 'motion/react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useSettings } from '@/lib/queries';
+import { useViewPrefs } from '@/lib/viewPrefs';
 import { cx } from '@/lib/format';
-import { Icon } from '@/ui';
+import { Icon, IconButton, useMedia } from '@/ui';
 import { useGame } from './context';
 
 export const WEATHER_ICON = { clear: Sun, cloudy: Cloud, overcast: SunDim, rain: CloudRain, storm: CloudLightning, snow: CloudSnow, fog: CloudFog, wind: Wind, heat: Thermometer } as const;
@@ -69,17 +71,110 @@ export function HudItems({ s, pinned }: { s: CampaignState; pinned: string[] }) 
   return <>{out}</>;
 }
 
-/** Thin, tappable HUD strip. Tap opens the full status sheet. */
+/** What the status bar can show, in the order offered. */
+export const HUD_OPTIONS = [
+  ['time', 'Time'],
+  ['date', 'Date'],
+  ['weather', 'Weather'],
+  ['location', 'Location'],
+  ['currency', 'Money'],
+  ['hp', 'HP'],
+  ['mp', 'MP'],
+  ['ap', 'AP'],
+  ['xp', 'XP'],
+  ['hunger', 'Hunger'],
+  ['energy', 'Energy'],
+  ['hygiene', 'Hygiene'],
+  ['status', 'Status'],
+] as const;
+
+/** Thin, tappable HUD strip. Tap opens the full status sheet. On desktop it can float instead. */
 export function Hud() {
   const { state, open, chat } = useGame();
   const settings = useSettings();
+  const hudFloat = useViewPrefs((v) => v.hudFloat);
+  const desktop = useMedia('(min-width: 1024px) and (pointer: fine)');
   // Hold the strip's space while the campaign loads so the story doesn't jump down.
   if (!state) return chat.campaignId ? <div className="h-11 flex-none hairline-b" aria-hidden="true" /> : null;
   const pinned = settings.data?.hud.pinned ?? ['time', 'weather', 'location', 'hp', 'hunger', 'energy'];
+  if (desktop && hudFloat) return <FloatingHud at={hudFloat} onOpen={() => open('status')} items={<HudItems s={state} pinned={pinned} />} />;
   return (
     <button onClick={() => open('status')} className={cx('ev-hud pressable no-scrollbar flex h-11 w-full flex-none items-center gap-4 overflow-x-auto px-4 py-2 hairline-b text-left [&>*]:flex-none')}>
       <span className="sr-only">Status:</span>
       <HudItems s={state} pinned={pinned} />
     </button>
+  );
+}
+
+const EDGE = 24;
+
+/** The status bar as a small pill: drag it by the grip, it snaps to nearby edges; Dock puts it back. */
+function FloatingHud({ at, onOpen, items }: { at: { x: number; y: number }; onOpen: () => void; items: ReactNode }) {
+  const set = useViewPrefs((v) => v.set);
+  const box = useRef<HTMLDivElement>(null);
+  const [pos, setPos] = useState(at);
+  const drag = useRef<{ sx: number; sy: number; start: { x: number; y: number } } | null>(null);
+  const clamp = (p: { x: number; y: number }) => {
+    const w = box.current?.offsetWidth ?? 320;
+    const h = box.current?.offsetHeight ?? 44;
+    const maxX = window.innerWidth - w - 8;
+    const maxY = window.innerHeight - h - 8;
+    let x = Math.max(8, Math.min(p.x, maxX));
+    let y = Math.max(8, Math.min(p.y, maxY));
+    // Snap to an edge when close to it.
+    if (x - 8 < EDGE) x = 8;
+    if (maxX - x < EDGE) x = maxX;
+    if (y - 8 < EDGE) y = 8;
+    if (maxY - y < EDGE) y = maxY;
+    return { x: Math.round(x), y: Math.round(y) };
+  };
+  useEffect(() => {
+    setPos((p) => clamp(p));
+    const onResize = () => setPos((p) => clamp(p));
+    window.addEventListener('resize', onResize);
+    return () => window.removeEventListener('resize', onResize);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const save = (p: { x: number; y: number }) => set({ hudFloat: p });
+  return (
+    <div ref={box} data-testid="floating-hud" className="ev-hud fixed z-30 flex max-w-[min(720px,calc(100vw-16px))] items-center rounded-full border border-line bg-surface/95 shadow-2 backdrop-blur" style={{ left: pos.x, top: pos.y }}>
+      <span
+        className="flex h-11 cursor-grab touch-none items-center pl-2.5 pr-1 text-fg-3 outline-none active:cursor-grabbing"
+        tabIndex={0}
+        role="button"
+        aria-label="Move the status bar (drag, or use the arrow keys)"
+        data-testid="hud-handle"
+        onPointerDown={(e) => {
+          if (e.button !== 0) return;
+          e.currentTarget.setPointerCapture(e.pointerId);
+          drag.current = { sx: e.clientX, sy: e.clientY, start: pos };
+        }}
+        onPointerMove={(e) => {
+          const d = drag.current;
+          if (d) setPos(clamp({ x: d.start.x + e.clientX - d.sx, y: d.start.y + e.clientY - d.sy }));
+        }}
+        onPointerUp={() => {
+          if (!drag.current) return;
+          drag.current = null;
+          save(pos);
+        }}
+        onKeyDown={(e) => {
+          const step = e.shiftKey ? 40 : 10;
+          const delta: Record<string, [number, number]> = { ArrowLeft: [-step, 0], ArrowRight: [step, 0], ArrowUp: [0, -step], ArrowDown: [0, step] };
+          const dxy = delta[e.key];
+          if (!dxy) return;
+          e.preventDefault();
+          const next = clamp({ x: pos.x + dxy[0], y: pos.y + dxy[1] });
+          setPos(next);
+          save(next);
+        }}
+      >
+        <GripVertical size={16} />
+      </span>
+      <button onClick={onOpen} className="pressable no-scrollbar flex h-11 min-w-0 items-center gap-4 overflow-x-auto pr-2 text-left [&>*]:flex-none">
+        <span className="sr-only">Status:</span>
+        {items}
+      </button>
+      <IconButton size="sm" icon={PanelTop} label="Dock the status bar" className="mr-1.5" onClick={() => set({ hudFloat: null })} />
+    </div>
   );
 }

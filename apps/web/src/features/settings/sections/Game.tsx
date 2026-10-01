@@ -1,6 +1,7 @@
 import type { ReactNode } from 'react';
 import { Badge, Field, Input, Segmented, ToggleRow } from '@/ui';
 import { Section, useSettingsPatch } from '../common';
+import { HUD_OPTIONS } from '@/features/game/Hud';
 
 /** A setting label with the kind of model call it costs. */
 export function CostLabel({ text, cost }: { text: ReactNode; cost: 'background' | 'utility' | 'embeddings' | 'main' }) {
@@ -60,21 +61,6 @@ function WorldSection() {
   );
 }
 
-export const HUD_OPTIONS = [
-  ['time', 'Time'],
-  ['date', 'Date'],
-  ['weather', 'Weather'],
-  ['location', 'Location'],
-  ['currency', 'Money'],
-  ['hp', 'HP'],
-  ['mp', 'MP'],
-  ['ap', 'AP'],
-  ['xp', 'XP'],
-  ['hunger', 'Hunger'],
-  ['energy', 'Energy'],
-  ['hygiene', 'Hygiene'],
-  ['status', 'Status'],
-] as const;
 
 export default function GameSection() {
   const { settings, update } = useSettingsPatch();

@@ -16,9 +16,11 @@ export interface ViewPrefs {
   avatars: boolean;
   /** Tools that open as floating panels on desktop, and where. */
   floating: Record<string, PanelPos>;
+  /** The status bar as a small floating pill on desktop, and where (null: in its strip). */
+  hudFloat: { x: number; y: number } | null;
 }
 const KEY = 'everloom:view';
-const DEFAULTS: ViewPrefs = { hud: true, chips: true, avatars: true, floating: {} };
+const DEFAULTS: ViewPrefs = { hud: true, chips: true, avatars: true, floating: {}, hudFloat: null };
 
 function load(): ViewPrefs {
   try {

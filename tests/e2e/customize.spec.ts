@@ -116,4 +116,47 @@ test.describe('customization', () => {
     await expect(page.getByRole('dialog', { name: /Inventory/ })).toBeVisible();
     expect(errors).toEqual([]);
   });
+
+  test('status bar: reorder its items anywhere; on desktop it floats, snaps and resets', async ({ page, errors }) => {
+    const chat = await story(page);
+    await api(page, 'PATCH', '/api/settings', { hud: { pinned: ['time', 'weather', 'hp'] } });
+    await page.goto(`/chat/${chat.id}`);
+    await page.getByRole('button', { name: 'Chat menu' }).click();
+    await page.getByRole('menuitem', { name: 'View' }).click();
+    const view = page.getByRole('dialog', { name: 'View' });
+    await view.getByRole('button', { name: 'Move Weather up' }).click();
+    await expect.poll(async () => (await api(page, 'GET', '/api/settings')).hud.pinned).toEqual(['weather', 'time', 'hp']);
+    const desktop = !(await isPhone(page)) && (page.viewportSize()?.width ?? 0) >= 1024;
+    if (desktop) {
+      await view.getByText('Float the status bar', { exact: true }).click();
+      await view.getByRole('button', { name: 'Close', exact: true }).click();
+      const pill = page.getByTestId('floating-hud');
+      await expect(pill).toBeVisible();
+      const h = (await page.getByTestId('hud-handle').boundingBox())!;
+      await page.mouse.move(h.x + 8, h.y + 20);
+      await page.mouse.down();
+      await page.mouse.move(h.x - 200, h.y + 300, { steps: 8 });
+      await page.mouse.up();
+      const moved = (await pill.boundingBox())!;
+      await page.reload();
+      const again = (await page.getByTestId('floating-hud').boundingBox())!;
+      expect(Math.round(again.x)).toBe(Math.round(moved.x));
+      expect(Math.round(again.y)).toBe(Math.round(moved.y));
+      // Dragged into the corner, it snaps to the edges.
+      const h2 = (await page.getByTestId('hud-handle').boundingBox())!;
+      await page.mouse.move(h2.x + 8, h2.y + 20);
+      await page.mouse.down();
+      await page.mouse.move(0, 0, { steps: 8 });
+      await page.mouse.up();
+      const snapped = (await page.getByTestId('floating-hud').boundingBox())!;
+      expect([Math.round(snapped.x), Math.round(snapped.y)]).toEqual([8, 8]);
+      await page.getByRole('button', { name: 'Chat menu' }).click();
+      await page.getByRole('menuitem', { name: 'View' }).click();
+      await page.getByRole('dialog', { name: 'View' }).getByRole('button', { name: 'Reset layout' }).click();
+      await expect(page.getByTestId('floating-hud')).toHaveCount(0);
+      await expect(page.locator('.ev-hud')).toBeVisible();
+    }
+    await api(page, 'PATCH', '/api/settings', { hud: { pinned: ['time', 'weather', 'location', 'hp', 'hunger', 'energy'] } });
+    expect(errors).toEqual([]);
+  });
 });

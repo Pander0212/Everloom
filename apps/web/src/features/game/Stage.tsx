@@ -179,7 +179,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
                 >
                   {model ? (
                     <Suspense fallback={img}>
-                      <Live2DSprite coreUrl={live2d.data!.coreUrl!} modelUrl={model} expression={expr} fallback={img} />
+                      <Live2DSprite coreUrl={live2d.data!.coreUrl!} modelUrl={model} expression={expr} fallback={img} lipSync={speaker?.id === c.id} />
                     </Suspense>
                   ) : (
                     <AnimatePresence initial={false}>{img}</AnimatePresence>

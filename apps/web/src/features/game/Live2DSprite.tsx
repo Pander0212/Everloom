@@ -4,6 +4,7 @@
  * back to the ordinary sprite.
  */
 import { useEffect, useRef, useState } from 'react';
+import { speechLevel } from '@/features/story/tts';
 
 let coreLoading: Promise<void> | null = null;
 function loadCore(url: string): Promise<void> {
@@ -23,9 +24,11 @@ function loadCore(url: string): Promise<void> {
 
 const MOTION_FOR: Record<string, string> = { joy: 'TapBody', surprise: 'Tap', anger: 'Shake', sadness: 'Idle' };
 
-export default function Live2DSprite({ coreUrl, modelUrl, expression, fallback }: { coreUrl: string; modelUrl: string; expression: string; fallback: React.ReactNode }) {
+export default function Live2DSprite({ coreUrl, modelUrl, expression, fallback, lipSync = false }: { coreUrl: string; modelUrl: string; expression: string; fallback: React.ReactNode; lipSync?: boolean }) {
   const host = useRef<HTMLDivElement>(null);
   const model = useRef<any>(null);
+  const speaking = useRef(lipSync);
+  speaking.current = lipSync;
   const [failed, setFailed] = useState(false);
   useEffect(() => {
     let app: any = null;
@@ -49,6 +52,15 @@ export default function Live2DSprite({ coreUrl, modelUrl, expression, fallback }
         m.y = h - m.height;
         app.stage.addChild(m);
         model.current = m;
+        // Lip-sync: open the mouth with the voice, after motions have set this frame's pose.
+        m.internalModel?.on?.('beforeModelUpdate', () => {
+          if (!speaking.current) return;
+          try {
+            (m.internalModel.coreModel as { setParameterValueById: (id: string, v: number) => void }).setParameterValueById('ParamMouthOpenY', speechLevel());
+          } catch {
+            /* a model without a mouth parameter */
+          }
+        });
       } catch {
         if (!cancelled) setFailed(true);
       }
