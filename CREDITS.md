@@ -4,10 +4,10 @@ Everloom is free software (MIT). It stands on the work of these people and proje
 
 ## Inspiration
 
-- Game-feature inspiration (trackers, map, phone, diary, organizations and the idea of a game layer on top of roleplay chat) comes from GetfroggyHoe's reference project: <https://github.com/GetfroggyHoe/Universal-Immersion-Engine-Fugue>. Everloom is a separate implementation written from scratch; no code or visual design was copied.
+- Game-feature inspiration (trackers, map, phone, diary, organizations and the idea of a game layer on top of roleplay chat) (and, in Phase 3, the feature list for homes, economy, crafting, travel, party, battle, communication and the stage) comes from GetfroggyHoe's reference project: <https://github.com/GetfroggyHoe/Universal-Immersion-Engine-Fugue>. Everloom is a separate implementation written from scratch; no code or visual design was copied.
 - **World Engine**, the owner's own SillyTavern extension, inspired Phase 2's memory (who saw what, gossip, facts that change, hierarchical summaries), the living world (schedules, goals, off-screen life, storylines, dice, the pulse) and the World inspector. Everloom rebuilt these ideas from its guide and behavior; no code was copied, and World Engine's source is not part of this repository.
 - [SillyTavern Character Library](https://github.com/Sillyanonymous/SillyTavern-CharacterLibrary) (AGPL-3.0) inspired the character library features: the library view, batch actions, versions, collections, duplicates, bundles, the chat history browser, the studio, media localization, custom CSS snippets and online sources. It served as a feature and behavior spec only; no code was copied.
-- [Chub](https://chub.ai) hosts the characters the online-sources feature can browse, through its public API. Characters belong to their creators.
+- [Chub](https://chub.ai), [Character Tavern](https://character-tavern.com), [RisuRealm](https://realm.risuai.net), [Pygmalion](https://pygmalion.chat) and [Wyvern](https://app.wyvern.chat) host the characters the online-sources feature can browse, through their public APIs. Characters belong to their creators. The test fixtures for these sources are synthetic cards in the sites' response shapes, not copies of anyone's characters.
 - [SillyTavern](https://github.com/SillyTavern/SillyTavern) (AGPL-3.0) defined the file formats Everloom reads and writes: character cards (V1/V2/V3, PNG and JSON), World Info / lorebooks, chat-completion presets and JSONL chats, and the World Info activation behavior Everloom reproduces. Everloom implements these formats independently and contains no SillyTavern code.
 
 ## Interface details from uiverse.io (MIT)
@@ -32,7 +32,20 @@ Each of these was adapted — restyled to Everloom's tokens and limited to trans
 
 ## Libraries
 
-React, React Router, TanStack Query, Zustand, Radix UI primitives, vaul, Motion, Tailwind CSS, Vite and vite-plugin-pwa, marked, DOMPurify, Fastify, better-sqlite3, sharp, zod, immer, js-tiktoken, yazl/yauzl, fflate, qrcode — each under its own open-source license (MIT, ISC or Apache-2.0).
+React, React Router, TanStack Query, Zustand, Radix UI primitives, vaul, Motion, Tailwind CSS, Vite and vite-plugin-pwa, marked, DOMPurify, Fastify, better-sqlite3, sharp, zod, immer, js-tiktoken, yazl/yauzl, fflate, qrcode, [PixiJS](https://pixijs.com) 6 and [pixi-live2d-display](https://github.com/guansss/pixi-live2d-display) — each under its own open-source license (MIT, ISC or Apache-2.0; PixiJS and pixi-live2d-display are MIT).
+
+## Live2D
+
+Live2D support is optional and off by default. Two Live2D components are involved, under Live2D's own licenses rather than Everloom's MIT license:
+
+- **Cubism Core for Web** (`live2dcubismcore.min.js`) is proprietary (Live2D Proprietary Software License). **It is not included in Everloom.** Owners who want Live2D download it from Live2D and upload it to their own server.
+- **Cubism Framework for Web** is part of pixi-live2d-display's Cubism 4 build, so it is inside Everloom's Live2D renderer chunk (downloaded only when Live2D is turned on). It is distributed under the [Live2D Open Software License](https://www.live2d.com/eula/live2d-open-software-license-agreement_en.html), which allows redistribution; commercial publishers above Live2D's revenue threshold need their own agreement with Live2D.
+
+Live2D models belong to their creators and carry their own terms (for Live2D's sample models, the Free Material License).
+
+## Sound
+
+Everloom ships no music or sound files. Ambience without the owner's own loops is synthesized in the browser with the Web Audio API.
 
 ## Test fixtures
 

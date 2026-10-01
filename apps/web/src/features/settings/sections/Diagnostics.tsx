@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { Download, RefreshCw } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { api, get } from '@/lib/api';
+import { api, get, post } from '@/lib/api';
 import { toastError } from '@/lib/store';
 import { Badge, Button, Spinner } from '@/ui';
 import { Section } from '../common';
@@ -9,7 +9,7 @@ import { Section } from '../common';
 interface Diag {
   app: { version: string; build: string | null; node: string; platform: string; uptimeMinutes: number; memoryMb: number };
   database: Record<string, number | null>;
-  connections: Array<{ name: string; provider: string; model: string; endpoint: string; hasKey: boolean; roles: string[] }>;
+  connections: Array<{ id: string; name: string; provider: string; model: string; endpoint: string; hasKey: boolean; roles: string[] }>;
   calls: { recent: number; failed: number; avgMs: number | null; lastErrors: Array<{ at: number; role: string; purpose: string; model: string | null; error: string | null }> };
   serverErrors: Array<{ at: number; method: string; url: string; message: string }>;
 }
@@ -98,6 +98,7 @@ export default function DiagnosticsSection() {
                 <span className="truncate text-xs text-fg-2">
                   {c.provider} · {c.model || 'default model'} · {c.endpoint || 'default endpoint'} · {c.hasKey ? 'key set' : 'no key'}
                 </span>
+                <ConnectionTest id={c.id} name={c.name} />
               </li>
             ))}
           </ul>
@@ -137,5 +138,34 @@ export default function DiagnosticsSection() {
         </Section>
       ) : null}
     </>
+  );
+}
+
+/** Try a connection now and show the answer in place. */
+function ConnectionTest({ id, name }: { id: string; name: string }) {
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<{ ok: boolean; message: string } | null>(null);
+  return (
+    <span className="mt-1 flex items-center gap-2">
+      <Button
+        size="sm"
+        variant="secondary"
+        loading={busy}
+        aria-label={`Test ${name}`}
+        onClick={async () => {
+          setBusy(true);
+          try {
+            setResult(await post<{ ok: boolean; message: string }>(`/api/connections/${id}/test`));
+          } catch (e) {
+            setResult({ ok: false, message: (e as Error).message });
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        Test
+      </Button>
+      {result ? <span className={`min-w-0 truncate text-xs ${result.ok ? 'text-success' : 'text-danger'}`}>{result.ok ? 'Works' : 'Failed'}: {result.message}</span> : null}
+    </span>
   );
 }

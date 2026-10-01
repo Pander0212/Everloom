@@ -234,3 +234,122 @@ Measured over 30 turns with the mock model (apps/server/test/cost.test.ts).
 - On-demand tools (studio, lorebook entries, recommender, CSS assistant) cost nothing until used.
 
 **Latency** (mock model, Send → first streamed token, balanced, median / p90): Phase 1 259 / 323 ms, Phase 2 264 / 327 ms (+2%).
+
+---
+
+# Phase 3 — the remaining gameplay systems
+
+Phase 3 fills in the gameplay systems from the reference app's feature list (used for behavior only; no code or UI was taken from it). Same rules as Phase 2:
+
+- **One engine.** Every new system is a set of ops in the existing reducer (`packages/engine/src/game/ops3.ts`, handled in `handlers3.ts`). Ops are anchored to the message and swipe that caused them, recorded with inverse patches, and replayed in story order, so swiping, editing, deleting and branching roll every system back exactly.
+- **The model narrates, code keeps the numbers.** Prices, fares, delivery times, damage, XP, crafting quality and arrival events are all computed by code from seeded randomness (`createRng(seedFrom(seed, key, counter))`), so a replay gives the same result.
+- **New AI calls are optional** and on demand (see *Model calls* below); the per-turn cost of every preset is unchanged.
+
+Each entry says what was **built**, **merged** into something Everloom already had, or **deferred**, and why.
+
+## 1. Visual-novel stage
+
+- **Built — scene effects.** `fx.play {effect, intensity, seconds}`: shake, flash, fade, blur, vignette, heartbeat, sparkle, rain, snow, fog, embers, lightning, glitch. The tracker may emit them; the stage has a quick menu. Effects are cues in the state (so they roll back), play once when they first appear, use only transform/opacity/filter, and turn gentle under reduced motion (lightning becomes one soft flash; never a strobe). Each effect can be turned off (*Stage & sound › Scene*).
+- **Built — animation layers and a director.** `stage.layer` places a character left/center/right/off with an expression and an entrance (bounce, nod, shake, slide-in, fade-in); `stage.clear` resets. Layers: background → atmosphere → sprites → effects → dialogue/UI. Sprites breathe while idle and bob while their line is spoken; scene-wide motion (shake, blur, glitch) moves the scene container, overlays sit above it, so effects don't fight.
+- **Built — speech bubbles** (optional). Quoted lines appear in a bubble anchored to the speaker's position, narration above it (with speech tags such as *she says* folded away). Tapping a bubble opens the full line in the dialogue box.
+- **Built — cutscenes.** `cutscene.add/play/stop/remove`. Authored ones use a short script editor (one line per step, `Name: line` for speech) on every screen size; generated ones come from the utility model on request (*Draft*, with an optional idea), are validated against the op schema and only saved when the player confirms. The player is full-screen with Skip, tap/Enter to advance and auto-advance for timed steps; steps can carry an effect, a background and a music mood.
+- **Merged — generated cutscenes at milestones.** Rather than a hidden call on every battle victory or thread climax, generation is on demand from the Stage tool. It keeps the new call optional and predictable in cost.
+- **Built — Live2D (optional, off by default).** `pixi-live2d-display` with `pixi.js` 6, loaded only when Live2D is on. The **Cubism Core is proprietary and is not bundled**: the owner uploads `live2dcubismcore.min.js` in *Stage & sound › Sprites*; it is stored per owner and served only to them. Models are uploaded per character as a zip (path-checked on unpack). Expressions and motions follow the emotion system; the mouth follows the TTS voice (*lip-sync*: the level comes from a tap on a copy of the playing audio, so playback is never rerouted; browser voices get a gentle made-up movement). Anything missing falls back to the ordinary sprite. The lip-sync level source was verified in Chromium; the full path with a real model could not be run in CI because the Core can't be shipped.
+
+## 2. Maps and travel
+
+- **Built — transit hubs.** Station, dock, airport, portal, stable and taxi stand are location kinds. `transit.add` defines a line (stops, first/last departure, frequency, minutes per stop, fare, fare per stop); departures are computed from the game clock in both directions. Tickets are items (`transit.ticket`), used up by `transit.ride`, or the fare is paid at boarding.
+- **Built — travel modes.** 22 modes, offered by genre: walk, run, bicycle, motorcycle, horse, carriage, caravan, boat, ship, airship, portal, bus, taxi, subway, car, train, ferry, flight, shuttle, hovercar, maglev, starship. Each has a speed, a fare, an energy cost and the route kinds it can use.
+- **Built — route requirements.** `route.require` and line requirements: discovered, fare, vehicle, item/key, organization standing, reputation, quest, party size, not wanted, opening hours, weather. A failed check gives the reason and a fix (*Move 1 companion to the reserve*, *Opens at 08:00* with a *Wait* button).
+- **Built — history and arrival.** A trip log, *Recent places* quick travel, a visited overlay on the map. On arrival code notes who is there (schedules and household presence), the weather, trackers left low, checkpoints when wanted, and (on long overland trips) a seeded encounter; the narrator gets it as `JUST ARRIVED` in the scene block. *Events on the way* can be turned off per campaign (who is there is always noted).
+- **Fixed along the way.** The travel-mode choice was nested inside the list of obstacles, so a place with nothing in the way offered no way to travel. Caught by the full e2e matrix.
+
+## 3. Player Home
+
+- **Built.** Homes are tied to map nodes; kinds house, apartment, room, guild quarters, castle, cabin, campsite, cave, vehicle; ownership owned, rented (rent is a bill, §5) or borrowed; one primary home. Rooms with amenities that do something (a better bed restores more sleep, a kitchen or hearth is a cooking station, a forge or workbench enables crafting) and upgrades. Storage containers with capacity; stored items aren't carried.
+- **Built — the household**, separate from lineage: head, resident, dependent, guardian, guest; relation text; schedules. Presence ("who is home now") comes from schedules and feeds the scene block at home. The brief's examples (a child living with grandparents, siblings in different homes, a partner who visits, a resident who leaves for work) are unit tests.
+- **Built — home actions.** Sleep and rest use room effects; cook and craft need the station; store and retrieve need you there; inviting someone over schedules a visit. Opening the Home screen works anywhere.
+
+## 4. Party and progression
+
+- **Built.** A leader (acts first in battle, and the scene block says who leads), rows (front/back) and an active party of up to N with reserves, roles (tank, healer, damage, support, scout), tactics presets (aggressive, defensive, heal first, conserve) plus simple rules ("heal when an ally is under 30%"), a party bag beside personal inventories, class definitions (built-in per genre plus custom) with stat growth, a skill tree with requirements (level, prerequisite skill, item, quest) and ranks, XP sources that can be switched off, three level curves (the standard one equals Phase 1's formula), stat points, custom vitals per character, and one level-up moment (animation and a summary sheet).
+- **Built — proposed skills.** The helper may propose `skillnode.add` and `class.define`; like all its proposals nothing changes until the player accepts.
+
+## 5. Inventory and economy
+
+- **Built.** Currencies per world: fantasy worlds count in gold, silver and copper (`12g 3s 4c`), and any world can add currencies with exchange rates; a wallet and a ledger; containers with capacity (one level of nesting); banking with deposit/withdraw at bank locations or the phone, optional interest and loans with installments; bills on calendar dates with a consequence ladder (a warning, then a late fee and standing loss with the payee, then eviction or repossession), shown in the phone and calendar; owned assets with value, upkeep and income on a schedule (vehicles count for travel); shops linked to places with opening hours, genre stock restocked on a schedule, prices from standing, reputation and the shopkeeper, and a seeded haggle check once per shop per day; trade with a fair-value check.
+- **Built — crafting.** One recipe system for cooking, alchemy, forge, enchantment and general crafting: ingredients, a station, a discipline level and time (the clock advances); one seeded roll on the shared dice curve decides quality (poor → masterwork) or, for enchantment, success, with a lost slot on a critical failure. The utility model can suggest a recipe that fits the world; the player confirms it.
+
+## 6. Battle
+
+- **Built.** Break gauges (weakness hits and crits drain them; a broken foe loses turns and takes ×1.5), enemy intents declared a turn ahead by rules (no model call) and carried out on the declared target, target types (single, all, row, random, self, ally, all allies), reserve swaps that cost the turn, and persistent results: HP, resources, statuses, loot, XP shared with active members, injuries (a knocked-out ally comes back at 1 HP with an injury). A summary is posted to the story and the whole battle is bound to its message.
+
+## 7. Communication
+
+- **Built.** One data model with two looks chosen by genre: a phone, or a codex (Letters, Notice board, Archive, Acquaintances) for worlds without email. Group texts with read receipts; turn-based calls (TTS when on) that take game time and are written to memory, witnessed by the two people on the call; letters with delivery time from distance and courier (post rider, hired courier or messenger bird; mail or express; standard or priority relay, by genre), replies scheduled by code and written in the sender's voice when first opened; email; an in-world browser/archive generated on demand and cached per campaign; a social feed driven by the simulation where liking someone's post (+1 affection, taken back on unlike) and your first comment on it (+1 trust) touch relationships you already have; custom apps (name, icon, prompt) powered by the utility model. The home screen shows a "While you were away" digest instead of a stream of notifications.
+
+## 8. Images, sprites and audio
+
+- **Built — asset library.** Sprites, backgrounds, CGs and icons shared across characters and campaigns, with names, tags, search and type filters, zip import (folders become tags; `backgrounds/`, `cgs/`, `icons/` set the type; emotion-named pictures such as `happy.png` form an expression set), and one-tap use: give a set to a character, use a sprite for one expression, set a chat background. Assets are ordinary media rows, so they are served, backed up and checked like any picture.
+- **Built — music.** Playlists of the owner's own tracks, chosen by the scene (`music.set` by name or mood), the battle playlist during battles, then a playlist for this place (a location kind or name) and time of day; two decks crossfade (default 2.5 s). Nothing plays until the owner turns music on and touches the page.
+- **Built — ambience.** Rain, storm, wind, city, crowd, forest, sea, fire, night: chosen by the scene or, on *Follow the scene*, by weather, place and hour. The owner's own loops if added, otherwise synthesized in the browser with Web Audio (so no sound files ship), with its own volume under the music.
+- **Built — creator/reference voices.** Preset voices and custom reference voices are kept apart. A reference voice needs an explicit consent statement (stored with it), and is sent only to OpenAI-compatible voice servers the owner marked *Accepts reference audio* (XTTS, F5 and similar). ElevenLabs voice IDs work as preset voices.
+- **Built — local image generation.** ComfyUI (paste an API-format workflow) and AUTOMATIC1111/Forge (`--api`) were already connection types; the README now explains running them on the VPS or another machine.
+- **Deferred — music stream URLs.** The app's Content-Security-Policy only allows its own media; streaming arbitrary URLs would need a proxy or a looser policy. Tracks are uploaded instead.
+- **Deferred — item icons from the library.** Icons can be stored and tagged, but inventory items still use the built-in icon set.
+
+## 9. Customization and recovery
+
+- **Built.** Floating tool panels on desktop (drag, resize, dock; per device), a floating status bar that drags, snaps to edges and moves with the arrow keys, *Reset layout*; on phones the fixed layout stays, with show/hide for the status bar, reply chips and avatars and a reorderable status bar. Cinematic mode hides all UI. Save slots (a named point in the story) that load by forking a new branch, so nothing is overwritten. A Diagnostics page (health, database size, backups, a Test button per connection, recent errors, failed model calls and a debug bundle with keys removed); the campaign health check stays in the World inspector. Four contrast-checked accent palettes (amber, dusk, sea, rose) and an optional genre theme per world; custom CSS stays the power-user option.
+- **Merged — "minimap", "quick bag", Helper Pet.** These are tools in Everloom (the map, the inventory, the helper), so they float through the same panel system rather than as separate widgets. Everloom has no separate cast-strip widget to move.
+
+## 10. Character sources
+
+Phase 2's provider interface was extended, not rebuilt: a capability matrix per site (search, preview, import, updates, supported sorts) drives what the UI shows; "In library" badges, *Hide ones I have*, auto-link on import, the bulk link scanner and card updates with field-level diffs carry over to every provider; each source remembers its sort and filters on the device; infinite scroll is a switch (*Load as I scroll*).
+
+Access was checked site by site (robots.txt, public APIs, bot protection). The server never tries to pass a challenge, never spoofs a browser, and never extracts a definition the creator hid; hidden cards import their public parts with a *definition hidden by creator* label. Requests are cached, rate-limited and identify Everloom in the User-Agent. Tokens are encrypted like API keys. Adult content is off by default and enforced by the server. Provider tests use recorded fixtures only.
+
+| Site | Access | Why |
+|---|---|---|
+| Chub | Server | Public API; optional API key for account settings. |
+| Character Tavern | Server | Public search and character API; robots.txt allows it. |
+| RisuRealm | Server | Search reads the public page data; imports use the public download API RisuAI uses. Hidden cards are never downloaded. |
+| Pygmalion | Server | Public character API (public characters only). |
+| Wyvern | Server | Public explore API; fields the creator marks secret are left out and labelled. |
+| Botbooru | Browser bridge | robots.txt disallows automated access to its API and pages. |
+| AI Character Cards | Browser bridge | Pages sit behind a browser check. |
+| JanitorAI | Browser bridge | Cloudflare. A hidden definition stays hidden. |
+| JannyAI | Browser bridge | Cloudflare. |
+| DataCat | Browser bridge | robots.txt disallows its API. |
+| Saucepan | Not supported | No public catalog or permission to import was found. |
+| Any link | Server | A direct card file (PNG, JSON, CHARX) or a page on one of the sites above. |
+
+- **The browser bridge.** A userscript (Tampermonkey/Violentmonkey, including Firefox for Android) and a bookmarklet send what the page shows the user (name, avatar, greetings, public description, tags, creator, and the definition only when public) to `/api/bridge/import` with a per-device token from *Settings › Characters*. Tokens are stored as hashes and can be revoked; a bad token is rejected.
+- **Deferred — Chub timeline, favorites, follows, gallery and remote version history.** These need account-scoped endpoints whose response shapes couldn't be recorded as fixtures from this build environment (its network policy blocks the site). Update checks with field-level diffs and embedded lorebooks work.
+
+## Model calls
+
+New calls, all on demand, all in the call log with their purpose:
+
+| Purpose | Role | When |
+|---|---|---|
+| phone text, group text, phone call | main | You text or call someone |
+| letter, email | main | You open an incoming letter whose words aren't written yet |
+| feed posts | utility | You refresh the feed |
+| in-world browser, archive lookup | utility | You look something up (cached per campaign) |
+| app: *name* | utility | You run a custom app |
+| recipe idea | utility | You ask for a recipe that fits the world |
+| cutscene draft | utility | You ask for a generated cutscene |
+| helper | utility | You ask the helper (it may now propose skills) |
+
+Calls per turn under each preset are **unchanged from Phase 2** (re-measured by `apps/server/test/cost.test.ts`: cheap 2.03, balanced 2.53, max 4.40 LLM calls per turn).
+
+## Upgrading from Phase 2
+
+A real Phase 2 database (`tests/fixtures/phase2.db`, written by the Phase 2 release through its own API) upgrades with a backup first, every row kept and Phase 3 systems starting empty. One thing the test caught: battles, sleep healing and travel changed rules, so replaying an old campaign's log under today's rules would quietly give different HP on the first swipe after the upgrade. When an older campaign is first opened, its log is replayed once; anything that comes out differently is pinned to what was recorded by a single *upgrade* entry on the latest message, applied after everything else there. The state stays exactly what the player last saw, and swipes and edits keep working.
+
+## Performance
+
+- **Bundle.** Every new screen and tool is its own chunk. The main script is 76 KB brotli (Phase 2: 82 KB); the first load is 179 KB brotli. Moving one helper out of the module with the op schemas took zod out of the browser entirely and the stage chunk from 133 KB to 12 KB. All assets: 454 KB brotli (Phase 2: 363 KB) plus the 140 KB Live2D renderer, which only downloads when Live2D is on.
+- **Frame rate.** 60 fps idle and 59 fps average with rain and shake playing together (95th-percentile frame 16.8 ms), measured in headless Chromium at 1280×800.
+- **Crossfade.** A measured 2 s linear crossfade with the summed volume constant and the old deck paused at the end. Audio now unlocks on the first real tap (caught by the measurement: taps before the story finished loading didn't count, and on touch screens `pointerdown` never does).

@@ -2,6 +2,50 @@
 
 Snapshot of what's built, what's partial, and how it was tested. Everloom 0.1.0.
 
+## Phase 3 (the remaining gameplay systems)
+
+What was built, merged or deferred, and why, is in [docs/PHASE2_DECISIONS.md › Phase 3](docs/PHASE2_DECISIONS.md#phase-3--the-remaining-gameplay-systems).
+
+### Done ✅
+- **One engine, still.** Every new system is ops in the same reducer, anchored to message + swipe with inverse patches. A rollback suite runs one story through all 134 op types and checks each step's inverse restores the state exactly; a new op without a step fails it.
+- **Travel**: transit hubs, lines with timetables, fares and tickets; 22 travel modes by genre; route requirements with a reason and a fix (and *Wait* for opening hours); trip history, recent places, a visited overlay; seeded arrival events (switchable) told to the narrator.
+- **Player Home**: homes on the map (owned, rented, borrowed; one primary), rooms with working amenities and upgrades, storage, the household with roles and schedule-based presence, home actions and invitations.
+- **Economy**: currencies and denominations, wallet and ledger, containers, banking with interest and loans, bills with a missed-payment ladder, owned assets with upkeep and income, shops with hours, restocking, standing-based prices and haggling, fair trades; crafting in five disciplines with stations, levels, time and a seeded quality roll; AI recipe ideas the player confirms.
+- **Party and progression**: leader, rows, active party and reserves, roles and tactics (presets and simple rules), a party bag, classes, a skill tree with requirements and ranks, level curves, XP sources, stat points, custom vitals, a level-up moment, and helper-proposed skills.
+- **Battle**: break gauges and weaknesses, enemy intents a turn ahead, target types, reserve swaps, persistent results and injuries, a posted summary.
+- **Communication**: phone or fantasy codex by genre; group texts with read receipts; calls (with TTS, written to memory); letters and email with delivery by distance and courier; an in-world browser/archive (cached); a social feed that touches relationships; custom apps; a "While you were away" digest.
+- **Stage and sound**: 13 scene effects (each can be turned off; gentle under reduced motion), a director for sprite placement and entrances, idle breathing and a speaking bob, speech bubbles, cutscenes (written or drafted by the utility model), music playlists by scene, battle, place and time with crossfades, ambience (own loops or synthesized), reference voices with consent, a shared asset library with zip import and expression sets, optional Live2D (Core uploaded by the owner, never bundled) with lip-sync.
+- **Customization**: save slots that fork, Diagnostics (with a Test button per connection and a debug bundle without keys), four accent palettes and genre themes, show/hide and cinematic mode, floating tool panels and a floating status bar on desktop, a reorderable status bar everywhere, *Reset layout*.
+- **Character sources**: a capability matrix (including supported sorts), Character Tavern, RisuRealm, Pygmalion and Wyvern beside Chub, import from any card link, a browser bridge (userscript and bookmarklet with per-device tokens) for sites behind bot protection, hidden definitions labelled and never extracted, per-source browse settings, *Load as I scroll*.
+
+### Partial or not built
+- **Chub timeline, favorites, follows, gallery and remote version history** — not built: they need account endpoints whose responses couldn't be recorded as fixtures here (the build environment's network blocks the site). Search, sorts, preview, import, embedded lorebooks and update checks with field diffs work.
+- **Music stream URLs** — not built: the security policy only allows the app's own media; tracks are uploaded instead.
+- **Item icons from the asset library** — icons can be stored and tagged, but items still use the built-in icon set.
+- **Live2D with a real model** — the lip-sync level source was verified in Chromium; loading a model and moving its mouth could not run in CI because the proprietary Cubism Core can't be included.
+- **Generated cutscenes** are drafted on request, not triggered automatically at milestones (keeps the call optional and predictable).
+
+### Phase 3 tests
+- **Unit and integration (Vitest): 331 tests in 48 files, all passing.** New: economy, home and crafting, journeys, progression and battle, communication, providers and sources, the bridge, customization, stage, music choice, the asset library, the per-op rollback suite, call memory, feed relationships and helper-proposed skills.
+- **Soak**: 60 turns with 12 swipe cycles; between cycles the player shops, crafts, stores things at home, fights and rides transit, and the swiped-away takes carry travel, battles, homes, shops, mail and stage ops. Every cycle folds back to byte-identical state and memory.
+- **Migration**: a real Phase 2 database (written by the Phase 2 release through its API) upgrades with a backup, every row kept, Phase 3 systems empty and immediately usable, and old results pinned so a rebuild matches what was recorded.
+- **Calls per preset**: re-measured, unchanged (cheap 2.03, balanced 2.53, max 4.40 model calls per turn).
+- **End to end (Playwright), 33 tests on every viewport and theme, zero console errors:** travel by transit with a ticket, arriving, a blocked route and its fix; shopping, crafting at home, paying rent; a battle with formations, break and a reserve swap; letters, the feed, calls and group texts; save slots; importing from each provider (recorded fixtures), the browser bridge with a good and a bad token, import from a link, per-source sorts; cinematic mode, view controls, palettes, Diagnostics with provider tests, floating panels and the floating status bar; cutscenes, effects, bubbles, music unlock and crossfade, voices consent, the asset library.
+
+| Viewport | Result (dark / light) |
+| --- | --- |
+| phone 390×844 | ✅ / ✅ |
+| phone 360×800 | ✅ / ✅ |
+| landscape 844×390 | ✅ / ✅ |
+| desktop 1280×800 | ✅ / ✅ |
+
+The desktop-only floating-panel test is skipped on the six phone and landscape runs.
+
+- **Performance**: main script 76 KB brotli (Phase 2: 82 KB), first load 179 KB; all assets 454 KB plus the 140 KB Live2D renderer, which loads only when Live2D is on; zod no longer reaches the browser. 60 fps idle and 59 fps with rain and shake together (p95 frame 16.8 ms, headless Chromium); a measured 2 s linear crossfade.
+- **Design QA**: screenshots of every new screen at 360/390 px and 1280 px in both themes were reviewed; fixes included moving scene options to their own tab and the bubble narration's stray speech tags.
+
+Bugs the Phase 3 tests caught and that are fixed: travel modes hidden unless a route had an obstacle; an upgraded campaign that would have changed on its first swipe (old battles replaying under new rules); audio that never unlocked when the first tap came before the story loaded (and `pointerdown` doesn't count on touch screens); the stage chunk carrying the whole op-schema library; a cutscene opening under a tool sheet; a media test that depended on download order.
+
 ## Phase 2 (World Engine ideas + Character Library features)
 
 Decisions, the memory benchmark and call costs are in [docs/PHASE2_DECISIONS.md](docs/PHASE2_DECISIONS.md).
@@ -122,9 +166,11 @@ In this sandbox the image was built with an extra CA certificate for the build n
 
 ## Suggested next steps
 
-1. Link quests to places (Target pins, "go to objective" on the map).
-2. Persona expression sprites and per-persona overrides.
-3. A floating, dismissible helper pet on the story screen.
-4. Diary fonts/ink colours and a page-curl turn.
-5. Per-thread phone summaries and a manual "tell the story about this text" action.
-6. Split the shared UI chunk further to lift throttled-mobile performance above 90.
+1. Chub account features (timeline, favorites, follows, gallery, remote versions) once real responses can be recorded as fixtures.
+2. Inventory items that use pictures from the asset library as their icons.
+3. An opt-in "cutscene at milestones" switch (battle victories, a storyline's climax) using the existing draft call.
+4. A local check that loads a real Live2D model with an owner-provided Cubism Core (kept out of the repository).
+5. Music streams through a small authenticated media proxy, if wanted.
+6. Link quests to places (target pins, "go to objective" on the map).
+7. Persona expression sprites and per-persona overrides.
+8. Split the shared UI chunk further to lift throttled-mobile performance.

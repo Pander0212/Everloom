@@ -81,7 +81,7 @@ export function diagnostics(ctx: AppContext, owner: string, version: string) {
       campaigns: count('campaigns'),
       media: count('media'),
     },
-    connections: listConnections(ctx, owner).map((c) => ({ name: c.name, provider: c.provider, model: c.model, endpoint: origin(c.baseUrl), hasKey: c.hasKey, roles: Object.entries(settings.roles ?? {}).filter(([, id]) => id === c.id).map(([r]) => r) })),
+    connections: listConnections(ctx, owner).map((c) => ({ id: c.id, name: c.name, provider: c.provider, model: c.model, endpoint: origin(c.baseUrl), hasKey: c.hasKey, roles: Object.entries(settings.roles ?? {}).filter(([, id]) => id === c.id).map(([r]) => r) })),
     calls: {
       recent: calls.length,
       failed: failed.length,

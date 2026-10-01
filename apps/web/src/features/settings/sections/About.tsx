@@ -26,6 +26,8 @@ export default function AboutSection() {
           <li>File formats compatible with SillyTavern character cards, World Info and chats.</li>
           <li>Interface details adapted from uiverse.io (MIT) — see CREDITS.md for each author.</li>
           <li>Icons: Lucide (ISC). Fonts: Inter and Source Serif 4 (SIL OFL).</li>
+          <li>Live2D (optional) through PixiJS and pixi-live2d-display (MIT), which include Live2D's Cubism Framework (Live2D Open Software License). The Cubism Core is Live2D's and is never included; you upload it yourself.</li>
+          <li>Characters you browse belong to their creators on Chub, Character Tavern, RisuRealm, Pygmalion and Wyvern.</li>
         </ul>
       </Section>
     </>

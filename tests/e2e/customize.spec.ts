@@ -80,6 +80,12 @@ test.describe('customization', () => {
   test('diagnostics page and debug bundle', async ({ page, errors }) => {
     await page.goto('/settings/diagnostics');
     await expect(page.getByText('Characters · chats · saves')).toBeVisible();
+    // Provider tests run from here too.
+    const conns = page.getByRole('list', { name: 'Connections' });
+    if (await conns.count()) {
+      await conns.getByRole('button', { name: /^Test / }).first().click();
+      await expect(conns.getByText(/^Works: /).first()).toBeVisible();
+    }
     const download = page.waitForEvent('download');
     await page.getByRole('button', { name: 'Download debug bundle' }).click();
     const file = await download;

@@ -3,9 +3,10 @@
 A self-hosted AI roleplay app for your phone, with a game layer built in.
 
 - **Roleplay frontend** — character cards (SillyTavern V1/V2/V3, PNG/WebP/JSON, round-trip), personas, lorebooks with SillyTavern-style World Info activation, presets with a prompt manager and inspector, macros, group chats, streaming, swipes, edit/branch/continue/impersonate, search, bookmarks, reasoning, memory summaries, voice and image generation. Works with OpenAI-compatible APIs (OpenRouter, DeepSeek, local servers…), Anthropic, Google Gemini and text-completion backends.
-- **Game layer** — after each reply a small model updates the game: time, weather, needs, items, money, quests, people, places, organizations and relationships. Every change is tied to the message and swipe that caused it, so swiping, editing, deleting or branching rolls the game back exactly. Time passing simulates the world (schedules, weather, birthdays, rumors, phone texts). There's a map with travel, an inventory, a journal, a calendar, a phone, a diary, a party, turn-based battles and a New Game wizard.
+- **Game layer** — after each reply a small model updates the game: time, weather, needs, items, money, quests, people, places, organizations and relationships. Every change is tied to the message and swipe that caused it, so swiping, editing, deleting or branching rolls the game back exactly. Time passing simulates the world (schedules, weather, birthdays, rumors, phone texts). There's a map with travel by 22 modes, transit lines with timetables and tickets, and routes that explain what's in the way; homes with rooms, storage and a household; shops, currencies, banking, bills and owned assets; crafting (cooking, alchemy, forge, enchantment); a party with a leader, formations, tactics, classes and a skill tree; turn-based battles with enemy intents, break gauges and reserve swaps; a phone (or a fantasy codex) with texts, calls, letters, email, a feed, an in-world browser and your own apps; a journal, calendar, diary, save slots and a New Game wizard.
 - **Memory and a living world** — a memory that records who saw what (and who only heard about it), keeps secrets out of the wrong mouths, tracks facts as they change and recalls the right moment when it comes up again, all of it undone exactly by swipes and edits. People keep schedules and goals, talk to each other off-screen, relationships grow at a believable pace, background storylines creep forward, and dice decide risky actions. A World inspector shows what the model saw, every change, every model call, and a health check with fixes.
-- **Character library** — thousands of characters in a fast, filterable library with collections, batch actions, versions with diffs, duplicate finder, bundles (also SillyTavern zips), a chat history browser, a Character studio that writes and revises cards with you, AI-written lorebook entries, "What should I play?", saving linked images locally, custom CSS with an assistant, and browsing/importing from Chub with update checks.
+- **Stage and sound** — a visual-novel stage with sprites placed by the story, scene effects (shake, rain, fog, lightning…), speech bubbles and cutscenes; music playlists that follow the mood, battles, place and time of day with crossfades; ambience (your loops, or generated); character voices including your own reference voices; optional Live2D with lip-sync.
+- **Character library** — thousands of characters in a fast, filterable library with collections, batch actions, versions with diffs, duplicate finder, bundles (also SillyTavern zips), a chat history browser, a Character studio that writes and revises cards with you, AI-written lorebook entries, "What should I play?", saving linked images locally, custom CSS with an assistant, a shared asset library, and browsing/importing from Chub, Character Tavern, RisuRealm, Pygmalion and Wyvern, any card link, or (for sites behind bot protection) a "Send to Everloom" browser bridge.
 - **Yours** — one Linux server, your data, your API keys (encrypted on the server, never sent to the browser). Free and MIT licensed.
 
 Everloom listens on port **8787** (so it can sit next to SillyTavern on 8000).
@@ -19,7 +20,7 @@ Everloom listens on port **8787** (so it can sit next to SillyTavern on 8000).
 3. [Connect a model](#connect-a-model)
 4. [Update, back up, restore](#update-back-up-restore)
 5. [Move over from SillyTavern](#move-over-from-sillytavern)
-6. [Voice and images](#voice-and-images)
+6. [Voice, images, music and Live2D](#voice-images-music-and-live2d)
 7. [Configuration](#configuration)
 8. [Install without Docker](#install-without-docker)
 9. [Development](#development)
@@ -144,10 +145,53 @@ Run it as your normal user; it uses `sudo` for Docker by itself when needed (run
 
 You'll see what was found and choose what to bring over: characters (with avatars), chats (with swipes), group chats, personas, World Info books, backgrounds and chat-completion presets. Cards, lorebooks, presets and chats can also be imported one at a time from their own pages, and exported back in SillyTavern's formats.
 
-## Voice and images
+## Voice, images, music and Live2D
 
-- **Voice:** the browser's built-in voices work with no setup. For better voices add a **Voice** connection — OpenAI TTS, any OpenAI-compatible speech server (Kokoro, AllTalk…), or ElevenLabs — and pick it in **Settings → Voice**. Characters can have their own voice.
-- **Images:** add an **Images** connection — OpenAI-compatible, OpenRouter image models, Pollinations (free, no key), ComfyUI (paste a workflow exported with "Save (API)") or AUTOMATIC1111/Forge (start it with `--api`). Then you can draw portraits and expression sprites for characters, NPC portraits, item icons, scene backgrounds and diary photos. Every generated image is checked and re-encoded like an upload.
+### Voices
+
+The browser's built-in voices work with no setup. For better voices add a **Voice** connection — OpenAI TTS, any OpenAI-compatible speech server (Kokoro, AllTalk, XTTS…), or ElevenLabs — and pick it in **Settings → Voice**. Each character can have its own voice (**Stage & sound → Voices** in a story).
+
+**Your own reference voices.** Servers that clone a voice from a short sample (XTTS, F5 and similar, behind an OpenAI-compatible endpoint) can speak with a *reference voice*. Add one in **Stage & sound → Voices**, then turn on **Accepts reference audio** for that connection in **Settings → Connections**; the sample is only ever sent to connections marked that way. Reference voices are kept apart from the provider's preset voices. **Only clone a voice you have the right to use** — your own, or with the speaker's clear permission — and never to pass as someone. Everloom asks you to confirm this for each sample and keeps the confirmation with it. ElevenLabs voice IDs work as ordinary preset voices.
+
+### Images
+
+Add an **Images** connection — OpenAI-compatible, OpenRouter image models, Pollinations (free, no key), ComfyUI or AUTOMATIC1111/Forge. Then you can draw portraits and expression sprites for characters, NPC portraits, item icons, scene backgrounds and diary photos. Every generated image is checked and re-encoded like an upload.
+
+**On your own GPU (ComfyUI, AUTOMATIC1111, Forge).** These run on a machine with a graphics card: the VPS itself if it has one, or a PC at home.
+
+- **ComfyUI:** start it with `python main.py --listen 127.0.0.1 --port 8188`. In ComfyUI, build or load a text-to-image workflow, use *Save (API Format)* and paste the JSON into the connection; put `%prompt%`, `%negative_prompt%`, `%width%`, `%height%` and `%seed%` where those values go and Everloom fills them in. Without a workflow Everloom uses a minimal one with the connection's model name as the checkpoint.
+- **AUTOMATIC1111 / Forge:** start it with `--api` (for example `./webui.sh --api --listen`), and set the connection's model to the checkpoint name.
+- **Same machine as Everloom with Docker:** inside the container `127.0.0.1` is the container. Add `extra_hosts: ["host.docker.internal:host-gateway"]` to the `everloom` service in `docker-compose.yml` and use `http://host.docker.internal:8188` (ComfyUI) or `:7860` (A1111). Start the image server listening on the Docker bridge (`--listen 0.0.0.0`) and keep those ports closed in the firewall.
+- **Another machine:** don't open ComfyUI or A1111 to the internet — they have no login. Use a private network such as Tailscale or WireGuard and put that address in the connection, or forward the port over SSH from the VPS: `ssh -N -L 8188:127.0.0.1:8188 you@gpu-pc` (run as a service so it reconnects), then point the connection at the tunnel.
+
+### The stage
+
+Switch a story to **stage mode** (the book icon in the chat header). The story places sprites and plays effects through the game layer, so a swipe undoes them too; you can play effects yourself from the ✦ button. **Stage & sound → Scene** has cutscenes (write one, one line per step with `Name: line` for speech, or ask the utility model for a draft from an idea), speech bubbles, and a switch for each effect (turn off any you'd rather not see — with *reduce motion* on in your system, effects are already gentle).
+
+**Sprites** can be uploaded per expression, or kept in the **Asset library** (sprites, backgrounds, CGs and icons with tags and search). A zip of pictures imports in one go: folders become tags, folders called `backgrounds`, `cgs` or `icons` set the type, and pictures named after emotions (`happy.png`, `sad.png`, `neutral.png`…) become an expression set you can give to any character.
+
+### Music and ambience
+
+Nothing ships with Everloom and nothing plays until you turn it on (**Stage & sound → Sound**) and touch the page.
+
+- **Music:** make playlists and add your own tracks (MP3, OGG, WAV, M4A). A playlist has a mood (calm, tense, battle, romantic, sad, mysterious, joyful) and optionally a place (a kind of place such as *Any building*, or a named place) and a time of day. The story picks the music: a playlist it asks for by name, the battle playlist during battles, the scene's mood, then the playlist that fits where and when you are. Tracks crossfade (2.5 s by default).
+- **Ambience:** rain, storm, wind, city, crowd, forest, sea, fire and night, chosen by the scene or, on *Follow the scene*, by the weather, the place and the hour. Add your own loops per kind; without one, Everloom generates the sound in your browser. Music and ambience have separate volumes.
+
+### Live2D (optional)
+
+Live2D models can replace still sprites, with expressions and motions following the emotion system and the mouth following the character's voice. It's **off by default**, and it needs one file Everloom can't include:
+
+1. Download the **Cubism SDK for Web** from Live2D's website and accept their license. The file you need is `Core/live2dcubismcore.min.js`. It is proprietary, which is why it isn't part of Everloom.
+2. In a story, open **Stage & sound → Sprites**, turn on **Live2D**, and upload `live2dcubismcore.min.js`. It's stored on your server and only served to you.
+3. For each character, upload a zip of their Cubism 3/4 model (the folder with the `.model3.json`, textures, motions and expressions).
+
+Anything missing simply falls back to the ordinary sprite. Using Live2D models and the Cubism SDK is subject to Live2D's own licenses (see [CREDITS.md](CREDITS.md)).
+
+### Characters from the web
+
+**Characters → Browse** searches Chub, Character Tavern, RisuRealm, Pygmalion and Wyvern through their public APIs, and **Import from a link** takes any card file link or a page on those sites. Each source shows what it supports (*About sources*). Adult content stays hidden unless you turn it on in **Settings → Characters**.
+
+Some sites (JanitorAI, JannyAI, Botbooru, AI Character Cards, DataCat) block automated access, and Everloom won't try to get around that. Use the **browser bridge** instead: in **Settings → Characters → Browser bridge** create a token for your browser, then install the userscript (Tampermonkey or Violentmonkey; on Android, Firefox with Violentmonkey) or the bookmarklet. On a character page you opened yourself, press **Send to Everloom**: what the page shows you comes across; a definition the creator hid stays hidden and the card is labelled so.
 
 ## Configuration
 
@@ -256,6 +300,14 @@ It prints a new password, signs out every session and clears lockouts. (Without 
 **The game didn't notice something.** Open the change summary under the message to see what was recorded, add what's missing from the tools menu, or adjust how the game is tracked in **Settings → Game & trackers**.
 
 **Disk full.** Old backups live in `data/backups/` and `./backups/`; lower the retention in **Settings → Backups & import**.
+
+**No music or ambience.** Turn them on in **Stage & sound → Sound** and tap the page once (browsers only allow sound after you interact). Music needs a playlist with tracks that matches the scene; ambience on *Follow the scene* stays quiet in calm, clear daytime places.
+
+**Live2D shows a still picture.** Live2D needs the Cubism Core you upload yourself and a model zip for that character (**Stage & sound → Sprites**). If either is missing or the model fails to load, Everloom falls back to the sprite on purpose.
+
+**A reference voice is refused.** The voice connection must have **Accepts reference audio** turned on, and the server behind it must support cloning from a sample (XTTS, F5 and similar).
+
+**The browser bridge rejects the token.** It was revoked or mistyped: make a new one in **Settings → Characters → Browser bridge** and paste it into the userscript.
 
 ## Security notes
 
