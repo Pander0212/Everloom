@@ -11,7 +11,10 @@ afterAll(async () => mock.close());
 
 /**
  * 60 turns of play with moves, checks, gossip and memory, and every 5 turns a swipe cycle (swipe,
- * swipe again, go back) that must fold back to exactly the same world and memory.
+ * swipe again, go back) that must fold back to exactly the same world and memory. Between cycles
+ * the player shops, crafts, stores things at home, fights and rides the coach (user ops, which
+ * survive swipes); the swiped-away takes carry Phase 3 ops (travel, battles, homes, shops, mail,
+ * stage) that must vanish without a trace.
  */
 it('soak: swipe cycles fold back to identical state and memory over 60 turns', async () => {
   const c = await createClient();
@@ -32,8 +35,28 @@ it('soak: swipe cycles fold back to identical state and memory over 60 turns', a
         { type: 'location.move', to: 'The Lantern' },
         { type: 'npc.upsert', name: 'Bram', location: 'The Lantern' },
         { type: 'thread.add', text: 'The missing ferryman', pace: 0.3 },
+        { type: 'currency.delta', amount: 1000 },
+        { type: 'shop.upsert', name: 'Lantern Bar', kind: 'general', npc: 'Bram', location: 'The Lantern', open: 0, close: 0 },
+        { type: 'home.add', name: 'Back Room', kind: 'room', location: 'The Lantern' },
+        { type: 'storage.add', home: 'Back Room', name: 'Chest', capacity: 50 },
+        { type: 'room.add', home: 'Back Room', name: 'Kitchen', amenities: ['kitchen'] },
+        { type: 'recipe.add', name: 'Flatbread', discipline: 'cooking', ingredients: [{ name: 'Flour', qty: 1 }], minutes: 20, result: { name: 'Flatbread', category: 'food' } },
+        { type: 'transit.add', name: 'Square Coach', mode: 'caravan', stops: ['The Lantern', 'Market Square'], first: '00:00', last: '23:59', every: 30, hop: 10, fare: 1 },
       ],
     });
+    const homeChest = async () => {
+      const st = (await c.req('GET', `/api/campaigns/${chat.campaignId}`)).json.state;
+      return (Object.values(st.homes) as any[]).find((h) => h.name === 'Back Room').storage[0].id as string;
+    };
+    // The player's own actions between cycles: these stay through every swipe.
+    const userActions: Array<() => Promise<unknown[]>> = [
+      async () => [{ type: 'location.move', to: 'The Lantern' }, { type: 'shop.buy', shop: 'Lantern Bar', item: 'Torch', qty: 2 }, { type: 'shop.sell', shop: 'Lantern Bar', item: 'Torch', qty: 1 }],
+      async () => [{ type: 'location.move', to: 'The Lantern' }, { type: 'item.add', name: 'Flour', qty: 1 }, { type: 'craft', recipe: 'Flatbread' }],
+      async () => [{ type: 'location.move', to: 'The Lantern' }, { type: 'item.add', name: 'Old Map', qty: 1 }, { type: 'item.move', name: 'Old Map', to: await homeChest() }],
+      async () => [{ type: 'battle.start', enemies: [{ name: 'Rat', level: 1, count: 1 }] }, { type: 'battle.action', action: 'defend' }, { type: 'battle.end' }],
+      async () => [{ type: 'location.move', to: 'The Lantern' }, { type: 'transit.ticket', line: 'Square Coach', qty: 1 }, { type: 'transit.ride', line: 'Square Coach', to: 'Market Square' }],
+    ];
+    let userOk = 0;
     const snapshot = async () => {
       const st = (await c.req('GET', `/api/campaigns/${chat.campaignId}`)).json.state;
       const mem = (await c.req('GET', `/api/chats/${chat.id}/memory`)).json;
@@ -56,12 +79,23 @@ it('soak: swipe cycles fold back to identical state and memory over 60 turns', a
       await tracked(done.messageId, 0);
       await new Promise((res) => setTimeout(res, 20));
         await settleBackground(chat.id);
+      if (turn % 5 === 2) {
+        const ops = await userActions[Math.floor(turn / 5) % userActions.length]!();
+        const r2 = await c.req('POST', `/api/campaigns/${chat.campaignId}/ops`, { chatId: chat.id, ops });
+        expect(r2.json.errors, `user actions at turn ${turn}`).toEqual([]);
+        userOk++;
+      }
       if (turn % 5 !== 0) continue;
       const before = await snapshot();
       const sceneBefore = (await c.req('GET', `/api/chats/${chat.id}/scene`)).json.text as string;
       for (const [i, story] of ['A wolf howls somewhere far off.', 'Tobias Moreno bursts in, soaked.'].entries()) {
         // Each take writes its own memory and fact, which must vanish when the take is swiped away.
-        await control({ story, trackerMemories: [{ text: `A stranger left a sealed note numbered ${turn}-${i}.`, about: [], importance: 2 }], trackerFacts: [{ about: 'Bram', key: 'mood', value: `mood ${turn}-${i}`, text: `Bram grumbles in mood ${turn}-${i}`, changed: true }] });
+        await control({
+          story,
+          trackerOps: i === 0
+            ? [{ type: 'travel', to: 'Market Square', mode: 'walk' }, { type: 'shop.upsert', name: `Stall ${turn}`, kind: 'general', location: 'Market Square' }, { type: 'mail.receive', from: 'Bram', subject: `Note ${turn}`, body: 'Come by later.' }, { type: 'fx.play', effect: 'shake' }]
+            : [{ type: 'battle.start', enemies: [{ name: 'Wolf', level: 1, count: 1 }] }, { type: 'home.add', name: `Hideout ${turn}`, kind: 'cave' }, { type: 'stage.layer', character: 'Iris Thorne', position: 'right' }, { type: 'music.set', mood: 'tense' }],
+          trackerMemories: [{ text: `A stranger left a sealed note numbered ${turn}-${i}.`, about: [], importance: 2 }], trackerFacts: [{ about: 'Bram', key: 'mood', value: `mood ${turn}-${i}`, text: `Bram grumbles in mood ${turn}-${i}`, changed: true }] });
         const sw = parseSse((await c.req('POST', `/api/chats/${chat.id}/generate`, { type: 'swipe' })).body).find((e) => e.type === 'done');
         await tracked(done.messageId, sw.swipeId);
         await new Promise((res) => setTimeout(res, 20));
@@ -71,7 +105,7 @@ it('soak: swipe cycles fold back to identical state and memory over 60 turns', a
         expect(sceneAfter.split('## THE DICE')[1]?.split('\n## ')[0]).toBe(sceneBefore.split('## THE DICE')[1]?.split('\n## ')[0]);
         expect(sceneAfter.split('## SOMETHING HAPPENS')[1]?.split('\n## ')[0]).toBe(sceneBefore.split('## SOMETHING HAPPENS')[1]?.split('\n## ')[0]);
       }
-      await control({ trackerMemories: null, trackerFacts: null });
+      await control({ trackerOps: null, trackerMemories: null, trackerFacts: null });
       await c.req('POST', `/api/messages/${done.messageId}/swipe`, { swipeId: 0 });
       const after = await snapshot();
       if (after !== before && process.env.SOAK_DUMP) {
@@ -83,6 +117,7 @@ it('soak: swipe cycles fold back to identical state and memory over 60 turns', a
       cycles++;
     }
     expect(cycles).toBe(12);
+    expect(userOk).toBe(12);
     const st = (await c.req('GET', `/api/campaigns/${chat.campaignId}`)).json.state;
     expect(Object.values(st.locations).length).toBeGreaterThanOrEqual(2);
     const mem = (await c.req('GET', `/api/chats/${chat.id}/memory`)).json;

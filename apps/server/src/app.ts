@@ -6,6 +6,7 @@ import path from 'node:path';
 import { Bus } from './bus.js';
 import type { Config } from './config.js';
 import { HttpError, type AppContext } from './context.js';
+import { reconcileLegacyCampaigns } from './services/campaigns.js';
 import { openDb, type DB } from './db/index.js';
 import { registerAuth } from './routes/auth.js';
 import { registerChats } from './routes/chats.js';
@@ -57,6 +58,8 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   const ctx: AppContext = { cfg, db, bus: new Bus() };
   // Library columns for characters made before they existed (fast; only rows still missing them).
   backfillMeta(ctx);
+  // Campaigns saved by an older release keep the results they recorded (see the function).
+  reconcileLegacyCampaigns(ctx);
   const app = Fastify({
     logger: opts.logger === false ? false : { level: cfg.logLevel, redact: ['req.headers.cookie', 'req.headers.authorization', 'req.headers["x-csrf-token"]'] },
     trustProxy: cfg.trustProxy,

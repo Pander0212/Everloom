@@ -29,6 +29,34 @@ export function rebuild(base: CampaignState, entries: OpLogEntry[], ctx: Omit<Ap
   return { state, errors };
 }
 
+/** A JSON patch in immer's shape (what the internal `patch` op applies). */
+export interface StatePatch {
+  op: 'replace' | 'add' | 'remove';
+  path: Array<string | number>;
+  value?: unknown;
+}
+
+const isObj = (v: unknown): v is Record<string, unknown> => !!v && typeof v === 'object' && !Array.isArray(v);
+
+/**
+ * The patches that turn `from` into `to`: objects are compared key by key, anything else
+ * (numbers, strings, arrays) is replaced whole when it differs. Applying them gives a state that
+ * deep-equals `to`.
+ */
+export function diffToPatches(from: unknown, to: unknown, path: Array<string | number> = []): StatePatch[] {
+  if (isObj(from) && isObj(to)) {
+    const out: StatePatch[] = [];
+    for (const k of Object.keys(from)) if (!(k in to)) out.push({ op: 'remove', path: [...path, k] });
+    for (const [k, v] of Object.entries(to)) {
+      if (!(k in from)) out.push({ op: 'add', path: [...path, k], value: structuredClone(v) });
+      else out.push(...diffToPatches(from[k], v, [...path, k]));
+    }
+    return out;
+  }
+  if (JSON.stringify(from) === JSON.stringify(to)) return [];
+  return [{ op: 'replace', path, value: structuredClone(to) }];
+}
+
 function fmtNum(n: number): string {
   const r = Math.round(n * 10) / 10;
   const abs = Math.abs(r);

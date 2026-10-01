@@ -4,12 +4,13 @@
  * change which entries are live, and the state is rebuilt from the log.
  */
 import {
-  applyOps, createInitialState, migrateState, rebuild, selectActiveEntries, summarizeChanges,
+  applyOps, createInitialState, diffToPatches, migrateState, rebuild, selectActiveEntries, STATE_VERSION, summarizeChanges,
   type AnchoredEntry, type CampaignState, type Op, type OpSource,
 } from '@everloom/engine';
 import { HttpError, type AppContext } from '../context.js';
 import { json } from '../db/index.js';
 import { newId } from '../security/crypto.js';
+import { recordError } from './diagnostics.js';
 import { clearCampaignDocs, indexDoc } from './search.js';
 
 interface EntryRow {
@@ -80,7 +81,7 @@ function linkedMessages(ctx: AppContext, owner: string, campaignId: string) {
  * For one message, the model's bookkeeping comes first and the player's own edits last,
  * so a manual correction always wins over what the model read from that message.
  */
-const SOURCE_RANK: Record<string, number> = { ai: 0, sim: 1, system: 2, helper: 3, user: 4 };
+const SOURCE_RANK: Record<string, number> = { ai: 0, sim: 1, system: 2, helper: 3, user: 4, upgrade: 9 };
 const rank = (s: string) => SOURCE_RANK[s] ?? 2;
 
 /** Order entries by the story position of their anchor message, then source, then creation order. */
@@ -108,7 +109,49 @@ function orderedActive(ctx: AppContext, owner: string, campaignId: string) {
     if (a.chatId === b.chatId) return a.anchorKey[1] - b.anchorKey[1] || (a.messageId === b.messageId ? rank(a.source) - rank(b.source) : 0) || a.seq - b.seq;
     return a.anchorKey[0] - b.anchorKey[0] || (a.messageId === b.messageId ? rank(a.source) - rank(b.source) : 0) || a.seq - b.seq;
   });
-  return active.map((e, i) => ({ ...e, seq: i + 1 }));
+  // An upgrade pin sorts after everything on its message, then applies as a system entry.
+  return active.map((e, i) => ({ ...e, seq: i + 1, source: ((e.source as string) === 'upgrade' ? 'system' : e.source) as OpSource }));
+}
+
+/**
+ * A campaign saved by an older release keeps the results it recorded. Some rules changed (battles,
+ * party healing on sleep, travel), so replaying its old log under today's rules could quietly give
+ * different numbers on the next swipe or edit. Once, when such a campaign is first opened by this
+ * release, the old log is replayed; anything that comes out differently is pinned back to what was
+ * recorded by one "upgrade" entry on the latest message (applied after everything else there).
+ * Returns how many campaigns needed pinning.
+ */
+export function reconcileLegacyCampaigns(ctx: AppContext): number {
+  const rows = ctx.db.prepare('SELECT id, owner_id, state FROM campaigns').all() as Array<{ id: string; owner_id: string; state: string }>;
+  let pinned = 0;
+  for (const row of rows) {
+    const stored = json<{ version?: number } | null>(row.state, null);
+    if (!stored || (stored.version ?? 0) >= STATE_VERSION) continue;
+    try {
+      const recorded = migrateState(stored as CampaignState);
+      const base = migrateState(json(campaignRow(ctx, row.owner_id, row.id).base_state, createInitialState()));
+      const { state: replayed } = rebuild(base, orderedActive(ctx, row.owner_id, row.id), { characters: characterRefs(ctx, row.owner_id) });
+      const patches = diffToPatches(replayed, recorded);
+      const tx = ctx.db.transaction(() => {
+        if (patches.length) {
+          const latest = linkedMessages(ctx, row.owner_id, row.id).sort((a, b) => b.createdAt - a.createdAt || b.seq - a.seq)[0];
+          const seq = ((ctx.db.prepare('SELECT MAX(seq) AS s FROM op_log WHERE campaign_id = ?').get(row.id) as { s: number | null }).s ?? 0) + 1;
+          const chatId = latest?.chatId ?? (ctx.db.prepare('SELECT id FROM chats WHERE campaign_id = ? ORDER BY created_at LIMIT 1').get(row.id) as { id: string } | undefined)?.id;
+          if (chatId) {
+            ctx.db
+              .prepare('INSERT INTO op_log (id, owner_id, campaign_id, chat_id, message_id, swipe_id, seq, source, ops, summary, created_at) VALUES (?, ?, ?, ?, ?, NULL, ?, ?, ?, ?, ?)')
+              .run(newId('op_'), row.owner_id, row.id, chatId, latest?.id ?? null, seq, 'upgrade', JSON.stringify([{ type: 'patch', patches }]), JSON.stringify(['Kept the results recorded before the upgrade']), Date.now());
+            pinned++;
+          }
+        }
+        saveState(ctx, row.owner_id, row.id, recorded);
+      });
+      tx();
+    } catch (e) {
+      recordError('UPGRADE', `campaign ${row.id}`, e);
+    }
+  }
+  return pinned;
 }
 
 export function rebuildCampaign(ctx: AppContext, owner: string, campaignId: string, origin?: string): CampaignState {
