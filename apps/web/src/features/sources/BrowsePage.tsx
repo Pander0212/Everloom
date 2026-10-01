@@ -6,7 +6,7 @@
 import type { SourceItem } from '@everloom/engine';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Check, Download, ExternalLink, Info, Link2, Lock, Search, Star } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Page } from '@/app/Shell';
 import { get, post } from '@/lib/api';
@@ -24,6 +24,7 @@ interface Capability {
   preview: boolean;
   import: boolean;
   updates: boolean;
+  sorts: Array<'popular' | 'new' | 'updated' | 'stars'>;
   note: string;
 }
 interface Providers {
@@ -32,6 +33,30 @@ interface Providers {
   capabilities: Capability[];
 }
 const SOURCE_KEY = 'everloom:browse-source';
+
+/** How each source was last browsed (sort, filters, scrolling), remembered on this device. */
+interface BrowsePrefs {
+  sort: 'popular' | 'new' | 'updated' | 'stars';
+  hideOwned: boolean;
+  adult: boolean;
+  /** Load the next page on reaching the end instead of a "Load more" button. */
+  auto: boolean;
+}
+const DEFAULT_PREFS: BrowsePrefs = { sort: 'popular', hideOwned: false, adult: false, auto: false };
+function readPrefs(id: string): BrowsePrefs {
+  try {
+    return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(`everloom:browse:${id}`) ?? '{}') };
+  } catch {
+    return DEFAULT_PREFS;
+  }
+}
+function writePrefs(id: string, p: BrowsePrefs) {
+  try {
+    localStorage.setItem(`everloom:browse:${id}`, JSON.stringify(p));
+  } catch {
+    /* remembered for this visit only */
+  }
+}
 interface Detail extends Item {
   hidden: boolean;
   description: string;
@@ -70,9 +95,19 @@ export default function BrowsePage() {
   const [linking, setLinking] = useState(false);
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
-  const [sort, setSort] = useState<(typeof SORTS)[number]['value']>('popular');
-  const [hideOwned, setHideOwned] = useState(false);
-  const [adult, setAdult] = useState(false);
+  const [prefs, setPrefsState] = useState<BrowsePrefs>(() => readPrefs(sourceId));
+  const caps = providers.data?.capabilities.find((c) => c.id === provider?.id);
+  const sorts = SORTS.filter((x) => !caps || caps.sorts.includes(x.value));
+  const sort = sorts.some((x) => x.value === prefs.sort) ? prefs.sort : (sorts[0]?.value ?? 'popular');
+  const { hideOwned, adult } = prefs;
+  const setPrefs = (p: Partial<BrowsePrefs>) => {
+    const next = { ...prefs, ...p };
+    setPrefsState(next);
+    if (provider) writePrefs(provider.id, next);
+  };
+  useEffect(() => {
+    if (provider) setPrefsState(readPrefs(provider.id));
+  }, [provider?.id]); // eslint-disable-line react-hooks/exhaustive-deps
   const [open, setOpen] = useState<Item | null>(null);
   useEffect(() => {
     const t = setTimeout(() => setQuery(text.trim()), 400);
@@ -85,6 +120,17 @@ export default function BrowsePage() {
     queryFn: ({ pageParam }) => get<{ items: Item[]; hasMore: boolean }>(`/api/sources/${provider!.id}/search`, { q: query, page: pageParam, sort, hideOwned: hideOwned ? '1' : '0', nsfw: adult ? '1' : '0' }),
     getNextPageParam: (last, all) => (last.hasMore ? all.length + 1 : undefined),
     retry: false,
+  });
+  // Infinite scroll, when chosen: the next page loads as the end of the grid comes into view.
+  const sentinel = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = sentinel.current;
+    if (!prefs.auto || !el || typeof IntersectionObserver === 'undefined') return;
+    const io = new IntersectionObserver((e) => {
+      if (e[0]?.isIntersecting && results.hasNextPage && !results.isFetchingNextPage) void results.fetchNextPage();
+    }, { rootMargin: '400px' });
+    io.observe(el);
+    return () => io.disconnect();
   });
   const items = useMemo(() => {
     const seen = new Set<string>();
@@ -122,17 +168,21 @@ export default function BrowsePage() {
             <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Search ${provider?.name ?? ''}`} aria-label="Search online characters" className="pl-10" />
           </div>
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-            <Segmented label="Sort" value={sort} onChange={(v) => setSort(v)} options={SORTS.map((s) => ({ ...s }))} />
+            {sorts.length > 1 ? <Segmented label="Sort" value={sort} onChange={(v) => setPrefs({ sort: v })} options={sorts.map((x) => ({ ...x }))} /> : null}
             <label className="flex items-center gap-2 text-sm text-fg-2">
-              <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={hideOwned} onChange={(e) => setHideOwned(e.target.checked)} />
+              <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={hideOwned} onChange={(e) => setPrefs({ hideOwned: e.target.checked })} />
               Hide ones I have
             </label>
             {providers.data.nsfwAllowed ? (
               <label className="flex items-center gap-2 text-sm text-fg-2">
-                <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={adult} onChange={(e) => setAdult(e.target.checked)} />
+                <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={adult} onChange={(e) => setPrefs({ adult: e.target.checked })} />
                 Adult
               </label>
             ) : null}
+            <label className="flex items-center gap-2 text-sm text-fg-2">
+              <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={prefs.auto} onChange={(e) => setPrefs({ auto: e.target.checked })} />
+              Load as I scroll
+            </label>
           </div>
           {results.isError ? (
             <EmptyState title={`Couldn't reach ${provider?.name}`} body={(results.error as Error).message} action={<Button onClick={() => results.refetch()}>Try again</Button>} className="mt-10" />
@@ -164,11 +214,17 @@ export default function BrowsePage() {
                 ))}
               </ul>
               {results.hasNextPage ? (
-                <div className="flex justify-center py-6">
-                  <Button loading={results.isFetchingNextPage} onClick={() => results.fetchNextPage()}>
-                    Load more
-                  </Button>
-                </div>
+                prefs.auto ? (
+                  <div ref={sentinel} className="flex justify-center py-6" aria-hidden={!results.isFetchingNextPage}>
+                    {results.isFetchingNextPage ? <Spinner /> : null}
+                  </div>
+                ) : (
+                  <div className="flex justify-center py-6">
+                    <Button loading={results.isFetchingNextPage} onClick={() => results.fetchNextPage()}>
+                      Load more
+                    </Button>
+                  </div>
+                )
               ) : null}
             </>
           ) : (

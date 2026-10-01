@@ -52,6 +52,16 @@ test.describe('online sources', () => {
     for (const c of await api(page, 'GET', '/api/characters')) if (c.linked || c.card?.extensions?.source_url) await api(page, 'DELETE', `/api/characters/${c.id}`);
     await page.getByLabel('Source', { exact: true }).selectOption({ label: 'Character Tavern' });
     await expect(page.getByRole('heading', { name: 'Browse Character Tavern' })).toBeVisible();
+    // Only the orders the site honours are offered, and each source remembers how it was browsed.
+    const sortGroup = page.getByRole('radiogroup', { name: 'Sort' });
+    await expect(sortGroup.getByRole('radio')).toHaveText(['Popular', 'New']);
+    await sortGroup.getByRole('radio', { name: 'New' }).click();
+    await page.getByLabel('Source', { exact: true }).selectOption({ label: 'Chub' });
+    await expect(sortGroup.getByRole('radio')).toHaveCount(4);
+    await expect(sortGroup.getByRole('radio', { name: 'Popular' })).toHaveAttribute('aria-checked', 'true');
+    await page.getByLabel('Source', { exact: true }).selectOption({ label: 'Character Tavern' });
+    await expect(sortGroup.getByRole('radio', { name: 'New' })).toHaveAttribute('aria-checked', 'true');
+    await sortGroup.getByRole('radio', { name: 'Popular' }).click();
     const grid = page.getByRole('list', { name: 'Online characters' });
     await expect(grid.getByRole('button')).toHaveCount(2); // the adult card stays out
     await grid.getByRole('button', { name: /Wren of the Lantern Archive/ }).click();

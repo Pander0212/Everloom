@@ -178,6 +178,8 @@ export interface Capability {
   preview: boolean;
   import: boolean;
   updates: boolean;
+  /** Search orders the site itself honours (only these are offered). */
+  sorts: Array<'popular' | 'new' | 'updated' | 'stars'>;
   /** Why it works the way it does (shown in the app and the docs). */
   note: string;
 }
@@ -188,18 +190,18 @@ export interface Capability {
  * opened, can send a card; the server never tries to get past a site's bot protection.
  */
 export const CAPABILITIES: Capability[] = [
-  { id: 'chub', name: 'Chub', site: 'https://chub.ai', access: 'server', search: true, preview: true, import: true, updates: true, note: 'Public API. An optional API key makes results follow your Chub account settings.' },
-  { id: 'ctavern', name: 'Character Tavern', site: 'https://character-tavern.com', access: 'server', search: true, preview: true, import: true, updates: true, note: 'Public search and character API; robots.txt allows it.' },
-  { id: 'risu', name: 'RisuRealm', site: 'https://realm.risuai.net', access: 'server', search: true, preview: true, import: true, updates: true, note: "Search reads the site's public page data; imports use the public download API RisuAI itself uses. Hidden cards are never downloaded." },
-  { id: 'pygmalion', name: 'Pygmalion', site: 'https://pygmalion.chat', access: 'server', search: true, preview: true, import: true, updates: true, note: 'Public character API. Only public characters are listed.' },
-  { id: 'wyvern', name: 'Wyvern', site: 'https://app.wyvern.chat', access: 'server', search: true, preview: true, import: true, updates: true, note: "Public explore API. Fields the creator marks secret are left out and the card is labelled 'definition hidden'." },
-  { id: 'botbooru', name: 'Botbooru', site: 'https://botbooru.com', access: 'bridge', search: false, preview: false, import: true, updates: false, note: 'robots.txt disallows automated access to its API and character pages, so only the browser bridge can send a card you are viewing.' },
-  { id: 'aicc', name: 'AI Character Cards', site: 'https://aicharactercards.com', access: 'bridge', search: false, preview: false, import: true, updates: false, note: 'Pages sit behind a browser check, so cards come in through the browser bridge (or paste a direct card-file link).' },
-  { id: 'janitor', name: 'JanitorAI', site: 'https://janitorai.com', access: 'bridge', search: false, preview: false, import: true, updates: false, note: 'Behind Cloudflare: browser bridge only. A hidden definition stays hidden; only the public profile comes across.' },
-  { id: 'jannyai', name: 'JannyAI', site: 'https://jannyai.com', access: 'bridge', search: false, preview: false, import: true, updates: false, note: 'Behind Cloudflare: browser bridge only.' },
-  { id: 'datacat', name: 'DataCat', site: 'https://datacat.run', access: 'bridge', search: false, preview: false, import: true, updates: false, note: 'robots.txt disallows its API, so only the browser bridge can send a card from a page you opened.' },
-  { id: 'saucepan', name: 'Saucepan', site: 'https://saucepan.ai', access: 'none', search: false, preview: false, import: false, updates: false, note: 'No public catalog or permission to import was found, so it is not supported.' },
-  { id: 'url', name: 'Any link', site: '', access: 'server', search: false, preview: true, import: true, updates: false, note: 'A direct link to a card file (PNG, JSON or CHARX), or a link to a page on one of the sites above.' },
+  { id: 'chub', name: 'Chub', site: 'https://chub.ai', access: 'server', search: true, preview: true, import: true, updates: true, sorts: ['popular', 'new', 'updated', 'stars'], note: 'Public API. An optional API key makes results follow your Chub account settings.' },
+  { id: 'ctavern', name: 'Character Tavern', site: 'https://character-tavern.com', access: 'server', search: true, preview: true, import: true, updates: true, sorts: ['popular', 'new'], note: 'Public search and character API; robots.txt allows it.' },
+  { id: 'risu', name: 'RisuRealm', site: 'https://realm.risuai.net', access: 'server', search: true, preview: true, import: true, updates: true, sorts: ['popular', 'new'], note: "Search reads the site's public page data; imports use the public download API RisuAI itself uses. Hidden cards are never downloaded." },
+  { id: 'pygmalion', name: 'Pygmalion', site: 'https://pygmalion.chat', access: 'server', search: true, preview: true, import: true, updates: true, sorts: ['popular', 'new'], note: 'Public character API. Only public characters are listed.' },
+  { id: 'wyvern', name: 'Wyvern', site: 'https://app.wyvern.chat', access: 'server', search: true, preview: true, import: true, updates: true, sorts: ['popular', 'new'], note: "Public explore API. Fields the creator marks secret are left out and the card is labelled 'definition hidden'." },
+  { id: 'botbooru', name: 'Botbooru', site: 'https://botbooru.com', access: 'bridge', search: false, preview: false, import: true, updates: false, sorts: [], note: 'robots.txt disallows automated access to its API and character pages, so only the browser bridge can send a card you are viewing.' },
+  { id: 'aicc', name: 'AI Character Cards', site: 'https://aicharactercards.com', access: 'bridge', search: false, preview: false, import: true, updates: false, sorts: [], note: 'Pages sit behind a browser check, so cards come in through the browser bridge (or paste a direct card-file link).' },
+  { id: 'janitor', name: 'JanitorAI', site: 'https://janitorai.com', access: 'bridge', search: false, preview: false, import: true, updates: false, sorts: [], note: 'Behind Cloudflare: browser bridge only. A hidden definition stays hidden; only the public profile comes across.' },
+  { id: 'jannyai', name: 'JannyAI', site: 'https://jannyai.com', access: 'bridge', search: false, preview: false, import: true, updates: false, sorts: [], note: 'Behind Cloudflare: browser bridge only.' },
+  { id: 'datacat', name: 'DataCat', site: 'https://datacat.run', access: 'bridge', search: false, preview: false, import: true, updates: false, sorts: [], note: 'robots.txt disallows its API, so only the browser bridge can send a card from a page you opened.' },
+  { id: 'saucepan', name: 'Saucepan', site: 'https://saucepan.ai', access: 'none', search: false, preview: false, import: false, updates: false, sorts: [], note: 'No public catalog or permission to import was found, so it is not supported.' },
+  { id: 'url', name: 'Any link', site: '', access: 'server', search: false, preview: true, import: true, updates: false, sorts: [], note: 'A direct link to a card file (PNG, JSON or CHARX), or a link to a page on one of the sites above.' },
 ];
 
 export function provider(id: string): SourceProvider {
