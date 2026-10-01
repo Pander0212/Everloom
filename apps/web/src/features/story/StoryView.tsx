@@ -119,7 +119,7 @@ export default function StoryView() {
     const r = await generate(id, type, { text, characterId: speaker, target: type === 'normal' && text ? target : null });
     if (settings.data?.chat.autoTts && type !== 'impersonate') {
       const last = qc.getQueryData<MessageDTO[]>(qk.messages(id))?.at(-1);
-      if (last?.role === 'assistant') void speak(last.swipes[last.swipeId]?.text ?? '', { settings: settings.data, voice: character.data?.game.voice?.voice, speed: character.data?.game.voice?.speed }).catch(() => {});
+      if (last?.role === 'assistant') void speak(last.swipes[last.swipeId]?.text ?? '', { settings: settings.data, voice: character.data?.game.voice?.voice, speed: character.data?.game.voice?.speed, reference: refOf(character.data?.game.voice) }).catch(() => {});
     }
     return r;
   };
@@ -179,7 +179,7 @@ export default function StoryView() {
           toastError(e);
         }
       },
-      onSpeak: (m) => settings.data && void speak(m.swipes[m.swipeId]?.text ?? '', { settings: settings.data, voice: m.role === 'assistant' ? character.data?.game.voice?.voice : undefined }).catch(toastError),
+      onSpeak: (m) => settings.data && void speak(m.swipes[m.swipeId]?.text ?? '', { settings: settings.data, voice: m.role === 'assistant' ? character.data?.game.voice?.voice : undefined, reference: m.role === 'assistant' ? refOf(character.data?.game.voice) : undefined }).catch(toastError),
       onRegenerate: () => void run('regenerate'),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -400,4 +400,8 @@ export default function StoryView() {
       <ViewSheet open={sheet === 'view'} onOpenChange={(o) => setSheet(o ? 'view' : null)} onCinematic={() => setCinematic(true)} />
     </div>
   );
+}
+
+function refOf(v?: { kind?: string; reference?: string }) {
+  return v?.kind === 'custom' ? v.reference : undefined;
 }

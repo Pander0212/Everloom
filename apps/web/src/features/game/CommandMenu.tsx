@@ -1,8 +1,7 @@
 import * as D from '@radix-ui/react-dialog';
 import type { LucideIcon } from 'lucide-react';
 import {
-  Archive, Backpack, BookMarked, BookOpen, Brain, CalendarDays, Cat, Contact, Database, FastForward, Flag, HelpCircle, Map, NotebookPen, PartyPopper, Phone, Search, Settings, Shield, Sparkles, Swords, UserRound, Users, UsersRound, Wand2, CloudSun, ScrollText, UserRoundPen, Dumbbell, Heart, Wallet, House, Hammer, Store, ArrowLeftRight,
-} from 'lucide-react';
+  Archive, Backpack, BookMarked, BookOpen, Brain, CalendarDays, Cat, Contact, Database, FastForward, Flag, HelpCircle, Map, NotebookPen, PartyPopper, Phone, Search, Settings, Shield, Sparkles, Swords, UserRound, Users, UsersRound, Wand2, CloudSun, ScrollText, UserRoundPen, Dumbbell, Heart, Wallet, House, Hammer, Store, ArrowLeftRight, Clapperboard } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { Drawer } from 'vaul';
@@ -34,6 +33,7 @@ export const TOOL_META = {
   crafting: { label: 'Crafting', icon: Hammer, group: 'Character', keywords: 'cook alchemy forge enchant recipes make' },
   shop: { label: 'Shops', icon: Store, group: 'World', keywords: 'buy sell haggle store market' },
   trade: { label: 'Trade', icon: ArrowLeftRight, group: 'World', keywords: 'barter exchange swap' },
+  stage: { label: 'Stage & sound', icon: Clapperboard, group: 'World', keywords: 'cutscene music ambience sprites voices live2d effects' },
   characters: { label: 'Characters', icon: Contact, group: 'Character', keywords: 'cards cast' },
   party: { label: 'Party', icon: UsersRound, group: 'Character', keywords: 'companions team' },
   social: { label: 'Social', icon: Heart, group: 'Character', keywords: 'relationships affection trust' },

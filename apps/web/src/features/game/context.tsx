@@ -9,7 +9,7 @@ export type ToolId =
   | 'persona' | 'inventory' | 'characters' | 'party' | 'social'
   | 'databank' | 'phone' | 'npcs' | 'calendar' | 'atmosphere' | 'helper'
   | 'status' | 'newgame' | 'log' | 'help'
-  | 'money' | 'shop' | 'home' | 'crafting' | 'trade';
+  | 'money' | 'shop' | 'home' | 'crafting' | 'trade' | 'stage';
 
 export interface GameCtx {
   chat: ChatDTO;

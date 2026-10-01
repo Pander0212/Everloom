@@ -24,6 +24,8 @@
     "lucide-react": "^1.48.0",
     "marked": "^18.0.14",
     "motion": "^13.4.6",
+    "pixi-live2d-display": "^0.4.0",
+    "pixi.js": "^6.5.10",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router": "^7.18.4",

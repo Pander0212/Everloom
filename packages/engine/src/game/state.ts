@@ -658,6 +658,43 @@ export interface TravelEntry {
   minutes: number;
   cost: number;
 }
+export type FxKind = 'shake' | 'flash' | 'fade' | 'blur' | 'vignette' | 'heartbeat' | 'sparkle' | 'rain' | 'snow' | 'glitch';
+export type StagePosition = 'left' | 'center' | 'right' | 'off';
+export type StageAnim = 'none' | 'bounce' | 'nod' | 'shake' | 'slide-in' | 'fade-in';
+export type AmbientKind = 'auto' | 'none' | 'rain' | 'storm' | 'wind' | 'city' | 'crowd' | 'forest' | 'sea' | 'fire' | 'night';
+export interface StageLayer {
+  name: string;
+  position: StagePosition;
+  expression: string | null;
+  anim: StageAnim;
+  /** Bumped on every change, so the UI replays the animation. */
+  cue: number;
+}
+export interface CutsceneStep {
+  text: string;
+  speaker?: string;
+  /** A media id for the backdrop, or null to keep the current one. */
+  background?: string | null;
+  fx?: FxKind;
+  mood?: string;
+  seconds?: number;
+}
+export interface Cutscene {
+  id: string;
+  name: string;
+  steps: CutsceneStep[];
+  source: 'user' | 'ai';
+}
+export interface StageState {
+  cues: Array<{ id: string; effect: FxKind; intensity: number; seconds: number }>;
+  layers: Record<string, StageLayer>;
+  cutscenes: Record<string, Cutscene>;
+  playing: { id: string; cue: string } | null;
+  music: { playlist: string | null; mood: string | null };
+  ambient: AmbientKind;
+}
+export const emptyStage = (): StageState => ({ cues: [], layers: {}, cutscenes: {}, playing: null, music: { playlist: null, mood: null }, ambient: 'auto' });
+
 export type LevelCurve = 'gentle' | 'standard' | 'steep';
 export type XpSource = 'battle' | 'quests' | 'discovery' | 'crafting';
 export interface PartyMeta {
@@ -789,6 +826,8 @@ export interface CampaignState {
   partyMeta: PartyMeta;
   mail: Record<string, Mail>;
   feed: FeedPost[];
+  /** The visual-novel stage: effect cues, character layers, cutscenes, music and ambience. */
+  stage?: StageState;
   /** The last arrival's consequences, shown in the scene until the next trip. */
   arrival?: { at: number; locationId: string; mode: string; notes: string[] } | null;
 }

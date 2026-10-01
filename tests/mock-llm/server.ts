@@ -91,6 +91,7 @@ function classify(messages: any[]): string {
   if (/helper companion/i.test(sys)) return 'helper';
   if (/map designer/i.test(sys)) return 'map';
   if (/diary entry/i.test(sys)) return 'diary';
+  if (/You direct short cutscenes/i.test(sys)) return 'cutscene';
   if (/writing (a letter|an email) to/i.test(sys)) return 'letter';
   if (/notice board \(short public|a social feed \(short public/i.test(sys)) return 'feed';
   if (/in-world internet|archive of this world/i.test(sys)) return 'browser';
@@ -192,6 +193,8 @@ function answerFor(kind: string, messages: any[]): string {
       return JSON.stringify({ title: 'Rain and lanterns', text: 'Today Iris poured me tea and Tobias talked about the Ravens. I think I might sing.', mood: 'hopeful' });
     case 'phone':
       return 'hey, you still up? rehearsal was a mess lol';
+    case 'cutscene':
+      return JSON.stringify({ name: 'The Lantern Goes Dark', steps: [{ text: 'The lamps gutter all at once.', fx: 'fade', mood: 'tense', seconds: 3 }, { text: 'Stay close to me.', speaker: 'Mara Quill' }, { text: 'Somewhere below, a door slams.', fx: 'shake' }] });
     case 'letter':
       return 'Dear friend,\n\nThe mill wheel turns again and the river is high. Come by when the roads dry.\n\nYours, M.';
     case 'feed': {

@@ -7,6 +7,8 @@ import { CommandMenu, TOOL_META, type Command } from './CommandMenu';
 import { applyOps, GameContext, type GameCtx, type ToolId } from './context';
 import { Hud } from './Hud';
 import { LevelUpMoment } from './LevelUp';
+import { AudioDirector } from './AudioDirector';
+import { CutscenePlayer, StageFxLayer } from './StageFx';
 
 const TOOLS: Partial<Record<ToolId, React.LazyExoticComponent<(p: { arg?: string }) => ReactNode>>> = {
   status: lazy(() => import('./tools/Status')),
@@ -35,6 +37,7 @@ const TOOLS: Partial<Record<ToolId, React.LazyExoticComponent<(p: { arg?: string
   home: lazy(() => import('./tools/Home')),
   crafting: lazy(() => import('./tools/Crafting')),
   trade: lazy(() => import('./tools/Trade')),
+  stage: lazy(() => import('./tools/StageTool')),
 };
 
 export interface GameLayerProps {
@@ -117,6 +120,13 @@ export function GameLayer({ chat, campaign, busy, onRun, setComposer, menuOpen, 
         {children}
       </div>
       <LevelUpMoment />
+      {state ? (
+        <>
+          <StageFxLayer />
+          <CutscenePlayer />
+          <AudioDirector />
+        </>
+      ) : null}
       <CommandMenu open={menuOpen} onOpenChange={setMenuOpen} commands={commands} />
       {tool && Tool ? (
         <Suspense

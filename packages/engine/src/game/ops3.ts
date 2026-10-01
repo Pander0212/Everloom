@@ -237,6 +237,44 @@ export const OpSchemas3 = {
   'feed.comment': z.object({ type: z.literal('feed.comment'), id: z.string().max(80), text: z.string().trim().min(1).max(500), author: name.optional() }),
   'phone.group': z.object({ type: z.literal('phone.group'), name, members: z.array(name).max(12).default([]), remove: z.boolean().optional() }),
   'phone.app': z.object({ type: z.literal('phone.app'), name, icon: z.string().trim().max(30).default('sparkles'), prompt: z.string().trim().max(1500).default(''), remove: z.boolean().optional() }),
+  // ---- stage and audio
+  'fx.play': z.object({
+    type: z.literal('fx.play'),
+    effect: z.enum(['shake', 'flash', 'fade', 'blur', 'vignette', 'heartbeat', 'sparkle', 'rain', 'snow', 'glitch']),
+    intensity: num.min(0).max(1).default(0.6),
+    seconds: num.min(0.2).max(10).default(1.2),
+  }),
+  'stage.layer': z.object({
+    type: z.literal('stage.layer'),
+    character: name,
+    position: z.enum(['left', 'center', 'right', 'off']).optional(),
+    expression: z.string().trim().max(30).nullable().optional(),
+    anim: z.enum(['none', 'bounce', 'nod', 'shake', 'slide-in', 'fade-in']).default('none'),
+  }),
+  'stage.clear': z.object({ type: z.literal('stage.clear') }),
+  'cutscene.add': z.object({
+    type: z.literal('cutscene.add'),
+    name,
+    steps: z
+      .array(
+        z.object({
+          text: z.string().trim().min(1).max(2000),
+          speaker: z.string().trim().max(80).optional(),
+          background: z.string().max(80).nullable().optional(),
+          fx: z.enum(['shake', 'flash', 'fade', 'blur', 'vignette', 'heartbeat', 'sparkle', 'rain', 'snow', 'glitch']).optional(),
+          mood: z.string().trim().max(30).optional(),
+          seconds: num.min(1).max(30).optional(),
+        }),
+      )
+      .min(1)
+      .max(40),
+    source: z.enum(['user', 'ai']).default('user'),
+  }),
+  'cutscene.play': z.object({ type: z.literal('cutscene.play'), name }),
+  'cutscene.stop': z.object({ type: z.literal('cutscene.stop') }),
+  'cutscene.remove': z.object({ type: z.literal('cutscene.remove'), name }),
+  'music.set': z.object({ type: z.literal('music.set'), playlist: z.string().trim().max(80).nullable().optional(), mood: z.string().trim().max(30).nullable().optional() }),
+  'ambient.set': z.object({ type: z.literal('ambient.set'), kind: z.enum(['auto', 'none', 'rain', 'storm', 'wind', 'city', 'crowd', 'forest', 'sea', 'fire', 'night']) }),
   // ---- transit
   'transit.add': z.object({
     type: z.literal('transit.add'),
@@ -259,4 +297,4 @@ export const OpSchemas3 = {
 } as const;
 
 /** Phase 3 ops the model may emit: things the story establishes, never the player's own money moves. */
-export const AI_OPS3 = ['currency.define', 'shop.upsert', 'bill.add', 'asset.add', 'home.add', 'room.add', 'household.add', 'household.update', 'transit.add', 'route.require', 'mail.receive', 'feed.post'] as const;
+export const AI_OPS3 = ['currency.define', 'shop.upsert', 'bill.add', 'asset.add', 'home.add', 'room.add', 'household.add', 'household.update', 'transit.add', 'route.require', 'mail.receive', 'feed.post', 'fx.play', 'stage.layer', 'cutscene.play', 'music.set', 'ambient.set'] as const;

@@ -21,6 +21,7 @@ import { registerGameAi } from './routes/game-ai.js';
 import { registerComms } from './routes/comms.js';
 import { registerBridge } from './routes/bridge.js';
 import { registerCustomize } from './routes/customize.js';
+import { registerLive2d } from './routes/live2d.js';
 import { recordError } from './services/diagnostics.js';
 import { backfillMeta } from './services/characters.js';
 import { registerInspector } from './routes/inspector.js';
@@ -113,6 +114,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerComms(app, ctx);
   registerBridge(app, ctx);
   registerCustomize(app, ctx, VERSION);
+  registerLive2d(app, ctx);
   registerSystem(app, ctx);
 
   const indexFile = path.join(cfg.webDir, 'index.html');

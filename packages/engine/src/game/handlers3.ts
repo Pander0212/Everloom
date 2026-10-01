@@ -39,7 +39,7 @@ import type { ApplyContext } from './reducer.js';
 import type { OpOf, OpType } from './ops.js';
 import { findExact, findFuzzy, findItem, findNpc, nextCounter, uniqueId } from './resolve.js';
 import type { Change } from './simulate.js';
-import type { Account, CampaignState, Home, HouseholdMember, Item, Location, Mail, PartyMember, Route, ScheduleSlot } from './state.js';
+import { emptyStage, type Account, type CampaignState, type Home, type HouseholdMember, type Item, type Location, type Mail, type PartyMember, type Route, type ScheduleSlot } from './state.js';
 
 export interface Kit {
   ctx: ApplyContext;
@@ -772,6 +772,55 @@ export const HANDLERS3: Handlers = {
     if (!op.prompt) throw new OpError('Describe what the app does');
     const id = existing?.id ?? uniqueId(apps, 'app', op.name);
     apps[id] = { id, name: op.name, icon: op.icon, prompt: op.prompt };
+  },
+  // ---------------- stage and audio
+  'fx.play': (s, op) => {
+    const st = (s.stage ??= emptyStage());
+    st.cues.push({ id: `fx_${nextCounter(s.counters, 'cue')}`, effect: op.effect, intensity: op.intensity, seconds: op.seconds });
+    if (st.cues.length > 20) st.cues.splice(0, st.cues.length - 20);
+  },
+  'stage.layer': (s, op) => {
+    const st = (s.stage ??= emptyStage());
+    const npc = findNpc(s, op.character)?.npc;
+    const nm = npc?.name ?? op.character.trim();
+    const key = normalizeName(nm);
+    const cur = st.layers[key] ?? { name: nm, position: 'center', expression: null, anim: 'none', cue: 0 };
+    st.layers[key] = { ...cur, name: nm, position: op.position ?? cur.position, expression: op.expression === undefined ? cur.expression : op.expression, anim: op.anim, cue: nextCounter(s.counters, 'cue') };
+  },
+  'stage.clear': (s) => {
+    const st = (s.stage ??= emptyStage());
+    st.layers = {};
+    st.cues = [];
+  },
+  'cutscene.add': (s, op, { changes }) => {
+    const st = (s.stage ??= emptyStage());
+    const existing = Object.values(st.cutscenes).find((c) => normalizeName(c.name) === normalizeName(op.name));
+    const id = existing?.id ?? uniqueId(st.cutscenes, 'cut', op.name);
+    st.cutscenes[id] = { id, name: op.name, steps: op.steps.map((x) => ({ ...x })), source: op.source };
+    if (!existing) text(changes, `cutscene:${id}`, op.name, 'New cutscene');
+  },
+  'cutscene.play': (s, op) => {
+    const st = (s.stage ??= emptyStage());
+    const c = st.cutscenes[op.name] ?? findExact(st.cutscenes, op.name) ?? findFuzzy(st.cutscenes, op.name);
+    if (!c) throw new OpError(`No cutscene called "${op.name}"`);
+    st.playing = { id: c.id, cue: `cs_${nextCounter(s.counters, 'cue')}` };
+  },
+  'cutscene.stop': (s) => {
+    if (s.stage) s.stage.playing = null;
+  },
+  'cutscene.remove': (s, op) => {
+    const st = (s.stage ??= emptyStage());
+    const c = st.cutscenes[op.name] ?? findExact(st.cutscenes, op.name);
+    if (!c) throw new OpError(`No cutscene called "${op.name}"`);
+    delete st.cutscenes[c.id];
+    if (st.playing?.id === c.id) st.playing = null;
+  },
+  'music.set': (s, op) => {
+    const st = (s.stage ??= emptyStage());
+    st.music = { playlist: op.playlist === undefined ? st.music.playlist : op.playlist, mood: op.mood === undefined ? st.music.mood : op.mood ? op.mood.toLowerCase() : null };
+  },
+  'ambient.set': (s, op) => {
+    (s.stage ??= emptyStage()).ambient = op.kind;
   },
   // ---------------- transit
   'transit.add': (s, op, kit) => {

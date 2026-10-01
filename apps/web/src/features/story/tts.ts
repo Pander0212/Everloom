@@ -17,12 +17,12 @@ export function cleanForSpeech(text: string): string {
     .trim();
 }
 
-export async function speak(text: string, opts: { settings: Settings; voice?: string; speed?: number }) {
+export async function speak(text: string, opts: { settings: Settings; voice?: string; speed?: number; reference?: string }) {
   stopSpeaking();
   const clean = cleanForSpeech(text);
   if (!clean) return;
   if (opts.settings.tts.provider === 'connection') {
-    const res = await apiFetch('/api/tts', { method: 'POST', body: { text: clean.slice(0, 4000), voice: opts.voice || opts.settings.tts.narratorVoice || undefined, speed: opts.speed ?? opts.settings.tts.rate } });
+    const res = await apiFetch('/api/tts', { method: 'POST', body: { text: clean.slice(0, 4000), voice: opts.voice || opts.settings.tts.narratorVoice || undefined, speed: opts.speed ?? opts.settings.tts.rate, reference: opts.reference || undefined } });
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
     const audio = new Audio(url);

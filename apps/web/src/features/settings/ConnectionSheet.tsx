@@ -272,6 +272,11 @@ export function ConnectionSheet({ open, onOpenChange, connection, group }: { ope
               <Input id="c-voice" value={d.params.voice ?? ''} onChange={(e) => setP({ voice: e.target.value })} />
             </Field>
             {num('speed', 'Speed', 0.05)}
+            {d.provider === 'tts-openai' ? (
+              <div className="col-span-2">
+                <ToggleRow label="Accepts reference audio" description="For servers that clone a voice from a short sample (XTTS, F5 and similar). Only then are your reference voices sent to it." checked={d.params.referenceAudio === true} onChange={(v) => setP({ referenceAudio: v })} />
+              </div>
+            ) : null}
           </div>
         ) : null}
         {group === 'image' ? (

@@ -1,4 +1,5 @@
 import { EMOTIONS, formatClock, partOfDay, stripInlineTags } from '@everloom/engine';
+import { readFileSync } from 'node:fs';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
@@ -8,7 +9,7 @@ import { getState } from '../services/campaigns.js';
 import { getCharacter, updateCharacter } from '../services/characters.js';
 import { getChat, updateChat } from '../services/chats.js';
 import { connectionForRole, resolveConnection } from '../services/connections.js';
-import { mediaUrl, saveImage } from '../services/media.js';
+import { deleteMedia, getMedia, mediaUrl, saveImage, saveMedia, sniffAvType } from '../services/media.js';
 import { getSettings } from '../services/settings.js';
 import { parse } from '../util/validate.js';
 
@@ -84,12 +85,36 @@ function buildPrompt(ctx: AppContext, ownerId: string, b: z.infer<typeof genBody
 export function registerMedia(app: FastifyInstance, ctx: AppContext) {
   // ---------------- speech
   app.post('/api/tts', async (req, reply) => {
-    const b = parse(z.object({ text: z.string().min(1).max(4000), voice: z.string().max(120).optional(), speed: z.number().min(0.25).max(4).optional(), connectionId: z.string().max(80).optional() }), req.body);
+    const b = parse(z.object({ text: z.string().min(1).max(4000), voice: z.string().max(120).optional(), speed: z.number().min(0.25).max(4).optional(), connectionId: z.string().max(80).optional(), reference: z.string().max(80).optional() }), req.body);
     const conn = connectionForRole(ctx, owner(req), 'tts', b.connectionId);
     if (!conn) throw new HttpError(400, 'Choose a voice connection in Settings → Connections');
-    const out = await synthesize(conn, b.text, { voice: b.voice, speed: b.speed });
+    const out = await synthesize(conn, b.text, { voice: b.voice, speed: b.speed, reference: b.reference ? referenceVoice(ctx, owner(req), b.reference) : undefined });
     reply.header('content-type', out.mime).header('cache-control', 'no-store');
     return reply.send(out.audio);
+  });
+
+  // ---------------- custom (reference) voices: kept apart from preset voices, each with a consent record
+  app.get('/api/voices', async (req) => listReferenceVoices(ctx, owner(req)));
+  app.post('/api/voices', { bodyLimit: 20 * 1024 * 1024 }, async (req) => {
+    const b = parse(
+      z.object({
+        name: z.string().trim().min(1).max(60),
+        data: z.string().min(100).max(20_000_000),
+        consent: z.literal(true, { message: 'Confirm that this is your voice or that you have permission to use it' }),
+      }),
+      req.body,
+    );
+    const bytes = Buffer.from(b.data.replace(/^data:[^;,]+;base64,/, ''), 'base64');
+    if (!sniffAvType(new Uint8Array(bytes.subarray(0, 16)))?.match(/^(mp3|wav|ogg|m4a|webm)$/)) throw new HttpError(415, 'Upload an audio sample (MP3, WAV, OGG or M4A)');
+    const row = await saveMedia(ctx, owner(req), bytes, { kind: 'voice-ref', meta: { name: b.name, consent: { at: Date.now(), statement: CONSENT } } });
+    return { id: row.id, name: b.name, consentAt: Date.now() };
+  });
+  app.delete('/api/voices/:id', async (req) => {
+    const id = (req.params as { id: string }).id;
+    const { row } = getMedia(ctx, owner(req), id);
+    if (row.kind !== 'voice-ref') throw new HttpError(404, 'Voice not found');
+    deleteMedia(ctx, owner(req), id);
+    return { ok: true };
   });
 
   app.get('/api/tts/voices', async (req) => {
@@ -128,4 +153,20 @@ export function registerMedia(app: FastifyInstance, ctx: AppContext) {
     }
     return { id: row.id, url: mediaUrl(row.id), width: row.width, height: row.height, prompt, applied };
   });
+}
+
+const CONSENT = 'This is my own voice, or I have the speaker\'s permission to use it for this purpose.';
+
+function listReferenceVoices(ctx: AppContext, owner: string) {
+  return (ctx.db.prepare("SELECT id, meta, created_at FROM media WHERE owner_id = ? AND kind = 'voice-ref' ORDER BY created_at").all(owner) as Array<{ id: string; meta: string; created_at: number }>).map((r) => {
+    const m = JSON.parse(r.meta || '{}') as { name?: string; consent?: { at: number } };
+    return { id: r.id, name: m.name ?? 'Voice', consentAt: m.consent?.at ?? r.created_at, url: `/media/${r.id}` };
+  });
+}
+
+function referenceVoice(ctx: AppContext, owner: string, id: string): { audio: Buffer; mime: string } {
+  const { row, file } = getMedia(ctx, owner, id);
+  if (row.kind !== 'voice-ref') throw new HttpError(404, 'Voice not found');
+  if (!(JSON.parse(row.meta || '{}') as { consent?: unknown }).consent) throw new HttpError(403, 'This voice has no consent on record');
+  return { audio: readFileSync(file), mime: row.mime };
 }

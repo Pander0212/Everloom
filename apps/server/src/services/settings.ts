@@ -8,6 +8,8 @@ export const DEFAULT_SETTINGS: Settings = {
   textSize: 'medium',
   palette: 'amber',
   genreTheme: true,
+  audio: { music: false, ambient: false, musicVolume: 0.5, ambientVolume: 0.35, crossfadeMs: 2500, playlists: [], ambientFiles: {} },
+  stage: { bubbles: false, live2d: false },
   roles: { main: null, utility: null, background: null, embeddings: null, tts: null, image: null },
   activePresetId: null,
   defaultPersonaId: null,

@@ -21,6 +21,8 @@ export interface ConnectionParams {
   stop?: string[];
   stream?: boolean;
   reasoning?: boolean;
+  /** Voice connections: the server accepts a reference sample (voice cloning). */
+  referenceAudio?: boolean;
   reasoning_effort?: 'low' | 'medium' | 'high';
   reasoning_budget?: number;
   text_backend?: 'llamacpp' | 'koboldcpp' | 'openai';

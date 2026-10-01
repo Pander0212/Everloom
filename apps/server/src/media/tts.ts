@@ -9,7 +9,12 @@ function base(conn: ResolvedConnection) {
   return (conn.baseUrl || (conn.provider === 'tts-elevenlabs' ? 'https://api.elevenlabs.io' : 'https://api.openai.com/v1')).replace(/\/+$/, '');
 }
 
-export async function synthesize(conn: ResolvedConnection, text: string, opts: { voice?: string; speed?: number; signal?: AbortSignal }): Promise<{ audio: Buffer; mime: string }> {
+/**
+ * `reference` is a custom voice sample (with the owner's consent on file). It is sent only to
+ * OpenAI-compatible servers the owner marked as accepting reference audio (XTTS, F5 and similar);
+ * everywhere else a preset voice is used.
+ */
+export async function synthesize(conn: ResolvedConnection, text: string, opts: { voice?: string; speed?: number; signal?: AbortSignal; reference?: { audio: Buffer; mime: string } }): Promise<{ audio: Buffer; mime: string }> {
   const b = base(conn);
   const voice = opts.voice || conn.params.voice;
   if (conn.provider === 'tts-elevenlabs') {
@@ -25,7 +30,16 @@ export async function synthesize(conn: ResolvedConnection, text: string, opts: {
     return { audio: await readCapped(res, 15 * 1024 * 1024), mime: 'audio/mpeg' };
   }
   if (conn.provider !== 'tts-openai') throw new HttpError(400, 'That connection is not a voice connection');
-  const body = { model: conn.model || 'tts-1', input: text, voice: voice || 'alloy', speed: opts.speed ?? conn.params.speed ?? 1, response_format: 'mp3', ...(conn.params.extra_body ?? {}) };
+  if (opts.reference && conn.params.referenceAudio !== true) throw new HttpError(400, "This voice connection doesn't take reference voices. Turn on “Accepts reference audio” for it in Settings → Connections, or pick a preset voice.");
+  const body = {
+    model: conn.model || 'tts-1',
+    input: text,
+    voice: voice || 'alloy',
+    speed: opts.speed ?? conn.params.speed ?? 1,
+    response_format: 'mp3',
+    ...(opts.reference ? { reference_audio: opts.reference.audio.toString('base64'), reference_audio_format: opts.reference.mime.split('/')[1] } : {}),
+    ...(conn.params.extra_body ?? {}),
+  };
   const res = await safeFetch(`${b}/audio/speech`, { method: 'POST', headers: openaiHeaders(conn), body: JSON.stringify(body), timeoutMs: 90_000, signal: opts.signal });
   if (!res.ok) throw new HttpError(502, `Speech failed (${res.status})`, 'upstream');
   const mime = res.headers.get('content-type')?.split(';')[0] || 'audio/mpeg';

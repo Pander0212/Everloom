@@ -30,7 +30,8 @@ export interface MediaRef {
 export interface CharacterGame {
   /** emotion -> media id */
   expressions?: Record<string, string>;
-  voice?: { provider?: string; voice?: string; speed?: number; pitch?: number };
+  /** A preset voice, or one of the owner's reference voices (kept separate, with consent on file). */
+  voice?: { provider?: string; voice?: string; speed?: number; pitch?: number; kind?: 'preset' | 'custom'; reference?: string };
   drives?: string;
   orgs?: string[];
   chatRules?: string;
@@ -207,6 +208,19 @@ export interface Settings {
   palette: 'amber' | 'dusk' | 'sea' | 'rose';
   /** Tint the story view to match the campaign's genre. */
   genreTheme: boolean;
+  /** Music and ambience (off until the owner turns them on). */
+  audio: {
+    music: boolean;
+    ambient: boolean;
+    musicVolume: number;
+    ambientVolume: number;
+    crossfadeMs: number;
+    playlists: Array<{ id: string; name: string; mood: string; tracks: string[] }>;
+    /** Owner's own loops per ambience kind (media ids); others are synthesized. */
+    ambientFiles: Record<string, string>;
+  };
+  /** Stage extras: speech bubbles, and Live2D (off by default; needs the owner's own Cubism Core). */
+  stage: { bubbles: boolean; live2d: boolean };
   roles: { main: string | null; utility: string | null; background: string | null; embeddings: string | null; tts: string | null; image: string | null };
   activePresetId: string | null;
   defaultPersonaId: string | null;
