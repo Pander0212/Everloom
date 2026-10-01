@@ -3,11 +3,12 @@
  * browser and custom phone apps. Every model call is optional, logged, and never changes the game
  * except through ops the reducer checks.
  */
-import { formatClock, formatDate, hasEmail, type CampaignState, type Op } from '@everloom/engine';
+import { formatClock, formatDate, hasEmail, PLAYER, type CampaignState, type Op } from '@everloom/engine';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
 import { appendOps, getState } from '../services/campaigns.js';
+import { insertMemory, scopeOf } from '../services/mem.js';
 import { utilityJson, utilityText } from '../services/utility.js';
 import { parse } from '../util/validate.js';
 import { briefState, chatForCampaign, insertPhone, lastMessageId, npcText, phoneDTO, recentStory, thread } from './social.js';
@@ -104,12 +105,34 @@ export function registerComms(app: FastifyInstance, ctx: AppContext) {
     const o = owner(req);
     const { id: campaignId, npcId } = req.params as { id: string; npcId: string };
     const b = parse(z.object({ chatId: z.string(), exchanges: z.number().int().min(0).max(200) }), req.body);
-    chatForCampaign(ctx, o, campaignId, b.chatId);
+    const chat = chatForCampaign(ctx, o, campaignId, b.chatId);
     const s = getState(ctx, o, campaignId);
-    if (!s.npcs[npcId]) throw new HttpError(404, 'Contact not found');
+    const npc = s.npcs[npcId];
+    if (!npc) throw new HttpError(404, 'Contact not found');
     const minutes = Math.max(1, b.exchanges * 2);
+    // What was said since the last hang-up, for the memory below.
+    const rows = thread(ctx, o, campaignId, npcId, 200);
+    const start = rows.map((m) => m.kind).lastIndexOf('call-end') + 1;
+    const said = rows.slice(start).filter((m) => m.kind === 'call');
     insertPhone(ctx, o, campaignId, npcId, true, `Call · ${minutes} min`, s.time.minutes, { kind: 'call-end' });
     const r = apply(ctx, o, campaignId, b.chatId, [{ type: 'time.advance', minutes } as Op], req.clientId);
+    // The call goes into memory like a scene: both of them heard it, nobody else did.
+    if (said.length) {
+      const quote = (who: string, t: string) => `${who}: "${t.length > 140 ? `${t.slice(0, 137)}…` : t}"`;
+      const lastNpc = [...said].reverse().find((m) => !m.from_player);
+      const lastMine = [...said].reverse().find((m) => m.from_player);
+      const text = [`${s.player.name} and ${npc.name} talked on the phone for ${minutes} minutes.`, lastMine && quote(s.player.name, lastMine.text), lastNpc && quote(npc.name, lastNpc.text)].filter(Boolean).join(' ');
+      insertMemory(ctx, o, scopeOf(chat), { chatId: chat.id, messageId: lastMessageId(ctx, chat.id), swipeId: null }, 'user', {
+        text,
+        participants: [npc.name],
+        witnesses: [PLAYER, npc.id],
+        locationId: s.currentLocationId ?? null,
+        gameTime: s.time.minutes,
+        importance: 2,
+        secret: false,
+      });
+      ctx.bus.publish(o, 'memory.changed', { chatId: chat.id, campaignId }, req.clientId);
+    }
     return { state: r.state, minutes };
   });
 

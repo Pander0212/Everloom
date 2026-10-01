@@ -105,6 +105,26 @@ describe('feed, groups and apps', () => {
     expect(s.feed[0]!.likes).toBe(0);
   });
 
+  it('likes and comments warm people you know, a little and only once per post', () => {
+    let s = world();
+    s = ok(s, { type: 'relationship.delta', name: 'Tobias', affection: 10, trust: 10 });
+    const tobias = Object.values(s.relationships).find((r) => r.name.startsWith('Tobias'))!;
+    s = ok(s, { type: 'feed.post', author: 'Tobias', text: 'Gig tonight!' });
+    s = ok(s, { type: 'feed.post', author: 'Mara Quill', text: 'Fresh bread.' });
+    const id = s.feed[0]!.id;
+    s = ok(s, { type: 'feed.like', id });
+    expect(s.relationships[tobias.id]).toMatchObject({ affection: 11, trust: 10 });
+    s = ok(s, { type: 'feed.comment', id, text: 'See you there' });
+    s = ok(s, { type: 'feed.comment', id, text: 'Front row!' });
+    expect(s.relationships[tobias.id]!.trust).toBe(11);
+    s = ok(s, { type: 'feed.like', id });
+    expect(s.relationships[tobias.id]!.affection).toBe(10);
+    // Someone you've never dealt with: nothing is created.
+    const before = Object.keys(s.relationships).length;
+    s = ok(s, { type: 'feed.like', id: s.feed[1]!.id });
+    expect(Object.keys(s.relationships)).toHaveLength(before);
+  });
+
   it('group chats need two people; custom apps need a prompt', () => {
     let s = world();
     expect(err(s, { type: 'phone.group', name: 'Band', members: ['Tobias'] })).toMatch(/at least two/);

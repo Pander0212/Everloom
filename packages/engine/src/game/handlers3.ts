@@ -55,6 +55,18 @@ type Handlers = { [K in OpType]?: Handler<K> };
 
 const text = (changes: Change[], key: string, label: string, t: string) => changes.push({ key, label, text: t, kind: 'text' });
 
+/**
+ * The feed's small social weight: liking someone's post warms them a little (taken back on
+ * unlike), and the player's first comment on a post builds a little trust. Only for people the
+ * player already has a relationship with; a stranger's post creates nothing.
+ */
+function feedWarmth(s: CampaignState, npcId: string | null, key: 'affection' | 'trust', delta: number, changes: Change[]) {
+  const r = npcId ? s.relationships[npcId] : undefined;
+  if (!r) return;
+  r[key] = Math.max(-100, Math.min(100, r[key] + delta));
+  changes.push({ key: `rel:${r.id}:${key === 'affection' ? 'a' : 't'}`, label: `${r.name} ${key}`, delta, kind: 'tracker' });
+}
+
 // ------------------------------------------------------------------ lookups
 
 function findHome(s: CampaignState, nameOrId: string): Home {
@@ -734,16 +746,19 @@ export const HANDLERS3: Handlers = {
     s.feed.push({ id: `post_${n}`, at: s.time.minutes, npcId: npc?.id ?? null, author: npc?.name ?? op.author ?? s.player.name, text: op.text, likes: 0, liked: false, comments: [] });
     if (s.feed.length > 200) s.feed.splice(0, s.feed.length - 200);
   },
-  'feed.like': (s, op) => {
+  'feed.like': (s, op, { changes }) => {
     const p = s.feed.find((x) => x.id === op.id);
     if (!p) throw new OpError('No such post');
     p.liked = !p.liked;
     p.likes += p.liked ? 1 : -1;
+    feedWarmth(s, p.npcId, 'affection', p.liked ? 1 : -1, changes);
   },
-  'feed.comment': (s, op) => {
+  'feed.comment': (s, op, { changes }) => {
     const p = s.feed.find((x) => x.id === op.id);
     if (!p) throw new OpError('No such post');
     const npc = op.author ? findNpc(s, op.author)?.npc : null;
+    const byPlayer = !op.author || normalizeName(op.author) === normalizeName(s.player.name);
+    if (byPlayer && !p.comments.some((c) => normalizeName(c.author) === normalizeName(s.player.name))) feedWarmth(s, p.npcId, 'trust', 1, changes);
     p.comments.push({ id: `${p.id}_c${p.comments.length + 1}`, author: npc?.name ?? op.author ?? s.player.name, text: op.text, at: s.time.minutes });
   },
   'phone.group': (s, op) => {

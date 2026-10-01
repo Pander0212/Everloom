@@ -82,6 +82,14 @@ describe('groups, calls, feed, browser and apps', () => {
     const end = await client.req('POST', `/api/campaigns/${chat.campaignId}/phone/${npc.id}/call/end`, { chatId: chat.id, exchanges: 2 });
     expect(end.json.state.time.minutes - t0).toBe(4);
     expect(await purposes()).toContain('phone call');
+    // The call is remembered by the two people on it.
+    const mem = (await client.req('GET', `/api/chats/${chat.id}/memory`)).json;
+    const call = mem.items.find((m: any) => m.text.includes('talked on the phone'));
+    expect(call.text).toContain('Can you meet at noon?');
+    expect(call.witnesses.map((w: any) => w.id).sort()).toEqual([npc.id, 'player'].sort());
+    // Hanging up again with nothing said adds no second memory.
+    await client.req('POST', `/api/campaigns/${chat.campaignId}/phone/${npc.id}/call/end`, { chatId: chat.id, exchanges: 0 });
+    expect((await client.req('GET', `/api/chats/${chat.id}/memory`)).json.items.filter((m: any) => m.text.includes('talked on the phone'))).toHaveLength(1);
   });
 
   it('feed refresh only accepts known authors; browser pages are cached; apps run', async () => {
