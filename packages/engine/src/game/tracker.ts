@@ -5,12 +5,9 @@ import { buildGameStateBlock } from './injection.js';
 import { OP_REFERENCE, validateOps, type ValidatedOps } from './ops.js';
 import type { CampaignState } from './state.js';
 
-export const INLINE_TAG_RE = /<everloom>([\s\S]*?)(?:<\/everloom>|$)/gi;
+import { INLINE_TAG_RE } from './inline-tags.js';
 
-/** Remove <everloom>…</everloom> blocks (also an unterminated one while streaming). */
-export function stripInlineTags(text: string): string {
-  return text.replace(INLINE_TAG_RE, '').replace(/<everloom[^>]*$/i, '').trimEnd();
-}
+export { INLINE_TAG_RE, stripInlineTags } from './inline-tags.js';
 
 export function extractInlineOps(text: string): ValidatedOps & TrackerExtras & { found: boolean } {
   const all: unknown[] = [];

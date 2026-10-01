@@ -20,6 +20,28 @@ async function story(page: Page) {
   return { ch, chat };
 }
 
+
+/** A short sine tone as a WAV file (music fixtures are made here; nothing is bundled). */
+function wav(seconds: number, hz: number): Buffer {
+  const rate = 8000;
+  const n = rate * seconds;
+  const b = Buffer.alloc(44 + n * 2);
+  b.write('RIFF', 0);
+  b.writeUInt32LE(36 + n * 2, 4);
+  b.write('WAVEfmt ', 8);
+  b.writeUInt32LE(16, 16);
+  b.writeUInt16LE(1, 20);
+  b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(rate, 24);
+  b.writeUInt32LE(rate * 2, 28);
+  b.writeUInt16LE(2, 32);
+  b.writeUInt16LE(16, 34);
+  b.write('data', 36);
+  b.writeUInt32LE(n * 2, 40);
+  for (let i = 0; i < n; i++) b.writeInt16LE(Math.round(Math.sin((2 * Math.PI * hz * i) / rate) * 8000), 44 + i * 2);
+  return b;
+}
+
 const state = async (page: Page, campaignId: string) => (await api(page, 'GET', `/api/campaigns/${campaignId}`)).state;
 
 test.describe('stage and sound', () => {
@@ -28,7 +50,7 @@ test.describe('stage and sound', () => {
   });
   // Settings are shared by every spec: leave the stage and sound as the defaults found them.
   test.afterEach(async ({ page }) => {
-    await api(page, 'PATCH', '/api/settings', { stage: { bubbles: false, live2d: false }, audio: { music: false, ambient: false } });
+    await api(page, 'PATCH', '/api/settings', { stage: { bubbles: false, live2d: false }, audio: { music: false, ambient: false, playlists: [] } });
   });
 
   test('play a cutscene from the tool, step through it and skip', async ({ page, errors }) => {
@@ -86,6 +108,39 @@ test.describe('stage and sound', () => {
     const add = page.getByRole('dialog', { name: 'Add a reference voice' });
     await expect(add.getByRole('button', { name: 'Add voice' })).toBeDisabled();
     await expect(add).toContainText("I have the speaker's permission");
+    expect(errors).toEqual([]);
+  });
+  test('the first tap starts the music; a mood change crossfades to the next playlist', async ({ page, errors }) => {
+    await page.addInitScript(() => {
+      const w = window as unknown as { __decks: HTMLMediaElement[] };
+      w.__decks = [];
+      const play = HTMLMediaElement.prototype.play;
+      HTMLMediaElement.prototype.play = function () {
+        if (!w.__decks.includes(this)) w.__decks.push(this);
+        return play.call(this);
+      };
+    });
+    const { chat } = await story(page);
+    const { csrf } = await (await page.request.get('/api/auth/status')).json();
+    const up = async (hz: number) => (await (await page.request.post('/api/media?kind=music', { data: wav(20, hz), headers: { 'content-type': 'application/octet-stream', 'x-csrf-token': csrf } })).json()).id as string;
+    const calm = await up(330);
+    const tense = await up(440);
+    await api(page, 'PATCH', '/api/settings', { audio: { music: true, crossfadeMs: 1500, musicVolume: 0.5, playlists: [{ id: 'pl_calm', name: 'Calm', mood: 'calm', tracks: [calm] }, { id: 'pl_tense', name: 'Tense', mood: 'tense', tracks: [tense] }] } });
+    await api(page, 'POST', `/api/campaigns/${chat.campaignId}/ops`, { chatId: chat.id, ops: [{ type: 'music.set', mood: 'calm' }] });
+    await page.goto(`/chat/${chat.id}`);
+    await expect(page.getByTestId('audio-director')).toHaveAttribute('data-playlist', 'Calm');
+    const decks = () => page.evaluate(() => (window as unknown as { __decks: HTMLAudioElement[] }).__decks.filter((d) => !d.src.startsWith('data:')).map((d) => ({ track: d.src.split('/').pop(), volume: d.volume, paused: d.paused })));
+    // Nothing plays before the page has had a gesture (Playwright's own navigation counts as one
+    // in Chromium, so this half only applies when the browser says there hasn't been one).
+    const active = await page.evaluate(() => (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive);
+    if (!active) expect(await decks()).toEqual([]);
+    await page.mouse.click(5, 300);
+    await expect.poll(async () => (await decks()).find((d) => d.track === calm && !d.paused)?.volume ?? 0).toBeGreaterThan(0.45);
+    await api(page, 'POST', `/api/campaigns/${chat.campaignId}/ops`, { chatId: chat.id, ops: [{ type: 'music.set', mood: 'tense' }] });
+    // Midway both are audible, and the old one ends paused.
+    await expect.poll(async () => { const d = await decks(); const a = d.find((x) => x.track === calm)?.volume ?? 0; const b = d.find((x) => x.track === tense)?.volume ?? 0; return a > 0.05 && b > 0.05; }, { intervals: [100] }).toBe(true);
+    await expect.poll(async () => (await decks()).find((d) => d.track === tense)?.volume ?? 0).toBeGreaterThan(0.45);
+    await expect.poll(async () => (await decks()).find((d) => d.track === calm)?.paused).toBe(true);
     expect(errors).toEqual([]);
   });
 });

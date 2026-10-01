@@ -25,23 +25,71 @@ export function autoAmbient(s: CampaignState): Exclude<AmbientKind, 'auto'> {
   return 'none';
 }
 
-let unlocked = false;
-const onUnlock = new Set<() => void>();
-if (typeof window !== 'undefined') {
-  const unlock = () => {
-    unlocked = true;
-    onUnlock.forEach((f) => f());
-    window.removeEventListener('pointerdown', unlock);
-    window.removeEventListener('keydown', unlock);
-  };
-  window.addEventListener('pointerdown', unlock);
-  window.addEventListener('keydown', unlock);
+// ------------------------------------------------------------------ unlocking
+// Browsers only let sound start from a user gesture, and iOS only lets an element play later if it
+// has played inside one. So the players live for the whole page, and the first gesture (caught in
+// the capture phase, so nothing in the page can swallow it) primes all of them.
+
+const SILENT = 'data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEAQB8AAIA+AAACABAAZGF0YQAAAAA=';
+let players: { decks: [HTMLAudioElement, HTMLAudioElement]; loop: HTMLAudioElement } | null = null;
+function getPlayers() {
+  if (!players) {
+    const mk = () => {
+      const el = new Audio();
+      el.preload = 'auto';
+      el.volume = 0;
+      return el;
+    };
+    const loop = mk();
+    loop.loop = true;
+    players = { decks: [mk(), mk()], loop };
+  }
+  return players;
+}
+let audioCtx: AudioContext | null = null;
+function getAudioCtx() {
+  audioCtx ??= new AudioContext();
+  return audioCtx;
 }
 
+// A gesture before this loaded (opening the story) already counts where the browser tracks it.
+let unlocked = typeof navigator !== 'undefined' && (navigator as Navigator & { userActivation?: { hasBeenActive: boolean } }).userActivation?.hasBeenActive === true;
+const onUnlock = new Set<() => void>();
+const GESTURES = ['pointerup', 'touchend', 'click', 'keydown'] as const;
+if (typeof window !== 'undefined' && !unlocked) {
+  const unlock = () => {
+    if (unlocked) return;
+    unlocked = true;
+    for (const ev of GESTURES) window.removeEventListener(ev, unlock, true);
+    onUnlock.forEach((f) => f());
+    // Prime whatever didn't just start, while the gesture still counts.
+    const p = getPlayers();
+    for (const el of [...p.decks, p.loop]) {
+      if (el.getAttribute('src')) continue;
+      el.src = SILENT;
+      void el
+        .play()
+        .then(() => el.getAttribute('src') === SILENT && el.pause())
+        .catch(() => undefined);
+    }
+    try {
+      void getAudioCtx().resume();
+    } catch {
+      /* no Web Audio */
+    }
+  };
+  for (const ev of GESTURES) window.addEventListener(ev, unlock, true);
+}
+
+/** Fade an element's volume. A newer fade on the same element takes over from an older one. */
+const ramps = new WeakMap<HTMLAudioElement, number>();
 function ramp(el: HTMLAudioElement, to: number, ms: number) {
   const from = el.volume;
   const t0 = performance.now();
+  const token = (ramps.get(el) ?? 0) + 1;
+  ramps.set(el, token);
   const step = () => {
+    if (ramps.get(el) !== token) return;
     const k = Math.min(1, (performance.now() - t0) / Math.max(1, ms));
     el.volume = Math.max(0, Math.min(1, from + (to - from) * k));
     if (k < 1) requestAnimationFrame(step);
@@ -207,11 +255,9 @@ export function AudioDirector() {
   const { state: s } = useGame();
   const settings = useSettings();
   const a = settings.data?.audio;
-  const decks = useRef<[HTMLAudioElement, HTMLAudioElement] | null>(null);
   const live = useRef(0);
   const current = useRef<{ key: string; tracks: string[]; i: number } | null>(null);
   const amb = useRef<{ kind: string; synth?: Synth; el?: HTMLAudioElement } | null>(null);
-  const actx = useRef<AudioContext | null>(null);
 
   // Music: which playlist, then play its tracks in turn with a crossfade.
   const playlist = (() => {
@@ -223,16 +269,8 @@ export function AudioDirector() {
     return pick && pick.tracks.length ? pick : null;
   })();
   useEffect(() => {
-    if (!decks.current) {
-      const mk = () => {
-        const el = new Audio();
-        el.preload = 'auto';
-        el.volume = 0;
-        return el;
-      };
-      decks.current = [mk(), mk()];
-    }
-    const [d0, d1] = decks.current;
+    const decks = getPlayers().decks;
+    const [d0, d1] = decks;
     const fade = a?.crossfadeMs ?? 2500;
     const vol = a?.musicVolume ?? 0.5;
     const start = () => {
@@ -250,9 +288,9 @@ export function AudioDirector() {
     const playTrack = () => {
       const c = current.current;
       if (!c) return;
-      const out = decks.current![live.current]!;
+      const out = decks[live.current]!;
       live.current = 1 - live.current;
-      const inn = decks.current![live.current]!;
+      const inn = decks[live.current]!;
       inn.src = `/media/${c.tracks[c.i % c.tracks.length]}`;
       inn.currentTime = 0;
       inn.volume = 0;
@@ -278,21 +316,22 @@ export function AudioDirector() {
       if (amb.current?.kind === kind) return;
       const old = amb.current;
       old?.synth?.stop();
-      if (old?.el) ramp(old.el, 0, 2000);
+      const file = kind === 'none' ? undefined : a?.ambientFiles?.[kind];
+      // One loop player: a new file takes it over directly; otherwise the old loop fades out.
+      if (old?.el && !file) ramp(old.el, 0, 2000);
       amb.current = { kind };
       if (kind === 'none') return;
-      const file = a?.ambientFiles?.[kind];
       if (file) {
-        const el = new Audio(`/media/${file}`);
-        el.loop = true;
+        const el = getPlayers().loop;
+        el.src = `/media/${file}`;
         el.volume = 0;
         void el.play().catch(() => undefined);
         ramp(el, vol, 2000);
         amb.current.el = el;
       } else {
-        actx.current ??= new AudioContext();
-        void actx.current.resume();
-        const synth = new Synth(actx.current, vol * 0.6);
+        const ctx = getAudioCtx();
+        void ctx.resume();
+        const synth = new Synth(ctx, vol * 0.6);
         synth.build(kind as Exclude<AmbientKind, 'auto' | 'none'>);
         amb.current.synth = synth;
       }
@@ -305,10 +344,12 @@ export function AudioDirector() {
   // Stop everything when leaving the story.
   useEffect(
     () => () => {
-      decks.current?.forEach((d) => d.pause());
+      // The players stay for the page (they're unlocked); only silence them.
+      getPlayers().decks.forEach((d) => d.pause());
+      getPlayers().loop.pause();
       amb.current?.synth?.stop();
-      amb.current?.el?.pause();
-      void actx.current?.close();
+      current.current = null;
+      amb.current = null;
     },
     [],
   );
