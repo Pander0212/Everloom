@@ -89,8 +89,11 @@ describe('media integrity', () => {
     const ch = await make({ name: 'Iris', creator_notes: `<img src="${base}/img/a.png"> <img src="${base}/img/c.png">` });
     await c.req('POST', '/api/library/localize', { ids: [ch.id] });
     const db = c.built.ctx.db;
-    const rows = db.prepare("SELECT id, filename, meta FROM media WHERE kind = 'localized'").all() as Array<{ id: string; filename: string; meta: string }>;
-    expect(rows).toHaveLength(2);
+    const all = db.prepare("SELECT id, filename, meta FROM media WHERE kind = 'localized'").all() as Array<{ id: string; filename: string; meta: string }>;
+    expect(all).toHaveLength(2);
+    // The two downloads run at once, so pick each by its source rather than by row order.
+    const bySource = (name: string) => all.find((r) => String(JSON.parse(r.meta).source).endsWith(name))!;
+    const rows = [bySource('/img/a.png'), bySource('/img/c.png')];
     // Break things: one file lost, one stray file, one copy no card uses, a dangling avatar and gallery id.
     unlinkSync(path.join(mediaDir(), rows[0]!.filename));
     writeFileSync(path.join(mediaDir(), 'stray.png'), PNG);
