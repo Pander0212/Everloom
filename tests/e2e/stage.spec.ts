@@ -26,6 +26,10 @@ test.describe('stage and sound', () => {
   test.beforeEach(async () => {
     await mockControl({ reset: true });
   });
+  // Settings are shared by every spec: leave the stage and sound as the defaults found them.
+  test.afterEach(async ({ page }) => {
+    await api(page, 'PATCH', '/api/settings', { stage: { bubbles: false, live2d: false }, audio: { music: false, ambient: false } });
+  });
 
   test('play a cutscene from the tool, step through it and skip', async ({ page, errors }) => {
     const { chat } = await story(page);

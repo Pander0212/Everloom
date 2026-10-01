@@ -8,7 +8,7 @@ test.describe('custom CSS', () => {
   test('the assistant writes a snippet; it applies everywhere but Settings; safe mode turns it off', async ({ page, errors }) => {
     const storySize = () => page.evaluate(() => getComputedStyle(document.documentElement).getPropertyValue('--story-size').trim());
     await page.goto('/settings/css');
-    await expect(page.getByRole('heading', { name: 'Custom CSS' })).toBeVisible();
+    await expect(page.getByRole('heading', { name: 'Custom CSS' }).first()).toBeVisible();
     await page.getByRole('button', { name: 'New snippet' }).click();
     await page.getByLabel('Describe the change').fill('Bigger, roomier story text');
     await page.getByRole('button', { name: 'Write' }).click();

@@ -87,6 +87,9 @@ test.describe('travel', () => {
     await expect(place.getByRole('button', { name: 'Travel here' })).toBeDisabled();
     await api(page, 'POST', `/api/campaigns/${chat.campaignId}/ops`, { chatId: chat.id, ops: [{ type: 'item.add', name: 'Palace Pass' }] });
     await expect(place.getByRole('button', { name: 'Travel here' })).toBeEnabled();
+    // The travel modes are their own choice, never tucked inside the list of obstacles.
+    await expect(place.getByRole('radiogroup', { name: 'Travel mode' })).toHaveCount(1);
+    await expect(place.getByRole('list', { name: "What's in the way" }).getByRole('radiogroup')).toHaveCount(0);
     await place.getByRole('button', { name: 'Travel here' }).click();
     await expect.poll(async () => here(await state(page, chat.campaignId))).toBe('Palace');
     expect(errors).toEqual([]);

@@ -707,6 +707,10 @@ function NodeSheet({ loc, state: s, onClose, onEnter, onTravel }: { loc: Locatio
                         Wait
                       </Button>
                     ) : null}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             {options.length ? (
               <div role="radiogroup" aria-label="Travel mode" className="flex flex-col gap-1">
                 {options.map((o) => {
@@ -735,10 +739,6 @@ function NodeSheet({ loc, state: s, onClose, onEnter, onTravel }: { loc: Locatio
             ) : (
               <p className="text-sm text-fg-3">No way to get there from here.</p>
             )}
-                  </li>
-                ))}
-              </ul>
-            ) : null}
             {linesAt(s, s.currentLocationId).some((l) => l.stops.includes(loc.id)) ? (
               <div className="mt-3">
                 <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-3">Scheduled</h3>
