@@ -187,6 +187,14 @@ Live2D models can replace still sprites, with expressions and motions following 
 
 Anything missing simply falls back to the ordinary sprite. Using Live2D models and the Cubism SDK is subject to Live2D's own licenses (see [CREDITS.md](CREDITS.md)).
 
+### Classic chat, Story or Full RPG
+
+Everloom can be a plain roleplay frontend or a full RPG. **Settings → Features** has three presets: **Classic chat** (character, persona, lorebook, examples, history and author's note, one model call per reply, no game features), **Story** (long-term memory, light tracking and the stage) and **Full RPG** (everything), plus one switch per module. A module that is off is completely off: no screens, no prompt text, no model calls, no background work, and its code isn't downloaded. Nothing is deleted; turning it back on brings everything back. A chat can have its own mode (chat menu → Chat → Mode), and a character can have a default mode for its new chats.
+
+### Name shield
+
+**Settings → Privacy → Name shield**: list names (yours, people you know, places) that should never reach the AI provider. Each gets a stand-in (suggested, re-rollable, or your own); the provider only ever sees the stand-in, and Everloom swaps the real name back into the reply before it's shown or saved. It covers every model call, embeddings, cloud voices and image prompts, catches possessives and capitalization, and refuses a request if a protected name would still go out. The prompt inspector shows the prompt *as stored* and *as sent*. Limits: context can still identify someone, misspellings need to be added as extra forms, and a model may shorten a stand-in (flagged on the message).
+
 ### Characters from the web
 
 **Characters → Browse** searches Chub, Character Tavern, RisuRealm, Pygmalion, Wyvern, Botbooru, Saucepan and AI Character Cards (or **All sources** at once, with duplicates marked). The search box takes filters: `elf tag:fantasy -tag:gore creator:name tokens<2000 has:lorebook sort:new time:week lang:en`, and **Filters** opens the same as a bar (tags with suggestions from the site: tap a chip to switch it between include and exclude). Filters a site can't apply itself are checked on each page, and Everloom says which. Searches can be saved. **Import from a link** takes any card file link (PNG, JSON, CHARX) or a page on those sites. Adult content stays hidden unless you turn it on in **Settings → Character sources**.

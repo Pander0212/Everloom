@@ -9,7 +9,7 @@ import { relativeTime } from '@/lib/format';
 import { toast, toastError } from '@/lib/store';
 import { useViewPrefs } from '@/lib/viewPrefs';
 import { Button, confirm, EmptyState, IconButton, Input, Sheet, ToggleRow, useMedia } from '@/ui';
-import { HUD_OPTIONS } from '@/features/game/Hud';
+import { HUD_OPTIONS } from '@/features/game/hud-options';
 import { qk, useSettings } from '@/lib/queries';
 
 interface Slot {

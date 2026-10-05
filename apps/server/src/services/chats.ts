@@ -1,4 +1,4 @@
-import {
+import { effectiveFeatures, type FeaturePreset,
   createInitialState, exportChatJsonl, expandMacros, parseChatJsonl,
   type ChatDTO, type ChatMeta, type ChatSummary, type GroupDTO, type MessageDTO, type SwipeDTO,
 } from '@everloom/engine';
@@ -136,6 +136,8 @@ export interface CreateChatInput {
   /** 'new' (default), 'none', or an existing campaign id to link. */
   campaign?: string;
   greeting?: boolean;
+  /** This chat's own feature preset; unset uses the character's default, else the global setting. */
+  features?: FeaturePreset | null;
 }
 
 export function insertMessage(
@@ -163,9 +165,13 @@ export function createChat(ctx: AppContext, owner: string, input: CreateChatInpu
     : [getCharacter(ctx, owner, input.characterId!)];
   const group = input.groupId ? getGroup(ctx, owner, input.groupId) : null;
   const title = input.title?.trim() || `${group?.name ?? characters[0].name} — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
+  // The chat's own feature preset (or the character's default); with the game layer off no game is set up.
+  const settings = getSettings(ctx, owner);
+  const chatFeatures = input.features ?? (characters.length === 1 ? (characters[0].game.chatMode ?? null) : null);
+  const f = effectiveFeatures(settings.features, chatFeatures);
   let campaignId: string | null = null;
   if (input.campaign && input.campaign !== 'new' && input.campaign !== 'none') campaignId = input.campaign;
-  else if (input.campaign !== 'none') {
+  else if (input.campaign !== 'none' && (f.on.game || input.campaign === 'new')) {
     const state = createInitialState({ title, seed: Math.floor(Math.random() * 2 ** 31), playerName: userName });
     if (persona?.age != null) state.player.age = persona.age;
     if (persona?.ageStage) state.player.ageStage = persona.ageStage;
@@ -174,10 +180,10 @@ export function createChat(ctx: AppContext, owner: string, input: CreateChatInpu
   }
   const id = newId('c_');
   const now = Date.now();
-  const settings = getSettings(ctx, owner);
+  const meta: ChatMeta = { mode: f.on.stage ? settings.chat.defaultMode : 'chat', ...(chatFeatures ? { features: chatFeatures } : {}) };
   ctx.db
     .prepare('INSERT INTO chats (id, owner_id, character_id, group_id, title, persona_id, campaign_id, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(id, owner, input.characterId ?? null, input.groupId ?? null, title, persona?.id ?? null, campaignId, JSON.stringify({ mode: settings.chat.defaultMode } satisfies ChatMeta), now, now);
+    .run(id, owner, input.characterId ?? null, input.groupId ?? null, title, persona?.id ?? null, campaignId, JSON.stringify(meta), now, now);
   if (input.greeting !== false) {
     for (const ch of characters) {
       const greetings = [ch.card.first_mes, ...(group ? ch.card.group_only_greetings ?? [] : []), ...(ch.card.alternate_greetings ?? [])].filter((g) => g && g.trim());

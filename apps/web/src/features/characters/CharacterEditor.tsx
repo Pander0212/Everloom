@@ -1,3 +1,4 @@
+import { FEATURE_PRESETS, PRESET_INFO } from '@everloom/engine';
 import { EMOTIONS, type CardData, type CharacterDTO, type CharacterGame } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, BookOpen, Copy, Download, FileJson, ImagePlus, MessageSquare, MoreHorizontal, Music, Play, Plus, Sparkles, Star, Trash2, Upload, Wand2, X } from 'lucide-react';
@@ -496,6 +497,16 @@ function GameFields({ game, setGame, characterId }: { game: CharacterGame; setGa
   };
   return (
     <>
+      <Field label="Mode for new chats" htmlFor="chatmode" hint="New chats with this character start in this mode without asking.">
+        <Select id="chatmode" value={game.chatMode ?? ''} onChange={(e) => setGame({ chatMode: (e.target.value || null) as never })}>
+          <option value="">Ask (or follow Settings › Features)</option>
+          {FEATURE_PRESETS.map((p) => (
+            <option key={p} value={p}>
+              {PRESET_INFO[p].label}
+            </option>
+          ))}
+        </Select>
+      </Field>
       <Field label="Chat rules" htmlFor="rules" hint="Extra instructions sent with every reply from this character.">
         <Textarea id="rules" rows={3} value={game.chatRules ?? ''} onChange={(e) => setGame({ chatRules: e.target.value })} />
       </Field>

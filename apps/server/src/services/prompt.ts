@@ -1,10 +1,11 @@
 /** Builds the full prompt for a chat turn. Shared by generation and the prompt inspector. */
 import {
-  assemblePrompt, PLAYER, buildSceneBlock, checkWorldInfo, createRng, formatClock, formatDate, INLINE_INSTRUCTION, seedFrom, storySoFar,
+  AI_OP_TYPES, allowedOpTypes, assemblePrompt, PLAYER, buildSceneBlock, checkWorldInfo, createRng, formatClock, formatDate, inlineInstruction, seedFrom, storySoFar,
   type PersonMemoryView, type SceneBlock,
   stripInlineTags, type AssembledPrompt, type CampaignState, type ChatDTO, type CharacterDTO, type HistoryMessage, type MacroContext,
-  type MessageDTO, type PersonaDTO, type ScanEntry, type Settings,
+  type MessageDTO, type PersonaDTO, type ScanEntry, type Settings, type FeatureSet,
 } from '@everloom/engine';
+import { settingsFor } from './features.js';
 import type { AppContext } from '../context.js';
 import { characterRow, getCharacter } from './characters.js';
 import { getChat, getGroup, listMessages } from './chats.js';
@@ -13,7 +14,6 @@ import { booksForChat } from './lorebooks.js';
 import { defaultPersona, getPersona } from './personas.js';
 import { activePreset } from './presets.js';
 import { search } from './search.js';
-import { getSettings } from './settings.js';
 import { countTokens } from './tokens.js';
 import { semanticHits } from './semantic.js';
 import { nameOfPerson, recallForScene } from './mem.js';
@@ -26,7 +26,11 @@ export interface PromptContext {
   members: CharacterDTO[];
   persona: PersonaDTO | null;
   userName: string;
+  /** Settings with the world switches limited by the chat's features. */
   settings: Settings;
+  /** The feature switches in force for this chat. */
+  features: FeatureSet;
+  /** The game state, or null when the chat has no game or the game layer is off. */
   state: CampaignState | null;
   history: MessageDTO[];
 }
@@ -49,11 +53,12 @@ export function macroGame(state: CampaignState | null): MacroContext['game'] {
 
 export function loadPromptContext(ctx: AppContext, owner: string, chatId: string, speakerId?: string | null): PromptContext {
   const chat = getChat(ctx, owner, chatId);
-  const settings = getSettings(ctx, owner);
+  const { settings, features } = settingsFor(ctx, owner, chat);
   const members = chat.groupId ? getGroup(ctx, owner, chat.groupId).members.map((m) => getCharacter(ctx, owner, m.characterId)) : [getCharacter(ctx, owner, chat.characterId!)];
   const character = (speakerId && members.find((m) => m.id === speakerId)) || members[0];
   const persona = chat.personaId ? safePersona(ctx, owner, chat.personaId) : defaultPersona(ctx, owner);
-  const state = chat.campaignId ? safeState(ctx, owner, chat.campaignId) : null;
+  // Game layer off: the game's data stays, but nothing of it reaches the prompt.
+  const state = chat.campaignId && features.on.game ? safeState(ctx, owner, chat.campaignId) : null;
   return {
     chat,
     character,
@@ -61,6 +66,7 @@ export function loadPromptContext(ctx: AppContext, owner: string, chatId: string
     persona,
     userName: persona?.name ?? 'You',
     settings,
+    features,
     state,
     history: listMessages(ctx, owner, chatId),
   };
@@ -109,7 +115,7 @@ export interface BuiltPrompt {
 }
 
 export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptContext, opts: BuildOptions): Promise<BuiltPrompt> {
-  const { chat, character, persona, settings, state } = pc;
+  const { chat, character, persona, settings, state, features } = pc;
   const card = character.card;
   const isGroup = !!chat.groupId;
   const others = pc.members.filter((m) => m.id !== character.id).map((m) => m.name);
@@ -187,13 +193,18 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
   let memory = '';
   let gameState = '';
   let sceneBlock: SceneBlock | null = null;
-  const scene = await recallForScene(ctx, owner, chat, state, recentText, {
-    chatCharacters: pc.members.map((m) => m.id),
-    semantic: world.semantic,
-    playerLimit: world.recallLimit,
-    focus: lastUser ? textOf(lastUser) : undefined,
-    names: [pc.userName, ...pc.members.map((m) => m.name)],
-  });
+  // Memory off: nothing is recalled (and no embedding call is made). Summary: only the story so far.
+  const scene =
+    features.memory === 'off'
+      ? { facts: [], summaries: [], milestones: [], present: [], result: { player: [], people: [] } }
+      : await recallForScene(ctx, owner, chat, state, recentText, {
+          chatCharacters: pc.members.map((m) => m.id),
+          semantic: world.semantic,
+          playerLimit: features.memory === 'summary' ? 0 : world.recallLimit,
+          focus: lastUser ? textOf(lastUser) : undefined,
+          names: [pc.userName, ...pc.members.map((m) => m.name)],
+        });
+  if (features.memory === 'summary') scene.facts = [];
   const factsBy: Record<string, string[]> = {};
   for (const f of scene.facts) (factsBy[f.entityId] ??= []).push(f.text);
   const recap = storySoFar(scene.summaries, scene.milestones);
@@ -203,7 +214,7 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     heard: r.k.kind === 'heard',
     secretWith: r.m.secret ? r.m.witnesses.filter((w) => w !== PLAYER).map((w) => nameOfPerson(state, w, names)) : undefined,
   }));
-  if (state && settings.tracker.injectState) {
+  if (state && settings.tracker.injectState && features.on.sceneBlock) {
     const known = search(ctx, owner, recentText, { campaignId: chat.campaignId, kinds: ['fact', 'runin', 'diary'], limit: 4 }).map((h) => (h.title ? `${h.title}: ${h.body}` : h.body));
     const texts = recentPhoneTexts(ctx, owner, chat.campaignId!, state);
     const people: Record<string, PersonMemoryView> = {};
@@ -235,7 +246,7 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
 
   const extraRules: string[] = [];
   if (character.game.chatRules?.trim()) extraRules.push(character.game.chatRules.trim());
-  if (state && settings.tracker.mode === 'inline' && opts.type !== 'impersonate') extraRules.push(INLINE_INSTRUCTION);
+  if (state && features.on.trackers && settings.tracker.mode === 'inline' && opts.type !== 'impersonate') extraRules.push(inlineInstruction(allowedOpTypes(AI_OP_TYPES, features)));
   if (opts.finalInstruction) extraRules.push(opts.finalInstruction);
 
   const history: HistoryMessage[] = visible.map((m) => ({

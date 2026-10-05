@@ -2,7 +2,7 @@
  * Chat generation: builds the prompt, streams tokens to the caller and to other devices,
  * saves the result as a message/swipe, then runs the tracker pass and memory upkeep.
  */
-import { detectEmotion, extractInlineOps, stripInlineTags, turnTick, type GenerateEvent, type MessageDTO, type SwipeDTO, type TickResult } from '@everloom/engine';
+import { AI_OP_TYPES, allowedOpTypes, detectEmotion, extractInlineOps, stripInlineTags, turnTick, type GenerateEvent, type MessageDTO, type SwipeDTO, type TickResult } from '@everloom/engine';
 import { HttpError, type AppContext } from '../context.js';
 import { streamChat, type ResolvedConnection } from '../llm/providers.js';
 import { appendOps, deleteEntriesFor, getState, rebuildCampaign, realtimeTick } from './campaigns.js';
@@ -15,6 +15,14 @@ import { countTokens } from './tokens.js';
 import { applyTracked, runTrackerPass } from './tracker.js';
 import { deleteAnchored } from './mem.js';
 import { recordCall } from './calls.js';
+import { settingsFor } from './features.js';
+import { currentShield, shieldChat, shieldPreview } from '../privacy/shield.js';
+
+/** The prompt parts as the provider receives them (null when the name shield changes nothing). */
+function sentView<T extends { content?: string }>(parts: T[]): T[] | null {
+  const sent = parts.map((p) => (typeof p.content === 'string' ? { ...p, content: shieldPreview(p.content) } : p));
+  return sent.some((p, i) => p.content !== parts[i]!.content) ? sent : null;
+}
 
 const active = new Map<string, AbortController>();
 const lastPrompts = new Map<string, unknown>();
@@ -91,7 +99,10 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
   const pub = (type: string, data: unknown) => ctx.bus.publish(owner, type, data, input.origin);
   try {
     let chat = getChat(ctx, owner, chatId);
-    if (chat.campaignId) realtimeTick(ctx, owner, chat.campaignId, chatId);
+    // Game layer off (globally or for this chat): no ticks, no tracker, no game prompt text.
+    const f0 = settingsFor(ctx, owner, chat).features;
+    const gameOn = !!chat.campaignId && f0.on.game;
+    if (gameOn && f0.on.time) realtimeTick(ctx, owner, chat.campaignId!, chatId);
 
     // 1. User message
     if (input.type === 'normal' && input.text && input.text.trim()) {
@@ -103,6 +114,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
 
     // 2. Speaker + connection
     let pc = loadPromptContext(ctx, owner, chatId);
+    shieldChat({ chatId, personaId: pc.persona?.id ?? null, characterIds: pc.members.map((m) => m.id) });
     let speakerId = pc.character.id;
     if (chat.groupId) {
       const group = getGroup(ctx, owner, chat.groupId);
@@ -154,7 +166,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
     // function of that message and the turn number, so a swipe replays the same outcome.
     let tick: TickResult | null = null;
     const lastUserMsg = [...promptHistory].reverse().find((m) => m.role === 'user');
-    if (chat.campaignId && lastUserMsg && input.type !== 'continue' && input.type !== 'impersonate') {
+    if (gameOn && chat.campaignId && lastUserMsg && input.type !== 'continue' && input.type !== 'impersonate') {
       const w = pc.settings.world;
       const turn = promptHistory.filter((m) => m.role === 'assistant' && !m.hidden).length + 1;
       const tickInput = { text: textOf(lastUserMsg), messageKey: lastUserMsg.id, turn, switches: { intent: w.intent, dice: w.dice, pulse: w.pulse, threads: w.threads }, extraCheck: (lastUserMsg.extra?.preRead as any)?.check ?? null };
@@ -195,6 +207,8 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       at: Date.now(),
       connection: { name: conn.name, provider: conn.provider, model: conn.model },
       parts: built.assembled.parts,
+      // What the provider actually receives (the name shield's stand-ins), for the inspector.
+      sentParts: sentView(built.assembled.parts),
       totalTokens: built.assembled.totalTokens,
       budget: built.assembled.budget,
       trimmedHistory: built.assembled.trimmedHistory,
@@ -225,6 +239,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
     let lastSave = Date.now();
     let lastPub = 0;
     let error: string | undefined;
+    let errorCode: string | undefined;
     const save = (final: boolean) => {
       if (!messageId) return;
       const m = getMessage(ctx, owner, messageId);
@@ -270,19 +285,22 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
         }
       }
     } catch (e) {
-      if (!controller.signal.aborted) error = (e as Error).message;
+      if (!controller.signal.aborted) {
+        error = (e as Error).message;
+        errorCode = (e as HttpError).code;
+      }
     }
     recordCall(ctx, owner, conn, { chatId, messageId: messageId ?? null, purpose: input.type === 'impersonate' ? 'impersonate' : input.instruction ? 'opening scene' : 'reply', role: 'main' }, { ms: performance.now() - t0, tokensIn: built.assembled.totalTokens, tokensOut: countTokens(text), ok: !error, error: error ?? null, firstTokenMs });
 
     if (input.type === 'impersonate') {
-      if (error) emit({ type: 'error', error });
+      if (error) emit({ type: 'error', error, code: errorCode });
       emit({ type: 'done', text: stripInlineTags(text) });
       return;
     }
     if (!messageId) return;
 
     // 6. Finalize
-    const inline = pc.settings.tracker.mode === 'inline' ? extractInlineOps(text) : null;
+    const inline = pc.settings.tracker.mode === 'inline' && gameOn && pc.features.on.trackers ? extractInlineOps(text, allowedOpTypes(AI_OP_TYPES, pc.features)) : null;
     if (!text.trim() && !baseText && error) {
       // Nothing came back: remove the empty message/swipe we created.
       const m = getMessage(ctx, owner, messageId);
@@ -295,21 +313,25 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
         if (chat.campaignId) rebuildCampaign(ctx, owner, chat.campaignId, input.origin);
         pub('message.updated', { chatId, message: getMessage(ctx, owner, messageId) });
       }
-      emit({ type: 'error', error });
+      emit({ type: 'error', error, code: errorCode });
       return;
     }
     save(true);
     const finalText = stripInlineTags(baseText + text);
     const emotion = detectEmotion(finalText);
     const m0 = getMessage(ctx, owner, messageId);
-    ctx.db.prepare('UPDATE messages SET extra = ? WHERE id = ?').run(JSON.stringify({ ...m0.extra, emotion }), messageId);
+    // A short form of a stand-in the model made up ("Marc" for "Marcus") isn't restored: say so.
+    const leftovers = currentShield()?.shield.possibleLeftovers(finalText) ?? [];
+    ctx.db.prepare('UPDATE messages SET extra = ? WHERE id = ?').run(JSON.stringify({ ...m0.extra, emotion, shieldHint: leftovers.length ? leftovers : undefined }), messageId);
     const finalMsg = getMessage(ctx, owner, messageId);
     emit({ type: 'done', messageId, swipeId: swipeIndex, message: finalMsg, error });
     pub('message.updated', { chatId, message: finalMsg });
 
     // 7. Game state + memory (after the reply is safely stored), then background memory work,
     // which needs to see this turn's memories.
-    if (chat.campaignId && pc.settings.tracker.mode !== 'off') {
+    // The tracker: inline tags ride on the reply; a separate pass is its own (switchable) call.
+    const trackerOn = gameOn && pc.features.on.trackers && pc.settings.tracker.mode !== 'off' && (!!inline || pc.features.on.trackerPass);
+    if (chat.campaignId && trackerOn) {
       if (inline) {
         if (inline.ok.length || inline.found) applyTracked(ctx, owner, chat.campaignId, chatId, messageId, swipeIndex, inline.ok, 'ai', input.origin, inline);
         afterTurn(ctx, owner, chatId);
@@ -331,11 +353,13 @@ export async function previewPrompt(ctx: AppContext, owner: string, chatId: stri
   const maxContext = Number(conn?.params.context_size ?? 16384);
   const maxResponse = Number(conn?.params.max_tokens ?? 500);
   const history = type === 'swipe' || type === 'regenerate' ? pc.history.slice(0, -1) : pc.history;
+  shieldChat({ chatId, personaId: pc.persona?.id ?? null, characterIds: pc.members.map((m) => m.id) });
   const built = await buildPrompt(ctx, owner, pc, { type, history, maxContext, maxResponse });
   return {
     at: Date.now(),
     connection: conn ? { name: conn.name, provider: conn.provider, model: conn.model } : null,
     parts: built.assembled.parts,
+    sentParts: sentView(built.assembled.parts),
     totalTokens: built.assembled.totalTokens,
     budget: built.assembled.budget,
     trimmedHistory: built.assembled.trimmedHistory,

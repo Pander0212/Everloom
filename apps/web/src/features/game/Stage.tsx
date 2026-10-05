@@ -1,4 +1,5 @@
 import type { CampaignDTO, CharacterDTO, ChatDTO, MessageDTO, Op, StageAnim, StageLayer } from '@everloom/engine';
+import { useFeatureOn } from '@/lib/features';
 import { stripInlineTags } from '@everloom/engine';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ChevronLeft, ChevronRight, History, RefreshCw, Sparkles } from 'lucide-react';
@@ -96,7 +97,9 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const persona = personas.data?.find((p) => p.id === chat.personaId) ?? personas.data?.find((p) => p.isDefault);
   const { apply } = useGame();
   const settings = useSettings();
-  const live2dOn = settings.data?.stage?.live2d === true;
+  const weatherOn = useFeatureOn('weather');
+  const live2dFeature = useFeatureOn('live2d');
+  const live2dOn = settings.data?.stage?.live2d === true && live2dFeature;
   const live2d = useQuery({ queryKey: ['live2d'], queryFn: () => get<{ coreInstalled: boolean; coreUrl: string | null; models: Record<string, string> }>('/api/live2d'), enabled: live2dOn });
   const fxOff = settings.data?.stage?.fxOff ?? [];
   const sceneAnim = useSceneMotion(campaign?.state ?? null, fxOff);
@@ -148,7 +151,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
         {/* Scene */}
         <div className="absolute inset-0">
           {bg ? <img src={bg} alt="" className="h-full w-full object-cover" /> : <div className="h-full w-full" style={{ background: 'radial-gradient(120% 90% at 50% 20%, var(--surface-3), var(--bg))' }} />}
-          <Atmosphere state={campaign?.state ?? null} />
+          {weatherOn ? <Atmosphere state={campaign?.state ?? null} /> : null}
         </div>
         {/* Sprites: placed by the director when it has spoken, otherwise side by side */}
         <div className={cx('pointer-events-none absolute inset-x-0 bottom-0 top-0 px-2 pb-[38%] sm:pb-[22%]', !directed && 'flex items-end justify-center gap-0')}>

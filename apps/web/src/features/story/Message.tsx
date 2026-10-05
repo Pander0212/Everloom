@@ -132,6 +132,9 @@ export const Message = memo(function Message({ m, avatar, isLast, streamText, st
       {showReasoning ? <Reasoning text={reasoning} live={streaming && !text} /> : null}
       {body}
       {swipe?.changes?.length && !streaming ? <p className="mt-2 text-xs text-fg-3">{swipe.changes.join(' · ')}</p> : null}
+      {Array.isArray(m.extra?.shieldHint) && (m.extra.shieldHint as string[]).length && !streaming ? (
+        <p className="mt-2 text-xs text-fg-3">Name shield: possible stand-in left in the text ({(m.extra.shieldHint as string[]).join(', ')}). Edit the message if it should be the real name.</p>
+      ) : null}
       {swipeBar}
     </div>
   );

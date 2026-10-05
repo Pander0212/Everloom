@@ -11,6 +11,9 @@ setup('first-run setup and login', async ({ page }) => {
   await page.getByLabel('Password', { exact: true }).fill('correct horse battery');
   await page.getByLabel('Confirm password').fill('correct horse battery');
   await page.getByRole('button', { name: 'Create account' }).click();
+  // First run asks how Everloom will be used; the e2e suite exercises everything.
+  await expect(page.getByRole('heading', { name: 'How will you use Everloom?' })).toBeVisible();
+  await page.getByRole('listitem').filter({ hasText: 'Full RPG' }).click();
   await expect(page.getByRole('heading', { name: 'Chats' })).toBeVisible();
   // Sign out and back in through the login screen.
   await page.evaluate(async () => {

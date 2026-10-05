@@ -441,3 +441,90 @@ generic fallback sent only the page title. Now:
   page answers; if the window is blocked it copies the card for **Paste from bridge**;
 - Android: Everloom's manifest registers a **share target**, so sharing a character page to
   Everloom imports it (or explains the bridge for bridge-only sites).
+
+## Part 3 — Feature switches and Classic chat
+
+**One list of modules** (`packages/engine/src/features.ts`): 20 game modules under a master *Game
+layer* switch, 6 story-presentation switches, 4 AI helpers, 6 tools, and memory as *full / rolling
+summary / off*. Each module declares what it needs (travel needs map and time; crafting needs
+inventory; battle needs party; off-screen life needs NPC simulation…), so turning one off turns off
+its dependents, and turning one on turns on its requirements. The Features page says which before
+applying ("This also turns off: Travel, Player home").
+
+**Presets.** *Classic chat* turns every game module, helper and memory off (tools such as sources,
+voice and images stay on). *Story* keeps memory, the status bar and trackers, time and weather,
+diary, journal, databank, the stage and its effects, and the tracker pass and scene block; no
+economy, map, battle, party, phone or NPC simulation. *Full RPG* is everything, and stays the
+default for existing installs so nothing changes for them. First-run setup now asks which one.
+
+**Per-chat override.** A chat stores its own preset (`metadata.features`) and then ignores the
+global switches; new chats take the character's default (`chatMode`) or ask. Fine-grained switches
+are global only: a per-chat mix of 37 switches would be hard to reason about.
+
+**What "off" does, concretely.**
+- *Server:* `settingsFor(chat)` combines the switches with the world settings (`effectiveWorld`), and
+  everything downstream reads that: no realtime tick or turn tick, no pre-read, no tracker pass, no
+  scene block, no game macros (the prompt context's state is null when the game is off), no
+  off-screen life, storyline seeding, chronicler or consolidation according to the switches. Memory
+  off skips recall entirely, so no embedding call either.
+- *Prompt:* with the game off, the default preset's world-rules block drops out (it only appears
+  with game state), so the prompt is character, persona, world info, examples, history and the
+  author's note, the way SillyTavern builds it. Measured: Classic makes **exactly one model call per
+  reply** (`apps/server/test/features.test.ts`, with every helper's world switch on underneath).
+- *Tracker:* the op reference sent to the model is cut to the enabled modules' op types
+  (`allowedOpTypes`, `opReferenceFor`), and ops for disabled modules are refused even if the model
+  sends them. The Story preset's tracker prompt is under 75 % of the full one.
+- *Web:* no tools, status bar, cast strip, composer chips, level-up moment, stage effects,
+  cutscenes, audio, atmosphere or Live2D for disabled modules; settings pages for the game, voice,
+  images and sources disappear; "Browse online" is hidden with sources off. The game pieces are
+  lazy-loaded, so a Classic chat doesn't download them.
+- *Data:* nothing is deleted. A chat's campaign stays attached; switching back shows it again, and
+  swipes and edits still rebuild it (ops roll back as before, whatever is switched on).
+
+**Not done:** new Classic chats are created without a game; switching such a chat to Story or Full
+RPG later doesn't create one (the chat menu says to start a new chat for that).
+
+## Part 5 — Name shield
+
+**One choke point.** Every request Everloom makes to an outside AI service goes through
+`util/fetch.ts › safeFetch` (models, embeddings, voices, image generation). `safeFetch` hands every
+string body to `privacy/shield.ts › shieldOutbound`, which rewrites the strings inside the JSON (keys
+untouched) and then runs a **leak check** on the result as the provider will read it. Replies come
+back through `llm/providers.ts › streamChat`, which is wrapped in `shieldStream`; `completeChat`
+(tracker JSON, utility answers, memory work) is built on it, so it is restored too. A test fails if
+any server file talks to the network another way (`apps/server/test/shield.test.ts`), and a second
+test plays three turns with every helper on and checks that **no** request body the mock provider
+received contains a real name, while what was streamed and stored has them.
+
+**Whose terms.** Each HTTP request runs inside an AsyncLocalStorage store with its owner (and the
+chat, when the address names one); generation adds the persona and characters. Background work
+started by a request inherits it. Terms can be scoped to a persona, a character or a chat; with no
+chat context at all, scoped terms apply anyway (hide more, never less), and with no owner every
+owner's terms apply.
+
+**Matching.** Case-insensitive, whole words, Unicode-aware; possessives and plural endings stay
+("Lena's" → "Mira's"), the capitalization pattern is copied (LENA → MIRA). A full name's parts map
+to the stand-in's parts, so "Lena" alone becomes "Mira", not "Mira Hollis"; one-word nicknames map to
+the stand-in's first name.
+
+**Streaming.** The restorer holds back text from the earliest word start that could still grow
+into a stand-in, so a stand-in split across chunks is caught and never flashes on screen (tested
+with every chunk size from 1 to 7). Reasoning is restored on its own channel.
+
+**Stable and collision-free.** Stand-ins are stored with the term, so the same name always maps the
+same way. Two terms can never share a stand-in (fixed on save). Before a chat's request, stand-ins
+are checked against the chat's characters, persona and the game's people and places (whole names
+and their words); a clash gets a different stand-in for that chat, remembered in the chat, with a
+notice.
+
+**Leak check, voices, pictures.** If a protected term survives (for example in a key, or through a
+path that bypasses the rewrite), the request is refused with the name; with "ask", the app offers
+*Send anyway* for that one request. Cloud voices receive the stand-in unless the owner allows real
+names; the browser's own voice is local. Uploaded pictures aren't analyzed, and the page says so.
+Scripts and extensions (Part 1) call models through the same providers, so they are covered.
+
+**Inspector.** The prompt inspector has *As stored / As sent* when the shield changes anything.
+
+**Limits (stated in the app).** Context can still identify someone; misspellings need extra forms; a
+model may shorten a stand-in ("Marc"), which is flagged on the message when it looks like a
+truncation but not swapped (that would be guessing).

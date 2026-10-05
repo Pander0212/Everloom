@@ -43,6 +43,7 @@ export interface ApiOptions {
   raw?: Blob | ArrayBuffer | Uint8Array;
   contentType?: string;
   query?: Record<string, string | number | boolean | null | undefined>;
+  headers?: Record<string, string>;
 }
 
 function headers(opts: ApiOptions): Record<string, string> {
@@ -50,7 +51,7 @@ function headers(opts: ApiOptions): Record<string, string> {
   if (csrfToken) h['x-csrf-token'] = csrfToken;
   if (opts.raw) h['content-type'] = opts.contentType ?? 'application/octet-stream';
   else if (opts.body !== undefined) h['content-type'] = 'application/json';
-  return h;
+  return { ...h, ...opts.headers };
 }
 
 export function buildUrl(path: string, query?: ApiOptions['query']): string {
@@ -102,8 +103,8 @@ export const upload = <T = any>(path: string, file: Blob, query?: ApiOptions['qu
   api<T>(path, { method: 'POST', raw: file, contentType: file.type || 'application/octet-stream', query });
 
 /** POST and read an SSE response as an async stream of JSON events. */
-export async function* streamPost<T = any>(path: string, body: unknown, signal?: AbortSignal): AsyncGenerator<T> {
-  const res = await apiFetch(path, { method: 'POST', body, signal });
+export async function* streamPost<T = any>(path: string, body: unknown, signal?: AbortSignal, extraHeaders?: Record<string, string>): AsyncGenerator<T> {
+  const res = await apiFetch(path, { method: 'POST', body, signal, headers: extraHeaders });
   if (!res.body) return;
   const reader = res.body.getReader();
   const decoder = new TextDecoder();

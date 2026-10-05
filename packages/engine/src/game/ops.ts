@@ -501,3 +501,11 @@ export const OP_REFERENCE = `Allowed ops (JSON objects with "type"):
 - {"type":"household.add","name":"Pip","home":"Rose Cottage","role":"dependent","relation":"child"}  someone lives at (or, role "guest", regularly visits) one of the player's homes
 - {"type":"bill.add","name":"Guild dues","kind":"dues","amount":5,"periodDays":30,"org":"Merchants Guild"}  a recurring payment the player agreed to
 - {"type":"asset.add","name":"Chestnut Horse","kind":"animal","value":40}  the player comes to own property, a vehicle, a business or an animal`;
+
+/** The op reference limited to some op types (feature switches): a line stays if it shows one of them. */
+export function opReferenceFor(allowed: readonly string[]): string {
+  const set = new Set(allowed);
+  const [head, ...lines] = OP_REFERENCE.split('\n');
+  const kept = lines.filter((l) => [...l.matchAll(/"type":"([a-z.]+)"/g)].some((m) => set.has(m[1]!)));
+  return [head, ...kept].join('\n');
+}

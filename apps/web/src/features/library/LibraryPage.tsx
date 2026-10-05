@@ -3,6 +3,7 @@
  * collections and presets; multi-select with batch actions; a context menu on right-click or
  * long-press; and the detail sheet with prev/next through the current view.
  */
+import { useFeatures } from '@/lib/features';
 import type { CharacterSummary } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { CheckSquare, Copy, Dices, Download, Folder, FolderPlus, Globe, Image as ImageIcon, LayoutGrid, Link2, List, MoreHorizontal, PackageOpen, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Sparkles, Star, Tag, Trash2, Upload, Users, UsersRound, X } from 'lucide-react';
@@ -60,6 +61,7 @@ export default function LibraryPage() {
   const view = settings.data?.library.view ?? 'grid';
   const qc = useQueryClient();
   const navigate = useNavigate();
+  const features = useFeatures(null);
   const [selecting, setSelecting] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [openId, setOpenId] = useState<string | null>(null);
@@ -191,7 +193,7 @@ export default function LibraryPage() {
             items={[
               { label: 'New character', icon: Plus, onSelect: create },
               { label: 'Character studio', icon: Sparkles, onSelect: () => navigate('/characters/studio') },
-              { label: 'Browse online', icon: Globe, onSelect: () => navigate('/characters/browse') },
+              ...(features.on.sources ? [{ label: 'Browse online', icon: Globe, onSelect: () => navigate('/characters/browse') }] : []),
               { label: 'New group', icon: UsersRound, onSelect: () => setSheet('group') },
             ]}
           />

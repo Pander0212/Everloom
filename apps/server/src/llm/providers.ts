@@ -5,6 +5,7 @@
 import { findInstructTemplate, renderInstructPrompt, type AssembledPrompt } from '@everloom/engine';
 import { HttpError } from '../context.js';
 import { readJson, safeFetch, sseEvents } from '../util/fetch.js';
+import { shieldStream } from '../privacy/shield.js';
 
 export type LlmProvider = 'openai' | 'anthropic' | 'gemini' | 'textgen';
 
@@ -384,6 +385,11 @@ async function* textgenStream(conn: ResolvedConnection, req: ChatRequest): Async
 // ---------------------------------------------------------------- Public API
 
 export function streamChat(conn: ResolvedConnection, req: ChatRequest): AsyncGenerator<StreamChunk> {
+  // Real names go out as stand-ins (safeFetch) and come back restored here, before anyone sees them.
+  return shieldStream(dispatchStream(conn, req));
+}
+
+function dispatchStream(conn: ResolvedConnection, req: ChatRequest): AsyncGenerator<StreamChunk> {
   switch (conn.provider) {
     case 'openai':
       return openaiStream(conn, req);

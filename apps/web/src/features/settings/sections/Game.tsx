@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react';
 import { Badge, Field, Input, Segmented, ToggleRow } from '@/ui';
 import { Section, useSettingsPatch } from '../common';
-import { HUD_OPTIONS } from '@/features/game/Hud';
+import { HUD_OPTIONS } from '@/features/game/hud-options';
 
 /** A setting label with the kind of model call it costs. */
 export function CostLabel({ text, cost }: { text: ReactNode; cost: 'background' | 'utility' | 'embeddings' | 'main' }) {

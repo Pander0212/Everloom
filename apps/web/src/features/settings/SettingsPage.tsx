@@ -1,5 +1,7 @@
-import { ArrowLeft, Globe, Bot, BookOpen, Brush, Code, Database, Gamepad2, Image, Info, KeyRound, MessageSquare, Plug, ScrollText, Users, Volume2, Stethoscope } from 'lucide-react';
+import { ArrowLeft, Globe, ShieldCheck, ToggleRight, Bot, BookOpen, Brush, Code, Database, Gamepad2, Image, Info, KeyRound, MessageSquare, Plug, ScrollText, Users, Volume2, Stethoscope } from 'lucide-react';
 import { lazy, Suspense } from 'react';
+import type { FeatureId } from '@everloom/engine';
+import { useFeatures } from '@/lib/features';
 import { NavLink, useLocation, useNavigate, useParams } from 'react-router';
 import { Page } from '@/app/Shell';
 import { cx } from '@/lib/format';
@@ -13,6 +15,8 @@ const AppearanceSection = lazy(() => import('./sections/Appearance'));
 const CustomCssSection = lazy(() => import('./sections/CustomCss'));
 const CharactersSection = lazy(() => import('./sections/Characters'));
 const SourcesSection = lazy(() => import('./sections/Sources'));
+const FeaturesSection = lazy(() => import('./sections/Features'));
+const PrivacySection = lazy(() => import('./sections/Privacy'));
 const ChatSection = lazy(() => import('./sections/ChatSettings'));
 const VoiceSection = lazy(() => import('./sections/Voice'));
 const ImagesSection = lazy(() => import('./sections/Images'));
@@ -21,19 +25,22 @@ const AccountSection = lazy(() => import('./sections/Account'));
 const AboutSection = lazy(() => import('./sections/About'));
 const DiagnosticsSection = lazy(() => import('./sections/Diagnostics'));
 
-export const SECTIONS = [
+/** A section whose module is off in Settings › Features isn't listed. */
+export const SECTIONS: Array<{ id: string; label: string; icon: typeof Plug; el: React.LazyExoticComponent<() => React.ReactNode>; feature?: FeatureId }> = [
   { id: 'connections', label: 'Connections', icon: Plug, el: ConnectionsSection },
+  { id: 'features', label: 'Features', icon: ToggleRight, el: FeaturesSection },
   { id: 'prompts', label: 'Prompts & presets', icon: ScrollText, el: PromptsSection },
   { id: 'chat', label: 'Chat', icon: MessageSquare, el: ChatSection },
-  { id: 'game', label: 'Game & trackers', icon: Gamepad2, el: GameSection },
+  { id: 'game', label: 'Game & trackers', icon: Gamepad2, el: GameSection, feature: 'game' },
   { id: 'characters', label: 'Characters', icon: Users, el: CharactersSection },
-  { id: 'sources', label: 'Character sources', icon: Globe, el: SourcesSection },
+  { id: 'sources', label: 'Character sources', icon: Globe, el: SourcesSection, feature: 'sources' },
   { id: 'lore', label: 'World info', icon: BookOpen, el: LoreSection },
   { id: 'appearance', label: 'Appearance', icon: Brush, el: AppearanceSection },
   { id: 'css', label: 'Custom CSS', icon: Code, el: CustomCssSection },
-  { id: 'voice', label: 'Voice', icon: Volume2, el: VoiceSection },
-  { id: 'images', label: 'Images', icon: Image, el: ImagesSection },
+  { id: 'voice', label: 'Voice', icon: Volume2, el: VoiceSection, feature: 'voice' },
+  { id: 'images', label: 'Images', icon: Image, el: ImagesSection, feature: 'imagegen' },
   { id: 'data', label: 'Backups & import', icon: Database, el: DataSection },
+  { id: 'privacy', label: 'Privacy', icon: ShieldCheck, el: PrivacySection },
   { id: 'account', label: 'Account & security', icon: KeyRound, el: AccountSection },
   { id: 'diagnostics', label: 'Diagnostics', icon: Stethoscope, el: DiagnosticsSection },
   { id: 'about', label: 'About', icon: Info, el: AboutSection },
@@ -45,13 +52,15 @@ export default function SettingsPage() {
   const desktop = useDesktop();
   const navigate = useNavigate();
   const { pathname } = useLocation();
-  const active = SECTIONS.find((s) => s.id === section) ?? (desktop ? SECTIONS[0] : null);
+  const features = useFeatures(null);
+  const sections = SECTIONS.filter((s) => !s.feature || features.on[s.feature]);
+  const active = sections.find((s) => s.id === section) ?? (desktop ? sections[0] : null);
 
   if (!desktop && !active) {
     return (
       <Page narrow title="Settings">
         <nav className="flex flex-col">
-          {SECTIONS.map((s) => (
+          {sections.map((s) => (
             <NavLink key={s.id} to={`/settings/${s.id}`} className="pressable -mx-2 flex min-h-12 items-center gap-3 rounded-md px-2 text-base hover:bg-surface-2">
               <Icon icon={s.icon} className="text-fg-2" />
               {s.label}
@@ -67,7 +76,7 @@ export default function SettingsPage() {
       <div className={cx(desktop && 'grid grid-cols-[220px_1fr] gap-8')}>
         {desktop ? (
           <nav className="sticky top-[72px] flex h-fit flex-col gap-0.5">
-            {SECTIONS.map((s) => (
+            {sections.map((s) => (
               <NavLink key={s.id} to={`/settings/${s.id}`} className={cx('pressable flex h-9 items-center gap-2.5 rounded-md px-2.5 text-sm', active!.id === s.id ? 'bg-surface-2 font-medium text-fg' : 'text-fg-2 hover:bg-surface-2 hover:text-fg')}>
                 <Icon icon={s.icon} size={18} />
                 {s.label}

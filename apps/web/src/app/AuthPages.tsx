@@ -1,6 +1,7 @@
 import { useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
-import { ApiError, post } from '@/lib/api';
+import { ApiError, patch, post, setCsrf } from '@/lib/api';
+import { PRESET_INFO, type FeaturePreset } from '@everloom/engine';
 import { Button, Field, Input } from '@/ui';
 import { Logo } from './Logo';
 
@@ -23,6 +24,7 @@ export function SetupPage({ onDone }: { onDone: () => void }) {
   const [confirm, setConfirm] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [step, setStep] = useState<'account' | 'mode'>('account');
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -30,14 +32,37 @@ export function SetupPage({ onDone }: { onDone: () => void }) {
     if (password !== confirm) return setError('Passwords do not match.');
     setBusy(true);
     try {
-      await post('/api/auth/setup', { username, password });
-      onDone();
+      const r = await post<{ csrf: string }>('/api/auth/setup', { username, password });
+      setCsrf(r.csrf);
+      setStep('mode');
     } catch (err) {
       setError((err as Error).message);
     } finally {
       setBusy(false);
     }
   };
+  const choose = async (p: FeaturePreset) => {
+    setBusy(true);
+    try {
+      await patch('/api/settings', { features: { preset: p } });
+    } catch {
+      /* the default (everything on) stays; it can be changed in Settings › Features */
+    }
+    onDone();
+  };
+  if (step === 'mode')
+    return (
+      <Frame title="How will you use Everloom?" subtitle="You can change this any time in Settings › Features, and each chat can have its own mode.">
+        <div className="flex flex-col gap-2" role="list" aria-label="Modes">
+          {(['classic', 'story', 'full'] as const).map((p) => (
+            <button key={p} role="listitem" disabled={busy} onClick={() => choose(p)} className="pressable flex flex-col gap-1 rounded-lg border border-line p-3 text-left hover:bg-surface-2">
+              <span className="font-medium">{PRESET_INFO[p].label}</span>
+              <span className="text-xs text-fg-2">{PRESET_INFO[p].description}</span>
+            </button>
+          ))}
+        </div>
+      </Frame>
+    );
   return (
     <Frame title="Welcome to Everloom" subtitle="Create the owner account. This server is on the internet, so pick a strong password.">
       <form onSubmit={submit} className="flex flex-col gap-4">

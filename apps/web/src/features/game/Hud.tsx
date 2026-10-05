@@ -72,21 +72,7 @@ export function HudItems({ s, pinned }: { s: CampaignState; pinned: string[] }) 
 }
 
 /** What the status bar can show, in the order offered. */
-export const HUD_OPTIONS = [
-  ['time', 'Time'],
-  ['date', 'Date'],
-  ['weather', 'Weather'],
-  ['location', 'Location'],
-  ['currency', 'Money'],
-  ['hp', 'HP'],
-  ['mp', 'MP'],
-  ['ap', 'AP'],
-  ['xp', 'XP'],
-  ['hunger', 'Hunger'],
-  ['energy', 'Energy'],
-  ['hygiene', 'Hygiene'],
-  ['status', 'Status'],
-] as const;
+export { HUD_OPTIONS } from './hud-options';
 
 /** Thin, tappable HUD strip. Tap opens the full status sheet. On desktop it can float instead. */
 export function Hud() {

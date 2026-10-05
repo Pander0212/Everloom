@@ -7,6 +7,7 @@
 import { pickPlaylist, type AmbientKind, type CampaignState } from '@everloom/engine';
 import { useEffect, useRef } from 'react';
 import { useSettings } from '@/lib/queries';
+import { useFeatureOn } from '@/lib/features';
 import { useGame } from './context';
 
 export function autoAmbient(s: CampaignState): Exclude<AmbientKind, 'auto'> {
@@ -254,7 +255,10 @@ class Synth {
 export function AudioDirector() {
   const { state: s } = useGame();
   const settings = useSettings();
-  const a = settings.data?.audio;
+  const musicOn = useFeatureOn('music');
+  const ambienceOn = useFeatureOn('ambience');
+  // A module switched off in Settings › Features stays silent whatever the audio settings say.
+  const a = settings.data?.audio ? { ...settings.data.audio, music: settings.data.audio.music && musicOn, ambient: settings.data.audio.ambient && ambienceOn } : undefined;
   const live = useRef(0);
   const current = useRef<{ key: string; tracks: string[]; i: number } | null>(null);
   const amb = useRef<{ kind: string; synth?: Synth; el?: HTMLAudioElement } | null>(null);

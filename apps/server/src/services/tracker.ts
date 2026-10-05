@@ -1,5 +1,6 @@
 /** Tracker pass: after an AI message, ask the utility model for JSON ops and apply them. */
-import { buildTrackerPrompt, parseTrackerOutput, stripInlineTags, TRACKER_REPAIR_PROMPT, type Op, type TrackerExtras } from '@everloom/engine';
+import { AI_OP_TYPES, allowedOpTypes, buildTrackerPrompt, parseTrackerOutput, stripInlineTags, TRACKER_REPAIR_PROMPT, type Op, type TrackerExtras } from '@everloom/engine';
+import { settingsFor } from './features.js';
 import type { AppContext } from '../context.js';
 import { completeChat } from '../llm/providers.js';
 import { logged, promptTokens } from './calls.js';
@@ -41,13 +42,16 @@ async function doRun(ctx: AppContext, owner: string, chatId: string, messageId: 
   const target = getMessage(ctx, owner, messageId);
   const swipeId = target.swipeId;
   const textAtStart = target.swipes[swipeId]?.text ?? '';
-  const settings = getSettings(ctx, owner);
+  const { settings, features } = settingsFor(ctx, owner, chat);
+  if (!features.on.game || !features.on.trackers) return { ok: false, summary: [], error: 'The tracker is turned off' };
+  // Only the enabled modules' ops are offered and accepted.
+  const allowed = allowedOpTypes(AI_OP_TYPES, features);
   const all = listMessages(ctx, owner, chatId).filter((m) => !m.hidden && m.seq <= target.seq);
   const state = getState(ctx, owner, chat.campaignId);
   const { system, user } = buildTrackerPrompt(
     state,
     all.slice(-6).map((m) => ({ name: m.name, role: m.role, text: stripInlineTags(m.swipes[m.swipeId]?.text ?? '') })),
-    { characterNames: characterRefs(ctx, owner).map((c) => c.name).slice(0, 40), memory: settings.world.memory },
+    { characterNames: characterRefs(ctx, owner).map((c) => c.name).slice(0, 40), memory: settings.world.memory, allowed },
   );
   ctx.bus.publish(owner, 'tracker.status', { chatId, messageId, status: 'running' });
   const call = (extra: Array<{ role: 'user' | 'assistant'; content: string }> = []) => {
@@ -67,14 +71,14 @@ async function doRun(ctx: AppContext, owner: string, chatId: string, messageId: 
     ctx.bus.publish(owner, 'tracker.status', { chatId, messageId, status: 'error', error: (e as Error).message });
     return { ok: false, summary: [], error: (e as Error).message };
   }
-  let parsed = parseTrackerOutput(out.text);
+  let parsed = parseTrackerOutput(out.text, allowed);
   if (!parsed.parsed) {
     try {
       const retry = await call([
         { role: 'assistant', content: out.text.slice(0, 2000) },
         { role: 'user', content: TRACKER_REPAIR_PROMPT },
       ]);
-      parsed = parseTrackerOutput(retry.text);
+      parsed = parseTrackerOutput(retry.text, allowed);
     } catch {
       /* keep the failed parse */
     }
@@ -116,7 +120,7 @@ export function playerName(ctx: AppContext, owner: string, chat: ReturnType<type
 
 /** After the ops: the turn's memories and facts, then free off-screen gossip. */
 export function writeTurnWorld(ctx: AppContext, owner: string, chatId: string, messageId: string, swipeId: number, extras: TrackerExtras): TurnWriteResult | null {
-  const settings = getSettings(ctx, owner);
+  const { settings } = settingsFor(ctx, owner, getChat(ctx, owner, chatId));
   const chat = getChat(ctx, owner, chatId);
   const state = chat.campaignId ? getState(ctx, owner, chat.campaignId) : null;
   const m = getMessage(ctx, owner, messageId);

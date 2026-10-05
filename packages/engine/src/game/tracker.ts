@@ -2,14 +2,14 @@
 import { extractJson } from '../util/json-extract.js';
 import { truncate } from '../util/text.js';
 import { buildGameStateBlock } from './injection.js';
-import { OP_REFERENCE, validateOps, type ValidatedOps } from './ops.js';
+import { AI_OP_TYPES, OP_REFERENCE, opReferenceFor, validateOps, type OpType, type ValidatedOps } from './ops.js';
 import type { CampaignState } from './state.js';
 
 import { INLINE_TAG_RE } from './inline-tags.js';
 
 export { INLINE_TAG_RE, stripInlineTags } from './inline-tags.js';
 
-export function extractInlineOps(text: string): ValidatedOps & TrackerExtras & { found: boolean } {
+export function extractInlineOps(text: string, allowed?: readonly string[]): ValidatedOps & TrackerExtras & { found: boolean } {
   const all: unknown[] = [];
   const extras: TrackerExtras = { memories: [], facts: [] };
   let found = false;
@@ -26,11 +26,15 @@ export function extractInlineOps(text: string): ValidatedOps & TrackerExtras & {
       extras.facts.push(...x.facts);
     }
   }
-  return { ...validateOps(all), ...extras, found };
+  return { ...validateOps(all, (allowed as OpType[] | undefined) ?? AI_OP_TYPES), ...extras, found };
 }
 
 export const INLINE_INSTRUCTION = `After your reply, append the game-state changes that happened in it as <everloom>{"ops":[...]}</everloom>. Use only these ops; omit the tag if nothing changed.
 ${OP_REFERENCE}`;
+
+/** The inline instruction limited to some op types (feature switches). */
+export const inlineInstruction = (allowed?: readonly string[]) =>
+  allowed ? `After your reply, append the game-state changes that happened in it as <everloom>{"ops":[...]}</everloom>. Use only these ops; omit the tag if nothing changed.\n${opReferenceFor(allowed)}` : INLINE_INSTRUCTION;
 
 export interface TrackerMessage {
   name: string;
@@ -44,17 +48,19 @@ export const MEMORY_CONTRACT = `Also record what is worth remembering from the l
 - "facts": standing truths the turn establishes or CHANGES about a person, place or the world (rank, job, home, allegiance, relationship status, a lasting injury). Fields: "about" (a name, or "world"), "key" (a short slot like "rank"), "value", "text" (one sentence), "changed" (true only if the turn shows it changing, e.g. "was knighted").
 Leave both empty when nothing notable happened.`;
 
-export function buildTrackerPrompt(state: CampaignState, messages: TrackerMessage[], opts: { characterNames?: string[]; memory?: boolean } = {}) {
+export function buildTrackerPrompt(state: CampaignState, messages: TrackerMessage[], opts: { characterNames?: string[]; memory?: boolean; allowed?: readonly string[] } = {}) {
   const memory = opts.memory !== false;
+  // Only the enabled modules' ops are described (a shorter, cheaper prompt).
+  const reference = opts.allowed ? opReferenceFor(opts.allowed) : OP_REFERENCE;
+  const timeRule = !opts.allowed || opts.allowed.includes('time.advance') ? '\n- Include a "time.advance" op with the minutes the scene plausibly took (0 if unclear).' : '';
   const system = `You are the bookkeeper for a roleplay game. Read the latest story turn and output ONLY the state changes it caused, as JSON: {"ops":[...]${memory ? ',"memories":[...],"facts":[...]' : ''}}.
 Rules:
 - Only record what actually happened in the latest turn. Never repeat changes from earlier turns.
 - Numbers are small and realistic (a meal: hunger -20..-30; a short walk: 5..15 minutes).
-- Use existing names from the state when referring to people, places, items and organizations.
-- Include a "time.advance" op with the minutes the scene plausibly took (0 if unclear).
+- Use existing names from the state when referring to people, places, items and organizations.${timeRule}
 - If nothing changed, output {"ops":[]${memory ? ',"memories":[],"facts":[]' : ''}}.
 - Output JSON only. No prose, no markdown.
-${OP_REFERENCE}${memory ? `\n\n${MEMORY_CONTRACT}` : ''}`;
+${reference}${memory ? `\n\n${MEMORY_CONTRACT}` : ''}`;
   const stateBlock = buildGameStateBlock(state, { budgetTokens: 700 });
   const convo = messages
     .slice(-6)
@@ -113,8 +119,8 @@ export function readTrackerExtras(value: unknown): TrackerExtras {
   return { memories, facts };
 }
 
-export function parseTrackerOutput(text: string): ValidatedOps & TrackerExtras & { parsed: boolean } {
+export function parseTrackerOutput(text: string, allowed?: readonly string[]): ValidatedOps & TrackerExtras & { parsed: boolean } {
   const r = extractJson(text);
   if (!r.ok) return { ok: [], rejected: [], parsed: false, memories: [], facts: [] };
-  return { ...validateOps(r.value), ...readTrackerExtras(r.value), parsed: true };
+  return { ...validateOps(r.value, (allowed as OpType[] | undefined) ?? AI_OP_TYPES), ...readTrackerExtras(r.value), parsed: true };
 }

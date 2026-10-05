@@ -1,5 +1,6 @@
 /** Guarded outbound HTTP for user-configured endpoints: scheme check, timeouts, response size caps. */
 import { HttpError } from '../context.js';
+import { shieldOutbound, type OutboundKind } from '../privacy/shield.js';
 
 export interface SafeFetchOptions extends RequestInit {
   timeoutMs?: number;
@@ -7,6 +8,8 @@ export interface SafeFetchOptions extends RequestInit {
   idleMs?: number;
   maxBytes?: number;
   signal?: AbortSignal;
+  /** What the body is for the name shield (default: shielded as text). `false` only for bodies with no content. */
+  shield?: OutboundKind | false;
 }
 
 export function checkUrl(raw: string): URL {
@@ -23,6 +26,8 @@ export function checkUrl(raw: string): URL {
 
 export async function safeFetch(raw: string, opts: SafeFetchOptions = {}): Promise<Response> {
   const url = checkUrl(raw);
+  // The name shield's choke point: every outgoing body passes here (see privacy/shield.ts).
+  if (typeof opts.body === 'string' && opts.shield !== false) opts = { ...opts, body: shieldOutbound(opts.body, opts.shield || 'other') };
   const ctrl = new AbortController();
   const timeout = setTimeout(() => ctrl.abort(new Error('Request timed out')), opts.timeoutMs ?? 60_000);
   const onAbort = () => ctrl.abort(opts.signal?.reason ?? new Error('Aborted'));

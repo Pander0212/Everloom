@@ -3,7 +3,8 @@ import { Search, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { post } from '@/lib/api';
-import { useCharacters, useGroups, usePersonas } from '@/lib/queries';
+import { useCharacters, useGroups, usePersonas, useSettings } from '@/lib/queries';
+import { FEATURE_PRESETS, PRESET_INFO, type FeaturePreset } from '@everloom/engine';
 import { toastError } from '@/lib/store';
 import { Avatar, Button, EmptyState, Field, Icon, Input, ListRow, Segmented, Select, Sheet } from '@/ui';
 
@@ -15,6 +16,12 @@ export function NewChatSheet({ open, onOpenChange, characterId }: { open: boolea
   const [q, setQ] = useState('');
   const [picked, setPicked] = useState<string | null>(characterId ?? null);
   const [personaId, setPersonaId] = useState<string>('');
+  const [mode, setMode] = useState<'' | FeaturePreset>('');
+  const settings = useSettings();
+  const global = settings.data?.features.preset ?? 'full';
+  // Ask only when the character has no default mode of its own.
+  const pickedChar = kind === 'character' ? chars.data?.find((c) => c.id === picked) : null;
+  const charDefault = pickedChar?.chatMode ?? null;
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -27,7 +34,7 @@ export function NewChatSheet({ open, onOpenChange, characterId }: { open: boolea
     if (!picked) return;
     setBusy(true);
     try {
-      const chat = await post('/api/chats', { [kind === 'character' ? 'characterId' : 'groupId']: picked, personaId: personaId || undefined });
+      const chat = await post('/api/chats', { [kind === 'character' ? 'characterId' : 'groupId']: picked, personaId: personaId || undefined, ...(mode ? { features: mode } : {}) });
       await qc.invalidateQueries({ queryKey: ['chats'] });
       onOpenChange(false);
       navigate(`/chat/${chat.id}`);
@@ -81,6 +88,18 @@ export function NewChatSheet({ open, onOpenChange, characterId }: { open: boolea
             <EmptyState icon={Users} title={kind === 'character' ? 'No characters yet' : 'No groups yet'} body={kind === 'character' ? 'Import a card or create a character first.' : 'Create a group from the Characters tab.'} />
           )
         ) : null}
+        {charDefault ? null : (
+          <Field label="Mode" htmlFor="newchat-mode" hint="Classic is a plain roleplay chat; Story adds memory and the stage; Full RPG adds the whole game.">
+            <Select id="newchat-mode" value={mode} onChange={(e) => setMode(e.target.value as '' | FeaturePreset)}>
+              <option value="">{global === 'custom' ? 'My feature settings' : `${PRESET_INFO[global].label} (from Settings)`}</option>
+              {FEATURE_PRESETS.map((p) => (
+                <option key={p} value={p}>
+                  {PRESET_INFO[p].label}
+                </option>
+              ))}
+            </Select>
+          </Field>
+        )}
         <Field label="Play as" htmlFor="persona">
           <Select id="persona" value={personaId} onChange={(e) => setPersonaId(e.target.value)}>
             <option value="">Default persona</option>

@@ -9,6 +9,9 @@ import { HttpError, type AppContext } from './context.js';
 import { reconcileLegacyCampaigns } from './services/campaigns.js';
 import { openDb, type DB } from './db/index.js';
 import { registerAuth } from './routes/auth.js';
+import { runWithShield } from './privacy/shield.js';
+import { installShield } from './services/shield.js';
+import { registerPrivacy } from './routes/privacy.js';
 import { registerChats } from './routes/chats.js';
 import { registerEvents } from './routes/events.js';
 import { registerGame } from './routes/game.js';
@@ -102,6 +105,13 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   });
 
   registerAuth(app, ctx);
+  // Name shield: each request runs with its owner (and chat, when the address names one), so every
+  // outgoing model, voice or image request it causes is shielded with the right terms.
+  installShield(ctx);
+  app.addHook('preHandler', (req, _reply, done) => {
+    const m = /^\/api\/chats\/([^/?]+)/.exec(req.url);
+    runWithShield({ owner: req.user?.id ?? null, chatId: m && m[1] !== 'import' ? m[1] : null, allowOnce: req.headers['x-shield-allow-once'] === '1' }, done);
+  });
   registerEvents(app, ctx);
   registerLibrary(app, ctx);
   registerChats(app, ctx);
@@ -121,6 +131,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerLive2d(app, ctx);
   registerAssetRoutes(app, ctx);
   registerSystem(app, ctx);
+  registerPrivacy(app, ctx);
 
   const indexFile = path.join(cfg.webDir, 'index.html');
   if (existsSync(indexFile)) {

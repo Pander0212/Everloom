@@ -34,7 +34,7 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
   app.get('/api/chats', async (req) => chats.listChats(ctx, owner(req), req.query as any));
   app.post('/api/chats', async (req) => {
     const b = parse(
-      z.object({ characterId: z.string().nullable().optional(), groupId: z.string().nullable().optional(), personaId: z.string().nullable().optional(), title: z.string().max(200).optional(), campaign: z.string().max(80).optional(), greeting: z.boolean().optional() }),
+      z.object({ characterId: z.string().nullable().optional(), groupId: z.string().nullable().optional(), personaId: z.string().nullable().optional(), title: z.string().max(200).optional(), campaign: z.string().max(80).optional(), greeting: z.boolean().optional(), features: z.enum(['classic', 'story', 'full']).nullable().optional() }),
       req.body,
     );
     const chat = chats.createChat(ctx, owner(req), b);
@@ -112,7 +112,7 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
       await generate(ctx, owner(req), chatId, { ...b, origin: req.clientId }, send);
     } catch (e) {
       const err = e as HttpError;
-      send({ type: 'error', error: err.message });
+      send({ type: 'error', error: err.message, code: err.code });
     } finally {
       clearInterval(ping);
       if (!closed) raw.end();

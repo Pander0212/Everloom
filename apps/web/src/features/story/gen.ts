@@ -29,13 +29,13 @@ export async function generate(chatId: string, type: GenType, opts: { text?: str
 }
 
 /** Drive any server endpoint that streams generation events (chat turns, New Game openings). */
-export async function runGeneration(chatId: string, type: GenType, url: string, body: unknown, onEvent?: (ev: any) => void): Promise<string | null> {
+export async function runGeneration(chatId: string, type: GenType, url: string, body: unknown, onEvent?: (ev: any) => void, headers?: Record<string, string>): Promise<string | null> {
   if (useGen.getState().chatId) return null;
   const controller = new AbortController();
   useGen.setState({ chatId, messageId: null, swipeId: 0, type, text: '', reasoning: '', controller });
   let result: string | null = null;
   try {
-    for await (const ev of streamPost<GenerateEvent>(url, body, controller.signal)) {
+    for await (const ev of streamPost<GenerateEvent>(url, body, controller.signal, headers)) {
       onEvent?.(ev);
       switch (ev.type) {
         case 'user':
@@ -56,7 +56,15 @@ export async function runGeneration(chatId: string, type: GenType, url: string, 
           if (ev.error) toast({ title: 'Reply cut short', lines: [ev.error], tone: 'danger' });
           break;
         case 'error':
-          toast({ title: 'Could not generate a reply', lines: [ev.error ?? 'Unknown error'], tone: 'danger' });
+          // The name shield caught a protected name; when the owner chose "ask", offer to send it once.
+          if (ev.code === 'shield_leak' && /send it anyway/i.test(ev.error ?? ''))
+            toast({
+              title: 'Name shield',
+              lines: [ev.error ?? ''],
+              tone: 'danger',
+              action: { label: 'Send anyway', run: () => void runGeneration(chatId, type, url, { ...(body as object), text: undefined }, onEvent, { 'x-shield-allow-once': '1' }) },
+            });
+          else toast({ title: ev.code === 'shield_leak' ? 'Name shield' : 'Could not generate a reply', lines: [ev.error ?? 'Unknown error'], tone: 'danger' });
           break;
       }
     }

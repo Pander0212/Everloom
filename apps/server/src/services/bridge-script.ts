@@ -43,6 +43,7 @@ ${BRIDGE_MATCHES.map((m) => `// @match        ${m}`).join('\n')}
 // @grant        GM_getValue
 // @grant        GM_setValue
 // @grant        GM_registerMenuCommand
+// @grant        GM_setClipboard
 // @connect      *
 // @run-at       document-idle
 // @noframes
@@ -111,6 +112,11 @@ ${BRIDGE_MATCHES.map((m) => `// @match        ${m}`).join('\n')}
     var payload = await everloomExtract(view);
     if (!payload) return { ok: false, error: 'No character found on this page' };
     log('payload', payload.file ? { file: payload.file.name, bytes: payload.file.data.length } : payload);
+    if (cfg.debug) {
+      // Bridge debug: what was found, without file contents and with no token, copied for a bug report.
+      var report = JSON.stringify({ page: payload.page, site: payload.site, hidden: !!payload.hidden, nsfw: !!payload.nsfw, file: payload.file ? { name: payload.file.name, base64Length: payload.file.data.length } : null, card: payload.card || null, avatar: payload.avatar ? 'base64 (' + payload.avatar.length + ')' : payload.avatarUrl || null, script: '${USERSCRIPT_VERSION}' }, null, 1);
+      try { GM_setClipboard(report, 'text'); } catch (e) {}
+    }
     if (cfg.debug && !confirm('Everloom bridge (debug)\\n\\n' + JSON.stringify(Object.assign({}, payload, payload.file ? { file: { name: payload.file.name, base64Length: payload.file.data.length } } : {}, payload.avatar ? { avatar: '(' + payload.avatar.length + ' base64 chars)' } : {}), null, 1).slice(0, 1500) + '\\n\\nSend it?')) return { ok: false, error: 'Cancelled' };
     var t = await ensureToken();
     if (!t) return { ok: false, error: 'Not paired yet' };
@@ -185,7 +191,7 @@ ${BRIDGE_MATCHES.map((m) => `// @match        ${m}`).join('\n')}
     p.innerHTML = '<b>Everloom bridge</b>' +
       '<label style="display:block;margin-top:10px">Everloom address<input data-k="origin" style="width:100%;margin-top:4px;padding:6px;border-radius:6px;border:1px solid #444;background:#292524;color:inherit"></label>' +
       '<label style="display:block;margin-top:10px">Device token<input data-k="token" type="password" placeholder="evb_…" style="width:100%;margin-top:4px;padding:6px;border-radius:6px;border:1px solid #444;background:#292524;color:inherit"></label>' +
-      '<label style="display:flex;gap:6px;align-items:center;margin-top:10px"><input data-k="debug" type="checkbox"> Debug: show what is sent first</label>' +
+      '<label style="display:flex;gap:6px;align-items:center;margin-top:10px"><input data-k="debug" type="checkbox"> Debug: show and copy what is found</label>' +
       '<div style="display:flex;gap:8px;margin-top:12px"><button data-a="test">Test</button><button data-a="save">Save</button><button data-a="close">Close</button></div>' +
       '<p data-k="out" style="margin:8px 0 0;font-size:12px;color:#d6d3d1"></p>';
     p.querySelectorAll('button').forEach(function (b) { b.style.cssText = 'flex:1;padding:6px;border:0;border-radius:6px;background:#e8b04b;color:#1c1917;font:600 13px system-ui;cursor:pointer'; });

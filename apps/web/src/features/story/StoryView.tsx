@@ -8,13 +8,13 @@ import { del, patch, post } from '@/lib/api';
 import { useLive } from '@/lib/events';
 import { cx } from '@/lib/format';
 import { t } from '@/lib/motion';
+import { FeaturesContext, useFeatures } from '@/lib/features';
 import { qk, upsertMessage, useCampaign, useCharacter, useChat, useGroups, useMessages, useSettings } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
 import { Avatar, Button, confirm, IconButton, Menu, Spinner } from '@/ui';
 import { Composer } from './Composer';
 import { generate, stop, useGen } from './gen';
 import { Message, type MessageActions } from './Message';
-import { CastStrip } from '../game/CastStrip';
 import { WorldInspector } from '../inspector/WorldInspector';
 import { MemorySheet } from '../memory/MemorySheet';
 import { ChatInfoSheet, InspectorSheet, NoteSheet, SearchSheet } from './sheets';
@@ -22,9 +22,11 @@ import { speak } from './tts';
 import { GameLayer } from '@/features/game/GameLayer';
 import type { Command } from '@/features/game/CommandMenu';
 import { SavesSheet, ViewSheet } from './SavesSheet';
-import { ComposerChips } from '@/features/game/ComposerChips';
 
 const Stage = lazy(() => import('@/features/game/Stage'));
+// Game-only pieces: not downloaded unless the game layer is on.
+const CastStrip = lazy(() => import('../game/CastStrip').then((m) => ({ default: m.CastStrip })));
+const ComposerChips = lazy(() => import('@/features/game/ComposerChips').then((m) => ({ default: m.ComposerChips })));
 
 const PAGE = 80;
 
@@ -37,7 +39,10 @@ export default function StoryView() {
   const settings = useSettings();
   const groups = useGroups();
   const character = useCharacter(chat.data?.characterId);
-  const campaign = useCampaign(chat.data?.campaignId);
+  // Game layer off for this chat: the game's data stays on the server but isn't loaded or shown.
+  const features = useFeatures(chat.data?.metadata);
+  const gameOn = !!chat.data?.campaignId && features.on.game;
+  const campaign = useCampaign(gameOn ? chat.data?.campaignId : null);
   const gen = useGen();
   const streams = useLive((s) => s.streams);
   const [composer, setComposer] = useState('');
@@ -59,7 +64,7 @@ export default function StoryView() {
 
   const busy = gen.chatId === id || Object.keys(streams).some((mid) => messages.data?.some((m) => m.id === mid));
   const group = chat.data?.groupId ? groups.data?.find((g) => g.id === chat.data!.groupId) : null;
-  const mode = chat.data?.metadata.mode ?? 'chat';
+  const mode = features.on.stage ? (chat.data?.metadata.mode ?? 'chat') : 'chat';
   const list = messages.data ?? [];
   const visible = list.slice(Math.max(0, list.length - limit));
   const lastAssistant = [...list].reverse().find((m) => m.role === 'assistant');
@@ -85,8 +90,8 @@ export default function StoryView() {
     setStuck(true);
   }, [id]);
   useEffect(() => {
-    if (chat.data?.campaignId) void post(`/api/campaigns/${chat.data.campaignId}/tick`, { chatId: id }).catch(() => {});
-  }, [chat.data?.campaignId, id]);
+    if (gameOn && features.on.time && chat.data?.campaignId) void post(`/api/campaigns/${chat.data.campaignId}/tick`, { chatId: id }).catch(() => {});
+  }, [chat.data?.campaignId, id, gameOn, features.on.time]);
 
   const onScroll = () => {
     const el = scroller.current;
@@ -117,7 +122,7 @@ export default function StoryView() {
   const run = async (type: Parameters<typeof generate>[1], text?: string) => {
     setStuck(true);
     const r = await generate(id, type, { text, characterId: speaker, target: type === 'normal' && text ? target : null });
-    if (settings.data?.chat.autoTts && type !== 'impersonate') {
+    if (settings.data?.chat.autoTts && features.on.voice && type !== 'impersonate') {
       const last = qc.getQueryData<MessageDTO[]>(qk.messages(id))?.at(-1);
       if (last?.role === 'assistant') void speak(last.swipes[last.swipeId]?.text ?? '', { settings: settings.data, voice: character.data?.game.voice?.voice, speed: character.data?.game.voice?.speed, reference: refOf(character.data?.game.voice) }).catch(() => {});
     }
@@ -179,11 +184,11 @@ export default function StoryView() {
           toastError(e);
         }
       },
-      onSpeak: (m) => settings.data && void speak(m.swipes[m.swipeId]?.text ?? '', { settings: settings.data, voice: m.role === 'assistant' ? character.data?.game.voice?.voice : undefined, reference: m.role === 'assistant' ? refOf(character.data?.game.voice) : undefined }).catch(toastError),
+      onSpeak: (m) => settings.data && features.on.voice && void speak(m.swipes[m.swipeId]?.text ?? '', { settings: settings.data, voice: m.role === 'assistant' ? character.data?.game.voice?.voice : undefined, reference: m.role === 'assistant' ? refOf(character.data?.game.voice) : undefined }).catch(toastError),
       onRegenerate: () => void run('regenerate'),
     }),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [id, list, lastAssistant?.id, settings.data, character.data, speaker],
+    [id, list, lastAssistant?.id, settings.data, character.data, speaker, features.on.voice],
   );
 
   if (chat.isLoading || messages.isLoading) {
@@ -242,11 +247,11 @@ export default function StoryView() {
               );
             })}
           </div>
-        ) : c.campaignId ? (
-          <>
+        ) : gameOn ? (
+          <Suspense fallback={null}>
             <CastStrip />
             <ComposerChips campaign={campaign.data ?? null} target={target} setTarget={setTarget} setComposer={setComposer} composer={composer} chatId={id} busy={busy} />
-          </>
+          </Suspense>
         ) : null
       }
     />
@@ -265,10 +270,10 @@ export default function StoryView() {
         if (t2) setComposer(String(t2));
       },
     },
-    ...(c.campaignId ? [{ id: 'newgame', label: 'New game setup', icon: Sparkles, group: 'Quick' as const, keywords: 'wizard start campaign', run: () => document.dispatchEvent(new CustomEvent('everloom:tool', { detail: 'newgame' })) }] : []),
-    ...(c.campaignId ? [{ id: 'log', label: 'Meanwhile… (world log)', icon: History, group: 'Quick' as const, keywords: 'events news digest', run: () => document.dispatchEvent(new CustomEvent('everloom:tool', { detail: 'log' })) }] : []),
+    ...(gameOn ? [{ id: 'newgame', label: 'New game setup', icon: Sparkles, group: 'Quick' as const, keywords: 'wizard start campaign', run: () => document.dispatchEvent(new CustomEvent('everloom:tool', { detail: 'newgame' })) }] : []),
+    ...(gameOn ? [{ id: 'log', label: 'Meanwhile… (world log)', icon: History, group: 'Quick' as const, keywords: 'events news digest', run: () => document.dispatchEvent(new CustomEvent('everloom:tool', { detail: 'log' })) }] : []),
     { id: 'note', label: "Author's note", icon: NotebookPen, group: 'Quick', run: () => setSheet('note') },
-    { id: 'memory', label: 'Memory', icon: Brain, group: 'Quick', keywords: 'summary', run: () => setSheet('memory') },
+    ...(features.memory !== 'off' ? [{ id: 'memory', label: 'Memory', icon: Brain, group: 'Quick' as const, keywords: 'summary', run: () => setSheet('memory') }] : []),
     { id: 'inspector', label: 'Prompt inspector', icon: ScrollText, group: 'Quick', keywords: 'tokens debug', run: () => setSheet('inspector') },
     { id: 'world', label: 'World inspector', icon: Telescope, group: 'Quick', keywords: 'scene block calls cost health changes undo', run: () => setSheet('world') },
     { id: 'saves', label: 'Saves', icon: Save, group: 'Quick', keywords: 'save load slot checkpoint', run: () => setSheet('saves') },
@@ -313,7 +318,7 @@ export default function StoryView() {
           </span>
         </button>
         <IconButton icon={Search} label="Find in chat" onClick={() => setSheet('search')} />
-        <IconButton icon={BookText} label={mode === 'stage' ? 'Switch to chat mode' : 'Switch to stage mode'} active={mode === 'stage'} onClick={() => setMode(mode === 'stage' ? 'chat' : 'stage')} />
+        {features.on.stage ? <IconButton icon={BookText} label={mode === 'stage' ? 'Switch to chat mode' : 'Switch to stage mode'} active={mode === 'stage'} onClick={() => setMode(mode === 'stage' ? 'chat' : 'stage')} /> : null}
         <Menu
           trigger={<IconButton icon={MoreHorizontal} label="Chat menu" />}
           items={[
@@ -329,6 +334,7 @@ export default function StoryView() {
         />
       </header>
 
+      <FeaturesContext.Provider value={features}>
       <GameLayer chat={c} campaign={campaign.data ?? null} busy={busy} onRun={run} setComposer={setComposer} menuOpen={menuOpen} setMenuOpen={setMenuOpen} quick={quick}>
         {mode === 'stage' ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center"><Spinner /></div>}>
@@ -361,7 +367,7 @@ export default function StoryView() {
                 {!list.length ? (
                   <div className="flex flex-col items-center gap-3 py-16 text-center">
                     <p className="text-sm text-fg-2">Say something to begin.</p>
-                    {c.campaignId && !busy ? (
+                    {gameOn && !busy ? (
                       <Button variant="secondary" icon={Sparkles} onClick={() => document.dispatchEvent(new CustomEvent('everloom:tool', { detail: 'newgame' }))}>
                         Set up a new game
                       </Button>
@@ -389,6 +395,7 @@ export default function StoryView() {
           </>
         )}
       </GameLayer>
+      </FeaturesContext.Provider>
 
       <InspectorSheet chatId={id} open={sheet === 'inspector'} onOpenChange={(o) => setSheet(o ? 'inspector' : null)} />
       <SearchSheet chatId={id} messages={list} open={sheet === 'search'} onOpenChange={(o) => setSheet(o ? 'search' : null)} onJump={jumpTo} />

@@ -1,3 +1,5 @@
+import type { FeaturePreset, FeatureSettings } from '../features.js';
+import type { ShieldSettings } from '../privacy/shield.js';
 /** API data shapes shared by server and web. */
 import type { CardData } from '../cards/card.js';
 import type { WorldBook } from '../lore/types.js';
@@ -37,6 +39,8 @@ export interface CharacterGame {
   chatRules?: string;
   connectionId?: string | null;
   gallery?: string[];
+  /** The feature preset new chats with this character use (unset: ask, or follow the global setting). */
+  chatMode?: FeaturePreset | null;
 }
 
 export interface CharacterSummary {
@@ -65,6 +69,8 @@ export interface CharacterSummary {
   /** The linked character's page at its source. */
   linkedUrl?: string | null;
   collections: string[];
+  /** The mode new chats with this character start in (unset: ask). */
+  chatMode?: FeaturePreset | null;
 }
 
 export interface CharacterDTO extends CharacterSummary {
@@ -157,6 +163,8 @@ export interface ChatMeta {
   presetId?: string | null;
   connectionId?: string | null;
   lastPrompt?: unknown;
+  /** This chat's own feature preset (Classic, Story, Full RPG); unset follows Settings › Features. */
+  features?: FeaturePreset | null;
   [k: string]: unknown;
 }
 
@@ -244,6 +252,10 @@ export interface Settings {
   css: { snippets: CssSnippet[] };
   /** Character studio: your own system prompts, and which preset and connection it starts with. */
   studio: { presets: Array<{ id: string; name: string; system: string }>; preset: string; connection: string | null };
+  /** Which modules are on (Settings › Features). */
+  features: FeatureSettings;
+  /** Settings › Privacy. */
+  privacy: { shield: ShieldSettings };
 }
 
 export interface CssSnippet {
@@ -331,6 +343,8 @@ export interface GenerateEvent {
   text?: string;
   message?: MessageDTO;
   error?: string;
+  /** Why it failed, when known (e.g. shield_leak). */
+  code?: string;
 }
 
 export interface StateEvent {

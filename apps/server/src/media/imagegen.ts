@@ -68,7 +68,7 @@ export async function generateImage(conn: ResolvedConnection, req: ImageRequest)
       const body: Record<string, unknown> = { model: conn.model || 'dall-e-3', prompt: req.prompt.slice(0, 4000), n: 1, size: `${w}x${h}`, ...(conn.params.extra_body ?? {}) };
       // gpt-image-* always returns base64 and rejects response_format.
       if (!/^gpt-image/.test(String(body.model))) body.response_format = 'b64_json';
-      const res = await safeFetch(`${b}/images/generations`, { method: 'POST', headers: openaiHeaders(conn), body: JSON.stringify(body), timeoutMs: 180_000, signal: req.signal });
+      const res = await safeFetch(`${b}/images/generations`, { shield: 'image', method: 'POST', headers: openaiHeaders(conn), body: JSON.stringify(body), timeoutMs: 180_000, signal: req.signal });
       if (!res.ok) await fail(res, 'Image generation');
       const j = await readJson(res, 60 * 1024 * 1024);
       const d = j.data?.[0];
@@ -78,7 +78,7 @@ export async function generateImage(conn: ResolvedConnection, req: ImageRequest)
     }
     case 'img-openrouter': {
       const body = { model: conn.model, modalities: ['image', 'text'], messages: [{ role: 'user', content: req.prompt.slice(0, 4000) }], ...(conn.params.extra_body ?? {}) };
-      const res = await safeFetch(`${b}/chat/completions`, { method: 'POST', headers: openaiHeaders(conn), body: JSON.stringify(body), timeoutMs: 180_000, signal: req.signal });
+      const res = await safeFetch(`${b}/chat/completions`, { shield: 'image', method: 'POST', headers: openaiHeaders(conn), body: JSON.stringify(body), timeoutMs: 180_000, signal: req.signal });
       if (!res.ok) await fail(res, 'Image generation');
       const j = await readJson(res, 60 * 1024 * 1024);
       const img = j.choices?.[0]?.message?.images?.[0];

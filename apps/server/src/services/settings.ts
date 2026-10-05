@@ -1,4 +1,4 @@
-import { DEFAULT_WI_SETTINGS, WORLD_PROFILES, type Settings } from '@everloom/engine';
+import { DEFAULT_WI_SETTINGS, defaultFeatureSettings, defaultShieldSettings, makeStandin, FEATURE_PRESETS, normalizeFeatures, presetFeatures, presetOf, WORLD_PROFILES, type FeaturePreset, type Settings } from '@everloom/engine';
 import type { AppContext } from '../context.js';
 import { sanitizeCss } from '../util/css.js';
 
@@ -27,6 +27,9 @@ export const DEFAULT_SETTINGS: Settings = {
   studio: { presets: [], preset: 'balanced', connection: null },
   library: { view: 'grid', presets: [], defaultPreset: null, versionRetention: 30, debug: false, prevNext: true, cardInfo: true, nsfw: false },
   world: { profile: 'balanced', recallLimit: 6, sceneBudget: 1100, ...WORLD_PROFILES.balanced },
+  // Existing installs keep everything on; first-run setup offers the presets.
+  features: defaultFeatureSettings(),
+  privacy: { shield: defaultShieldSettings() },
 };
 
 function merge<T>(base: T, patch: any): T {
@@ -60,6 +63,38 @@ export function updateSettings(ctx: AppContext, owner: string, patch: Partial<Se
   if (profile && profile !== 'custom' && WORLD_PROFILES[profile as keyof typeof WORLD_PROFILES]) p.world = { ...p.world, ...WORLD_PROFILES[profile as keyof typeof WORLD_PROFILES], profile };
   // Flipping a single switch makes the setup custom.
   else if (!profile && p.world && Object.keys(p.world).some((k) => k in WORLD_PROFILES.balanced)) p.world = { ...p.world, profile: 'custom' };
+  // Features: a preset sets every switch; switches set by hand are made consistent (dependencies)
+  // and the preset becomes whichever one they now equal, or "custom".
+  if (p.features) {
+    const pre = p.features.preset as FeaturePreset | 'custom' | undefined;
+    if (pre && pre !== 'custom' && FEATURE_PRESETS.includes(pre)) p.features = { preset: pre, set: presetFeatures(pre) };
+    else if (p.features.set) {
+      const current = getSettings(ctx, owner).features.set;
+      const set = normalizeFeatures({ on: { ...current.on, ...(p.features.set.on ?? {}) }, memory: p.features.set.memory ?? current.memory });
+      p.features = { preset: presetOf(set), set };
+    } else delete p.features;
+  }
+  // Name shield terms: cleaned, and no two real names may share a stand-in.
+  if (Array.isArray(p.privacy?.shield?.terms)) {
+    const seen = new Set<string>();
+    const kinds = ['first', 'last', 'full', 'place', 'other'];
+    p.privacy = {
+      ...p.privacy,
+      shield: {
+        ...p.privacy.shield,
+        terms: p.privacy.shield.terms.slice(0, 200).map((t: any, i: number) => {
+          const kind = kinds.includes(t?.kind) ? t.kind : 'full';
+          const real = String(t?.real ?? '').trim().slice(0, 120);
+          let standin = String(t?.standin ?? '').trim().slice(0, 120) || makeStandin(kind, real || String(i));
+          if (seen.has(standin.toLowerCase())) standin = makeStandin(kind, `${real}:${i}`, [...seen]);
+          seen.add(standin.toLowerCase());
+          const sc = t?.scope;
+          const scope = sc && ['persona', 'character', 'chat'].includes(sc.type) && typeof sc.id === 'string' ? { type: sc.type, id: sc.id.slice(0, 80) } : { type: 'all' };
+          return { id: String(t?.id || `t${Date.now().toString(36)}${i}`).slice(0, 40), real, standin, kind, forms: (Array.isArray(t?.forms) ? t.forms : []).map((f: unknown) => String(f).trim().slice(0, 120)).filter(Boolean).slice(0, 20), scope, enabled: t?.enabled !== false };
+        }),
+      },
+    };
+  }
   // Custom CSS is cleaned on the way in, whoever wrote it.
   if (Array.isArray(p.css?.snippets))
     p.css = { ...p.css, snippets: p.css.snippets.slice(0, 100).map((x: any) => ({ id: String(x?.id ?? '').slice(0, 40), name: String(x?.name ?? 'Snippet').slice(0, 80), css: sanitizeCss(String(x?.css ?? '')), enabled: x?.enabled !== false })) };

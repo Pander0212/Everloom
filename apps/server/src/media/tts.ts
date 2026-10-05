@@ -19,7 +19,7 @@ export async function synthesize(conn: ResolvedConnection, text: string, opts: {
   const voice = opts.voice || conn.params.voice;
   if (conn.provider === 'tts-elevenlabs') {
     if (!voice) throw new HttpError(400, 'Pick an ElevenLabs voice first');
-    const res = await safeFetch(`${b}/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_128`, {
+    const res = await safeFetch(`${b}/v1/text-to-speech/${encodeURIComponent(voice)}?output_format=mp3_44100_128`, { shield: 'tts',
       method: 'POST',
       headers: { 'content-type': 'application/json', 'xi-api-key': conn.apiKey, accept: 'audio/mpeg' },
       body: JSON.stringify({ text, model_id: conn.model || 'eleven_flash_v2_5', voice_settings: opts.speed ? { speed: Math.max(0.7, Math.min(1.2, opts.speed)) } : undefined }),
@@ -40,7 +40,7 @@ export async function synthesize(conn: ResolvedConnection, text: string, opts: {
     ...(opts.reference ? { reference_audio: opts.reference.audio.toString('base64'), reference_audio_format: opts.reference.mime.split('/')[1] } : {}),
     ...(conn.params.extra_body ?? {}),
   };
-  const res = await safeFetch(`${b}/audio/speech`, { method: 'POST', headers: openaiHeaders(conn), body: JSON.stringify(body), timeoutMs: 90_000, signal: opts.signal });
+  const res = await safeFetch(`${b}/audio/speech`, { shield: 'tts', method: 'POST', headers: openaiHeaders(conn), body: JSON.stringify(body), timeoutMs: 90_000, signal: opts.signal });
   if (!res.ok) throw new HttpError(502, `Speech failed (${res.status})`, 'upstream');
   const mime = res.headers.get('content-type')?.split(';')[0] || 'audio/mpeg';
   if (!/^audio\//.test(mime)) throw new HttpError(502, 'The voice service did not return audio', 'upstream');

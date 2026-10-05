@@ -44,3 +44,5 @@ export * from './library/index.js';
 export * from './game/journey.js';
 export * from './game/progress.js';
 export * from './game/comms.js';
+export * from './features.js';
+export * from './privacy/shield.js';

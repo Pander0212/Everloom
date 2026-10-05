@@ -31,6 +31,7 @@ import { getChat, listMessages } from './chats.js';
 import { connectionForRole } from './connections.js';
 import { embedPending, insertMemory, insertSummary, loadMemoryState, personId, scopeOf, writeModelFacts, type MemoryRow } from './mem.js';
 import { getSettings } from './settings.js';
+import { settingsFor } from './features.js';
 import { chatCharacterIds, playerName } from './tracker.js';
 import { runSocial, runThreadSeeding } from './worldsim.js';
 
@@ -90,7 +91,10 @@ export async function runChronicler(ctx: AppContext, owner: string, chatId: stri
     const scope = scopeOf(chat);
     const before = loadMemoryState(ctx, owner, scope);
     const names = { player: playerName(ctx, owner, chat), characters: chatCharacterIds(ctx, owner, chat) };
-    const prompt = buildChroniclePrompt({ messages: batch, known: before.items.map((m) => m.text), player: names.player, summarize: !chat.campaignId, maxWords: settings.memory.maxWords });
+    // Without the game (or in summary mode) the chronicler also writes the rolling summary.
+    const { features } = settingsFor(ctx, owner, chat);
+    const summarize = !chat.campaignId || !features.on.game || features.memory === 'summary';
+    const prompt = buildChroniclePrompt({ messages: batch, known: before.items.map((m) => m.text), player: names.player, summarize, maxWords: settings.memory.maxWords });
     const last = batch[batch.length - 1];
     const r = await logged(ctx, owner, conn, { chatId, messageId: last.id, purpose: 'chronicler', role: 'background' }, promptTokens(prompt), () =>
       completeChat(conn, { messages: prompt, overrides: { temperature: 0.3, max_tokens: 1400, reasoning: false, stop: [] }, signal: AbortSignal.timeout(120_000) }),
@@ -124,7 +128,7 @@ export async function runChronicler(ctx: AppContext, owner: string, chatId: stri
       }
       const f = writeModelFacts(ctx, owner, scope, state, anchor, 'chronicle', out.facts, names, evidence, gameTime);
       facts = f.inserted + f.superseded + f.conflicts;
-      if (out.summary && !chat.campaignId) {
+      if (out.summary && summarize) {
         const milestones = fresh.filter((m) => m.importance >= 3).map((m) => m.text);
         insertSummary(ctx, owner, scope, anchor, {
           level: 'scene',
@@ -275,14 +279,17 @@ export function afterTurn(ctx: AppContext, owner: string, chatId: string): Recor
 }
 
 function scheduleAfterTurn(ctx: AppContext, owner: string, chatId: string): Record<'chronicler' | 'consolidate' | 'embed' | 'social' | 'seed', boolean> {
-  const w = getSettings(ctx, owner).world;
+  // The world switches as limited by this chat's features (memory off: no memory work at all).
+  const { settings: s0, features } = settingsFor(ctx, owner, getChat(ctx, owner, chatId));
+  const w = s0.world;
+  const gameOn = features.on.game;
   const turn = (ctx.db.prepare("SELECT COUNT(*) AS n FROM messages WHERE chat_id = ? AND role = 'assistant' AND hidden = 0").get(chatId) as { n: number }).n;
   const due = {
-    chronicler: w.chronicler && turn > 0 && turn % Math.max(1, w.chronicleEvery) === 0,
-    consolidate: turn > 0 && turn % Math.max(1, w.consolidateEvery) === 0,
+    chronicler: w.chronicler && turn > 0 && turn % Math.max(1, features.memory === 'summary' ? s0.memory.every : w.chronicleEvery) === 0,
+    consolidate: features.memory === 'full' && turn > 0 && turn % Math.max(1, w.consolidateEvery) === 0,
     embed: w.semantic,
-    social: w.social && turn > 0 && turn % Math.max(1, w.socialEvery) === 0,
-    seed: w.threads && w.threadSeeding && turn > 0 && turn % 15 === 0,
+    social: gameOn && w.social && turn > 0 && turn % Math.max(1, w.socialEvery) === 0,
+    seed: gameOn && w.threads && w.threadSeeding && turn > 0 && turn % 15 === 0,
   };
   const chat = getChat(ctx, owner, chatId);
   const prev = background.get(chatId) ?? Promise.resolve();

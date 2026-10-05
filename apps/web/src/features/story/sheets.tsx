@@ -1,3 +1,4 @@
+import { FEATURE_PRESETS, PRESET_INFO } from '@everloom/engine';
 import type { ChatDTO, MessageDTO } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookmarkCheck, ChevronDown, Copy, Download, GitBranch, Pin, RefreshCw, Search, Trash2, Upload } from 'lucide-react';
@@ -20,6 +21,8 @@ interface PromptInfo {
   at: number;
   connection: { name: string; provider: string; model: string } | null;
   parts: PromptPart[];
+  /** As the provider receives it (name shield stand-ins); null when it's the same. */
+  sentParts?: PromptPart[] | null;
   totalTokens: number;
   budget: number;
   trimmedHistory: number;
@@ -28,6 +31,7 @@ interface PromptInfo {
 
 export function InspectorSheet({ chatId, open, onOpenChange }: { chatId: string; open: boolean; onOpenChange: (o: boolean) => void }) {
   const [mode, setMode] = useState<'next' | 'last'>('next');
+  const [view, setView] = useState<'stored' | 'sent'>('stored');
   const q = useQuery({
     queryKey: ['prompt', chatId, mode, open],
     queryFn: () => (mode === 'last' ? get<PromptInfo | null>(`/api/chats/${chatId}/prompt`) : post<PromptInfo>(`/api/chats/${chatId}/prompt/preview`, {})),
@@ -36,7 +40,7 @@ export function InspectorSheet({ chatId, open, onOpenChange }: { chatId: string;
   });
   const groups = useMemo(() => {
     const out: Array<{ name: string; blockId: string; parts: PromptPart[]; tokens: number }> = [];
-    for (const p of q.data?.parts ?? []) {
+    for (const p of (view === 'sent' && q.data?.sentParts ? q.data.sentParts : q.data?.parts) ?? []) {
       const key = p.blockId === 'chatHistory' || p.blockId === 'depth' || p.blockId === 'chatStart' ? 'history' : p.blockId;
       const last = out[out.length - 1];
       if (last && last.blockId === key) {
@@ -45,7 +49,7 @@ export function InspectorSheet({ chatId, open, onOpenChange }: { chatId: string;
       } else out.push({ name: key === 'history' ? 'Chat history' : p.name, blockId: key, parts: [p], tokens: p.tokens });
     }
     return out;
-  }, [q.data]);
+  }, [q.data, view]);
   const d = q.data;
   const pct = d ? Math.min(1, d.totalTokens / d.budget) : 0;
   return (
@@ -59,6 +63,20 @@ export function InspectorSheet({ chatId, open, onOpenChange }: { chatId: string;
           { value: 'last', label: 'Last sent' },
         ]}
       />
+      {d?.sentParts ? (
+        <div className="mt-2">
+          <Segmented
+            label="Names"
+            size="sm"
+            value={view}
+            onChange={setView}
+            options={[
+              { value: 'stored', label: 'As stored' },
+              { value: 'sent', label: 'As sent (name shield)' },
+            ]}
+          />
+        </div>
+      ) : null}
       {q.isLoading ? (
         <div className="flex justify-center py-10">
           <Spinner />
@@ -227,6 +245,16 @@ export function ChatInfoSheet({ chat, open, onOpenChange }: { chat: ChatDTO; ope
       <div className="flex flex-col gap-4">
         <Field label="Title" htmlFor="ctitle">
           <Input id="ctitle" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== chat.title && update({ title: title.trim() })} />
+        </Field>
+        <Field label="Mode" htmlFor="cmode" hint={chat.metadata.features && chat.metadata.features !== 'classic' && !chat.campaignId ? 'This chat was started without a game, so game screens stay empty here; start a new chat to play with them.' : 'Classic is a plain roleplay chat with one model call per reply. Nothing is deleted when you switch.'}>
+          <Select id="cmode" value={chat.metadata.features ?? ''} onChange={(e) => update({ metadata: { features: e.target.value || null } })}>
+            <option value="">Follow Settings › Features</option>
+            {FEATURE_PRESETS.map((p) => (
+              <option key={p} value={p}>
+                {PRESET_INFO[p].label}
+              </option>
+            ))}
+          </Select>
         </Field>
         <Field label="Your persona" htmlFor="cpersona" hint="Locks this chat to a persona.">
           <Select id="cpersona" value={chat.personaId ?? ''} onChange={(e) => update({ personaId: e.target.value || null })}>
