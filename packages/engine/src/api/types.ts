@@ -1,3 +1,4 @@
+import type { ScriptSettings, VarMap } from '../scripting/types.js';
 import type { FeaturePreset, FeatureSettings } from '../features.js';
 import type { ShieldSettings } from '../privacy/shield.js';
 /** API data shapes shared by server and web. */
@@ -135,6 +136,8 @@ export interface SwipeDTO {
   tokens?: number;
   /** Game-state change summary produced for this swipe. */
   changes?: string[];
+  /** Message variables set on this swipe (by scripts); they follow swipes and edits. */
+  vars?: VarMap;
 }
 
 export interface MessageDTO {
@@ -256,6 +259,8 @@ export interface Settings {
   features: FeatureSettings;
   /** Settings › Privacy. */
   privacy: { shield: ShieldSettings };
+  /** Settings › Scripts. */
+  scripts: ScriptSettings;
 }
 
 export interface CssSnippet {

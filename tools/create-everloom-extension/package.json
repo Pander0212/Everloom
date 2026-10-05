@@ -1,0 +1,9 @@
+{
+  "name": "create-everloom-extension",
+  "version": "0.1.0",
+  "description": "Start an Everloom extension: npm create everloom-extension my-extension (or node tools/create-everloom-extension my-extension from the repository).",
+  "license": "MIT",
+  "type": "module",
+  "bin": { "create-everloom-extension": "index.mjs" },
+  "files": ["index.mjs", "template"]
+}

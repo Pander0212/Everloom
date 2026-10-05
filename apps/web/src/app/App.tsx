@@ -1,4 +1,5 @@
 import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { GlobalScripts } from '@/scripting/GlobalScripts';
 import { lazy, Suspense, useEffect, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router';
 import { api, get, onAuthRequired, setCsrf } from '@/lib/api';
@@ -25,6 +26,7 @@ const LoreEditor = lazy(() => import('@/features/lore/LoreEditor'));
 const SettingsPage = lazy(() => import('@/features/settings/SettingsPage'));
 const StoryView = lazy(() => import('@/features/story/StoryView'));
 const DesignPage = lazy(() => import('@/features/design/DesignPage'));
+const ExtensionScreen = lazy(() => import('@/scripting/ExtensionScreen'));
 
 export function PageFallback() {
   return (
@@ -52,6 +54,7 @@ function AuthedApp() {
   return (
     <Suspense fallback={<PageFallback />}>
       <CustomCss />
+      <GlobalScripts />
       <Routes>
         <Route path="/chat/:id" element={<StoryView />} />
         <Route path="/design" element={<DesignPage />} />
@@ -67,6 +70,7 @@ function AuthedApp() {
           <Route path="lore" element={<LorePage />} />
           <Route path="lore/:id" element={<LoreEditor />} />
           <Route path="settings/*" element={<SettingsPage />} />
+          <Route path="x/:ext/:screen" element={<ExtensionScreen />} />
         </Route>
         <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>

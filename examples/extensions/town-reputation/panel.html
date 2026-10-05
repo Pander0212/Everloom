@@ -1,0 +1,42 @@
+<style>
+  .town { display: grid; grid-template-columns: 1fr auto auto auto; gap: 8px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border, #e3e1db); }
+  .v { font-variant-numeric: tabular-nums; min-width: 3ch; text-align: right; font-weight: 600; }
+</style>
+<div class="ev-stack">
+  <p class="ev-muted" id="note">Loading…</p>
+  <div id="towns" role="list" aria-label="Towns"></div>
+  <div class="ev-row">
+    <input class="ev-input" id="name" placeholder="Town" aria-label="Town" style="flex:1" />
+    <button class="ev-btn primary" id="add">Add</button>
+  </div>
+</div>
+<script>
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  async function change(town, amount) {
+    const r = await everloom.state.propose({ type: 'ext.op', ext: 'town-reputation', name: 'change', args: { town, amount } });
+    if (r.errors?.length) everloom.ui.toast(r.errors[0], { tone: 'danger' });
+    await load();
+  }
+  async function load() {
+    const state = await everloom.state.get().catch(() => null);
+    const note = document.getElementById('note');
+    if (!state) {
+      note.textContent = 'Open this in a chat with a game.';
+      return;
+    }
+    const towns = Object.entries(state.ext?.['town-reputation']?.towns ?? {});
+    note.textContent = towns.length ? 'Each change is part of the story: swiping the reply undoes it.' : 'No towns yet. Add one, or let the story change it.';
+    document.getElementById('towns').innerHTML = towns
+      .map(([t, v]) => `<div class="town" role="listitem"><span>${esc(t)}</span><button class="ev-btn" data-t="${esc(t)}" data-a="-5" aria-label="Lower ${esc(t)}">−5</button><span class="v">${v}</span><button class="ev-btn" data-t="${esc(t)}" data-a="5" aria-label="Raise ${esc(t)}">+5</button></div>`)
+      .join('');
+  }
+  document.getElementById('towns').addEventListener('click', (e) => {
+    const b = e.target.closest('[data-t]');
+    if (b) change(b.dataset.t, Number(b.dataset.a));
+  });
+  document.getElementById('add').addEventListener('click', () => {
+    const n = document.getElementById('name').value.trim();
+    if (n) change(n, 0).then(() => (document.getElementById('name').value = ''));
+  });
+  load();
+</script>

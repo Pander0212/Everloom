@@ -21,6 +21,7 @@ import { getSettings, updateSettings } from '../services/settings.js';
 import { testImageConnection } from '../media/imagegen.js';
 import { listVoices } from '../media/tts.js';
 import { parse } from '../util/validate.js';
+import { reviewItems } from '../services/scripts.js';
 
 const connectionInput = z.object({
   name: z.string().trim().min(1).max(80),
@@ -138,7 +139,9 @@ export function registerLibrary(app: FastifyInstance, ctx: AppContext) {
   app.post('/api/characters/import', async (req) => {
     const body = req.body as Buffer;
     if (!Buffer.isBuffer(body)) throw new HttpError(400, 'Send the card file as the request body');
-    return changed(req, await chars.importCard(ctx, owner(req), body));
+    const c = await chars.importCard(ctx, owner(req), body);
+    // Scripts in it stay off until reviewed (unless its creator is trusted).
+    return changed(req, { ...c, scripts: scriptsState(ctx, owner(req), c.id) });
   });
   app.get('/api/characters/:id/export', async (req, reply) => {
     const id = (req.params as any).id;
@@ -222,4 +225,10 @@ export function registerLibrary(app: FastifyInstance, ctx: AppContext) {
     reply.header('content-disposition', `attachment; filename="${p.name.replace(/[^\w\s.-]+/g, '').slice(0, 60) || 'preset'}.json"`);
     return JSON.stringify(st ? exportSillyTavernPreset(p.preset) : p.preset, null, 2);
   });
+}
+
+/** For the import toast: whether the card brought scripts, and whether they're already approved. */
+function scriptsState(ctx: AppContext, ownerId: string, id: string) {
+  const r = reviewItems(ctx, ownerId, { kind: 'character', id });
+  return { hasScripts: r.items.length > 0, approved: r.items.length > 0 && r.items.every((i) => i.granted) };
 }

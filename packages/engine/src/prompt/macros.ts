@@ -48,6 +48,10 @@ export interface MacroContext {
   /** Chat-scoped variables (mutated by setvar/addvar/incvar...). */
   vars?: Record<string, string | number>;
   globalVars?: Record<string, string | number>;
+  /** Character-scoped variables ({{getcharvar::x}}). */
+  charVars?: Record<string, string | number>;
+  /** Message variables at this point of the chat (read-only: {{getmesvar::x}}). */
+  mesVars?: Record<string, unknown>;
   game?: GameMacroSource;
   now?: Date;
   /** Seed for {{pick}} so it is stable per chat. */
@@ -110,6 +114,7 @@ export function expandMacros(text: string, ctx: MacroContext = {}): string {
   const rng = ctx.rng ?? createRng(seedFrom(now.getTime(), text.length));
   const vars = (ctx.vars ??= {});
   const gvars = (ctx.globalVars ??= {});
+  const cvars = (ctx.charVars ??= {});
   const game = ctx.game;
 
   let out = text.replace(/<USER>/gi, ctx.user ?? 'User').replace(/<(BOT|CHAR)>/gi, ctx.char ?? '');
@@ -223,11 +228,20 @@ export function expandMacros(text: string, ctx: MacroContext = {}): string {
     const reverse = /^reverse:([\s\S]*)$/i.exec(inner);
     if (reverse) return [...reverse[1]].reverse().join('');
 
+    // Values scripts and extensions publish (everloom.macros.set): {{script::name}}.
+    const sm = /^script::([\w.-]+)$/i.exec(inner);
+    if (sm) return String(vars[`__script.${sm[1]}`] ?? '');
+    // Message variables are set by scripts on the message they belong to; macros only read them.
+    const mv = /^get(?:mes|message)var::([\s\S]+)$/i.exec(inner);
+    if (mv) {
+      const val = ctx.mesVars?.[mv[1]!.trim()];
+      return val === undefined || val === null ? '' : typeof val === 'object' ? JSON.stringify(val) : String(val);
+    }
     // Variables
-    const v = /^(set|get|add|inc|dec)(global)?var::([^:]+?)(?:::([\s\S]*))?$/i.exec(inner);
+    const v = /^(set|get|add|inc|dec)(global|char)?var::([^:]+?)(?:::([\s\S]*))?$/i.exec(inner);
     if (v) {
-      const [, op, isGlobal, name, value] = v;
-      const store = isGlobal ? gvars : vars;
+      const [, op, scope, name, value] = v;
+      const store = scope?.toLowerCase() === 'global' ? gvars : scope ? cvars : vars;
       switch (op.toLowerCase()) {
         case 'set':
           store[name] = value ?? '';

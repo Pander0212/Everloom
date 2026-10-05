@@ -1,0 +1,12 @@
+<!-- Panels inherit Everloom's colours. Classes: ev-card, ev-stack, ev-row, ev-btn (primary/danger), ev-input, ev-chip, ev-muted, ev-title, ev-bar. -->
+<div class="ev-stack">
+  <p class="ev-title">__NAME__</p>
+  <p class="ev-muted" id="out">Press the button.</p>
+  <button class="ev-btn primary" id="go">Count messages</button>
+</div>
+<script>
+  document.getElementById('go').addEventListener('click', async () => {
+    const list = everloom.context.chatId ? await everloom.chat.messages() : [];
+    document.getElementById('out').textContent = `${list.length} messages in this chat.`;
+  });
+</script>

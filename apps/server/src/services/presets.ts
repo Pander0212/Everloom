@@ -35,6 +35,11 @@ export function deletePreset(ctx: AppContext, owner: string, id: string) {
   ctx.db.prepare('DELETE FROM presets WHERE id = ? AND owner_id = ?').run(id, owner);
 }
 
+/** The preset in force: the chat's own, else the one chosen in Settings. */
+export function activePresetId(ctx: AppContext, owner: string, override?: string | null): string | null {
+  return override ?? getSettings(ctx, owner).activePresetId ?? null;
+}
+
 export function activePreset(ctx: AppContext, owner: string, override?: string | null): PromptPreset {
   const id = override ?? getSettings(ctx, owner).activePresetId;
   if (id) {

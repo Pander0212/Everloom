@@ -1,11 +1,17 @@
-import type { MessageDTO } from '@everloom/engine';
+import { applyRegexScripts, RegexPlacement, type MessageDTO } from '@everloom/engine';
 import { Bookmark, BookmarkCheck, Brain, ChevronDown, ChevronLeft, ChevronRight, Copy, EyeOff, GitBranch, MoreHorizontal, Pencil, RefreshCw, ScanSearch, Trash2, Volume2 } from 'lucide-react';
 import { animate, motion, useMotionValue } from 'motion/react';
-import { memo, useEffect, useMemo, useState } from 'react';
+import { lazy, memo, Suspense, useEffect, useMemo, useState } from 'react';
 import { cx } from '@/lib/format';
 import { renderStory } from '@/lib/render';
 import { t } from '@/lib/motion';
 import { Avatar, Button, Icon, IconButton, Menu, Textarea, Typing } from '@/ui';
+import { splitInteractive } from '@/scripting/bus';
+import { useScriptView } from '@/scripting/context';
+
+// Interactive HTML (sandboxed frames) only loads for messages that have some.
+const InteractiveMessage = lazy(() => import('@/scripting/InteractiveMessage'));
+const NO_RULES: never[] = [];
 
 export interface MessageActions {
   onSwipe: (m: MessageDTO, dir: -1 | 1) => void;
@@ -21,6 +27,10 @@ export interface MessageActions {
 
 interface Props {
   m: MessageDTO;
+  /** Position in the chat (for message scripts and depth-limited display rules). */
+  index?: number;
+  /** Messages after this one (depth 0 = the newest). */
+  depth?: number;
   avatar?: string | null;
   isLast: boolean;
   /** Live text while this message streams. */
@@ -48,13 +58,22 @@ function Reasoning({ text, live }: { text: string; live?: boolean }) {
   );
 }
 
-export const Message = memo(function Message({ m, avatar, isLast, streamText, streamReasoning, streaming, showReasoning, highlight, busy, actions }: Props) {
+export const Message = memo(function Message({ m, index = 0, depth, avatar, isLast, streamText, streamReasoning, streaming, showReasoning, highlight, busy, actions }: Props) {
   const swipe = m.swipes[m.swipeId] ?? m.swipes[0];
   const text = streamText ?? swipe?.text ?? '';
   const reasoning = streamReasoning ?? swipe?.reasoning ?? '';
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(text);
-  const html = useMemo(() => renderStory(text), [text]);
+  // Display-only regex rules change what is shown (never what is stored); interactive blocks render in frames.
+  const view = useScriptView();
+  const scriptsOn = !!view?.settings?.enabled && !view.safe;
+  const rules = (scriptsOn ? view?.active?.regex : undefined) ?? NO_RULES;
+  const shown = useMemo(
+    () => (rules.length && !streaming && m.role !== 'system' ? applyRegexScripts(text, rules, { placement: m.role === 'user' ? RegexPlacement.userInput : RegexPlacement.aiOutput, target: 'display', depth }) : text),
+    [text, rules, streaming, m.role, depth],
+  );
+  const interactive = !!view?.settings?.renderHtml && !view.safe && !streaming && splitInteractive(shown, view.settings.htmlTag, scriptsOn ? view.renderers.map((r) => r.tag) : []).some((p) => p.type !== 'text');
+  const html = useMemo(() => (interactive ? '' : renderStory(shown)), [shown, interactive]);
   const isUser = m.role === 'user';
   const isNarrator = m.role === 'system';
   const canSwipe = m.role === 'assistant' && (isLast || m.swipes.length > 1);
@@ -94,6 +113,10 @@ export const Message = memo(function Message({ m, avatar, isLast, streamText, st
     </div>
   ) : streaming && !text ? (
     <Typing className="mt-1" />
+  ) : interactive ? (
+    <Suspense fallback={<div className="ev-message-text story" dangerouslySetInnerHTML={{ __html: renderStory(shown) }} />}>
+      <InteractiveMessage m={m} text={shown} index={index} streaming={streaming} />
+    </Suspense>
   ) : (
     <div className={cx('ev-message-text story', streaming && 'is-streaming')} dangerouslySetInnerHTML={{ __html: html }} />
   );

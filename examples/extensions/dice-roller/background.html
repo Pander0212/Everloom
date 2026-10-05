@@ -1,0 +1,14 @@
+<script src="dice.js"></script>
+<script>
+  // /dice 4d6kh3 → a narrator line with the result (and the number for the next command in a chain).
+  everloom.slash.register('dice', { help: 'Roll dice with keep/explode notation', usage: '/dice 4d6kh3' }, async (call) => {
+    const r = rollDice(call.text || 'd20');
+    await everloom.chat.add({ role: 'system', name: 'Dice', text: `${call.text || 'd20'} = **${r.total}** ${r.detail}` });
+    return String(r.total);
+  });
+  everloom.on('button', async (e) => {
+    if (e.button !== 'd20') return;
+    const r = rollDice('d20');
+    await everloom.chat.add({ role: 'system', name: 'Dice', text: `d20 = **${r.total}**` });
+  });
+</script>

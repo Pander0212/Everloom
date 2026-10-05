@@ -4,10 +4,13 @@
   "private": true,
   "type": "module",
   "main": "./src/index.ts",
-  "sideEffects": ["**/game/reducer.ts"],
+  "sideEffects": [
+    "**/game/reducer.ts"
+  ],
   "types": "./src/index.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./guard": "./src/scripting/guard.ts"
   },
   "scripts": {
     "test": "vitest run",
@@ -15,6 +18,7 @@
   },
   "dependencies": {
     "immer": "^11.1.18",
-    "zod": "^4.6.5"
+    "zod": "^4.6.5",
+    "acorn": "^8.15.0"
   }
 }

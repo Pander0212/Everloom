@@ -785,3 +785,11 @@
   list-style: decimal;
   padding-left: 1.25em;
 }
+
+/* Code in script reviews and editors. */
+.ev-code .tok-c { color: var(--text-3); font-style: italic; }
+.ev-code .tok-s { color: var(--success); }
+.ev-code .tok-n { color: var(--accent-text); }
+.ev-code .tok-k { color: var(--accent-text); font-weight: 600; }
+.ev-code .tok-t { color: var(--accent-text); }
+.ev-code .tok-w { color: var(--danger); font-weight: 600; }

@@ -204,6 +204,7 @@ const OP_OWNER: Record<string, FeatureId> = {
   databank: 'databank',
   thread: 'storylines',
   battle: 'battle',
+  ext: 'game',
   phone: 'phone', mail: 'phone', feed: 'phone',
   home: 'home', room: 'home', household: 'home',
   fx: 'effects', stage: 'stage', cutscene: 'cutscenes', music: 'music', ambient: 'ambience',

@@ -14,6 +14,9 @@ import { runWithShield } from './privacy/shield.js';
 import { installShield } from './services/shield.js';
 import { registerPrivacy } from './routes/privacy.js';
 import { registerVault } from './routes/vault.js';
+import { FRAME_CSP, registerScripts } from './routes/scripts.js';
+import { registerExtensions } from './routes/extensions.js';
+import { loadAllExtensions, stopAllDevWatches } from './services/extensions.js';
 import { registerChats } from './routes/chats.js';
 import { registerEvents } from './routes/events.js';
 import { registerGame } from './routes/game.js';
@@ -90,10 +93,12 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   app.addHook('onSend', async (req, reply, payload) => {
     reply.header('x-content-type-options', 'nosniff');
     reply.header('referrer-policy', 'same-origin');
-    reply.header('x-frame-options', 'DENY');
+    // The script sandbox document is the one page that may be framed (by Everloom itself), under its own policy.
+    const frame = reply.getHeader('x-everloom-frame') === '1';
+    reply.header('x-frame-options', frame ? 'SAMEORIGIN' : 'DENY');
     reply.header('cross-origin-opener-policy', 'same-origin');
-    reply.header('permissions-policy', 'camera=(), geolocation=(), microphone=(self)');
-    reply.header('content-security-policy', CSP);
+    reply.header('permissions-policy', frame ? 'camera=(), geolocation=(), microphone=(), payment=(), usb=()' : 'camera=(), geolocation=(), microphone=(self)');
+    reply.header('content-security-policy', frame ? FRAME_CSP : CSP);
     if (req.url.startsWith('/api/')) reply.header('cache-control', 'no-store');
     return payload;
   });
@@ -173,6 +178,11 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerSystem(app, ctx);
   registerPrivacy(app, ctx);
   registerVault(app, ctx);
+  registerScripts(app, ctx);
+  registerExtensions(app, ctx);
+  // Custom game ops from installed extensions (needs the content database: after unlocking when the vault is on).
+  if (!ctx.vault.locked) loadAllExtensions(ctx);
+  app.addHook('onClose', async () => stopAllDevWatches());
 
   const indexFile = path.join(cfg.webDir, 'index.html');
   if (existsSync(indexFile)) {

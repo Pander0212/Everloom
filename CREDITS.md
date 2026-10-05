@@ -8,6 +8,7 @@ Everloom is free software (MIT). It stands on the work of these people and proje
 - **World Engine**, the owner's own SillyTavern extension, inspired Phase 2's memory (who saw what, gossip, facts that change, hierarchical summaries), the living world (schedules, goals, off-screen life, storylines, dice, the pulse) and the World inspector. Everloom rebuilt these ideas from its guide and behavior; no code was copied, and World Engine's source is not part of this repository.
 - [SillyTavern Character Library](https://github.com/Sillyanonymous/SillyTavern-CharacterLibrary) (AGPL-3.0) inspired the character library features: the library view, batch actions, versions, collections, duplicates, bundles, the chat history browser, the studio, media localization, custom CSS snippets and online sources. It served as a feature and behavior spec only; no code was copied.
 - [Chub](https://chub.ai), [Character Tavern](https://character-tavern.com), [RisuRealm](https://realm.risuai.net), [Pygmalion](https://pygmalion.chat) and [Wyvern](https://app.wyvern.chat) host the characters the online-sources feature can browse, through their public APIs. Characters belong to their creators. The test fixtures for these sources are synthetic cards in the sites' response shapes, not copies of anyone's characters.
+- [JS-Slash-Runner / Tavern Helper](https://github.com/N0VI028/JS-Slash-Runner) (PolyForm Noncommercial) inspired Phase 4's scripting: scripts in cards, interactive HTML in messages, and the script API. Everloom's compatibility layer is an independent implementation of its most used documented function names, written from the public documentation; no code was copied.
 - [SillyTavern](https://github.com/SillyTavern/SillyTavern) (AGPL-3.0) defined the file formats Everloom reads and writes: character cards (V1/V2/V3, PNG and JSON), World Info / lorebooks, chat-completion presets and JSONL chats, and the World Info activation behavior Everloom reproduces. Everloom implements these formats independently and contains no SillyTavern code.
 
 ## Interface details from uiverse.io (MIT)
@@ -32,7 +33,7 @@ Each of these was adapted — restyled to Everloom's tokens and limited to trans
 
 ## Libraries
 
-React, React Router, TanStack Query, Zustand, Radix UI primitives, vaul, Motion, Tailwind CSS, Vite and vite-plugin-pwa, marked, DOMPurify, Fastify, better-sqlite3, sharp, zod, immer, js-tiktoken, yazl/yauzl, fflate, qrcode, [PixiJS](https://pixijs.com) 6 and [pixi-live2d-display](https://github.com/guansss/pixi-live2d-display) — each under its own open-source license (MIT, ISC or Apache-2.0; PixiJS and pixi-live2d-display are MIT).
+React, React Router, TanStack Query, Zustand, Radix UI primitives, vaul, Motion, Tailwind CSS, Vite and vite-plugin-pwa, marked, DOMPurify, Fastify, better-sqlite3 (and better-sqlite3-multiple-ciphers for the Vault), sharp, acorn (the script loop guard), zod, immer, js-tiktoken, yazl/yauzl, fflate, qrcode, [PixiJS](https://pixijs.com) 6 and [pixi-live2d-display](https://github.com/guansss/pixi-live2d-display) — each under its own open-source license (MIT, ISC or Apache-2.0; PixiJS and pixi-live2d-display are MIT).
 
 ## Live2D
 

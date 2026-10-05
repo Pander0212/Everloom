@@ -2,6 +2,7 @@
  * State-change operations. Every change to campaign state is one of these.
  * The schemas are lenient on input (coercion, defaults) and strict on shape.
  */
+import { extOpReference } from '../scripting/ext-ops.js';
 import { z } from 'zod';
 import { AI_OPS3, OpSchemas3 } from './ops3.js';
 
@@ -382,6 +383,8 @@ export const OpSchemas = {
     arrivalEvents: z.boolean().optional(),
     calendar: z.any().optional(),
   }),
+  /** A custom op from an installed extension (see scripting/ext-ops.ts); checked against its definition when applied. */
+  'ext.op': z.object({ type: z.literal('ext.op'), ext: z.string().regex(/^[a-z0-9][a-z0-9._-]{0,63}$/), name: z.string().regex(/^[a-z][a-z0-9_-]{0,39}$/), args: z.record(z.string(), z.union([z.string().max(2000), z.number(), z.boolean()])).default({}) }),
   /** Internal: immer patches, used for inverses. Never accepted from the AI. */
   patch: z.object({ type: z.literal('patch'), patches: z.array(z.any()) }),
   ...OpSchemas3,
@@ -507,5 +510,6 @@ export function opReferenceFor(allowed: readonly string[]): string {
   const set = new Set(allowed);
   const [head, ...lines] = OP_REFERENCE.split('\n');
   const kept = lines.filter((l) => [...l.matchAll(/"type":"([a-z.]+)"/g)].some((m) => set.has(m[1]!)));
-  return [head, ...kept].join('\n');
+  const ext = set.has('ext.op') ? extOpReference() : '';
+  return [head, ...kept, ...(ext ? [ext] : [])].join('\n');
 }

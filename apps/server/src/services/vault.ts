@@ -20,6 +20,7 @@ import {
   unwrapWithSecret,
 } from '../vault/vault.js';
 import { createBackup } from './backup.js';
+import { loadAllExtensions } from './extensions.js';
 
 let busy: string | null = null;
 async function exclusive<T>(what: string, f: () => Promise<T>): Promise<T> {
@@ -81,6 +82,11 @@ function afterUnlock(ctx: AppContext) {
     }
   }, 0);
   ctx.bus.publishAll('vault.state', { locked: false });
+  try {
+    loadAllExtensions(ctx);
+  } catch {
+    /* extensions are optional */
+  }
 }
 
 /**

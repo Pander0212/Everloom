@@ -59,6 +59,8 @@ export interface PromptPreset {
   squashSystem: boolean;
   namesInHistory: 'none' | 'group' | 'always';
   assistantPrefill: string;
+  /** Script data (extensions.everloom_scripts) and SillyTavern regex rules (extensions.regex_scripts). */
+  extensions?: Record<string, any>;
 }
 
 export const DEFAULT_PRESET: PromptPreset = {

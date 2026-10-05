@@ -2,7 +2,7 @@ import { FEATURE_PRESETS, PRESET_INFO } from '@everloom/engine';
 import { EMOTIONS, type CardData, type CharacterDTO, type CharacterGame } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, BookOpen, Copy, Download, FileJson, ImagePlus, MessageSquare, MoreHorizontal, Music, Play, Plus, Sparkles, Star, Trash2, Upload, Wand2, X } from 'lucide-react';
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Page } from '@/app/Shell';
 import { del, download, get, patch, post, upload } from '@/lib/api';
@@ -18,6 +18,8 @@ type Draft = { card: CardData; game: CharacterGame };
 function tokensApprox(s: string) {
   return Math.ceil((s ?? '').length / 3.6);
 }
+
+const CharacterScripts = lazy(() => import('@/scripting/CharacterScripts'));
 
 export default function CharacterEditor() {
   const { id } = useParams();
@@ -154,6 +156,7 @@ export default function CharacterEditor() {
           { value: 'game', label: 'Game' },
           { value: 'gallery', label: 'Gallery' },
           { value: 'chats', label: 'Chats' },
+          { value: 'scripts', label: 'Scripts' },
         ]}
       >
         <TabPanel value="profile" className="flex flex-col gap-5 pt-5">
@@ -252,6 +255,12 @@ export default function CharacterEditor() {
 
         <TabPanel value="chats" className="pt-3">
           <CharacterChats characterId={c.id} onNew={() => setChatOpen(true)} />
+        </TabPanel>
+
+        <TabPanel value="scripts" className="pt-5">
+          <Suspense fallback={<Spinner />}>
+            <CharacterScripts characterId={c.id} extensions={c.card.extensions ?? {}} />
+          </Suspense>
         </TabPanel>
       </Tabs>
       <NewChatSheet open={chatOpen} onOpenChange={setChatOpen} characterId={c.id} />

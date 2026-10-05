@@ -1,4 +1,5 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { clearOnceGrants } from '../services/scripts.js';
 import { lockVault, onPasswordChanged, unlockVault } from '../services/vault.js';
 import QRCode from 'qrcode';
 import { z } from 'zod';
@@ -9,7 +10,7 @@ import { parse } from '../util/validate.js';
 
 export const SESSION_COOKIE = 'everloom_session';
 const SESSION_TTL = 30 * 24 * 3600 * 1000;
-const PUBLIC = new Set(['/api/health', '/api/auth/status', '/api/auth/setup', '/api/auth/login', '/api/bridge/import', '/api/bridge/pair', '/api/bridge/ping', '/api/bridge/everloom-bridge.user.js']);
+const PUBLIC = new Set(['/api/health', '/api/auth/status', '/api/auth/setup', '/api/auth/login', '/api/bridge/import', '/api/bridge/pair', '/api/bridge/ping', '/api/bridge/everloom-bridge.user.js', '/api/sandbox/frame']);
 
 const credentials = z.object({
   username: z.string().trim().min(1).max(64),
@@ -43,7 +44,7 @@ function createSession(ctx: AppContext, req: FastifyRequest, reply: FastifyReply
 }
 
 /** What still answers while the vault is locked. */
-const VAULT_OPEN = ['/api/health', '/api/auth', '/api/vault', '/api/events'];
+const VAULT_OPEN = ['/api/health', '/api/auth', '/api/vault', '/api/events', '/api/sandbox/frame'];
 
 export function registerAuth(app: FastifyInstance, ctx: AppContext) {
   const burst = new WindowLimiter(30, 60_000);
@@ -138,6 +139,7 @@ export function registerAuth(app: FastifyInstance, ctx: AppContext) {
 
   app.post('/api/auth/logout', async (req, reply) => {
     if (req.user) ctx.sys.prepare('DELETE FROM sessions WHERE id = ?').run(req.user.sessionId);
+    if (req.user) clearOnceGrants(req.user.id);
     reply.clearCookie(SESSION_COOKIE, { path: '/' });
     lockVault(ctx, 'logout');
     return { ok: true };

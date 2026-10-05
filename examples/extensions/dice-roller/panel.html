@@ -1,0 +1,41 @@
+<style>
+  .grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+  .result { font-size: 40px; font-weight: 700; text-align: center; margin: 8px 0 0; font-variant-numeric: tabular-nums; }
+  .detail { text-align: center; }
+</style>
+<div class="ev-stack">
+  <div class="grid" role="group" aria-label="Quick dice">
+    <button class="ev-btn" data-n="d4">d4</button><button class="ev-btn" data-n="d6">d6</button><button class="ev-btn" data-n="d8">d8</button><button class="ev-btn" data-n="d10">d10</button>
+    <button class="ev-btn" data-n="d12">d12</button><button class="ev-btn" data-n="d20">d20</button><button class="ev-btn" data-n="d%">d%</button><button class="ev-btn" data-n="4d6kh3">4d6kh3</button>
+  </div>
+  <div class="ev-row">
+    <input class="ev-input" id="expr" aria-label="Dice to roll" placeholder="2d8+1d4+3" style="flex:1" />
+    <button class="ev-btn primary" id="roll">Roll</button>
+  </div>
+  <p class="result" id="total" aria-live="polite">–</p>
+  <p class="detail ev-muted" id="detail"></p>
+  <button class="ev-btn" id="post" disabled>Add to the chat</button>
+</div>
+<script src="dice.js"></script>
+<script>
+  let last = null;
+  const show = (expr) => {
+    try {
+      last = { expr, ...rollDice(expr) };
+      document.getElementById('total').textContent = last.total;
+      document.getElementById('detail').textContent = `${expr}: ${last.detail}`;
+      document.getElementById('post').disabled = !everloom.context.chatId;
+    } catch (e) {
+      document.getElementById('total').textContent = '–';
+      document.getElementById('detail').textContent = e.message;
+    }
+  };
+  document.querySelectorAll('[data-n]').forEach((b) => b.addEventListener('click', () => show(b.dataset.n)));
+  document.getElementById('roll').addEventListener('click', () => show(document.getElementById('expr').value));
+  document.getElementById('expr').addEventListener('keydown', (e) => e.key === 'Enter' && show(e.target.value));
+  document.getElementById('post').addEventListener('click', async () => {
+    if (!last) return;
+    await everloom.chat.add({ role: 'system', name: 'Dice', text: `${last.expr} = **${last.total}** ${last.detail}` });
+    everloom.ui.toast('Added to the chat');
+  });
+</script>

@@ -1,0 +1,42 @@
+<style>
+  .row { display: grid; grid-template-columns: minmax(90px, 30%) 1fr; gap: 10px; align-items: center; padding: 8px 0; border-bottom: 1px solid var(--border, #e3e1db); }
+  .name { font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .bars { display: grid; gap: 4px; }
+  .bar { display: grid; grid-template-columns: 64px 1fr 34px; gap: 6px; align-items: center; font-size: 12px; color: var(--text-2, #595c62); }
+  .track { position: relative; height: 8px; border-radius: 99px; background: var(--surface-3, #e6e4de); overflow: hidden; }
+  .track > span { position: absolute; top: 0; bottom: 0; border-radius: 99px; }
+  .mid { position: absolute; left: 50%; top: 0; bottom: 0; width: 1px; background: var(--border-strong, #cdcac2); }
+  .num { text-align: right; font-variant-numeric: tabular-nums; }
+</style>
+<div class="ev-stack">
+  <div class="ev-row"><span class="ev-muted" id="summary">Loading…</span><button class="ev-btn" id="refresh" style="margin-left:auto">Refresh</button></div>
+  <div id="list" role="list" aria-label="Relationships"></div>
+</div>
+<script>
+  const KEYS = [
+    ['affection', 'Affection', 'var(--accent, #cf912f)'],
+    ['trust', 'Trust', 'var(--success, #2f7a3c)'],
+    ['desire', 'Desire', 'var(--danger, #c7353c)'],
+    ['tension', 'Tension', 'var(--warning, #9a5b00)'],
+  ];
+  // Values run -100…100: the bar grows from the middle, right for positive, left for negative.
+  function bar(value, color) {
+    const v = Math.max(-100, Math.min(100, Number(value) || 0));
+    const left = v >= 0 ? 50 : 50 + v / 2;
+    return `<div class="track"><div class="mid"></div><span style="left:${left}%;width:${Math.abs(v) / 2}%;background:${color}"></span></div>`;
+  }
+  const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+  async function load() {
+    const list = document.getElementById('list');
+    const state = everloom.context.chatId ? await everloom.state.get().catch(() => null) : null;
+    const rels = state ? Object.values(state.relationships || {}) : [];
+    document.getElementById('summary').textContent = !everloom.context.chatId ? 'Open this from a chat to see its relationships.' : !state ? 'This chat has no game.' : rels.length ? `${rels.length} ${rels.length === 1 ? 'person' : 'people'}` : 'No relationships yet.';
+    rels.sort((a, b) => (b.affection || 0) - (a.affection || 0));
+    list.innerHTML = rels
+      .map((r) => `<div class="row" role="listitem"><div><div class="name">${esc(r.name)}</div><div class="ev-muted">${esc(r.label || '')}</div></div><div class="bars">${KEYS.map(([k, label, c]) => `<div class="bar"><span>${label}</span>${bar(r[k], c)}<span class="num">${Math.round(r[k] || 0)}</span></div>`).join('')}</div></div>`)
+      .join('');
+  }
+  document.getElementById('refresh').addEventListener('click', load);
+  everloom.on('message', load);
+  load();
+</script>

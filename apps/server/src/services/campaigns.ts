@@ -234,7 +234,8 @@ export function onMessagesDeleted(ctx: AppContext, owner: string, chatId: string
   const prev = ctx.db.prepare('SELECT id FROM messages WHERE chat_id = ? AND seq < ? ORDER BY seq DESC LIMIT 1').get(chatId, minSeq) as { id: string } | undefined;
   const tx = ctx.db.transaction(() => {
     const ph = ids.map(() => '?').join(',');
-    ctx.db.prepare(`DELETE FROM op_log WHERE campaign_id = ? AND message_id IN (${ph}) AND source = 'ai'`).run(campaignId, ...ids);
+    // The AI's and scripts' changes go with their message; the player's own are kept.
+    ctx.db.prepare(`DELETE FROM op_log WHERE campaign_id = ? AND message_id IN (${ph}) AND source IN ('ai', 'script')`).run(campaignId, ...ids);
     ctx.db.prepare(`UPDATE op_log SET message_id = ?, swipe_id = NULL WHERE campaign_id = ? AND message_id IN (${ph})`).run(prev?.id ?? null, campaignId, ...ids);
   });
   tx();

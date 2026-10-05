@@ -1,7 +1,8 @@
 /**
  * Applies the user's custom CSS snippets. Two escape hatches keep a bad snippet from locking
- * anyone out: Settings never gets custom CSS, and `?safe-mode` turns it all off for the rest
- * of the browser session (`?safe-mode=0` turns it back on).
+ * anyone out: Settings never gets custom CSS, and `?safe-mode` (or `?safe=1`) turns it all off,
+ * scripts and extensions included, for the rest of the browser session (`?safe-mode=0` turns it
+ * back on).
  */
 import type { CssSnippet } from '@everloom/engine';
 import { useEffect, useState } from 'react';
@@ -10,8 +11,10 @@ import { useSettings } from './queries';
 
 const KEY = 'everloom.safe-mode';
 
+/** `?safe-mode` or `?safe=1` (also turns off every script and extension; see scripting/bus.ts). */
 export function readSafeMode(search: string): boolean {
   const p = new URLSearchParams(search);
+  if (!p.has('safe-mode') && p.has('safe')) p.set('safe-mode', p.get('safe') === '0' ? '0' : '1');
   try {
     if (p.has('safe-mode')) {
       const on = p.get('safe-mode') !== '0';

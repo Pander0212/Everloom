@@ -1,0 +1,15 @@
+{
+  "id": "dice-roller",
+  "name": "Dice roller",
+  "version": "1.0.0",
+  "author": "Everloom examples",
+  "description": "A dice panel and a /dice command with richer notation: 4d6kh3 (keep highest), 2d20kl1 (keep lowest), 3d6! (exploding), d% and sums like 2d8+1d4+3.",
+  "minEverloom": "0.1.0",
+  "permissions": ["ui.panel", "chat.write"],
+  "entries": {
+    "background": "background.html",
+    "panels": [{ "id": "roller", "title": "Dice roller", "file": "panel.html", "icon": "dice-5" }],
+    "composerButtons": [{ "id": "d20", "label": "Roll d20" }],
+    "slashCommands": [{ "name": "dice", "help": "Roll dice with keep/explode notation", "usage": "/dice 4d6kh3" }]
+  }
+}

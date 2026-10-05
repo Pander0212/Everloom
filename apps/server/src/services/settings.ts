@@ -1,4 +1,4 @@
-import { DEFAULT_WI_SETTINGS, defaultFeatureSettings, defaultShieldSettings, makeStandin, FEATURE_PRESETS, normalizeFeatures, presetFeatures, presetOf, WORLD_PROFILES, type FeaturePreset, type Settings } from '@everloom/engine';
+import { DEFAULT_WI_SETTINGS, defaultFeatureSettings, defaultShieldSettings, defaultScriptSettings, makeStandin, FEATURE_PRESETS, normalizeFeatures, presetFeatures, presetOf, WORLD_PROFILES, type FeaturePreset, type Settings } from '@everloom/engine';
 import type { AppContext } from '../context.js';
 import { sanitizeCss } from '../util/css.js';
 
@@ -30,6 +30,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // Existing installs keep everything on; first-run setup offers the presets.
   features: defaultFeatureSettings(),
   privacy: { shield: defaultShieldSettings() },
+  scripts: defaultScriptSettings(),
 };
 
 function merge<T>(base: T, patch: any): T {

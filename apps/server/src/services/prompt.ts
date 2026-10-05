@@ -4,6 +4,7 @@ import {
   type PersonMemoryView, type SceneBlock,
   stripInlineTags, type AssembledPrompt, type CampaignState, type ChatDTO, type CharacterDTO, type HistoryMessage, type MacroContext,
   type MessageDTO, type PersonaDTO, type ScanEntry, type Settings, type FeatureSet,
+  applyRegexScripts, expandMacros, messageVarsAt, RegexPlacement, type VarMap,
 } from '@everloom/engine';
 import { settingsFor } from './features.js';
 import type { AppContext } from '../context.js';
@@ -13,6 +14,8 @@ import { getState } from './campaigns.js';
 import { booksForChat } from './lorebooks.js';
 import { defaultPersona, getPersona } from './personas.js';
 import { activePreset } from './presets.js';
+import { extensionPromptBlocks } from './extensions.js';
+import { getVars, regexForChat } from './scripts.js';
 import { search } from './search.js';
 import { countTokens } from './tokens.js';
 import { semanticHits } from './semantic.js';
@@ -143,6 +146,9 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     lastUserMessage: lastUser ? textOf(lastUser) : '',
     lastCharMessage: lastChar ? textOf(lastChar) : '',
     vars: { ...(chat.metadata.vars ?? {}) },
+    globalVars: getVars(ctx, owner, 'global') as Record<string, string | number>,
+    charVars: getVars(ctx, owner, 'character', character.id) as Record<string, string | number>,
+    mesVars: messageVarsAt(opts.history as Array<{ id: string; swipeId: number; swipes: Array<{ vars?: VarMap }> }>),
     game: macroGame(state),
     pickSeed: chat.id,
     rng: createRng(seedFrom(chat.id, opts.history.length, Date.now())),
@@ -249,12 +255,22 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
   if (state && features.on.trackers && settings.tracker.mode === 'inline' && opts.type !== 'impersonate') extraRules.push(inlineInstruction(allowedOpTypes(AI_OP_TYPES, features)));
   if (opts.finalInstruction) extraRules.push(opts.finalInstruction);
 
-  const history: HistoryMessage[] = visible.map((m) => ({
+  // Regex rules: prompt-only ones change history as sent (by depth); world info runs through all rules
+  // for its placement, since it is never stored.
+  const rules = regexForChat(ctx, owner, chat.id);
+  const rx = (text: string, placement: RegexPlacement, depth?: number, includeStored = false) => (rules.length ? applyRegexScripts(text, rules, { placement, target: 'prompt', depth, macros, includeStored }) : text);
+  const history: HistoryMessage[] = visible.map((m, i) => ({
     id: m.id,
     role: m.role === 'user' ? 'user' : m.role === 'system' ? 'system' : 'assistant',
     name: m.name,
-    content: stripInlineTags(textOf(m)),
+    content: rx(stripInlineTags(textOf(m)), m.role === 'user' ? RegexPlacement.userInput : RegexPlacement.aiOutput, visible.length - 1 - i),
   }));
+  if (rules.length) {
+    const wiRx = (t: string) => rx(t, RegexPlacement.worldInfo, undefined, true);
+    wi.before = wiRx(wi.before);
+    wi.after = wiRx(wi.after);
+    for (const d of wi.depth) d.entries = d.entries.map(wiRx);
+  }
 
   const dp = card.extensions?.depth_prompt;
   const assembled = assemblePrompt({
@@ -291,6 +307,17 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     maxResponse: opts.maxResponse,
     countTokens,
   });
+  // Extension prompt blocks (approved, enabled extensions): at the top, at the end, or at a depth.
+  for (const blk of extensionPromptBlocks(ctx, owner)) {
+    const content = expandMacros(blk.text, macros).trim();
+    if (!content) continue;
+    const msg = { role: blk.role, content };
+    const n = assembled.messages.length;
+    const at = blk.position === 'before' ? Math.min(1, n) : blk.position === 'after' ? n : Math.max(0, n - blk.depth);
+    assembled.messages.splice(at, 0, msg);
+    assembled.parts.push({ blockId: `ext:${blk.ext}:${blk.id}`, name: `Extension: ${blk.ext}`, role: blk.role, content, tokens: countTokens(content) });
+    assembled.totalTokens += countTokens(content);
+  }
   void characterRow;
   return {
     assembled,

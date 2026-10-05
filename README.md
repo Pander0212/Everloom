@@ -195,6 +195,10 @@ Everloom can be a plain roleplay frontend or a full RPG. **Settings → Features
 
 **Settings → Privacy → Name shield**: list names (yours, people you know, places) that should never reach the AI provider. Each gets a stand-in (suggested, re-rollable, or your own); the provider only ever sees the stand-in, and Everloom swaps the real name back into the reply before it's shown or saved. It covers every model call, embeddings, cloud voices and image prompts, catches possessives and capitalization, and refuses a request if a protected name would still go out. The prompt inspector shows the prompt *as stored* and *as sent*. Limits: context can still identify someone, misspellings need to be added as extra forms, and a model may shorten a stand-in (flagged on the message).
 
+### Scripts and extensions
+
+Characters, presets and lorebooks can carry scripts, and messages can carry interactive HTML (status panels, choice menus, mini-games). Everything runs in a sealed frame that can only do what you allowed: a card's scripts come in **off**, and a review sheet shows the code and the permissions in plain words before you choose **Enable**, **Enable once** or **Keep disabled**. Also: variables at chat, character, global and message level (message variables follow swipes), SillyTavern-format regex rules, slash commands with pipes (`/roll 2d6 | /echo {{pipe}}`), quick replies, and a Tavern Helper compatibility layer for cards written for it. **Settings → Scripts** has the off switch and limits; add `?safe=1` to the address to start with every script off. **Settings → Extensions** installs add-ons from a zip or a Git address; three examples are in `examples/extensions`. Details: [docs/scripting.md](docs/scripting.md), [docs/extensions.md](docs/extensions.md).
+
 ### Vault (encryption at rest)
 
 **Settings → Privacy → Vault** encrypts everything Everloom keeps on the server's disk: the whole database (chats, characters, memories, search index, settings) with SQLCipher-compatible encryption, and every picture, voice, sprite and model file with AES-256-GCM. You choose a passphrase (or use your login password, so signing in unlocks it) and get a **recovery key**, shown once. While it's locked, nothing can be read; it locks when you press **Lock now**, after the idle time you choose, when you sign out and whenever the server restarts. Backups stay encrypted; exports can be protected with a password (`.evlt` files, which every import screen opens). The browser keeps no drafts or content in storage while it's on.
@@ -335,7 +339,7 @@ It prints a new password, signs out every session and clears lockouts. (Without 
 - Uploads are checked by content, re-encoded (dropping EXIF/GPS) and size-limited; archive extraction rejects unsafe paths.
 - Everything except sign-in, first-run setup and the health check needs a session.
 - Content-driven fetches (images linked in cards, online sources, the image proxy) can't reach loopback, private or link-local addresses; the address is checked when connecting and on every redirect.
-- Creator notes render in a sandboxed frame that can't run scripts. Custom CSS is cleaned (no imports or remote resources) and never applies to Settings; add `?safe-mode` to any address to turn it off.
+- Scripts and interactive messages run in sandboxed frames with no network access and only the permissions you approved; model calls, internet access and script storage are checked again on the server. Creator notes render in a sandboxed frame that can't run scripts. Custom CSS is cleaned (no imports or remote resources) and never applies to Settings; add `?safe-mode` to any address to turn it off.
 - Optional Vault: the database and media encrypted at rest, locked until the passphrase is given (see [Vault](#vault-encryption-at-rest)).
 - Online-source API keys are encrypted like the others. Adult content from online sources is off until you turn it on.
 

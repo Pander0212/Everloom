@@ -789,6 +789,8 @@ export interface CampaignState {
   };
   time: { minutes: number };
   weather: { kind: WeatherKind; tempC: number; since: number };
+  /** Extension-owned state, one object per extension id (only changed through `ext.op`). */
+  ext?: Record<string, Record<string, any>>;
   player: Player;
   trackers: Record<string, Tracker>;
   inventory: Record<string, Item>;

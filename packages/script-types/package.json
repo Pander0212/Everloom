@@ -1,0 +1,8 @@
+{
+  "name": "@everloom/script-types",
+  "version": "0.1.0",
+  "description": "TypeScript types for Everloom scripts and extensions (the `everloom` object inside the sandbox, and everloom-extension.json).",
+  "license": "MIT",
+  "types": "index.d.ts",
+  "files": ["index.d.ts", "README.md"]
+}

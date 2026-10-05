@@ -4,6 +4,7 @@ import { migrate, openDb } from './db/index.js';
 import { hashPassword, randomToken } from './security/crypto.js';
 import { applyPendingRestore, startScheduler } from './services/backup.js';
 import { startVaultTimer } from './services/vault.js';
+import { stopAllServerParts } from './services/extension-host.js';
 import Database from 'better-sqlite3-multiple-ciphers';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -30,6 +31,7 @@ async function main() {
     console.log(`${signal} received, shutting down`);
     stopScheduler();
     stopVault();
+    stopAllServerParts();
     await app.close();
     ctx.db.close();
     if (ctx.sys !== ctx.db) ctx.sys.close();

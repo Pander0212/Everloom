@@ -529,4 +529,70 @@ CREATE TABLE saved_searches (
 CREATE INDEX saved_searches_owner ON saved_searches(owner_id, provider);
 `,
   },
+  {
+    version: 8,
+    name: 'phase 4 scripting and extensions',
+    sql: `
+-- The owner's own scripts, regex rules and quick-reply sets (global, or bound to one chat).
+-- Character, preset and lorebook scripts live in those items' extension data so they round-trip.
+CREATE TABLE user_scripts (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  scope TEXT NOT NULL DEFAULT 'global',
+  scope_id TEXT NOT NULL DEFAULT '',
+  data TEXT NOT NULL,
+  position INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX user_scripts_owner ON user_scripts(owner_id, kind, scope, scope_id);
+-- What the owner approved: a script (by key) at one fingerprint of code, permissions and domains.
+CREATE TABLE script_grants (
+  owner_id TEXT NOT NULL,
+  key TEXT NOT NULL,
+  fingerprint TEXT NOT NULL,
+  permissions TEXT NOT NULL DEFAULT '[]',
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, key)
+);
+-- Creators or sources whose scripts are approved on import.
+CREATE TABLE script_trust (
+  owner_id TEXT NOT NULL,
+  kind TEXT NOT NULL,
+  value TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, kind, value)
+);
+-- Each script's private key-value store.
+CREATE TABLE script_storage (
+  owner_id TEXT NOT NULL,
+  script_key TEXT NOT NULL,
+  k TEXT NOT NULL,
+  v TEXT NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, script_key, k)
+);
+-- Global and character variables (chat variables stay in the chat, message variables on the swipe).
+CREATE TABLE variables (
+  owner_id TEXT NOT NULL,
+  scope TEXT NOT NULL,
+  scope_id TEXT NOT NULL DEFAULT '',
+  data TEXT NOT NULL DEFAULT '{}',
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, scope, scope_id)
+);
+CREATE TABLE extensions (
+  id TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  manifest TEXT NOT NULL,
+  enabled INTEGER NOT NULL DEFAULT 1,
+  source TEXT NOT NULL DEFAULT '',
+  errors TEXT NOT NULL DEFAULT '[]',
+  installed_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, id)
+);
+`,
+  },
 ];

@@ -1,0 +1,38 @@
+{
+  "id": "town-reputation",
+  "name": "Town reputation",
+  "version": "1.0.0",
+  "author": "Everloom examples",
+  "description": "Adds a reputation with each town to the game: a custom game op (it rolls back with swipes like every other change), a panel, a /rep command, and a line in the prompt so the story remembers.",
+  "minEverloom": "0.1.0",
+  "permissions": ["state.read", "state.ops", "ui.panel", "variables"],
+  "entries": {
+    "background": "background.js",
+    "panels": [{ "id": "towns", "title": "Town reputation", "file": "panel.html", "icon": "landmark" }],
+    "slashCommands": [{ "name": "rep", "help": "Change your reputation with a town", "usage": "/rep Eastport +5" }],
+    "promptBlocks": [{ "id": "standing", "text": "[Town reputation: {{script::townrep}}]", "position": "depth", "depth": 2, "role": "system" }],
+    "ops": [
+      {
+        "name": "change",
+        "label": "Town reputation",
+        "description": "Change how a town sees the player (-20…20 per change)",
+        "params": { "town": { "type": "string", "maxLength": 60 }, "amount": { "type": "integer", "min": -20, "max": 20 } },
+        "steps": [
+          { "do": "add", "path": "/towns/{town}", "value": "{amount}", "min": -100, "max": 100 },
+          { "do": "push", "path": "/history", "value": "{town} {amount}", "limit": 30 }
+        ],
+        "summary": "Reputation in {town} {amount:+}",
+        "ai": true
+      },
+      {
+        "name": "forget",
+        "label": "Forget a town",
+        "params": { "town": { "type": "string", "maxLength": 60 } },
+        "steps": [
+          { "do": "require", "path": "/towns/{town}", "check": "exists", "message": "No reputation there yet" },
+          { "do": "delete", "path": "/towns/{town}" }
+        ]
+      }
+    ]
+  }
+}

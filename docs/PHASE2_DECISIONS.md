@@ -359,6 +359,96 @@ A real Phase 2 database (`tests/fixtures/phase2.db`, written by the Phase 2 rele
 Each part below records what was built, what was deliberately not, and why. Parts were done in the
 order the brief suggests (2 → 3 → 5 → 4 → 1 → 6 → 7).
 
+## Part 1 — Scripting and extensions
+
+Guides: [docs/scripting.md](scripting.md) and [docs/extensions.md](extensions.md).
+
+**What existed.** Macros (`{{getvar}}`, `{{setvar}}`, dice, time, game values), chat variables in the
+chat's metadata, and a script-less sandboxed frame for creator notes. Nothing ran user code. All of
+it was extended, not duplicated: the macro engine gained character, message and script values; the
+creator-notes frame is still what message HTML falls back to when its scripts aren't allowed.
+
+**The sandbox.** Each script, panel, screen and HTML block is an `<iframe sandbox="allow-scripts">`
+of `/api/sandbox/frame`, a document with its own policy (`connect-src 'none'`, `frame-src 'none'`,
+pictures only as `data:`/`blob:`, `frame-ancestors 'self'`; the rest of the app stays `DENY`).
+Without `allow-same-origin` the frame's origin is opaque: no cookies, no storage, no access to the
+page; the policy blocks every request, so a script can't send anything anywhere on its own. A
+separate origin would add little over an opaque one and complicate self-hosting (a second hostname
+and certificate), so we didn't require one. The frame's runtime (plain JavaScript, inlined into the
+document) receives the code and HTML by `postMessage` after it loads; nothing user-provided is in the
+document Everloom serves.
+
+**The bridge.** Every call from a frame is `postMessage` to the app, which looks the frame up by its
+`contentWindow` (never by what the message claims), checks the call against a table of permissions,
+and only then does the work with the app's own API calls. Calls that cost money (`generate`), reach
+the internet (`network`, server-side fetch with a domain list, `https` only, 1 MB) or keep data
+(`storage`) are checked again by the server against the script's approval, so a compromised page
+script still couldn't use another script's grants. Keys, settings, accounts, backups, the extension
+manager and the database have no bridge call at all.
+
+**Approval follows the code.** A grant stores a fingerprint of the code, the permissions and the
+domains. Anything changing (an edit, an updated card, an extension update) withdraws the approval
+for that script only. Imported cards, presets and lorebooks come in with scripts, regex rules and
+message scripts off; the review sheet shows code, permissions in plain words, and Enable / Enable
+once (in memory, gone on sign-out or restart) / Keep disabled, plus trusting the creator. Scripts
+the owner writes are approved as they're saved.
+
+**Runaway code.** Sandboxed frames can share the page's thread, where a parent-side watchdog can't
+interrupt a busy loop. So every loop is rewritten with an `acorn`-parsed guard call (a random name
+per frame, defined non-writable before the script runs) that throws once a task exceeds its budget,
+and keeps throwing until the task ends, so an inner `try/catch` can't swallow it. The watchdog pings
+each frame and removes one that stops answering. Deep recursion ends by itself; a deliberately
+hostile script can still freeze the tab, which is stated in the docs with the way out (`?safe=1`).
+
+**Message HTML.** ```` ```html ```` blocks, a configurable tag and whole documents render in
+auto-height frames that mount when scrolled near (long chats stay light on a phone); the theme's
+CSS variables and a small `ev-*` class kit are passed in. Remote pictures in the HTML are fetched
+through the image proxy and inlined. Scripts in messages run with the character's *message
+permissions*, once approved (or always with no permissions, or never, by setting).
+
+**Variables at four scopes.** Chat (the chat's metadata, as before), character and global (a
+`variables` table), message. Message variables are stored on the swipe that set them, and a
+message's value is the merge along each message's current swipe, so they follow swipes, edits and
+deletions without any extra transaction bookkeeping.
+
+**Game changes from scripts** go through `validateOps` and the reducer like the AI's, anchored to
+the newest message and its swipe with a new `script` source that is removed with its message and on
+regeneration (the player's own changes are kept, as before).
+
+**Custom ops are declarative.** Extensions describe arguments and steps (`set`, `add` with clamping,
+`push` with a limit, `delete`, `require`) on `state.ext[<id>]`. The reducer runs them, so inverse
+patches are recorded like for built-in ops and the rollback suite covers them; no extension code
+runs inside the reducer, on the server or anywhere it could see other state. Turned-off or
+uninstalled extensions keep their definitions registered for replay, but new changes with them are
+refused.
+
+**Regex rules** follow SillyTavern's format and placements (input, output, world info), with
+display-only, prompt-only and depth limits, applied in three places: stored text (on the server,
+for typed, generated and added messages), the prompt (history by depth; world info), and display
+(in the message renderer).
+
+**Slash commands** are a small parser (`|` pipes, `{{pipe}}`, quoted and `key=value` arguments) and
+a registry built-in commands, scripts and extensions add to; a command run by a script is checked
+against its permissions. Closures, loops and `/if` were left out on purpose.
+
+**Tavern Helper compatibility** is our own implementation of the documented function names over
+the bridge (PolyForm Noncommercial forbids using theirs). Synchronous reads are served from a
+snapshot kept current by events. It has no extra powers. jQuery and lodash are not bundled; small
+subsets of the common calls are.
+
+**Extensions.** Manifest validated with zod; packages from a zip, a Git host's zip download or a
+dev folder inside the import roots (watched, reloaded on save). Entry HTML gets its relative
+scripts, styles and pictures inlined server-side, since a frame can't load addresses. Files are
+sealed by the Vault like media. Server extensions run in a child process started with
+`node --input-type=module -e` (the main module arrives over IPC as a `data:` import, so nothing
+decrypted touches the disk), get no database handle, keys or session, and only exist when the
+server is started with `EVERLOOM_SERVER_EXTENSIONS=1` and the first account installs them.
+
+**Deferred.** A marketplace or index of extensions; signed packages; per-extension resource
+quotas beyond the frame limits; STscript closures and `/if`; the rest of Tavern Helper's API
+(presets, character editing, audio, imports); running SillyTavern UI extensions (they depend on its
+page and are out of scope by design).
+
 ## Part 2 — Character sources
 
 **What was actually broken.** Checked live on 2026-10-05 before changing anything:

@@ -1,0 +1,13 @@
+{
+  "id": "relationship-chart",
+  "name": "Relationship chart",
+  "version": "1.0.0",
+  "author": "Everloom examples",
+  "description": "A screen that charts how everyone in the story feels about you: affection, trust, desire and tension, read from the game state.",
+  "minEverloom": "0.1.0",
+  "permissions": ["state.read"],
+  "entries": {
+    "screens": [{ "id": "chart", "title": "Relationships", "file": "chart.html", "icon": "heart" }],
+    "panels": [{ "id": "chart", "title": "Relationships", "file": "chart.html", "icon": "heart" }]
+  }
+}

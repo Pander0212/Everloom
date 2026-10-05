@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { afterImport } from './scripts.js';
 import { readContentFile } from '../vault/vault.js';
 import yauzl from 'yauzl';
 import {
@@ -234,7 +235,10 @@ export async function importCard(ctx: AppContext, owner: string, bytes: Buffer):
     }
   }
   const everloom = parsed.data.extensions?.everloom as CharacterGame | undefined;
-  return createCharacter(ctx, owner, parsed.data, { avatar, topExtras: parsed.topLevelExtras, game: everloom ?? {} });
+  const created = createCharacter(ctx, owner, parsed.data, { avatar, topExtras: parsed.topLevelExtras, game: everloom ?? {} });
+  // Scripts and regex rules in it stay off until the owner reviews them (or trusts its creator).
+  afterImport(ctx, owner, created.id);
+  return created;
 }
 
 function exportData(ctx: AppContext, owner: string, id: string): { card: CardData; extras: Record<string, unknown>; row: any } {

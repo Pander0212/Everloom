@@ -1,4 +1,4 @@
-import { ArrowLeft, Globe, ShieldCheck, ToggleRight, Bot, BookOpen, Brush, Code, Database, Gamepad2, Image, Info, KeyRound, MessageSquare, Plug, ScrollText, Users, Volume2, Stethoscope } from 'lucide-react';
+import { ArrowLeft, FileCode2, Puzzle, Globe, ShieldCheck, ToggleRight, Bot, BookOpen, Brush, Code, Database, Gamepad2, Image, Info, KeyRound, MessageSquare, Plug, ScrollText, Users, Volume2, Stethoscope } from 'lucide-react';
 import { lazy, Suspense } from 'react';
 import type { FeatureId } from '@everloom/engine';
 import { useFeatures } from '@/lib/features';
@@ -24,6 +24,8 @@ const DataSection = lazy(() => import('./sections/Data'));
 const AccountSection = lazy(() => import('./sections/Account'));
 const AboutSection = lazy(() => import('./sections/About'));
 const DiagnosticsSection = lazy(() => import('./sections/Diagnostics'));
+const ScriptsSection = lazy(() => import('./sections/Scripts'));
+const ExtensionsSection = lazy(() => import('./sections/Extensions'));
 
 /** A section whose module is off in Settings › Features isn't listed. */
 export const SECTIONS: Array<{ id: string; label: string; icon: typeof Plug; el: React.LazyExoticComponent<() => React.ReactNode>; feature?: FeatureId }> = [
@@ -37,6 +39,8 @@ export const SECTIONS: Array<{ id: string; label: string; icon: typeof Plug; el:
   { id: 'lore', label: 'World info', icon: BookOpen, el: LoreSection },
   { id: 'appearance', label: 'Appearance', icon: Brush, el: AppearanceSection },
   { id: 'css', label: 'Custom CSS', icon: Code, el: CustomCssSection },
+  { id: 'scripts', label: 'Scripts', icon: FileCode2, el: ScriptsSection },
+  { id: 'extensions', label: 'Extensions', icon: Puzzle, el: ExtensionsSection },
   { id: 'voice', label: 'Voice', icon: Volume2, el: VoiceSection, feature: 'voice' },
   { id: 'images', label: 'Images', icon: Image, el: ImagesSection, feature: 'imagegen' },
   { id: 'data', label: 'Backups & import', icon: Database, el: DataSection },

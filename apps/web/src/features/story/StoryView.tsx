@@ -1,10 +1,10 @@
 import type { MessageDTO } from '@everloom/engine';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowLeft, BookText, Brain, Clapperboard, Eye, FastForward, History, Minimize2, MoreHorizontal, NotebookPen, Save, Search, ScrollText, Sparkles, Telescope, UserRoundPen } from 'lucide-react';
+import { ArrowDown, ArrowLeft, BookText, Brain, Clapperboard, Code2, Eye, FastForward, History, Minimize2, MoreHorizontal, NotebookPen, PanelRight, Save, Search, ScrollText, ShieldQuestion, Sparkles, Telescope, UserRoundPen, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
-import { del, patch, post } from '@/lib/api';
+import { del, get, patch, post } from '@/lib/api';
 import { useLive } from '@/lib/events';
 import { cx } from '@/lib/format';
 import { t } from '@/lib/motion';
@@ -22,8 +22,20 @@ import { speak } from './tts';
 import { GameLayer } from '@/features/game/GameLayer';
 import type { Command } from '@/features/game/CommandMenu';
 import { SavesSheet, ViewSheet } from './SavesSheet';
+import { scriptBus } from '@/scripting/bus';
+import { isCommand, runSlashLine, setChatActions } from '@/scripting/commands';
+import { ScriptViewContext, type ScriptView } from '@/scripting/context';
+import { QuickBar } from '@/scripting/QuickBar';
+import { ReviewSheet } from '@/scripting/ReviewSheet';
+import { ScriptsSheet } from '@/scripting/ScriptsSheet';
+import { SlashSuggest } from '@/scripting/SlashSuggest';
+import { openExtensionPanel } from '@/scripting/ui-store';
+import type { ReviewTarget } from '@/scripting/types';
+import { useScripts } from '@/scripting/useScripts';
 
 const Stage = lazy(() => import('@/features/game/Stage'));
+// The script sandbox only loads when this chat has something to run.
+const ScriptLayer = lazy(() => import('@/scripting/ScriptLayer'));
 // Game-only pieces: not downloaded unless the game layer is on.
 const CastStrip = lazy(() => import('../game/CastStrip').then((m) => ({ default: m.CastStrip })));
 const ComposerChips = lazy(() => import('@/features/game/ComposerChips').then((m) => ({ default: m.ComposerChips })));
@@ -47,7 +59,10 @@ export default function StoryView() {
   const streams = useLive((s) => s.streams);
   const [composer, setComposer] = useState('');
   const [limit, setLimit] = useState(PAGE);
-  const [sheet, setSheet] = useState<null | 'inspector' | 'search' | 'note' | 'memory' | 'info' | 'world' | 'saves' | 'view'>(null);
+  const [sheet, setSheet] = useState<null | 'inspector' | 'search' | 'note' | 'memory' | 'info' | 'world' | 'saves' | 'view' | 'scripts'>(null);
+  const scripts = useScripts(id);
+  const [review, setReview] = useState<ReviewTarget | null>(null);
+  const [pendingSeen, setPendingSeen] = useState(false);
   const [cinematic, setCinematic] = useState(false);
   useEffect(() => {
     if (!cinematic) return;
@@ -121,7 +136,25 @@ export default function StoryView() {
 
   const run = async (type: Parameters<typeof generate>[1], text?: string) => {
     setStuck(true);
+    // Scripts see the turn: a hook before it (they may set variables), then what happened.
+    if (scripts.runnable.length || scripts.extensions.length) {
+      if (type !== 'impersonate') await scriptBus.beforeGeneration({ chatId: id, type });
+      scriptBus.emit('generationStart', { chatId: id, type });
+    }
     const r = await generate(id, type, { text, characterId: speaker, target: type === 'normal' && text ? target : null });
+    if (scripts.runnable.length || scripts.extensions.length) {
+      const after = qc.getQueryData<MessageDTO[]>(qk.messages(id)) ?? [];
+      const lastA = [...after].reverse().find((x) => x.role === 'assistant');
+      const lastU = [...after].reverse().find((x) => x.role === 'user');
+      if (text && lastU) scriptBus.emit('messageSent', { chatId: id, messageId: lastU.id, messageIndex: after.indexOf(lastU) });
+      scriptBus.emit('generationEnd', { chatId: id, type });
+      if (lastA && type !== 'impersonate') scriptBus.emit(type === 'swipe' ? 'swipe' : 'message', { chatId: id, messageId: lastA.id, messageIndex: after.indexOf(lastA) });
+      // Lorebook scripts that run when their entry activates: the reply's activated entries.
+      if (type !== 'impersonate' && scripts.runnable.some((s) => s.script.triggers.includes('entryActivated'))) {
+        const last = await get<{ worldInfo?: Array<{ world: string; uid: number }> } | null>(`/api/chats/${id}/prompt`).catch(() => null);
+        if (last?.worldInfo?.length) scriptBus.emit('entryActivated', { chatId: id, entries: last.worldInfo.map((w) => ({ book: w.world, uid: w.uid })) });
+      }
+    }
     if (settings.data?.chat.autoTts && features.on.voice && type !== 'impersonate') {
       const last = qc.getQueryData<MessageDTO[]>(qk.messages(id))?.at(-1);
       if (last?.role === 'assistant') void speak(last.swipes[last.swipeId]?.text ?? '', { settings: settings.data, voice: character.data?.game.voice?.voice, speed: character.data?.game.voice?.speed, reference: refOf(character.data?.game.voice) }).catch(() => {});
@@ -141,6 +174,7 @@ export default function StoryView() {
         upsertMessage({ ...m, swipeId: next });
         try {
           upsertMessage(await post(`/api/messages/${m.id}/swipe`, { swipeId: next }));
+          scriptBus.emit('swipe', { chatId: id, messageId: m.id, messageIndex: list.findIndex((x) => x.id === m.id) });
         } catch (e) {
           upsertMessage(m);
           toastError(e);
@@ -149,6 +183,7 @@ export default function StoryView() {
       onEdit: async (m, text) => {
         try {
           upsertMessage(await patch(`/api/messages/${m.id}`, { text }));
+          scriptBus.emit('edit', { chatId: id, messageId: m.id, messageIndex: list.findIndex((x) => x.id === m.id) });
         } catch (e) {
           toastError(e);
         }
@@ -159,6 +194,7 @@ export default function StoryView() {
         try {
           const r = await del<{ ids: string[] }>(`/api/messages/${m.id}${andAfter ? '?after=1' : ''}`);
           qc.setQueryData<MessageDTO[]>(qk.messages(id), (l) => l?.filter((x) => !r.ids.includes(x.id)));
+          scriptBus.emit('delete', { chatId: id, messageId: m.id, ids: r.ids });
         } catch (e) {
           toastError(e);
         }
@@ -190,6 +226,27 @@ export default function StoryView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [id, list, lastAssistant?.id, settings.data, character.data, speaker, features.on.voice],
   );
+
+  // Commands and scripts act on this chat through the same reply flow as the composer.
+  useEffect(() => {
+    setChatActions({ chatId: id, generate: (type, text) => run(type, text), setComposer, stop: () => void stop(id) }, id);
+    return () => setChatActions(null, id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [id, speaker, target, scripts.runnable.length, scripts.extensions.length]);
+  const scriptView: ScriptView = useMemo(
+    () => ({
+      settings: scripts.settings,
+      active: scripts.active,
+      safe: scripts.safe,
+      chatId: id,
+      characterId: chat.data?.characterId ?? null,
+      review: setReview,
+      renderers: scripts.extensions.flatMap((e) => e.messageRenderers.map((r) => ({ ext: e.id, key: e.key, tag: r.tag, file: r.file, permissions: e.permissions, updatedAt: e.updatedAt }))),
+    }),
+    [scripts.settings, scripts.active, scripts.safe, scripts.extensions, id, chat.data?.characterId],
+  );
+  const sendText = useCallback(async (text: string) => void (await run('normal', text)), [id, speaker, target]); // eslint-disable-line react-hooks/exhaustive-deps
+  const swipeNew = useCallback(async () => void (await run('swipe')), [id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   if (chat.isLoading || messages.isLoading) {
     return (
@@ -223,7 +280,10 @@ export default function StoryView() {
       placeholder={`Message ${group ? 'the group' : title}`}
       onSend={(text) => {
         setComposer('');
-        void run('normal', text.trim() || undefined);
+        // "/command …" runs a command; "//text" sends text starting with a slash.
+        if (isCommand(text)) return void runSlashLine(text.trim(), { perms: 'owner', chatId: id, from: 'You' });
+        const t = text.trim().startsWith('//') ? text.trim().slice(1) : text.trim();
+        void run('normal', t || undefined);
       }}
       onStop={() => void stop(id)}
       onMenu={() => setMenuOpen(true)}
@@ -232,7 +292,19 @@ export default function StoryView() {
         if (last && last.role === 'assistant' && !busy) void actions.onSwipe(last, dir);
       }}
       accessory={
-        group ? (
+        <>
+          {composer.trim().startsWith('/') ? <SlashSuggest value={composer} onPick={setComposer} /> : null}
+          {scripts.active?.pending.length && !pendingSeen ? (
+            <div className="mb-2 flex items-center gap-2 rounded-md bg-warning-soft px-3 py-2 text-sm" role="status">
+              <span className="min-w-0 flex-1 truncate">{scripts.active.pending.map((p) => p.name).join(', ')} {scripts.active.pending.length === 1 ? 'has' : 'have'} scripts that are off.</span>
+              <Button size="sm" icon={ShieldQuestion} onClick={() => setReview(scripts.active!.pending[0]!.target)}>
+                Review
+              </Button>
+              <IconButton size="sm" icon={X} label="Hide this notice" onClick={() => setPendingSeen(true)} />
+            </div>
+          ) : null}
+          <QuickBar chatId={id} active={scripts.active} runnable={scripts.runnable} extensions={scripts.extensions} onSend={(t) => void run('normal', t)} setComposer={setComposer} busy={busy} />
+          {group ? (
           <div className="no-scrollbar mb-2 flex gap-1.5 overflow-x-auto">
             <button onClick={() => setSpeaker(null)} className={cx('pressable h-8 flex-none rounded-full px-3 text-xs font-medium', !speaker ? 'bg-accent-soft text-accent-text' : 'bg-surface-2 text-fg-2')}>
               {group.strategy === 'manual' ? 'Pick next speaker' : 'Auto'}
@@ -252,7 +324,8 @@ export default function StoryView() {
             <CastStrip />
             <ComposerChips campaign={campaign.data ?? null} target={target} setTarget={setTarget} setComposer={setComposer} composer={composer} chatId={id} busy={busy} />
           </Suspense>
-        ) : null
+        ) : null}
+        </>
       }
     />
   );
@@ -278,6 +351,12 @@ export default function StoryView() {
     { id: 'world', label: 'World inspector', icon: Telescope, group: 'Quick', keywords: 'scene block calls cost health changes undo', run: () => setSheet('world') },
     { id: 'saves', label: 'Saves', icon: Save, group: 'Quick', keywords: 'save load slot checkpoint', run: () => setSheet('saves') },
     { id: 'cinematic', label: 'Cinematic mode', icon: Clapperboard, group: 'Quick', keywords: 'focus fullscreen immersive hide', run: () => setCinematic(true) },
+    { id: 'scripts', label: 'Scripts', icon: Code2, group: 'Quick', keywords: 'extensions console permissions', run: () => setSheet('scripts') },
+    // Extension panels and screens as tiles.
+    ...scripts.extensions.flatMap((e) => [
+      ...e.panels.filter((p) => p.tile).map((p) => ({ id: `ext:${e.id}:${p.id}`, label: p.title, icon: PanelRight, group: 'Quick' as const, keywords: `${e.name} extension`, run: () => openExtensionPanel(e, p, id, c.characterId) })),
+      ...e.screens.map((sc) => ({ id: `ext:${e.id}:screen:${sc.id}`, label: sc.title, icon: PanelRight, group: 'Quick' as const, keywords: `${e.name} extension`, run: () => navigate(`/x/${encodeURIComponent(e.id)}/${encodeURIComponent(sc.id)}?chat=${id}`) })),
+    ]),
   ];
 
   const renderMessage = (m: MessageDTO) => {
@@ -287,6 +366,8 @@ export default function StoryView() {
     return (
       <Message
         key={m.id}
+        index={list.indexOf(m)}
+        depth={list.length - 1 - list.indexOf(m)}
         m={mine ? { ...m, swipeId: gen.swipeId } : live ? { ...m, swipeId: live.swipeId } : m}
         avatar={avatarFor(m)}
         isLast={m.id === list[list.length - 1]?.id}
@@ -329,11 +410,13 @@ export default function StoryView() {
             { label: 'Saves', icon: Save, onSelect: () => setSheet('saves'), separatorBefore: true },
             { label: 'View', icon: Eye, onSelect: () => setSheet('view') },
             { label: 'Cinematic mode', icon: Clapperboard, onSelect: () => setCinematic(true) },
+            { label: 'Scripts', icon: Code2, onSelect: () => setSheet('scripts') },
             { label: 'Chat details', icon: MoreHorizontal, onSelect: () => setSheet('info'), separatorBefore: true },
           ]}
         />
       </header>
 
+      <ScriptViewContext.Provider value={scriptView}>
       <FeaturesContext.Provider value={features}>
       <GameLayer chat={c} campaign={campaign.data ?? null} busy={busy} onRun={run} setComposer={setComposer} menuOpen={menuOpen} setMenuOpen={setMenuOpen} quick={quick}>
         {mode === 'stage' ? (
@@ -396,6 +479,14 @@ export default function StoryView() {
         )}
       </GameLayer>
       </FeaturesContext.Provider>
+      </ScriptViewContext.Provider>
+      {scripts.on && scripts.settings && (scripts.runnable.length || scripts.extensions.some((e) => e.background)) ? (
+        <Suspense fallback={null}>
+          <ScriptLayer chatId={id} characterId={c.characterId} settings={scripts.settings} runnable={scripts.runnable} extensions={scripts.extensions} send={sendText} swipeNew={swipeNew} />
+        </Suspense>
+      ) : null}
+      <ScriptsSheet open={sheet === 'scripts'} onOpenChange={(o) => setSheet(o ? 'scripts' : null)} active={scripts.active} extensions={scripts.extensions} safe={scripts.safe} on={scripts.on} onReview={setReview} />
+      <ReviewSheet target={review} open={!!review} onOpenChange={(o) => !o && setReview(null)} />
 
       <InspectorSheet chatId={id} open={sheet === 'inspector'} onOpenChange={(o) => setSheet(o ? 'inspector' : null)} />
       <SearchSheet chatId={id} messages={list} open={sheet === 'search'} onOpenChange={(o) => setSheet(o ? 'search' : null)} onJump={jumpTo} />

@@ -198,7 +198,7 @@ function walkFiles(dir: string, out: string[] = []): string[] {
 }
 
 /** Folders whose files are user content. */
-export const contentDirs = (cfg: Config) => [cfg.mediaDir, path.join(cfg.dataDir, 'live2d')];
+export const contentDirs = (cfg: Config) => [cfg.mediaDir, path.join(cfg.dataDir, 'live2d'), path.join(cfg.dataDir, 'extensions')];
 
 /**
  * Bring every content file to the vault's state: encrypt plain ones (seal) or decrypt encrypted

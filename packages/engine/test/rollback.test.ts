@@ -4,7 +4,9 @@
  * step here fails the coverage check.
  */
 import { describe, expect, it } from 'vitest';
-import { applyOps, createInitialState, diffToPatches, invertOps, OpSchemas, type CampaignState, type Op } from '../src/index.js';
+import { applyOps, createInitialState, diffToPatches, invertOps, OpSchemas, registerExtOps, type CampaignState, type Op } from '../src/index.js';
+
+registerExtOps('town-rep', [{ name: 'change', label: 'Reputation', params: { town: { type: 'string' }, amount: { type: 'integer', min: -50, max: 50 } }, steps: [{ do: 'add', path: '/towns/{town}', value: '{amount}', min: -100, max: 100 }] }]);
 
 type Step = Record<string, unknown> | ((s: CampaignState) => Record<string, unknown>);
 
@@ -179,6 +181,7 @@ const STEPS: Step[] = [
   { type: 'transit.ride', line: 'River Coach', to: 'Eastport' },
   { type: 'transit.add', name: 'Ferry', mode: 'boat', stops: ['Eastport', 'Millbrook'] },
   { type: 'transit.remove', line: 'Ferry' },
+  { type: 'ext.op', ext: 'town-rep', name: 'change', args: { town: 'Eastport', amount: 12 } },
   // ---- sleep last: the long tick runs bills, mail, restocks, schedules
   { type: 'activity', kind: 'sleep', hours: 8 },
 ];

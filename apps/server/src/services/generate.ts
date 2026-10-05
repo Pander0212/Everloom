@@ -2,7 +2,7 @@
  * Chat generation: builds the prompt, streams tokens to the caller and to other devices,
  * saves the result as a message/swipe, then runs the tracker pass and memory upkeep.
  */
-import { AI_OP_TYPES, allowedOpTypes, detectEmotion, extractInlineOps, stripInlineTags, turnTick, type GenerateEvent, type MessageDTO, type SwipeDTO, type TickResult } from '@everloom/engine';
+import { AI_OP_TYPES, allowedOpTypes, applyRegexScripts, detectEmotion, extractInlineOps, RegexPlacement, stripInlineTags, turnTick, type GenerateEvent, type MacroContext, type MessageDTO, type SwipeDTO, type TickResult } from '@everloom/engine';
 import { HttpError, type AppContext } from '../context.js';
 import { streamChat, type ResolvedConnection } from '../llm/providers.js';
 import { appendOps, deleteEntriesFor, getState, rebuildCampaign, realtimeTick } from './campaigns.js';
@@ -16,6 +16,7 @@ import { applyTracked, runTrackerPass } from './tracker.js';
 import { deleteAnchored } from './mem.js';
 import { recordCall } from './calls.js';
 import { settingsFor } from './features.js';
+import { getVars, regexForChat, setVars } from './scripts.js';
 import { currentShield, shieldChat, shieldPreview } from '../privacy/shield.js';
 
 /** The prompt parts as the provider receives them (null when the name shield changes nothing). */
@@ -107,7 +108,9 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
     // 1. User message
     if (input.type === 'normal' && input.text && input.text.trim()) {
       const pcTmp = loadPromptContext(ctx, owner, chatId);
-      const userMsg = insertMessage(ctx, owner, chatId, { role: 'user', name: pcTmp.userName, swipes: [{ text: input.text.trim(), createdAt: Date.now() }] });
+      const rules = regexForChat(ctx, owner, chatId);
+      const userText = rules.length ? applyRegexScripts(input.text.trim(), rules, { placement: RegexPlacement.userInput, target: 'stored', macros: { user: pcTmp.userName, char: pcTmp.character.name } }) : input.text.trim();
+      const userMsg = insertMessage(ctx, owner, chatId, { role: 'user', name: pcTmp.userName, swipes: [{ text: userText, createdAt: Date.now() }] });
       emit({ type: 'user', message: userMsg });
       pub('message.created', { chatId, message: userMsg });
     }
@@ -152,7 +155,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       swipes[swipeIndex] = { text: '', createdAt: Date.now() };
       writeSwipes(ctx, target.id, swipes, swipeIndex);
       if (chat.campaignId) {
-        deleteEntriesFor(ctx, chat.campaignId, target.id, swipeIndex, ['ai']);
+        deleteEntriesFor(ctx, chat.campaignId, target.id, swipeIndex, ['ai', 'script']);
         deleteAnchored(ctx, target.id, swipeIndex, ['turn', 'sim']);
         rebuildCampaign(ctx, owner, chat.campaignId, input.origin);
       }
@@ -216,6 +219,10 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       scene: built.scene ? { text: built.scene.text, tokens: built.scene.tokens, dropped: built.scene.dropped } : null,
     });
     chat = updateChat(ctx, owner, chatId, { metadata: { wiTimed: built.wiTimed, vars: built.macros.vars as Record<string, string> } });
+    // {{setglobalvar}} / {{setcharvar}} in the prompt change those scopes too.
+    persistMacroVars(ctx, owner, pc.character.id, built.macros);
+    const outRules = regexForChat(ctx, owner, chatId);
+    const aiRx = (t: string) => (outRules.length ? applyRegexScripts(t, outRules, { placement: RegexPlacement.aiOutput, target: 'stored', macros: { user: pc.userName, char: pc.character.name } }) : t);
 
     // 4. Create the assistant message now so other devices can show it streaming.
     if (input.type === 'normal') {
@@ -247,7 +254,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       const shown = baseText + (baseText && text && !/^\s/.test(text) && !/\s$/.test(baseText) ? ' ' : '') + text;
       swipes[swipeIndex] = {
         ...swipes[swipeIndex],
-        text: final ? stripInlineTags(shown) : shown,
+        text: final ? aiRx(stripInlineTags(shown)) : shown,
         reasoning: reasoning || swipes[swipeIndex]?.reasoning,
         createdAt: swipes[swipeIndex]?.createdAt ?? Date.now(),
         model: conn.model,
@@ -317,7 +324,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       return;
     }
     save(true);
-    const finalText = stripInlineTags(baseText + text);
+    const finalText = textOf(getMessage(ctx, owner, messageId));
     const emotion = detectEmotion(finalText);
     const m0 = getMessage(ctx, owner, messageId);
     // A short form of a stand-in the model made up ("Marc" for "Marcus") isn't restored: say so.
@@ -343,6 +350,17 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
     } else afterTurn(ctx, owner, chatId);
   } finally {
     active.delete(chatId);
+  }
+}
+
+function persistMacroVars(ctx: AppContext, owner: string, characterId: string, m: MacroContext) {
+  try {
+    const g = getVars(ctx, owner, 'global');
+    if (m.globalVars && JSON.stringify(m.globalVars) !== JSON.stringify(g)) setVars(ctx, owner, 'global', '', m.globalVars, true);
+    const c = getVars(ctx, owner, 'character', characterId);
+    if (m.charVars && JSON.stringify(m.charVars) !== JSON.stringify(c)) setVars(ctx, owner, 'character', characterId, m.charVars, true);
+  } catch {
+    /* too large: the values simply aren't kept */
   }
 }
 

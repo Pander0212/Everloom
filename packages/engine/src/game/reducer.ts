@@ -23,11 +23,13 @@ import { processMail } from './comms.js';
 import { accrueInterest, processAssets, processBills, restockShops, pay } from './economy.js';
 import { HANDLERS3, type Kit } from './handlers3.js';
 import { homeBonus } from './home.js';
+import { runExtOp } from '../scripting/ext-ops.js';
 
 enablePatches();
 setAutoFreeze(false);
 
-export type OpSource = 'ai' | 'user' | 'sim' | 'helper' | 'system';
+/** 'script': proposed by an approved script or extension; tied to its message like the AI's changes. */
+export type OpSource = 'ai' | 'user' | 'sim' | 'helper' | 'system' | 'script';
 
 export interface ApplyContext {
   source: OpSource;
@@ -61,7 +63,7 @@ function placeFor(s: CampaignState, name: string, parentId: string | null = null
 function ensureLocation(s: CampaignState, name: string, ctx: ApplyContext, changes: Change[]): Location {
   const found = findFuzzy(s.locations, name);
   if (found) return found;
-  if (ctx.source === 'ai' || ctx.source === 'helper' || ctx.source === 'user' || ctx.source === 'system') {
+  if (ctx.source === 'ai' || ctx.source === 'helper' || ctx.source === 'script' || ctx.source === 'user' || ctx.source === 'system') {
     const cur = s.currentLocationId ? s.locations[s.currentLocationId] : null;
     const parentId = cur?.parentId ?? null;
     const level: MapLevel = cur?.level ?? 'local';
@@ -168,7 +170,7 @@ function relationshipFor(s: CampaignState, name: string, ctx: ApplyContext): Rel
 }
 
 function assertUnlocked(entity: { locked: boolean; name: string } | undefined, ctx: ApplyContext) {
-  if (entity?.locked && (ctx.source === 'ai' || ctx.source === 'helper' || ctx.source === 'sim')) {
+  if (entity?.locked && (ctx.source === 'ai' || ctx.source === 'helper' || ctx.source === 'script' || ctx.source === 'sim')) {
     throw new OpError(`${entity.name} is locked`);
   }
 }
@@ -1210,6 +1212,11 @@ function run(s: CampaignState, op: Op, ctx: ApplyContext, changes: Change[]) {
     case 'patch':
       applyPatches(s, op.patches as Patch[]);
       return;
+    case 'ext.op': {
+      const r = runExtOp(s, op.ext, op.name, op.args, ctx.source);
+      changes.push({ key: `ext:${op.ext}:${op.name}`, label: r.summary, text: r.summary, kind: 'text' });
+      return;
+    }
     default: {
       const h = (HANDLERS3 as Record<string, (s: CampaignState, op: Op, kit: Kit) => void>)[op.type];
       if (!h) throw new OpError(`Unsupported op "${(op as Op).type}"`);

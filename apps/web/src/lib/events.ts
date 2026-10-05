@@ -63,6 +63,10 @@ export function startEvents() {
   on('campaign.toast', (d) => d.changes?.length && toast({ title: 'Story update', lines: d.changes }));
   on('vault.state', (d) => d.locked && notifyVaultLocked());
   on('shield.notice', (d) => toast({ title: 'Name shield', lines: [d.message] }));
+  // Extensions installed, changed (a dev folder saved) or removed: reload what runs.
+  on('extension.changed', () => {
+    for (const key of [['extensions-ui'], ['extensions'], ['scripts-active']]) void queryClient.invalidateQueries({ queryKey: key });
+  });
   on('tracker.status', (d) => useLive.setState((s) => ({ tracker: { ...s.tracker, [d.messageId]: d.status } })));
   // Bulk work (imports, scripts) can send hundreds of these; refetch once they settle.
   let charTimer: ReturnType<typeof setTimeout> | undefined;

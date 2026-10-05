@@ -1,6 +1,7 @@
 import { afterAll, beforeAll, expect, it } from 'vitest';
 import { startMockLlm } from '../../../tests/mock-llm/server.js';
 import { settleBackground } from '../src/services/chronicle.js';
+import { zipSync } from 'fflate';
 import { createClient, parseSse, waitFor } from './helpers.js';
 
 let mock: Awaited<ReturnType<typeof startMockLlm>>;
@@ -44,6 +45,12 @@ it('soak: swipe cycles fold back to identical state and memory over 60 turns', a
         { type: 'transit.add', name: 'Square Coach', mode: 'caravan', stops: ['The Lantern', 'Market Square'], first: '00:00', last: '23:59', every: 30, hop: 10, fare: 1 },
       ],
     });
+    // An extension with a custom op (the AI may use it) and a script allowed to propose changes.
+    const manifest = { id: 'town-rep', name: 'Town rep', version: '1.0.0', permissions: ['state.ops'], entries: { ops: [{ name: 'change', label: 'Rep', params: { town: { type: 'string' }, amount: { type: 'integer', min: -20, max: 20 } }, steps: [{ do: 'add', path: '/towns/{town}', value: '{amount}' }], ai: true }] } };
+    const prev = (await c.req('POST', '/api/extensions/preview', Buffer.from(zipSync({ 'everloom-extension.json': new TextEncoder().encode(JSON.stringify(manifest)) })))).json;
+    expect((await c.req('POST', '/api/extensions/install', { token: prev.token })).status).toBe(200);
+    const script = (await c.req('POST', '/api/scripts/library', { kind: 'script', data: { id: 'soak', name: 'Soak', code: '1', permissions: ['state.ops', 'variables'] } })).json;
+    const scriptKey = `global::${script.id}`;
     const homeChest = async () => {
       const st = (await c.req('GET', `/api/campaigns/${chat.campaignId}`)).json.state;
       return (Object.values(st.homes) as any[]).find((h) => h.name === 'Back Room').storage[0].id as string;
@@ -60,7 +67,8 @@ it('soak: swipe cycles fold back to identical state and memory over 60 turns', a
     const snapshot = async () => {
       const st = (await c.req('GET', `/api/campaigns/${chat.campaignId}`)).json.state;
       const mem = (await c.req('GET', `/api/chats/${chat.id}/memory`)).json;
-      return JSON.stringify({ st, items: mem.items.map((m: any) => [m.id, m.text, m.witnesses.map((w: any) => w.id), m.heardBy.map((h: any) => h.id)]), facts: mem.facts.map((f: any) => [f.id, f.status]) });
+      const msgVars = (await c.req('GET', `/api/chats/${chat.id}/messages`)).json.map((m: any) => m.swipes[m.swipeId]?.vars ?? null);
+      return JSON.stringify({ msgVars, st, items: mem.items.map((m: any) => [m.id, m.text, m.witnesses.map((w: any) => w.id), m.heardBy.map((h: any) => h.id)]), facts: mem.facts.map((f: any) => [f.id, f.status]) });
     };
     const tracked = async (messageId: string, swipeId: number) =>
       waitFor(async () => {
@@ -93,11 +101,15 @@ it('soak: swipe cycles fold back to identical state and memory over 60 turns', a
         await control({
           story,
           trackerOps: i === 0
-            ? [{ type: 'travel', to: 'Market Square', mode: 'walk' }, { type: 'shop.upsert', name: `Stall ${turn}`, kind: 'general', location: 'Market Square' }, { type: 'mail.receive', from: 'Bram', subject: `Note ${turn}`, body: 'Come by later.' }, { type: 'fx.play', effect: 'shake' }]
+            ? [{ type: 'ext.op', ext: 'town-rep', name: 'change', args: { town: `Town ${turn}`, amount: 3 } }, { type: 'travel', to: 'Market Square', mode: 'walk' }, { type: 'shop.upsert', name: `Stall ${turn}`, kind: 'general', location: 'Market Square' }, { type: 'mail.receive', from: 'Bram', subject: `Note ${turn}`, body: 'Come by later.' }, { type: 'fx.play', effect: 'shake' }]
             : [{ type: 'battle.start', enemies: [{ name: 'Wolf', level: 1, count: 1 }] }, { type: 'home.add', name: `Hideout ${turn}`, kind: 'cave' }, { type: 'stage.layer', character: 'Iris Thorne', position: 'right' }, { type: 'music.set', mood: 'tense' }],
           trackerMemories: [{ text: `A stranger left a sealed note numbered ${turn}-${i}.`, about: [], importance: 2 }], trackerFacts: [{ about: 'Bram', key: 'mood', value: `mood ${turn}-${i}`, text: `Bram grumbles in mood ${turn}-${i}`, changed: true }] });
         const sw = parseSse((await c.req('POST', `/api/chats/${chat.id}/generate`, { type: 'swipe' })).body).find((e) => e.type === 'done');
         await tracked(done.messageId, sw.swipeId);
+        // A script reacts to this take: a game change and a message variable, both tied to the take.
+        const sr = await c.req('POST', '/api/scripts/run/ops', { key: scriptKey, chatId: chat.id, ops: [{ type: 'ext.op', ext: 'town-rep', name: 'change', args: { town: 'Scripted', amount: 1 } }, { type: 'item.add', name: `Token ${turn}-${i}`, qty: 1 }] });
+        expect(sr.json.errors, `script ops at turn ${turn}`).toEqual([]);
+        await c.req('PATCH', `/api/messages/${done.messageId}/vars`, { set: { take: `${turn}-${i}`, hp: turn } });
         await new Promise((res) => setTimeout(res, 20));
         await settleBackground(chat.id);
         // The dice and the random event are replayed, not re-rolled.

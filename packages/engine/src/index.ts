@@ -46,3 +46,8 @@ export * from './game/progress.js';
 export * from './game/comms.js';
 export * from './features.js';
 export * from './privacy/shield.js';
+export * from './scripting/types.js';
+export * from './scripting/regex.js';
+export * from './scripting/slash.js';
+export * from './scripting/ext-ops.js';
+export * from './scripting/bundle.js';

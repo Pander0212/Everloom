@@ -1,4 +1,4 @@
-import { validateOps, OpSchemas, type GenerateEvent, type OpType } from '@everloom/engine';
+import { applyRegexScripts, extOpRetired, OpSchemas, RegexPlacement, validateOps, type GenerateEvent, type OpType, type ValidatedOps } from '@everloom/engine';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
@@ -7,6 +7,7 @@ import * as chats from '../services/chats.js';
 import { generate, isGenerating, lastPromptFor, previewPrompt, stopGeneration } from '../services/generate.js';
 import { runChronicler, runConsolidation } from '../services/chronicle.js';
 import { indexDoc } from '../services/search.js';
+import { regexForChat } from '../services/scripts.js';
 import { getSettings } from '../services/settings.js';
 import { runTrackerPass } from '../services/tracker.js';
 import { parse } from '../util/validate.js';
@@ -133,7 +134,10 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
     const chatId = (req.params as any).id;
     const b = parse(z.object({ role: z.enum(['user', 'assistant', 'system']), name: z.string().max(120).optional(), text: z.string().max(100_000), characterId: z.string().nullable().optional() }), req.body);
     const chat = chats.getChat(ctx, owner(req), chatId);
-    const m = chats.insertMessage(ctx, owner(req), chatId, { role: b.role, name: b.name ?? (b.role === 'system' ? 'Narrator' : 'You'), characterId: b.characterId ?? null, swipes: [{ text: b.text, createdAt: Date.now() }] });
+    // Regex rules apply to added messages as to typed and generated ones.
+    const rules = b.role === 'system' ? [] : regexForChat(ctx, owner(req), chatId);
+    const text = rules.length ? applyRegexScripts(b.text, rules, { placement: b.role === 'user' ? RegexPlacement.userInput : RegexPlacement.aiOutput, target: 'stored' }) : b.text;
+    const m = chats.insertMessage(ctx, owner(req), chatId, { role: b.role, name: b.name ?? (b.role === 'system' ? 'Narrator' : 'You'), characterId: b.characterId ?? null, swipes: [{ text, createdAt: Date.now() }] });
     pub(req, 'message.created', { chatId: chat.id, message: m });
     return m;
   });
@@ -179,7 +183,7 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
   app.post('/api/campaigns/:id/ops', async (req) => {
     const campaignId = (req.params as any).id;
     const b = parse(z.object({ chatId: z.string(), ops: z.array(z.any()).min(1).max(64), messageId: z.string().nullable().optional() }), req.body);
-    const v = validateOps(b.ops, USER_OP_TYPES);
+    const v = withoutRetired(validateOps(b.ops, USER_OP_TYPES));
     if (!v.ok.length) throw new HttpError(400, v.rejected.map((r) => r.error).join('; ') || 'No valid ops');
     const chat = chats.getChat(ctx, owner(req), b.chatId);
     if (chat.campaignId !== campaignId) throw new HttpError(400, 'Chat is not linked to this campaign');
@@ -203,4 +207,11 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
     const r = camp.realtimeTick(ctx, owner(req), (req.params as any).id, b.chatId);
     return { advanced: !!r, summary: r?.summary ?? [] };
   });
+}
+
+/** New changes can't use the ops of an extension that is off or uninstalled (replay still can). */
+export function withoutRetired(v: ValidatedOps): ValidatedOps {
+  const ok = v.ok.filter((o) => !(o.type === 'ext.op' && extOpRetired(o.ext)));
+  const gone = v.ok.filter((o) => o.type === 'ext.op' && extOpRetired(o.ext)).map((o) => ({ op: o as unknown, error: `The extension “${(o as { ext: string }).ext}” is off or uninstalled` }));
+  return { ok, rejected: [...v.rejected, ...gone] };
 }
