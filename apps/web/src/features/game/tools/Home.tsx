@@ -231,7 +231,7 @@ function StorageTab({ s, home, here }: { s: CampaignState; home: HomeT; here: bo
               <ul className="flex flex-col gap-1">
                 {items.map((it) => (
                   <li key={it.id} className="flex items-center gap-2 text-sm">
-                    <ItemGlyph icon={it.icon} size={16} className="text-fg-3" />
+                    <ItemGlyph icon={it.icon} name={it.name} size={16} className="text-fg-3" />
                     <span className="min-w-0 flex-1 truncate">
                       {it.name}
                       {it.qty > 1 ? ` ×${it.qty}` : ''}

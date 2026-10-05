@@ -1,4 +1,4 @@
-import { allRecipes, craftCheck, DISCIPLINES, disciplineLevel, xpForCraftLevel, type CampaignState, type Discipline, type Op, type Recipe } from '@everloom/engine';
+import { allRecipes, craftCheck, iconForItem, DISCIPLINES, disciplineLevel, xpForCraftLevel, type CampaignState, type Discipline, type Op, type Recipe } from '@everloom/engine';
 import { Anvil, ChefHat, FlaskConical, Gem, Sparkles, Wrench } from 'lucide-react';
 import { useState } from 'react';
 import { post } from '@/lib/api';
@@ -6,6 +6,7 @@ import { cx } from '@/lib/format';
 import { toastError } from '@/lib/store';
 import { Badge, Button, EmptyState, Input, Select, Sheet, TabPanel, Tabs } from '@/ui';
 import { useGame } from '../context';
+import { ItemGlyph } from '../ItemGlyph';
 import { NoCampaign, ToolSheet } from './ToolSheet';
 
 const ICON = { cooking: ChefHat, alchemy: FlaskConical, forge: Anvil, enchantment: Gem, general: Wrench } as const;
@@ -69,6 +70,9 @@ function RecipeRow({ s, r }: { s: CampaignState; r: Recipe }) {
   return (
     <li className="rounded-md border border-line p-3">
       <div className="flex items-start gap-2">
+        <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center">
+          <ItemGlyph icon={iconForItem(r.result.name, r.result.category)} name={r.enchant ? 'rune' : r.result.name} size={32} className="text-fg-2" />
+        </span>
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
             <span className="truncate font-medium">{r.name}</span>

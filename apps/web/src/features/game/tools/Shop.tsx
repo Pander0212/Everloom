@@ -81,7 +81,7 @@ function ShopView({ s, shop, onBack }: { s: CampaignState; shop: ShopT; onBack?:
               .filter((st) => st.maxQty > 0 || st.qty > 0)
               .map((st) => (
                 <li key={st.id} className={cx('flex items-center gap-3 py-2.5', !st.qty && 'opacity-50')}>
-                  <ItemGlyph icon={iconForItem(st.name, st.category)} size={20} className="text-fg-2" />
+                  <ItemGlyph icon={iconForItem(st.name, st.category)} name={st.name} size={20} className="text-fg-2" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{st.name}</span>
                     <span className="block text-xs text-fg-2">{st.qty ? `${st.qty} left` : 'Sold out'}</span>
@@ -99,7 +99,7 @@ function ShopView({ s, shop, onBack }: { s: CampaignState; shop: ShopT; onBack?:
             <ul className="flex flex-col divide-y divide-line" aria-label="Your items">
               {sellable.map((it) => (
                 <li key={it.id} className="flex items-center gap-3 py-2.5">
-                  <ItemGlyph icon={it.icon} size={20} className="text-fg-2" />
+                  <ItemGlyph icon={it.icon} name={it.name} size={20} className="text-fg-2" />
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-medium">{it.name}</span>
                     <span className="block text-xs text-fg-2">

@@ -1,5 +1,5 @@
 import type { Battle as BattleT, Combatant, Op } from '@everloom/engine';
-import { currentActor } from '@everloom/engine';
+import { currentActor, iconForItem } from '@everloom/engine';
 import { ArrowLeftRight, Crown, Footprints, Plus, Shield, Sparkles, Swords, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
@@ -7,6 +7,7 @@ import { cx } from '@/lib/format';
 import { t } from '@/lib/motion';
 import { Badge, Button, EmptyState, IconButton, Input, Select, StatBar } from '@/ui';
 import { useGame } from '../context';
+import { ItemGlyph } from '../ItemGlyph';
 import { NoCampaign, ToolSheet } from './ToolSheet';
 
 interface EnemyRow {
@@ -181,6 +182,16 @@ function Fight({ battle: b }: { battle: BattleT }) {
             <p className="font-medium">
               {[b.rewards.xp ? `+${b.rewards.xp} XP` : null, b.rewards.currency ? `+${b.rewards.currency} ${s!.meta.currency.name}` : null, ...b.rewards.items].filter(Boolean).join(' · ') || 'No spoils.'}
             </p>
+            {b.rewards.items.length ? (
+              <ul aria-label="Loot" className="flex flex-wrap gap-2">
+                {b.rewards.items.map((name, i) => (
+                  <li key={i} className="flex items-center gap-1.5 rounded-md bg-surface px-2 py-1 text-xs">
+                    <ItemGlyph icon={iconForItem(name, 'misc')} name={name} size={20} className="text-fg-2" />
+                    {name}
+                  </li>
+                ))}
+              </ul>
+            ) : null}
             {b.summary ? (
               <>
                 <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-xs sm:grid-cols-4">

@@ -1,0 +1,13 @@
+{
+  "sheets": [
+    { "file": "003-nano-z-image-turbo-compare-icons.jpg", "rows": 4, "cols": 4, "names": ["bread", "cheese", "apples", "fish", "flour", "herbs", "stew", "ale", "wine", "roast-chicken", "rations", "waterskin", "honey", "carrots", "herb-bread", "cake"] },
+    { "file": "015-nano-z-image-turbo-icons-B.jpg", "rows": 4, "cols": 4, "names": ["sword", "dagger", "axe", "leather-armor", "shield", "helmet", "whetstone", "ingot", "rope", "torch", "bedroll", "backpack", "cloak", "shirt", "boots", "hat"] },
+    { "file": "016-nano-z-image-turbo-icons-C.jpg", "rows": 4, "cols": 4, "names": ["potion-red", "potion-blue", "antidote", "", "vial", "arcane-dust", "rune-stone", "scroll", "", "book", "herbal-book", "bandage", "saddle", "grain-sack", "clay-pot", "wool"] },
+    { "file": "017-nano-z-image-turbo-icons-D.jpg", "rows": 4, "cols": 4, "names": ["sandwich", "coffee", "noodles", "eggs", "rice", "vegetables", "burger", "beer", "cocktail", "", "water-bottle", "", "fruit", "flowers", "fried-rice", "omelette"] },
+    { "file": "018-nano-z-image-turbo-icons-E.jpg", "rows": 4, "cols": 4, "names": ["flashlight", "charger", "umbrella", "school-bag", "hoodie", "jeans", "sneakers", "rain-jacket", "novel", "city-guide", "cookbook", "earbuds", "power-bank", "laptop", "sim-card", "pills"] },
+    { "file": "019-nano-z-image-turbo-icons-F.jpg", "rows": 4, "cols": 4, "names": ["bandage-roll", "vitamins", "first-aid-kit", "baton", "smartphone", "key", "coins", "gem", "ring", "necklace", "chest", "star", "crate", "parcel", "bow", "staff"] },
+    { "file": "020-nano-z-image-turbo-icons-G.jpg", "rows": 4, "cols": 4, "names": ["ration-pack", "hydration-pouch", "multitool", "beacon", "synth-noodles", "protein-bar", "thermos", "algae-flour", "station-stew", "fizz-drink", "whisky", "datapad", "stim-injector", "energy-cell", "", "pistol"] },
+    { "file": "021-nano-z-image-turbo-icons-H.jpg", "rows": 4, "cols": 4, "names": ["armored-vest", "alloy-plate", "medgel", "rad-canister", "flight-jacket", "mag-boots", "algae-loaf", "combat-stim", "combat-knife", "patch-kit", "keycard", "credit-chip", "ore", "logs", "cloth", "leather"] },
+    { "file": "022-nano-z-image-turbo-icons-I.jpg", "rows": 4, "cols": 4, "names": ["energy-drink", "fries", "moonpetal", "map", "plasma-cutter", "lantern", "hammer", "pickaxe", "fishing-rod", "shovel", "candle", "envelope", "crown", "teacup", "mushroom", "dice"] }
+  ]
+}

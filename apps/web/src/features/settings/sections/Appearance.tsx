@@ -54,6 +54,7 @@ export default function AppearanceSection() {
           </div>
         </Field>
         <ToggleRow label="Match the story's genre" description="Fantasy stories get warm parchment tones, science fiction cool ones. Only in the story view." checked={settings.genreTheme !== false} onChange={(v) => void update({ genreTheme: v })} />
+        <ToggleRow label="Illustrations" description="Everloom's own pictures: item icons, genre cards, empty states and Pip. Off shows simple line icons instead." checked={settings.art?.enabled !== false} onChange={(v) => void update({ art: { enabled: v } })} />
         <Field label="Motion" hint="Reduced turns animations into simple fades. Your device setting is also respected.">
           <Segmented
             label="Motion"

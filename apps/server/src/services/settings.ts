@@ -23,6 +23,7 @@ export const DEFAULT_SETTINGS: Settings = {
   backups: { nightly: true, retention: 14, hour: 4 },
   helper: { visible: true, name: 'Pip' },
   atmosphere: { enabled: true, particles: true },
+  art: { enabled: true },
   css: { snippets: [] },
   studio: { presets: [], preset: 'balanced', connection: null },
   library: { view: 'grid', presets: [], defaultPreset: null, versionRetention: 30, debug: false, prevNext: true, cardInfo: true, nsfw: false },

@@ -250,6 +250,8 @@ export interface Settings {
   backups: { nightly: boolean; retention: number; hour: number };
   helper: { visible: boolean; name: string };
   atmosphere: { enabled: boolean; particles: boolean };
+  /** Everloom's bundled illustrations (item icons, genre cards, empty states, the helper). Off shows the line icons. */
+  art: { enabled: boolean };
   world: WorldSettings;
   library: LibrarySettings;
   css: { snippets: CssSnippet[] };
