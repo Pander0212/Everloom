@@ -449,6 +449,45 @@ quotas beyond the frame limits; STscript closures and `/if`; the rest of Tavern 
 (presets, character editing, audio, imports); running SillyTavern UI extensions (they depend on its
 page and are out of scope by design).
 
+## Part 6 — Windows installer
+
+**Electron, with the server on its own Node.** The window and tray are Electron (`desktop/main.js`);
+the server is the normal built server, started as a child process on a bundled `node.exe` (the CI
+machine's official Node 22). Running the server inside Electron's Node would need native modules
+(the SQLite driver with ciphers, sharp) rebuilt for Electron's ABI on every Electron upgrade; with
+a plain Node they're the ordinary Windows prebuilds `npm install` fetches. Tauri was considered: a
+smaller shell, but it would still need a bundled Node for the server and a Rust toolchain in CI, for
+no gain here.
+
+**One copy, any port, clean stop.** A single-instance lock; a second launch shows the window
+(`--quit` asks the first to quit). The port starts at 8787 and moves up when taken. Windows has no
+SIGTERM, so the shell stops the server over a token-guarded control route (a random token per
+launch, passed in the environment), which runs the normal shutdown that closes the database; only if
+that fails within 15 s is the process killed.
+
+**Data.** `%APPDATA%\Everloom` (database, media, backups, logs; Electron's own cache in `app\`),
+or a `data` folder next to the exe when a `portable.txt` marker is there (the portable zip).
+
+**Local-first security.** It listens on `127.0.0.1`. "No password on this PC" signs in requests
+from this computer as the owner, only while the server is bound to loopback, only from a loopback
+socket, and only when the `Host` header is a loopback name (so a web page whose domain resolves to
+127.0.0.1 can't use it). "Use from my phone on Wi-Fi" restarts the server on `0.0.0.0`, which by
+itself switches the password-free mode off, and the shell refuses to turn it on until a password is
+set. The QR code and address come from the server.
+
+**Installer.** electron-builder NSIS, per-user (`perMachine: false`, no elevation), Start-menu and
+desktop shortcuts; the uninstaller asks whether to delete `%APPDATA%\Everloom` (default: keep;
+always kept on silent uninstall and on updates). Updates: the shell checks GitHub Releases, asks,
+makes a backup through the control route (refusing to update if it fails), downloads the setup exe
+and runs it silently with `--force-run`; migrations run on the next start as on a VPS.
+
+**CI.** `.github/workflows/windows.yml` on `windows-latest`: build, stage Node + server
+dependencies (Windows prebuilds) + web, build the installer, zip the portable folder, then smoke
+test: silent install, start headless, `/api/health`, set up, connect the mock model, chat, quit,
+start again and find the chat, silent uninstall keeping the data, and the portable zip keeping its
+data next to the exe. Tags (`v1.2.3`) attach both files to a release. Unsigned; the workflow has a
+commented place for a certificate.
+
 ## Part 2 — Character sources
 
 **What was actually broken.** Checked live on 2026-10-05 before changing anything:

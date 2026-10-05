@@ -1,5 +1,6 @@
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { clearOnceGrants } from '../services/scripts.js';
+import { desktopMode, desktopSettings, noPasswordApplies, ownerId, setupNoPassword } from './desktop.js';
 import { lockVault, onPasswordChanged, unlockVault } from '../services/vault.js';
 import QRCode from 'qrcode';
 import { z } from 'zod';
@@ -71,6 +72,8 @@ export function registerAuth(app: FastifyInstance, ctx: AppContext) {
       }
     }
     if (PUBLIC.has(url) && !url.startsWith('/api/bridge/')) return;
+    // The Windows app's control routes check their own token (see routes/desktop.ts).
+    if (url.startsWith('/api/desktop/')) return;
     // Vault locked: nothing with content answers until it is unlocked (accounts and the vault itself do).
     if (ctx.vault.locked && !VAULT_OPEN.some((p) => url === p || url.startsWith(p + '/'))) throw new HttpError(423, 'The vault is locked. Unlock it to continue.', 'locked');
     if (PUBLIC.has(url)) return;
@@ -82,16 +85,27 @@ export function registerAuth(app: FastifyInstance, ctx: AppContext) {
     }
   });
 
-  app.get('/api/auth/status', async (req) => {
+  app.get('/api/auth/status', async (req, reply) => {
     const users = (ctx.sys.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number }).n;
-    return { setupRequired: users === 0, authenticated: !!req.user, username: req.user?.username ?? null, csrf: req.user?.csrf ?? null, vault: { enabled: ctx.vault.enabled, locked: ctx.vault.locked, loginIsPassphrase: !!ctx.vault.file?.loginIsPassphrase } };
+    // The Windows app with "No password on this PC": this computer is signed in as the owner.
+    if (!req.user && users > 0 && noPasswordApplies(ctx, req)) {
+      const id = ownerId(ctx)!;
+      const u = ctx.sys.prepare('SELECT username FROM users WHERE id = ?').get(id) as { username: string };
+      const csrf = createSession(ctx, req, reply, id);
+      req.user = { id, username: u.username, sessionId: '', csrf };
+    }
+    const desktop = desktopMode() ? { noPassword: !!desktopSettings(ctx).noPassword, local: ['127.0.0.1', '::1', 'localhost'].includes(ctx.cfg.host) } : null;
+    return { setupRequired: users === 0, authenticated: !!req.user, username: req.user?.username ?? null, csrf: req.user?.csrf ?? null, desktop, vault: { enabled: ctx.vault.enabled, locked: ctx.vault.locked, loginIsPassphrase: !!ctx.vault.file?.loginIsPassphrase } };
   });
 
   app.post('/api/auth/setup', async (req, reply) => {
-    const body = parse(credentials, req.body);
-    if (body.password.length < 10) throw new HttpError(400, 'Use at least 10 characters for the password');
+    const raw = (req.body ?? {}) as { noPassword?: boolean; password?: string };
+    // The Windows app may set up without a password (this PC only; a random one is stored).
+    const noPassword = raw.noPassword === true && desktopMode();
+    const body = parse(noPassword ? credentials.extend({ password: z.string().max(512).optional().default('') }) : credentials, req.body);
+    if (!noPassword && body.password.length < 10) throw new HttpError(400, 'Use at least 10 characters for the password');
     const id = newId('u_');
-    const hash = await hashPassword(body.password);
+    const hash = noPassword ? await setupNoPassword(ctx) : await hashPassword(body.password);
     // Atomic: only the very first account can be created through setup.
     const created = ctx.sys.transaction(() => {
       const n = (ctx.sys.prepare('SELECT COUNT(*) AS n FROM users').get() as { n: number }).n;

@@ -15,7 +15,7 @@ Everloom listens on port **8787** (so it can sit next to SillyTavern on 8000).
 
 ## Contents
 
-1. [Install on a VPS](#install-on-a-vps)
+1. [Install on a VPS](#install-on-a-vps) — or [on Windows](#install-on-windows)
 2. [Put it on your home screen](#put-it-on-your-home-screen)
 3. [Connect a model](#connect-a-model)
 4. [Update, back up, restore](#update-back-up-restore)
@@ -64,6 +64,23 @@ The installer:
 Open `https://your-domain` and create your account. The first account is the owner; sign-up closes after that.
 
 Ports 80 and 443 must be free and open in your firewall (`ufw allow 80,443/tcp` on Ubuntu).
+
+## Install on Windows
+
+Everloom can also run entirely on your PC, the way SillyTavern does: no server, Docker or command line.
+
+1. Download **Everloom-Setup-x.y.z.exe** from the [latest release](https://github.com/pander0212/everloom/releases/latest). (Or the **portable zip**, if you'd rather unpack it anywhere, a USB stick included; it keeps its data in a `data` folder next to `Everloom.exe`.)
+2. Run it. It installs for your Windows account only and doesn't need administrator rights. It adds Start-menu and desktop shortcuts.
+3. **Windows SmartScreen** will probably say "Windows protected your PC", because the installer isn't code-signed (that needs a paid certificate). Click **More info**, then **Run anyway**. The installer is built by GitHub Actions from this repository's code; the workflow is in `.github/workflows/windows.yml`.
+4. Everloom opens in its own window and asks you to create your account. Because it only listens on this PC, you can choose **No password on this PC**.
+
+**Where things are.** Your data (database, pictures, backups, logs) is in `%APPDATA%\Everloom`, apart from the program, so updates and reinstalls keep it. Everloom keeps running in the tray when you close its window: right-click the tray icon for **Open**, **Open in browser**, **Lock vault**, **Use from my phone on Wi-Fi**, **Check for updates** and **Quit**. Quit closes the database cleanly.
+
+**From your phone.** Turn on **Use from my phone on Wi-Fi** in the tray menu. It needs a password (Settings → Account & security turns "No password on this PC" off and sets one), then Everloom listens on your home network and shows its address and a QR code. Windows asks whether to allow Everloom through the firewall: allow it on **Private** networks. Turn it off again to keep Everloom on this PC only.
+
+**Updates.** Everloom checks GitHub Releases. When there's a new version it asks first, makes a backup, downloads and installs it, and starts again; the database is updated on the first start.
+
+**Uninstall** from Windows Settings → Apps. It asks whether to delete your data too; the default is to keep it.
 
 ## Put it on your home screen
 

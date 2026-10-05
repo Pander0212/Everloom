@@ -5,6 +5,7 @@ import { hashPassword, randomToken } from './security/crypto.js';
 import { applyPendingRestore, startScheduler } from './services/backup.js';
 import { startVaultTimer } from './services/vault.js';
 import { stopAllServerParts } from './services/extension-host.js';
+import { onShutdownRequest } from './shutdown.js';
 import Database from 'better-sqlite3-multiple-ciphers';
 import { existsSync } from 'node:fs';
 import path from 'node:path';
@@ -37,6 +38,8 @@ async function main() {
     if (ctx.sys !== ctx.db) ctx.sys.close();
     process.exit(0);
   };
+  // The Windows app asks for a clean stop over its control route (Windows has no SIGTERM).
+  onShutdownRequest((reason) => void shutdown(reason));
   process.on('SIGINT', () => void shutdown('SIGINT'));
   process.on('SIGTERM', () => void shutdown('SIGTERM'));
   await app.listen({ port: cfg.port, host: cfg.host });

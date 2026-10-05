@@ -1,8 +1,8 @@
-import { useQueryClient } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
-import { ApiError, patch, post, setCsrf } from '@/lib/api';
+import { ApiError, get, patch, post, setCsrf } from '@/lib/api';
 import { PRESET_INFO, type FeaturePreset } from '@everloom/engine';
-import { Button, Field, Input } from '@/ui';
+import { Button, Field, Input, ToggleRow } from '@/ui';
 import { Logo } from './Logo';
 
 function Frame({ title, subtitle, children }: { title: string; subtitle: string; children: React.ReactNode }) {
@@ -25,14 +25,18 @@ export function SetupPage({ onDone }: { onDone: () => void }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [step, setStep] = useState<'account' | 'mode'>('account');
+  // The Windows app, listening on this PC only, can skip the password.
+  const status = useQuery({ queryKey: ['auth'], queryFn: () => get('/api/auth/status') });
+  const desktopLocal = !!status.data?.desktop?.local;
+  const [noPassword, setNoPassword] = useState(false);
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError(null);
-    if (password.length < 10) return setError('Use at least 10 characters.');
-    if (password !== confirm) return setError('Passwords do not match.');
+    if (!noPassword && password.length < 10) return setError('Use at least 10 characters.');
+    if (!noPassword && password !== confirm) return setError('Passwords do not match.');
     setBusy(true);
     try {
-      const r = await post<{ csrf: string }>('/api/auth/setup', { username, password });
+      const r = await post<{ csrf: string }>('/api/auth/setup', noPassword ? { username, noPassword: true } : { username, password });
       setCsrf(r.csrf);
       setStep('mode');
     } catch (err) {
@@ -64,17 +68,24 @@ export function SetupPage({ onDone }: { onDone: () => void }) {
       </Frame>
     );
   return (
-    <Frame title="Welcome to Everloom" subtitle="Create the owner account. This server is on the internet, so pick a strong password.">
+    <Frame title="Welcome to Everloom" subtitle={desktopLocal ? 'Create your account. Everloom runs on this PC only, so a password is optional.' : 'Create the owner account. This server is on the internet, so pick a strong password.'}>
       <form onSubmit={submit} className="flex flex-col gap-4">
-        <Field label="Username" htmlFor="u">
+        <Field label={desktopLocal ? 'Your name' : 'Username'} htmlFor="u">
           <Input id="u" autoComplete="username" value={username} onChange={(e) => setUsername(e.target.value)} required autoFocus />
         </Field>
-        <Field label="Password" htmlFor="p" hint="At least 10 characters.">
-          <Input id="p" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
-        </Field>
-        <Field label="Confirm password" htmlFor="c" error={error}>
-          <Input id="c" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required invalid={!!error} />
-        </Field>
+        {desktopLocal ? <ToggleRow label="No password on this PC" description="Anyone using this Windows account can open Everloom. Using it from your phone needs a password; you can set one later in Settings › Account." checked={noPassword} onChange={setNoPassword} /> : null}
+        {noPassword ? (
+          error ? <p className="text-sm text-danger">{error}</p> : null
+        ) : (
+          <>
+            <Field label="Password" htmlFor="p" hint="At least 10 characters.">
+              <Input id="p" type="password" autoComplete="new-password" value={password} onChange={(e) => setPassword(e.target.value)} required />
+            </Field>
+            <Field label="Confirm password" htmlFor="c" error={error}>
+              <Input id="c" type="password" autoComplete="new-password" value={confirm} onChange={(e) => setConfirm(e.target.value)} required invalid={!!error} />
+            </Field>
+          </>
+        )}
         <Button type="submit" variant="primary" size="lg" block loading={busy} className="mt-2">
           Create account
         </Button>

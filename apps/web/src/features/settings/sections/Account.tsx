@@ -40,9 +40,12 @@ export default function AccountSection() {
       toastError(e);
     }
   };
+  const status = useQuery({ queryKey: ['auth'], queryFn: () => get('/api/auth/status') });
+  const desktop = status.data?.desktop as { noPassword: boolean; local: boolean } | null | undefined;
   return (
     <>
-      <Section title="Password" description={me.data ? `Signed in as ${me.data.username}.` : undefined}>
+      {desktop ? <DesktopPassword desktop={desktop} /> : null}
+      {desktop?.noPassword ? null : <Section title="Password" description={me.data ? `Signed in as ${me.data.username}.` : undefined}>
         <div className="flex flex-col gap-3">
           <Field label="Current password" htmlFor="cp">
             <Input id="cp" type="password" autoComplete="current-password" value={pw.current} onChange={(e) => setPw({ ...pw, current: e.target.value })} />
@@ -56,7 +59,7 @@ export default function AccountSection() {
             </Button>
           </div>
         </div>
-      </Section>
+      </Section>}
       <Section title="Two-factor authentication" description="Require a code from an authenticator app when signing in." action={me.data?.totpEnabled ? <Badge tone="success">On</Badge> : null}>
         {me.data?.totpEnabled ? (
           <Button variant="danger" onClick={() => setDisableOpen(true)}>
@@ -160,5 +163,58 @@ export default function AccountSection() {
         <Input type="password" aria-label="Password" value={disablePw} onChange={(e) => setDisablePw(e.target.value)} />
       </Dialog>
     </>
+  );
+}
+
+/** The Windows app: "No password on this PC" (this PC only; the phone on Wi-Fi always needs one). */
+function DesktopPassword({ desktop }: { desktop: { noPassword: boolean; local: boolean } }) {
+  const qc = useQueryClient();
+  const [a, setA] = useState('');
+  const [b, setB] = useState('');
+  const [busy, setBusy] = useState(false);
+  const run = async (body: object, done: string) => {
+    setBusy(true);
+    try {
+      await post('/api/auth/no-password', body);
+      setA('');
+      setB('');
+      toast({ title: done, tone: 'success' });
+      await qc.invalidateQueries({ queryKey: ['auth'] });
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
+  if (desktop.noPassword)
+    return (
+      <Section title="No password on this PC" description="Everloom opens without a password on this computer. To use it from your phone, or to require a password here, choose one.">
+        <div className="flex flex-col gap-3">
+          <Field label="New password" htmlFor="dp1" hint="At least 10 characters.">
+            <Input id="dp1" type="password" autoComplete="new-password" value={a} onChange={(e) => setA(e.target.value)} />
+          </Field>
+          <Field label="Confirm password" htmlFor="dp2" error={b && a !== b ? 'Passwords do not match.' : null}>
+            <Input id="dp2" type="password" autoComplete="new-password" value={b} onChange={(e) => setB(e.target.value)} />
+          </Field>
+          <div>
+            <Button variant="primary" loading={busy} disabled={a.length < 10 || a !== b} onClick={() => run({ on: false, next: a }, 'Password set')}>
+              Require this password
+            </Button>
+          </div>
+        </div>
+      </Section>
+    );
+  if (!desktop.local) return null;
+  return (
+    <Section title="No password on this PC" description="Open Everloom on this computer without signing in. Anyone using this Windows account can then open it. Not available while it's shared on Wi-Fi.">
+      <div className="flex items-end gap-2">
+        <Field label="Current password" htmlFor="dp0" className="flex-1">
+          <Input id="dp0" type="password" autoComplete="current-password" value={a} onChange={(e) => setA(e.target.value)} />
+        </Field>
+        <Button loading={busy} disabled={!a} onClick={() => run({ on: true, password: a }, 'No password needed on this PC')}>
+          Turn on
+        </Button>
+      </div>
+    </Section>
   );
 }

@@ -1,0 +1,73 @@
+{
+  "name": "everloom-desktop",
+  "productName": "Everloom",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Everloom for Windows: the whole app on your PC, in its own window.",
+  "author": "Everloom",
+  "license": "MIT",
+  "main": "main.js",
+  "scripts": {
+    "stage": "node stage.mjs",
+    "dist": "electron-builder --win nsis --x64 --publish never",
+    "start": "electron ."
+  },
+  "devDependencies": {
+    "electron": "^33.2.1",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "app.everloom.desktop",
+    "productName": "Everloom",
+    "copyright": "Everloom contributors",
+    "directories": {
+      "output": "release",
+      "buildResources": "build"
+    },
+    "files": [
+      "main.js",
+      "package.json",
+      "build/icon.ico"
+    ],
+    "extraResources": [
+      {
+        "from": "stage/node",
+        "to": "node"
+      },
+      {
+        "from": "stage/server",
+        "to": "server"
+      },
+      {
+        "from": "stage/web",
+        "to": "web"
+      }
+    ],
+    "asar": true,
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.ico",
+      "artifactName": "Everloom-Setup-${version}.${ext}",
+      "signAndEditExecutable": true
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowElevation": false,
+      "allowToChangeInstallationDirectory": false,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Everloom",
+      "deleteAppDataOnUninstall": false,
+      "include": "build/installer.nsh",
+      "artifactName": "Everloom-Setup-${version}.${ext}"
+    }
+  }
+}
