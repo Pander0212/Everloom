@@ -26,7 +26,7 @@ const serverPkg = JSON.parse(readFileSync(path.join(root, 'apps/server/package.j
 const deps = Object.fromEntries(Object.entries(serverPkg.dependencies ?? {}).filter(([name]) => !name.startsWith('@everloom/')));
 const rootPkg = JSON.parse(readFileSync(path.join(root, 'package.json'), 'utf8'));
 writeFileSync(path.join(stage, 'server', 'package.json'), JSON.stringify({ name: 'everloom-server', version: rootPkg.version, private: true, type: 'module', dependencies: deps }, null, 2));
-execSync('npm install --omit=dev --no-audit --no-fund --no-package-lock', { cwd: path.join(stage, 'server'), stdio: 'inherit' });
+execSync('npm install --omit=dev --no-audit --no-fund --no-package-lock --ignore-scripts', { cwd: path.join(stage, 'server'), stdio: 'inherit' });
 
 const nodeName = process.platform === 'win32' ? 'node.exe' : 'node';
 cpSync(process.execPath, path.join(stage, 'node', nodeName));

@@ -35,8 +35,12 @@ jobs:
           node-version: 22
           cache: npm
 
+      # The SQLite module ships a prebuilt Windows (N-API) binary; without --ignore-scripts npm would
+      # still run node-gyp, which fails looking for a Visual Studio it doesn't need.
       - name: Install (Windows builds of the native modules)
-        run: npm ci --no-audit --no-fund
+        run: |
+          npm ci --no-audit --no-fund --ignore-scripts
+          node -e "const D=require('better-sqlite3-multiple-ciphers'); const d=new D(':memory:'); console.log('SQLite', d.prepare('select sqlite_version() v').get().v); d.close()"
 
       - name: Build the server and the web app
         run: npm run build
