@@ -1,0 +1,3 @@
+#!/bin/sh
+# Refuse commits that contain a known API key (see scripts/check-secrets.mjs).
+exec node "$(git rev-parse --show-toplevel)/scripts/check-secrets.mjs"

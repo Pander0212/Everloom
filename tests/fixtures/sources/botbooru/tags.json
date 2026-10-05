@@ -1,0 +1,37 @@
+[
+ {
+  "id": 7,
+  "name": "fantasy",
+  "category": "General",
+  "count": 5400,
+  "alias_of": null
+ },
+ {
+  "id": 8,
+  "name": "gardener",
+  "category": "General",
+  "count": 40,
+  "alias_of": null
+ },
+ {
+  "id": 25,
+  "name": "sfw",
+  "category": "Auto",
+  "count": 90000,
+  "alias_of": null
+ },
+ {
+  "id": 4507,
+  "name": "fernwright",
+  "category": "Writer",
+  "count": 3,
+  "alias_of": null
+ },
+ {
+  "id": 77,
+  "name": "gardening",
+  "category": "General",
+  "count": 1,
+  "alias_of": 8
+ }
+]

@@ -1,0 +1,7 @@
+{
+ "error": {
+  "code": "auth.missing_authorization",
+  "message": "You are not logged in. Please log in to continue.",
+  "retryable": false
+ }
+}

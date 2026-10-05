@@ -54,7 +54,11 @@ function tokenize(q: string): string[] {
   return out;
 }
 
-export function parseQuery(q: string): ParsedQuery {
+/**
+ * `extra` lets a caller accept more prefixes (online search adds sort:, lang:, time:); return true
+ * when the key was handled.
+ */
+export function parseQuery(q: string, extra?: (key: string, value: string, neg: boolean) => boolean): ParsedQuery {
   const p: ParsedQuery = { text: [], tags: { include: [], exclude: [] }, creator: [], fav: null, linked: null, has: [], tokens: [], collection: null, version: null, errors: [] };
   for (const raw of tokenize(q.trim())) {
     const neg = raw.startsWith('-') && raw.length > 1;
@@ -75,6 +79,7 @@ export function parseQuery(q: string): ParsedQuery {
       continue;
     }
     const [, key, value] = kv;
+    if (extra?.(key.toLowerCase(), value, neg)) continue;
     switch (key.toLowerCase()) {
       case 'tag':
       case 'tags':

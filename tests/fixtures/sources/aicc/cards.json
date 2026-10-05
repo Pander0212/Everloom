@@ -1,0 +1,91 @@
+{
+ "data": [
+  {
+   "id": 4001,
+   "userId": 500,
+   "title": "Juno the Ferrywoman",
+   "description": "Juno the Ferrywoman: a made-up card for tests.",
+   "excerpt": "Juno the Ferrywoman, short version.",
+   "titleEn": "Juno the Ferrywoman",
+   "excerptEn": "Juno the Ferrywoman, short version.",
+   "imageUrl": "/uploads/character_cards/500/card-500-4001-opt.webp",
+   "language": "en",
+   "isNsfw": false,
+   "isAnimated": false,
+   "status": "published",
+   "downloadCount": 9,
+   "ratingAvg": null,
+   "ratingCount": 0,
+   "tokenCount": 800,
+   "createdAt": "2026-09-15T00:00:00.000Z",
+   "tags": [
+    {
+     "id": 363,
+     "name": "Slice of Life"
+    },
+    {
+     "id": 361,
+     "name": "Adventure/RPG"
+    }
+   ],
+   "author": "ferryman"
+  },
+  {
+   "id": 4002,
+   "userId": 500,
+   "title": "Brass Owl",
+   "description": "Brass Owl: a made-up card for tests.",
+   "excerpt": "Brass Owl, short version.",
+   "titleEn": "Brass Owl",
+   "excerptEn": "Brass Owl, short version.",
+   "imageUrl": "/uploads/character_cards/500/card-500-4002-opt.webp",
+   "language": "de",
+   "isNsfw": false,
+   "isAnimated": false,
+   "status": "published",
+   "downloadCount": 9,
+   "ratingAvg": null,
+   "ratingCount": 0,
+   "tokenCount": 800,
+   "createdAt": "2026-09-15T00:00:00.000Z",
+   "tags": [
+    {
+     "id": 361,
+     "name": "Adventure/RPG"
+    }
+   ],
+   "author": "ferryman"
+  },
+  {
+   "id": 4003,
+   "userId": 500,
+   "title": "Red Room",
+   "description": "Red Room: a made-up card for tests.",
+   "excerpt": "Red Room, short version.",
+   "titleEn": "Red Room",
+   "excerptEn": "Red Room, short version.",
+   "imageUrl": "/uploads/character_cards/500/card-500-4003-opt.webp",
+   "language": "en",
+   "isNsfw": true,
+   "isAnimated": false,
+   "status": "published",
+   "downloadCount": 9,
+   "ratingAvg": null,
+   "ratingCount": 0,
+   "tokenCount": 800,
+   "createdAt": "2026-09-15T00:00:00.000Z",
+   "tags": [
+    {
+     "id": 370,
+     "name": "Romance"
+    }
+   ],
+   "author": "ferryman"
+  }
+ ],
+ "pagination": {
+  "skip": 0,
+  "limit": 24,
+  "total": 3
+ }
+}

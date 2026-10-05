@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import yauzl from 'yauzl';
 import {
   buildV2Json, cardHash, characterBookToWorld, emptyCardData, readCardFile, worldToCharacterBook, writeCardToPng,
   type CardData, type CharacterDTO, type CharacterGame, type CharacterSummary,
@@ -133,7 +134,86 @@ export function duplicateCharacter(ctx: AppContext, owner: string, id: string): 
 }
 
 /** Import a PNG / WebP / JSON card. */
+/**
+ * Some CHARX files carry a picture in front of the zip (offsets in the zip don't count it). Finds the
+ * end record, works out where the zip really starts and cuts the prefix off.
+ */
+export function zipStart(bytes: Buffer): Buffer {
+  const from = Math.max(0, bytes.length - 65_557);
+  const end = bytes.lastIndexOf(Buffer.from([0x50, 0x4b, 0x05, 0x06]));
+  if (end < from) return bytes;
+  const size = bytes.readUInt32LE(end + 12);
+  const offset = bytes.readUInt32LE(end + 16);
+  if (offset === 0xffffffff) return bytes; // ZIP64 keeps its real offsets elsewhere; leave it as is
+  const shift = end - size - offset;
+  return shift > 0 && bytes.readUInt32LE(shift) === 0x04034b50 ? bytes.subarray(shift) : bytes;
+}
+
+/** Named files from a zip held in memory (CHARX can be ZIP64, which yauzl reads). */
+function unzipSome(bytes: Buffer, want: (name: string) => boolean, maxEach = 40 * 1024 * 1024): Promise<Map<string, Buffer>> {
+  bytes = zipStart(bytes);
+  return new Promise((resolve, reject) => {
+    yauzl.fromBuffer(bytes, { lazyEntries: true }, (err, zip) => {
+      if (err || !zip) return reject(err ?? new Error('unreadable'));
+      const out = new Map<string, Buffer>();
+      zip.on('error', reject);
+      zip.on('end', () => resolve(out));
+      zip.on('entry', (e: yauzl.Entry) => {
+        if (!want(e.fileName) || e.uncompressedSize > maxEach) return zip.readEntry();
+        zip.openReadStream(e, (er, stream) => {
+          if (er || !stream) return reject(er);
+          const parts: Buffer[] = [];
+          stream.on('data', (c: Buffer) => parts.push(c));
+          stream.on('error', reject);
+          stream.on('end', () => {
+            out.set(e.fileName, Buffer.concat(parts));
+            zip.readEntry();
+          });
+        });
+      });
+      zip.readEntry();
+    });
+  });
+}
+
+/** card.json and the main icon from a CHARX zip. Other assets (expressions, backgrounds) are left for now. */
+export async function readCharx(bytes: Buffer): Promise<{ json: Buffer; icon: Buffer | null }> {
+  let files: Map<string, Buffer>;
+  try {
+    files = await unzipSome(bytes, (n) => n === 'card.json' || /^assets\/icon\//i.test(n));
+  } catch (e) {
+    throw new HttpError(400, `Not a character card: the CHARX archive can't be opened (${(e as Error).message})`);
+  }
+  const json = files.get('card.json');
+  if (!json) throw new HttpError(400, 'Not a character card: the CHARX archive has no card.json');
+  let uri: string | undefined;
+  try {
+    const assets: Array<{ type?: string; uri?: string; name?: string }> = JSON.parse(json.toString('utf8'))?.data?.assets ?? [];
+    const main = assets.find((a) => a.type === 'icon' && a.name === 'main') ?? assets.find((a) => a.type === 'icon');
+    uri = main?.uri?.replace(/^(embeded|embedded):\/\//, '').replace(/^__asset:/, '');
+  } catch {
+    /* the card reader reports a broken card.json */
+  }
+  let icon = uri ? files.get(uri) : undefined;
+  if (!icon && uri && !/^assets\/icon\//i.test(uri)) icon = (await unzipSome(bytes, (n) => n === uri).catch(() => new Map<string, Buffer>())).get(uri);
+  icon ??= [...files.entries()].find(([n]) => n !== 'card.json')?.[1];
+  return { json, icon: icon ?? null };
+}
+
 export async function importCard(ctx: AppContext, owner: string, bytes: Buffer): Promise<CharacterDTO> {
+  if (bytes.length > 60 * 1024 * 1024) throw new HttpError(413, 'Card file too large');
+  // CHARX (RisuAI): a zip with card.json and its pictures; the icon becomes the avatar.
+  let icon: Buffer | null = null;
+  const plainZip = bytes[0] === 0x50 && bytes[1] === 0x4b;
+  if (plainZip || zipStart(bytes) !== bytes) {
+    try {
+      const x = await readCharx(bytes);
+      bytes = x.json;
+      icon = x.icon;
+    } catch (e) {
+      if (plainZip) throw e; // a picture with a stray zip on the end may still be an ordinary card
+    }
+  }
   if (bytes.length > 30 * 1024 * 1024) throw new HttpError(413, 'Card file too large');
   let parsed;
   try {
@@ -143,9 +223,10 @@ export async function importCard(ctx: AppContext, owner: string, bytes: Buffer):
   }
   let avatar: string | null = null;
   const head = new Uint8Array(bytes.subarray(0, 16));
-  if (head[0] === 0x89 || (head[0] === 0x52 && head[8] === 0x57)) {
+  const picture = icon ?? (head[0] === 0x89 || (head[0] === 0x52 && head[8] === 0x57) ? bytes : null);
+  if (picture) {
     try {
-      avatar = (await saveImage(ctx, owner, bytes, { kind: 'avatar', maxDim: 1536 })).id;
+      avatar = (await saveImage(ctx, owner, picture, { kind: 'avatar', maxDim: 1536 })).id;
     } catch {
       avatar = null;
     }

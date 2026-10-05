@@ -499,4 +499,34 @@ CREATE TABLE save_slots (
 CREATE INDEX save_slots_story ON save_slots(owner_id, story_id, created_at);
 `,
   },
+{
+    version: 7,
+    name: 'phase 4 source accounts',
+    sql: `
+-- Site accounts: an API key (token_enc) or a username and password sign-in, whose session token
+-- also lives in token_enc. Everything secret is encrypted; nothing here is ever sent to the browser.
+ALTER TABLE provider_accounts ADD COLUMN username TEXT;
+ALTER TABLE provider_accounts ADD COLUMN password_enc TEXT;
+ALTER TABLE provider_accounts ADD COLUMN status TEXT NOT NULL DEFAULT 'unknown';
+ALTER TABLE provider_accounts ADD COLUMN status_detail TEXT;
+ALTER TABLE provider_accounts ADD COLUMN checked_at INTEGER;
+ALTER TABLE provider_accounts ADD COLUMN expires_at INTEGER;
+-- Site notices the owner accepted (once per site).
+CREATE TABLE source_notices (
+  owner_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  accepted_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, provider)
+);
+CREATE TABLE saved_searches (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  name TEXT NOT NULL,
+  query TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX saved_searches_owner ON saved_searches(owner_id, provider);
+`,
+  },
 ];

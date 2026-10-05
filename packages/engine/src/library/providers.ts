@@ -1,6 +1,6 @@
 /**
- * Mappings for the other public character catalogs (Character Tavern, RisuRealm, Pygmalion,
- * Wyvern). Pure functions over the sites' public responses, tested against recorded fixtures.
+ * Mappings for the older public character catalogs (RisuRealm, Pygmalion, Wyvern; newer sites
+ * live in ./sites). Pure functions over the sites' public responses, tested against recorded fixtures.
  * Only fields a site shows publicly are read; anything its creator marks hidden stays out and the
  * card is reported as hidden.
  */
@@ -24,75 +24,6 @@ export const HIDDEN_LABEL = 'Definition hidden by creator';
 
 function publicOnlyCard(item: SourceItem, about: string, firstMes = ''): NonNullable<SourceDetail['card']> {
   return { ...emptyCardData(item.name), creator_notes: about, first_mes: firstMes, tags: cleanTags(item.tags), creator: item.creator, extensions: { definition_hidden: true } };
-}
-
-// ------------------------------------------------------------------ Character Tavern
-
-export const CTAVERN = { id: 'ctavern', name: 'Character Tavern', site: 'https://character-tavern.com', cards: 'https://cards.character-tavern.com' } as const;
-
-export function ctSearchUrl(q: SourceSearch, perPage = 24): string {
-  const p = new URLSearchParams({ query: q.query.trim(), limit: String(perPage), page: String(Math.max(1, q.page)) });
-  if (q.tags?.length) p.set('tags', q.tags.join(','));
-  if (q.sort === 'new') p.set('sort', 'created');
-  return `${CTAVERN.site}/api/search/cards?${p}`;
-}
-export const ctDetailUrl = (key: string) => `${CTAVERN.site}/api/character/${key.split('/').map(encodeURIComponent).join('/')}`;
-export function ctKeyFromLink(link: string): string | null {
-  const m = /(?:^|\/\/)(?:www\.)?character-tavern\.com\/character\/([A-Za-z0-9_.-]+)\/([A-Za-z0-9_.%-]+)/i.exec(link);
-  return m ? `${m[1]}/${decodeURIComponent(m[2]!).replace(/[?#].*$/, '')}` : null;
-}
-
-function ctItem(h: any, extra: { nsfw?: boolean; tags?: string[]; updated?: unknown } = {}): SourceItem | null {
-  const key = str(h?.path);
-  if (!/^[^/\s]+\/[^/\s]+$/.test(key)) return null;
-  const tags = (Array.isArray(extra.tags ?? h.tags) ? (extra.tags ?? h.tags) : []).map(str).filter(Boolean);
-  const warnings = (Array.isArray(h.contentWarnings) ? h.contentWarnings : []).map(str);
-  return {
-    provider: CTAVERN.id,
-    key,
-    name: str(h.name) || key.split('/')[1]!,
-    tagline: str(h.tagline),
-    creator: typeof h.author === 'string' ? h.author : key.split('/')[0]!,
-    tags,
-    avatarUrl: `${CTAVERN.cards}/${key}.png`,
-    url: `${CTAVERN.site}/character/${key}`,
-    nsfw: extra.nsfw ?? (h.isNSFW === true || warnings.some((w: string) => /sexual|nsfw|explicit/i.test(w)) || tags.some((t: string) => NSFW_TAG.test(t))),
-    tokens: num(h.permanentTokens ?? h.tokenTotal),
-    stars: null,
-    updatedAt: time(extra.updated ?? h.lastUpdatedAt),
-  };
-}
-
-export function ctSearchResults(body: any): { items: SourceItem[]; hasMore: boolean } {
-  const hits = Array.isArray(body?.hits) ? body.hits : [];
-  return { items: hits.map((h: any) => ctItem(h)).filter((x: SourceItem | null): x is SourceItem => !!x), hasMore: (num(body?.page) ?? 1) < (num(body?.totalPages) ?? 0) };
-}
-
-export function ctDetail(body: any): SourceDetail | null {
-  const c = body?.card;
-  if (!c) return null;
-  const item = ctItem(c, { tags: Array.isArray(c.tags) ? c.tags : [] });
-  if (!item) return null;
-  const defs = [c.definition_character_description, c.definition_personality, c.definition_scenario, c.definition_first_message].map(str);
-  const hidden = c.visibility !== 'public' || defs.every((x) => !x);
-  const card = hidden
-    ? publicOnlyCard(item, str(c.description) || item.tagline)
-    : {
-        ...emptyCardData(str(c.inChatName) || item.name),
-        description: str(c.definition_character_description),
-        personality: str(c.definition_personality),
-        scenario: str(c.definition_scenario),
-        first_mes: str(c.definition_first_message),
-        mes_example: str(c.definition_example_messages),
-        system_prompt: str(c.definition_system_prompt),
-        post_history_instructions: str(c.definition_post_history_prompt),
-        creator_notes: str(c.description) || item.tagline,
-        tags: cleanTags(item.tags),
-        creator: item.creator,
-        character_version: str(c.versionId),
-        extensions: { ctavern: { path: item.key, id: str(c.id) } },
-      };
-  return { ...item, card, hidden, version: `${str(c.versionId)}:${str(c.lastUpdatedAt)}`, description: str(c.description) || item.tagline };
 }
 
 // ------------------------------------------------------------------ RisuRealm
@@ -135,6 +66,8 @@ export function risuSearchUrl(q: SourceSearch): string {
 }
 export const risuMetaUrl = (id: string) => `${RISU.site}/character/${encodeURIComponent(id)}/__data.json`;
 export const risuDownloadUrl = (id: string) => `${RISU.site}/api/v1/download/json-v2/${encodeURIComponent(id)}`;
+/** Cards stored as CHARX answer 400 to the JSON download; this one always works (it can be large). */
+export const risuCharxUrl = (id: string) => `${RISU.site}/api/v1/download/charx-v3/${encodeURIComponent(id)}`;
 export function risuKeyFromLink(link: string): string | null {
   return /(?:^|\/\/)realm\.risuai\.net\/character\/([0-9a-f-]{36})/i.exec(link)?.[1] ?? null;
 }

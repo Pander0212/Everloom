@@ -1,0 +1,29 @@
+{
+ "routes": [
+  {
+   "method": "POST",
+   "url": "^https://saucepan\\.ai/api/v1/search$",
+   "file": "search.json"
+  },
+  {
+   "url": "^https://saucepan\\.ai/api/v1/companion/definition\\?companion_id=5a5a5a5a-0000-4000-8000-000000000001$",
+   "file": "definition-1.json"
+  },
+  {
+   "url": "^https://saucepan\\.ai/api/v1/companion/definition\\?companion_id=5a5a5a5a-0000-4000-8000-000000000002$",
+   "file": "definition-2.json"
+  },
+  {
+   "method": "POST",
+   "url": "^https://saucepan\\.ai/api/v1/auth/sign_in_password$",
+   "body": "\"password\":\"right\"",
+   "file": "signin.json"
+  },
+  {
+   "method": "POST",
+   "url": "^https://saucepan\\.ai/api/v1/auth/sign_in_password$",
+   "file": "error-401.json",
+   "status": 401
+  }
+ ]
+}

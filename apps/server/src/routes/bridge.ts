@@ -4,7 +4,7 @@ import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
 import { WindowLimiter } from '../security/ratelimit.js';
 import { bookmarklet, userscript } from '../services/bridge-script.js';
-import { addDevice, bridgeImport, bridgePayload, listDevices, ownerForToken, removeDevice } from '../services/bridge.js';
+import { addDevice, bridgeImport, bridgePayload, completePairing, listDevices, ownerForToken, removeDevice, startPairing } from '../services/bridge.js';
 import { parse } from '../util/validate.js';
 
 /** Where this Everloom is reached, as the browser sees it (no client-supplied value, so a link can't point the script elsewhere). */
@@ -26,14 +26,33 @@ export function registerBridge(app: FastifyInstance, ctx: AppContext) {
     return { ok: true };
   });
 
-  app.options('/api/bridge/import', async (_req, reply) => {
+  for (const path of ['/api/bridge/import', '/api/bridge/pair', '/api/bridge/ping'])
+    app.options(path, async (_req, reply) => {
+      cors(reply);
+      return reply.code(204).send();
+    });
+
+  // Install-and-pair: the settings page asks for a code; the userscript link carries it.
+  app.post('/api/bridge/pairing', async (req) => {
+    const p = startPairing(ctx, owner(req), parse(z.object({ label: z.string().trim().min(1).max(60) }), req.body).label);
+    return { ...p, userscriptUrl: `${originOf(req)}/api/bridge/everloom-bridge.user.js?pair=${encodeURIComponent(p.code)}` };
+  });
+  const perIp = new WindowLimiter(20, 60_000);
+  app.post('/api/bridge/pair', async (req, reply) => {
     cors(reply);
-    return reply.code(204).send();
+    if (!perIp.take(req.ip)) throw new HttpError(429, 'Too many attempts; wait a minute');
+    const r = completePairing(ctx, parse(z.object({ code: z.string().regex(/^evp_[A-Za-z0-9_-]{10,}$/) }), req.body).code);
+    return { token: r.token, label: r.label };
+  });
+  app.post('/api/bridge/ping', async (req, reply) => {
+    cors(reply);
+    if (!ownerForToken(ctx, req.headers.authorization)) throw new HttpError(401, 'This device token is not known to Everloom.', 'auth_required');
+    return { ok: true, name: 'Everloom' };
   });
   app.post('/api/bridge/import', { bodyLimit }, async (req, reply) => {
     cors(reply);
     const who = ownerForToken(ctx, req.headers.authorization);
-    if (!who) throw new HttpError(401, 'This device is not allowed. Add it in Settings → Characters → Browser bridge.', 'auth_required');
+    if (!who) throw new HttpError(401, 'This device is not allowed. Pair it in Settings › Character sources › Browser bridge.', 'auth_required');
     if (!perToken.take(String(req.headers.authorization))) throw new HttpError(429, 'Too many cards at once; wait a minute');
     const c = await bridgeImport(ctx, who, parse(bridgePayload, req.body));
     ctx.bus.publish(who, 'characters.changed', {});
@@ -48,5 +67,9 @@ export function registerBridge(app: FastifyInstance, ctx: AppContext) {
   });
 
   // Public on purpose: the script holds no secret (each device pastes its own token on first use).
-  app.get('/api/bridge/everloom-bridge.user.js', async (req, reply) => reply.header('content-type', 'text/javascript; charset=utf-8').header('cache-control', 'no-cache').send(userscript(originOf(req))));
+  // With ?pair=, the script carries a one-time pairing code (which is useless once used or after ten minutes).
+  app.get('/api/bridge/everloom-bridge.user.js', async (req, reply) => {
+    const pair = parse(z.object({ pair: z.string().regex(/^evp_[A-Za-z0-9_-]{10,}$/).optional() }), req.query).pair;
+    return reply.header('content-type', 'text/javascript; charset=utf-8').header('cache-control', 'no-store').send(userscript(originOf(req), pair));
+  });
 }

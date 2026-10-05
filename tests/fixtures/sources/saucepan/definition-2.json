@@ -1,0 +1,13 @@
+{
+ "card": null,
+ "full_description": "The warden keeps her secrets.",
+ "example_dialogue": null,
+ "starting_scenarios": [
+  {
+   "name": "Gate",
+   "message": "\"Halt.\""
+  }
+ ],
+ "hidden_fields": 7,
+ "open_definition": false
+}

@@ -1,0 +1,20 @@
+{
+ "routes": [
+  {
+   "url": "^https://api\\.aicharactercards\\.com/api/cards\\?",
+   "file": "cards.json"
+  },
+  {
+   "url": "^https://api\\.aicharactercards\\.com/api/cards/metadata/tags$",
+   "file": "tags.json"
+  },
+  {
+   "url": "^https://api\\.aicharactercards\\.com/api/cards/4001$",
+   "file": "card-4001.json"
+  },
+  {
+   "url": "^https://api\\.aicharactercards\\.com/uploads/character_cards/500/card-500-4001\\.png$",
+   "file": "card-4001.png"
+  }
+ ]
+}

@@ -1,0 +1,33 @@
+{
+ "routes": [
+  {
+   "url": "^https://realm\\.risuai\\.net/__data\\.json",
+   "file": "search.json"
+  },
+  {
+   "url": "^https://realm\\.risuai\\.net/character/1f2e3d4c-0000-4000-8000-00000000a001/__data\\.json",
+   "file": "meta-1f2e3d4c-0000-4000-8000-00000000a001.json"
+  },
+  {
+   "url": "^https://realm\\.risuai\\.net/character/1f2e3d4c-0000-4000-8000-00000000a002/__data\\.json",
+   "file": "meta-1f2e3d4c-0000-4000-8000-00000000a002.json"
+  },
+  {
+   "url": "^https://realm\\.risuai\\.net/api/v1/download/json-v2/1f2e3d4c-0000-4000-8000-00000000a001$",
+   "file": "card-1f2e3d4c-0000-4000-8000-00000000a001.json"
+  },
+  {
+   "url": "^https://realm\\.risuai\\.net/character/1f2e3d4c-0000-4000-8000-00000000a003/__data\\.json",
+   "file": "meta-1f2e3d4c-0000-4000-8000-00000000a003.json"
+  },
+  {
+   "url": "^https://realm\\.risuai\\.net/api/v1/download/json-v2/1f2e3d4c-0000-4000-8000-00000000a003$",
+   "file": "error-400.json",
+   "status": 400
+  },
+  {
+   "url": "^https://realm\\.risuai\\.net/api/v1/download/charx-v3/1f2e3d4c-0000-4000-8000-00000000a003$",
+   "file": "card-1f2e3d4c-0000-4000-8000-00000000a003.charx"
+  }
+ ]
+}

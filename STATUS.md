@@ -2,6 +2,19 @@
 
 Snapshot of what's built, what's partial, and how it was tested. Everloom 0.1.0.
 
+## Phase 4 (in progress)
+
+Decisions and reasoning: [docs/PHASE2_DECISIONS.md › Phase 4](docs/PHASE2_DECISIONS.md#phase-4--scripting-sources-feature-switches-privacy-windows-artwork).
+
+### Done ✅
+- **Character sources (Part 2)**: Character Tavern and RisuRealm fixed (Tavern's API moved to SvelteKit page data; RisuRealm CHARX cards); CHARX import (also with a picture in front of the zip); one filter language and a filter bar for every site with a final check over each page; Botbooru, Saucepan (account) and AI Character Cards added; site notices; accounts (encrypted, never sent back, Test and Sign out); 429 back-off; server-side thumbnails; tag suggestions; saved searches; all-sources search with duplicates marked; self-test and *Record fixtures*; a rebuilt bridge (per-site readers, single-page aware userscript with Send all, settings panel and install-and-pair; a bookmarklet that opens its window first, with a clipboard fallback and *Paste from bridge*; an Android share target).
+- **Key safety**: a pre-commit hook (`scripts/hooks/pre-commit`, set up by `npm install`) refuses commits containing the artwork API keys; it compares hashes, so the keys are stored nowhere.
+
+### Not built (Part 2)
+- **DataCat direct fetching** — declined: its API is built around recovering definitions creators hid elsewhere. The bridge covers pages the player opens (public fields only).
+- **Pygmalion, Wyvern and Character Tavern account features**, and **Chub account features** (favorites, follows, timeline) — their member endpoints need browser sessions or couldn't be checked from here.
+- **Chub parameters** beyond the ones Phase 3 verified are sent as documented but unverified; the final page check keeps results right, and the self-test shows what the site honours.
+
 ## Phase 3 (the remaining gameplay systems)
 
 What was built, merged or deferred, and why, is in [docs/PHASE2_DECISIONS.md › Phase 3](docs/PHASE2_DECISIONS.md#phase-3--the-remaining-gameplay-systems).

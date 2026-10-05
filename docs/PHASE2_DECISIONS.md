@@ -353,3 +353,91 @@ A real Phase 2 database (`tests/fixtures/phase2.db`, written by the Phase 2 rele
 - **Bundle.** Every new screen and tool is its own chunk. The main script is 76 KB brotli (Phase 2: 82 KB); the first load is 179 KB brotli. Moving one helper out of the module with the op schemas took zod out of the browser entirely and the stage chunk from 133 KB to 12 KB. All assets: 454 KB brotli (Phase 2: 363 KB) plus the 140 KB Live2D renderer, which only downloads when Live2D is on.
 - **Frame rate.** 60 fps idle and 59 fps average with rain and shake playing together (95th-percentile frame 16.8 ms), measured in headless Chromium at 1280×800.
 - **Crossfade.** A measured 2 s linear crossfade with the summed volume constant and the old deck paused at the end. Audio now unlocks on the first real tap (caught by the measurement: taps before the story finished loading didn't count, and on touch screens `pointerdown` never does).
+
+# Phase 4 — scripting, sources, feature switches, privacy, Windows, artwork
+
+Each part below records what was built, what was deliberately not, and why. Parts were done in the
+order the brief suggests (2 → 3 → 5 → 4 → 1 → 6 → 7).
+
+## Part 2 — Character sources
+
+**What was actually broken.** Checked live on 2026-10-05 before changing anything:
+
+| Site | Phase 3 state | Cause | Now |
+| --- | --- | --- | --- |
+| Character Tavern | search and import failed | `/api/search/cards` no longer exists (404) | reads the site's SvelteKit page data (`/search/cards/__data.json`, `/character/{author}/{slug}/__data.json`), including streamed greetings and lorebooks, and its tag catalogue (6,000+ tags) |
+| RisuRealm | some imports failed | cards stored as CHARX answer **400** to the JSON download | falls back to the CHARX download |
+| CHARX import | claimed, not implemented | `readCardFile` only knew PNG, WebP and JSON | CHARX (zip with `card.json` and the icon asset) imports everywhere cards import; CHARX files with a picture in front of the zip (offsets relative to the zip) are handled |
+| Pygmalion, Wyvern | working | — | unchanged |
+| Chub | can't be checked from the build environment (regional block) | — | built to its documented parameters; the self-test tells an owner which work |
+
+**One query language.** `SourceQuery` (engine) is what every site gets: text, include and exclude
+tags, creator, sort, time range, token range, has lorebook, has other greetings, language, adult,
+page. The search box takes the library's filter syntax plus `sort:`, `time:`, `lang:` and `nsfw:`;
+unknown keys and bad values are reported, never silently dropped. Each site declares what it filters
+itself (`onSite`); the server then runs `applyLocalFilters` over **every** returned page, so a site
+that quietly ignores a parameter still gives correct results, and the UI names the filters that were
+page-only. Adult content is always enforced here, whatever the site did.
+
+**New sites, with the reasoning for each.**
+
+- **Botbooru** — open JSON API with full public definitions (`/posts/`, `/post/{id}`, `/tags/`).
+  Its robots.txt disallows `/post/` and the API, so it is behind a **site notice** accepted once:
+  Everloom isn't a crawler (only owner-initiated requests, one at a time, slow bucket), and the owner
+  takes responsibility for the site's terms. Optional sign-in (`/auth/token`).
+- **Saucepan** — no public catalogue API; the app's own same-origin API is used, only on demand,
+  after a notice. Tag browsing works signed out; free-text search and definitions need the owner's
+  account. Only what its definition endpoint returns to a member is imported; a creator's hidden
+  fields stay hidden and the card is labelled.
+- **AI Character Cards** — public JSON API (robots.txt allows reference use). Tags go by id and the
+  site treats several as "any of", so the final pass makes them "all of". Imports the *current*
+  version's card file.
+- **DataCat — not fetched directly.** Its session token comes from its "liberator" endpoint, and its
+  API is built around recovering definitions that creators hid on other sites. That conflicts with
+  the hard rule against extracting hidden definitions, so the server never talks to it; the bridge
+  can still send a page the player opened (public fields only).
+- **JanitorAI / JannyAI** — bridge only (Cloudflare). Unchanged rule: `showdefinition === false`
+  means public profile only.
+
+**Accounts.** Settings › Character sources › Accounts: API key (Chub) or username and password
+(Botbooru, Saucepan). Credentials and session tokens are encrypted with the server key; the
+password is kept (also encrypted) only if the owner ticks the box, so an expired session can sign in
+again once. Nothing secret is ever returned to the browser; responses fetched with an account are
+cached under a key that includes a hash of the session, and signing out clears the cache. *Test*
+re-signs in and runs one search. Pygmalion, Wyvern and Character Tavern account features were not
+built: their member features need browser sessions Everloom can't create without a browser.
+
+**Pacing.** Per-site token buckets (Botbooru and Saucepan 1 request/s), a separate one for
+pictures, and **429 back-off**: Retry-After is honoured (capped at an hour), otherwise 2 s doubling
+to 5 minutes; while cooling down nothing is sent and the UI says so.
+
+**Thumbnails** are resized on the server (`?w=`, WebP, small memory cache), so a phone grid loads
+~20 KB per card instead of full card PNGs.
+
+**Cross-source search** runs the query on every site whose notice is accepted, interleaves by rank,
+and folds duplicates (same name and creator) into one card with "also on".
+
+**Self-test and fixtures.** Settings › Character sources › Diagnostics runs search → tags → a
+filtered search → one character, signed out, and shows each step. *Record fixtures* packs the raw
+answers in the test fixture layout (`routes.json` + files), so a broken site can be reproduced. Site
+responses are parsed with tolerant zod schemas; a shape change is a clear "site changed" error
+pointing at that button, never a crash. Test fixtures for the new sites are synthetic content in
+the recorded shapes (`tests/fixtures/sources/make-fixtures.mts` builds them).
+
+**The bridge, rebuilt.** The Phase 3 bridge had real faults: the bookmarklet opened its window after
+an `await` (popup blockers refuse that), page security policies blocked its cross-origin requests,
+the userscript only matched `/characters/*` URLs so single-page navigation never loaded it, and the
+generic fallback sent only the page title. Now:
+
+- per-site readers (JanitorAI, Botbooru, AI Character Cards, Chub, Character Tavern, RisuRealm, and a
+  generic one that prefers a linked card file) shared by the userscript, the bookmarklet and the
+  tests (page fixtures in `tests/fixtures/bridge`);
+- the userscript runs on whole sites, follows address changes, makes requests with
+  GM_xmlhttpRequest (no page CSP in the way), offers **Send all** on listing pages (one at a time,
+  1.5 s apart, at most 50), has a settings panel (address, token, debug preview) and **install and
+  pair**: a one-time code (10 minutes, single use, kept hashed in memory) in the download link that
+  the script trades for its own device token;
+- the bookmarklet opens Everloom first, then reads the page and hands over the card when the receive
+  page answers; if the window is blocked it copies the card for **Paste from bridge**;
+- Android: Everloom's manifest registers a **share target**, so sharing a character page to
+  Everloom imports it (or explains the bridge for bridge-only sites).

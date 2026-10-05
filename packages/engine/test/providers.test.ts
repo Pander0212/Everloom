@@ -4,9 +4,6 @@ import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import {
   chubDetail,
-  ctDetail,
-  ctKeyFromLink,
-  ctSearchResults,
   pygDetail,
   pygKeyFromLink,
   pygSearchResults,
@@ -21,28 +18,6 @@ import {
 
 const FX = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../../../tests/fixtures/sources');
 const fx = (p: string) => JSON.parse(readFileSync(path.join(FX, p), 'utf8'));
-
-describe('Character Tavern', () => {
-  it('search maps hits and flags adult content', () => {
-    const r = ctSearchResults(fx('ctavern/search.json'));
-    expect(r.items.map((i) => i.key)).toEqual(['quillwright/wren_of_the_lantern_archive', 'saltmarsh/captain_orla_vey', 'midnight/velvet_night']);
-    expect(r.items[0]).toMatchObject({ provider: 'ctavern', creator: 'quillwright', avatarUrl: 'https://cards.character-tavern.com/quillwright/wren_of_the_lantern_archive.png', nsfw: false, tokens: 412 });
-    expect(r.items[2]!.nsfw).toBe(true);
-    expect(r.hasMore).toBe(false);
-  });
-  it('detail maps the definition; a private card keeps only its public profile', () => {
-    const d = ctDetail(fx('ctavern/quillwright__wren_of_the_lantern_archive.json'))!;
-    expect(d.hidden).toBe(false);
-    expect(d.card).toMatchObject({ name: 'Wren', description: expect.stringContaining('Lantern Archive'), personality: 'Gentle, precise, quietly funny.', first_mes: expect.stringContaining('Late visitor'), creator_notes: 'Made for slow, cosy mysteries.' });
-    const h = ctDetail(fx('ctavern/saltmarsh__captain_orla_vey.json'))!;
-    expect(h.hidden).toBe(true);
-    expect(h.card).toMatchObject({ name: 'Captain Orla Vey', description: '', first_mes: '', extensions: { definition_hidden: true } });
-  });
-  it('recognises its links', () => {
-    expect(ctKeyFromLink('https://character-tavern.com/character/quillwright/wren_of_the_lantern_archive?x=1')).toBe('quillwright/wren_of_the_lantern_archive');
-    expect(ctKeyFromLink('https://example.com/character/a/b')).toBeNull();
-  });
-});
 
 describe('RisuRealm', () => {
   it('decodes the page data format', () => {

@@ -1,0 +1,158 @@
+{
+ "total": 3,
+ "posts": [
+  {
+   "id": 90001,
+   "download_state": null,
+   "filename": "aaaaaaaaaaaaaaaaaaaaaaaaaaa15f91.png",
+   "card_image_revision": 1,
+   "character_name": "Mossheart the Gardener",
+   "created_at": "2026-09-10T08:00:00.000000",
+   "content_updated_at": "2026-09-12T08:00:00.000000",
+   "uploader_id": 1,
+   "tags": [
+    {
+     "id": 25,
+     "name": "sfw",
+     "category": "Auto",
+     "system_managed": true
+    },
+    {
+     "id": 845,
+     "name": "contains_lorebook",
+     "category": "Auto",
+     "system_managed": true
+    },
+    {
+     "id": 42,
+     "name": "multiple_greetings",
+     "category": "Auto",
+     "system_managed": true
+    },
+    {
+     "id": 2539,
+     "name": "english",
+     "category": "Language",
+     "system_managed": false
+    },
+    {
+     "id": 7,
+     "name": "fantasy",
+     "category": "General",
+     "system_managed": false
+    },
+    {
+     "id": 8,
+     "name": "gardener",
+     "category": "General",
+     "system_managed": false
+    },
+    {
+     "id": 4507,
+     "name": "fernwright",
+     "category": "Writer",
+     "system_managed": false
+    }
+   ],
+   "card_is_animated": false,
+   "is_fork": false,
+   "views": 40,
+   "downloads": 12,
+   "favorite_count": 3,
+   "comments_count": 0,
+   "token_count": 1200,
+   "creator_notes_excerpt": "Notes for Mossheart the Gardener.",
+   "description_excerpt": "{{char}} is Mossheart the Gardener."
+  },
+  {
+   "id": 90002,
+   "download_state": null,
+   "filename": "aaaaaaaaaaaaaaaaaaaaaaaaaaa15f92.png",
+   "card_image_revision": 1,
+   "character_name": "Tin Lark",
+   "created_at": "2026-09-10T08:00:00.000000",
+   "content_updated_at": "2026-09-12T08:00:00.000000",
+   "uploader_id": 1,
+   "tags": [
+    {
+     "id": 25,
+     "name": "sfw",
+     "category": "Auto",
+     "system_managed": true
+    },
+    {
+     "id": 2539,
+     "name": "english",
+     "category": "Language",
+     "system_managed": false
+    },
+    {
+     "id": 9,
+     "name": "robot",
+     "category": "General",
+     "system_managed": false
+    },
+    {
+     "id": 4508,
+     "name": "cogsmith",
+     "category": "Writer",
+     "system_managed": false
+    }
+   ],
+   "card_is_animated": false,
+   "is_fork": false,
+   "views": 40,
+   "downloads": 12,
+   "favorite_count": 3,
+   "comments_count": 0,
+   "token_count": 700,
+   "creator_notes_excerpt": "Notes for Tin Lark.",
+   "description_excerpt": "{{char}} is Tin Lark."
+  },
+  {
+   "id": 90003,
+   "download_state": null,
+   "filename": "aaaaaaaaaaaaaaaaaaaaaaaaaaa15f93.png",
+   "card_image_revision": 1,
+   "character_name": "Midnight Masquerade",
+   "created_at": "2026-09-10T08:00:00.000000",
+   "content_updated_at": "2026-09-12T08:00:00.000000",
+   "uploader_id": 1,
+   "tags": [
+    {
+     "id": 26,
+     "name": "nsfw",
+     "category": "Auto",
+     "system_managed": true
+    },
+    {
+     "id": 2539,
+     "name": "english",
+     "category": "Language",
+     "system_managed": false
+    },
+    {
+     "id": 7,
+     "name": "fantasy",
+     "category": "General",
+     "system_managed": false
+    },
+    {
+     "id": 4509,
+     "name": "nightowl",
+     "category": "Writer",
+     "system_managed": false
+    }
+   ],
+   "card_is_animated": false,
+   "is_fork": false,
+   "views": 40,
+   "downloads": 12,
+   "favorite_count": 3,
+   "comments_count": 0,
+   "token_count": 2000,
+   "creator_notes_excerpt": "Notes for Midnight Masquerade.",
+   "description_excerpt": "{{char}} is Midnight Masquerade."
+  }
+ ]
+}

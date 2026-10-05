@@ -21,7 +21,9 @@
     "test:e2e": "playwright test",
     "migrate": "node apps/server/dist/index.js --migrate-only",
     "mock-llm": "tsx tests/mock-llm/server.ts",
-    "bench:memory": "tsx tests/memory-bench/cli.ts"
+    "bench:memory": "tsx tests/memory-bench/cli.ts",
+    "prepare": "node -e \"try{require('child_process').execSync('git config core.hooksPath scripts/hooks',{stdio:'ignore'})}catch(e){}\"",
+    "check:secrets": "node scripts/check-secrets.mjs --all"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",

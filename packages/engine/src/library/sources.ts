@@ -22,6 +22,10 @@ export interface SourceItem {
   stars: number | null;
   /** When the card last changed at the source (ms). */
   updatedAt: number | null;
+  /** Alternate greetings, when the listing says (null: unknown). */
+  greetings?: number | null;
+  hasLorebook?: boolean | null;
+  language?: string | null;
 }
 
 export interface SourceDetail extends SourceItem {

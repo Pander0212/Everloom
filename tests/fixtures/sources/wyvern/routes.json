@@ -1,0 +1,7 @@
+{
+ "routes": [
+  { "url": "^https://api\\.wyvern\\.chat/exploreSearch/characters\\?", "file": "search.json" },
+  { "url": "^https://api\\.wyvern\\.chat/characters/_fixtureWyvernOpen01$", "file": "_fixtureWyvernOpen01.json" },
+  { "url": "^https://api\\.wyvern\\.chat/characters/_fixtureWyvernSecret2$", "file": "_fixtureWyvernSecret2.json" }
+ ]
+}

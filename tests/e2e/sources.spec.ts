@@ -38,7 +38,7 @@ test.describe('online sources', () => {
     expect(mine).toMatchObject({ name: 'Maren Holt', hasLorebook: true });
 
     // Adult content only after turning it on in Settings.
-    await page.goto('/settings/characters');
+    await page.goto('/settings/sources');
     await page.getByRole('switch', { name: 'Show adult content' }).click({ force: true });
     await expect.poll(async () => (await api(page, 'GET', '/api/settings')).library.nsfw).toBe(true);
     await page.goto('/characters/browse');
@@ -54,10 +54,10 @@ test.describe('online sources', () => {
     await expect(page.getByRole('heading', { name: 'Browse Character Tavern' })).toBeVisible();
     // Only the orders the site honours are offered, and each source remembers how it was browsed.
     const sortGroup = page.getByRole('radiogroup', { name: 'Sort' });
-    await expect(sortGroup.getByRole('radio')).toHaveText(['Popular', 'New']);
+    await expect(sortGroup.getByRole('radio')).toHaveText(['Popular', 'New', 'Top rated']);
     await sortGroup.getByRole('radio', { name: 'New' }).click();
     await page.getByLabel('Source', { exact: true }).selectOption({ label: 'Chub' });
-    await expect(sortGroup.getByRole('radio')).toHaveCount(4);
+    await expect(sortGroup.getByRole('radio')).toHaveCount(5);
     await expect(sortGroup.getByRole('radio', { name: 'Popular' })).toHaveAttribute('aria-checked', 'true');
     await page.getByLabel('Source', { exact: true }).selectOption({ label: 'Character Tavern' });
     await expect(sortGroup.getByRole('radio', { name: 'New' })).toHaveAttribute('aria-checked', 'true');
@@ -73,7 +73,7 @@ test.describe('online sources', () => {
     await page.getByRole('button', { name: 'About sources' }).click();
     const matrix = page.getByRole('list', { name: 'What each source supports' });
     await expect(matrix.getByRole('listitem').filter({ hasText: 'JanitorAI' })).toContainText('Browser bridge');
-    await expect(matrix.getByRole('listitem').filter({ hasText: 'Saucepan' })).toContainText('Not supported');
+    await expect(matrix.getByRole('listitem').filter({ hasText: 'Saucepan' })).toContainText('Built in');
     await page.getByRole('button', { name: 'Close' }).click();
 
     // Import from a link: a provider page works; a bridge-only site explains what to do.
@@ -88,8 +88,8 @@ test.describe('online sources', () => {
     await page.getByRole('dialog', { name: 'Import from a link' }).getByRole('button', { name: 'Close' }).click();
 
     // The bridge: add a device, send with its token; a bad token is refused.
-    await page.goto('/settings/characters#bridge');
-    await page.getByLabel('Add a device').fill('Test laptop');
+    await page.goto('/settings/sources#bridge');
+    await page.getByLabel('Add a device by token').fill('Test laptop');
     await page.getByRole('button', { name: 'Add', exact: true }).click();
     const token = await page.getByLabel('Device token').inputValue();
     expect(token).toMatch(/^evb_/);
@@ -105,6 +105,55 @@ test.describe('online sources', () => {
     await page.getByRole('button', { name: /Bridged Bea/ }).first().click();
     await expect(page.getByText('Definition hidden by creator.')).toBeVisible();
     expect(bea).toBeTruthy();
+    expect(errors).toEqual([]);
+  });
+
+  test('filters, a site notice, accounts and the self-test', async ({ page, errors }) => {
+    await page.goto('/characters/browse');
+    await api(page, 'DELETE', '/api/sources/botbooru/account');
+    await page.getByLabel('Source', { exact: true }).selectOption({ label: 'Botbooru' });
+    // Nothing is fetched from a robots-restricted site until the notice is accepted (once per account:
+    // other viewports of this run share the server).
+    const notice = page.getByRole('region', { name: 'About Botbooru' });
+    const grid = page.getByRole('list', { name: 'Online characters' });
+    await expect(notice.or(grid)).toBeVisible();
+    if (await notice.isVisible()) {
+      await expect(notice).toContainText('robots.txt');
+      await notice.getByRole('button', { name: 'I understand, continue' }).click();
+    }
+    await expect(grid.getByRole('button')).toHaveCount(2); // the adult post stays out
+    // The filter bar: a tag chip narrows the results; tapping it turns it into an exclusion.
+    // Filters are remembered per source on this device; start from none.
+    const toggle = page.getByRole('button', { name: /^Filters/ });
+    if ((await toggle.getAttribute('aria-expanded')) !== 'true') await toggle.click();
+    for (const chip of await page.getByRole('button', { name: /^Remove / }).all()) await chip.click();
+    await page.getByLabel('Add a tag').fill('fantasy');
+    await page.getByLabel('Add a tag').press('Enter');
+    await expect(grid.getByRole('button')).toHaveCount(1);
+    await expect(grid.getByRole('button', { name: /Mossheart/ })).toBeVisible();
+    await page.getByRole('button', { name: 'Including fantasy; tap to exclude instead' }).click();
+    await expect(grid.getByRole('button', { name: /Tin Lark/ })).toBeVisible();
+    await expect(grid.getByRole('button', { name: /Mossheart/ })).toHaveCount(0);
+    // Filter syntax in the search box works too.
+    await page.getByRole('button', { name: 'Remove fantasy' }).click();
+    await page.getByLabel('Search online characters').fill('creator:fernwright');
+    await expect(grid.getByRole('button')).toHaveCount(1);
+
+    // Accounts: sign in; the password never comes back to the page.
+    await page.goto('/settings/sources#accounts');
+    const accounts = page.getByRole('list', { name: 'Site accounts' });
+    await accounts.getByLabel('Botbooru Username').fill('tester');
+    await accounts.getByLabel('Botbooru password').fill('right');
+    await accounts.getByRole('button', { name: 'Sign in' }).first().click();
+    await expect(accounts.getByRole('listitem').filter({ hasText: 'Botbooru' })).toContainText('Working');
+    expect(JSON.stringify(await api(page, 'GET', '/api/sources'))).not.toContain('right"');
+
+    // Diagnostics: the self-test reports each step.
+    await page.getByLabel('Site', { exact: true }).selectOption({ label: 'Character Tavern' });
+    await page.getByRole('button', { name: 'Run self-test' }).click();
+    const steps = page.getByRole('list', { name: 'Character Tavern self-test' });
+    await expect(steps.getByRole('listitem')).toHaveCount(4);
+    await expect(steps).toContainText(/detail/i);
     expect(errors).toEqual([]);
   });
 });

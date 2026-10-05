@@ -1,0 +1,36 @@
+{
+ "routes": [
+  {
+   "url": "^https://botbooru\\.com/posts/\\?",
+   "file": "posts.json"
+  },
+  {
+   "url": "^https://botbooru\\.com/tags/$",
+   "file": "tags.json"
+  },
+  {
+   "url": "^https://botbooru\\.com/post/90001$",
+   "file": "post-90001.json"
+  },
+  {
+   "url": "^https://botbooru\\.com/post/90002$",
+   "file": "post-90002.json"
+  },
+  {
+   "url": "^https://botbooru\\.com/post/90003$",
+   "file": "post-90003.json"
+  },
+  {
+   "method": "POST",
+   "url": "^https://botbooru\\.com/auth/token$",
+   "body": "password=right",
+   "file": "token.json"
+  },
+  {
+   "method": "POST",
+   "url": "^https://botbooru\\.com/auth/token$",
+   "file": "token.json",
+   "status": 401
+  }
+ ]
+}

@@ -1,0 +1,96 @@
+{
+ "companions": [
+  {
+   "id": "5a5a5a5a-0000-4000-8000-000000000001",
+   "author_id": "9b9b9b9b-0000-4000-8000-000000000001",
+   "author_handle": "inkpot",
+   "name": "Pip the Cartographer",
+   "display_name": "Pip the Cartographer",
+   "short_description": "Pip the Cartographer, made up for tests.",
+   "tags": [
+    "fantasy",
+    "map_maker",
+    "female"
+   ],
+   "image": {
+    "id": "img-0001"
+   },
+   "sus": false,
+   "very_sus": false,
+   "access_level": "public",
+   "locked_starting_message": false,
+   "interaction_count": 30,
+   "chat_count": 4,
+   "portrait_count": 1,
+   "favorite_count": 5,
+   "scenario_count": 2,
+   "group_count": 0,
+   "lorebook_count": 0,
+   "posted_at": "2026-09-01 10:00:00.0 +00:00:00",
+   "updated_at": "2026-09-02 10:00:00.0 +00:00:00",
+   "card_token_count": 900,
+   "fandom_tags": []
+  },
+  {
+   "id": "5a5a5a5a-0000-4000-8000-000000000002",
+   "author_id": "9b9b9b9b-0000-4000-8000-000000000001",
+   "author_handle": "inkpot",
+   "name": "Quiet Warden",
+   "display_name": "Quiet Warden",
+   "short_description": "Quiet Warden, made up for tests.",
+   "tags": [
+    "fantasy",
+    "guard"
+   ],
+   "image": {
+    "id": "img-0002"
+   },
+   "sus": false,
+   "very_sus": false,
+   "access_level": "public",
+   "locked_starting_message": false,
+   "interaction_count": 30,
+   "chat_count": 4,
+   "portrait_count": 1,
+   "favorite_count": 5,
+   "scenario_count": 1,
+   "group_count": 0,
+   "lorebook_count": 0,
+   "posted_at": "2026-09-01 10:00:00.0 +00:00:00",
+   "updated_at": "2026-09-02 10:00:00.0 +00:00:00",
+   "card_token_count": 900,
+   "fandom_tags": []
+  },
+  {
+   "id": "5a5a5a5a-0000-4000-8000-000000000003",
+   "author_id": "9b9b9b9b-0000-4000-8000-000000000001",
+   "author_handle": "inkpot",
+   "name": "Afterhours Club",
+   "display_name": "Afterhours Club",
+   "short_description": "Afterhours Club, made up for tests.",
+   "tags": [
+    "nightlife"
+   ],
+   "image": {
+    "id": "img-0003"
+   },
+   "sus": true,
+   "very_sus": false,
+   "access_level": "public",
+   "locked_starting_message": false,
+   "interaction_count": 30,
+   "chat_count": 4,
+   "portrait_count": 1,
+   "favorite_count": 5,
+   "scenario_count": 1,
+   "group_count": 0,
+   "lorebook_count": 0,
+   "posted_at": "2026-09-01 10:00:00.0 +00:00:00",
+   "updated_at": "2026-09-02 10:00:00.0 +00:00:00",
+   "card_token_count": 900,
+   "fandom_tags": []
+  }
+ ],
+ "total_count": 3,
+ "hidden_count": 0
+}

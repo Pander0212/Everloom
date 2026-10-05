@@ -1,4 +1,4 @@
-import { ArrowLeft, Bot, BookOpen, Brush, Code, Database, Gamepad2, Image, Info, KeyRound, MessageSquare, Plug, ScrollText, Users, Volume2, Stethoscope } from 'lucide-react';
+import { ArrowLeft, Globe, Bot, BookOpen, Brush, Code, Database, Gamepad2, Image, Info, KeyRound, MessageSquare, Plug, ScrollText, Users, Volume2, Stethoscope } from 'lucide-react';
 import { lazy, Suspense } from 'react';
 import { NavLink, useLocation, useNavigate, useParams } from 'react-router';
 import { Page } from '@/app/Shell';
@@ -12,6 +12,7 @@ const LoreSection = lazy(() => import('./sections/Lore'));
 const AppearanceSection = lazy(() => import('./sections/Appearance'));
 const CustomCssSection = lazy(() => import('./sections/CustomCss'));
 const CharactersSection = lazy(() => import('./sections/Characters'));
+const SourcesSection = lazy(() => import('./sections/Sources'));
 const ChatSection = lazy(() => import('./sections/ChatSettings'));
 const VoiceSection = lazy(() => import('./sections/Voice'));
 const ImagesSection = lazy(() => import('./sections/Images'));
@@ -26,6 +27,7 @@ export const SECTIONS = [
   { id: 'chat', label: 'Chat', icon: MessageSquare, el: ChatSection },
   { id: 'game', label: 'Game & trackers', icon: Gamepad2, el: GameSection },
   { id: 'characters', label: 'Characters', icon: Users, el: CharactersSection },
+  { id: 'sources', label: 'Character sources', icon: Globe, el: SourcesSection },
   { id: 'lore', label: 'World info', icon: BookOpen, el: LoreSection },
   { id: 'appearance', label: 'Appearance', icon: Brush, el: AppearanceSection },
   { id: 'css', label: 'Custom CSS', icon: Code, el: CustomCssSection },

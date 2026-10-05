@@ -1,0 +1,8 @@
+{
+ "routes": [
+  { "url": "^https://api\\.chub\\.ai/search\\?", "file": "search.json" },
+  { "url": "^https://api\\.chub\\.ai/api/characters/tidewriter/maren-holt\\?", "file": "maren-holt.json" },
+  { "url": "^https://api\\.chub\\.ai/api/characters/[^/]+/secret-sister\\?", "file": "secret-sister.json" },
+  { "url": "^https://api\\.chub\\.ai/api/characters/nightowl/velvet-room\\?", "file": "velvet-room.json" }
+ ]
+}

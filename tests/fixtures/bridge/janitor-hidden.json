@@ -1,0 +1,23 @@
+{
+ "about": "A JanitorAI character whose creator turned off 'show definition': only the public profile is sent.",
+ "url": "https://janitorai.com/characters/0d0d0d0d-1111-4222-8333-444455556666",
+ "meta": {},
+ "responses": {
+  "https://janitorai.com/hampter/characters/0d0d0d0d-1111-4222-8333-444455556666": {
+   "text": "{\"name\": \"Veil\", \"creator_name\": \"quiet\", \"description\": \"Public bio.\", \"personality\": \"SECRET\", \"scenario\": \"SECRET\", \"first_message\": \"SECRET\", \"example_dialogs\": \"SECRET\", \"showdefinition\": false, \"is_nsfw\": false, \"avatar\": null, \"tags\": []}"
+  }
+ },
+ "expect": {
+  "site": "janitor",
+  "hidden": true,
+  "card": {
+   "name": "Veil",
+   "description": "",
+   "scenario": "",
+   "first_mes": "",
+   "mes_example": "",
+   "creator_notes": "Public bio."
+  },
+  "notContains": "SECRET"
+ }
+}

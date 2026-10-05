@@ -46,9 +46,9 @@ afterEach(async () => {
 describe('more sources', () => {
   it('lists the capability matrix, with bridge-only and unsupported sites explained', async () => {
     const r = (await c.req('GET', '/api/sources')).json;
-    expect(r.providers.map((p: any) => p.id)).toEqual(['chub', 'ctavern', 'risu', 'pygmalion', 'wyvern']);
+    expect(r.providers.map((p: any) => p.id)).toEqual(['chub', 'ctavern', 'risu', 'pygmalion', 'wyvern', 'botbooru', 'saucepan', 'aicc']);
     const cap = Object.fromEntries(r.capabilities.map((x: any) => [x.id, x.access]));
-    expect(cap).toMatchObject({ chub: 'server', ctavern: 'server', risu: 'server', pygmalion: 'server', wyvern: 'server', botbooru: 'bridge', aicc: 'bridge', janitor: 'bridge', jannyai: 'bridge', datacat: 'bridge', saucepan: 'none', url: 'server' });
+    expect(cap).toMatchObject({ chub: 'server', ctavern: 'server', risu: 'server', pygmalion: 'server', wyvern: 'server', botbooru: 'server', aicc: 'server', saucepan: 'server', janitor: 'bridge', jannyai: 'bridge', datacat: 'bridge', url: 'server' });
   });
 
   it.each([
@@ -129,7 +129,7 @@ describe('browser bridge', () => {
     expect(pre.headers['access-control-allow-headers']).toContain('authorization');
     const js = await c.built.app.inject({ method: 'GET', url: '/api/bridge/everloom-bridge.user.js', headers: { host: 'everloom.example:8443' } });
     expect(js.statusCode).toBe(200);
-    expect(js.body).toContain('// @match        https://janitorai.com/characters/*');
+    expect(js.body).toContain('// @match        https://janitorai.com/*');
     expect(js.body).toContain('"http://everloom.example:8443"');
     expect(js.body).not.toMatch(/evb_[A-Za-z0-9_-]{20,}/);
   });

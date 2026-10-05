@@ -1,0 +1,19 @@
+{
+ "about": "A JanitorAI search page: 'Send all' finds each character once.",
+ "url": "https://janitorai.com/search?q=bard",
+ "meta": {},
+ "links": [
+  "https://janitorai.com/characters/0c0c0c0c-1111-4222-8333-444455556666_character-lark",
+  "https://janitorai.com/characters/0c0c0c0c-1111-4222-8333-444455556666_character-lark#reviews",
+  "https://janitorai.com/characters/0e0e0e0e-1111-4222-8333-444455556666",
+  "https://janitorai.com/profile/songsmith",
+  "https://chub.ai/characters/a/b"
+ ],
+ "responses": {},
+ "expect": {
+  "links": [
+   "https://janitorai.com/characters/0c0c0c0c-1111-4222-8333-444455556666_character-lark",
+   "https://janitorai.com/characters/0e0e0e0e-1111-4222-8333-444455556666"
+  ]
+ }
+}

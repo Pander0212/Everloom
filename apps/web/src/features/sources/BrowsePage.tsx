@@ -1,20 +1,22 @@
 /**
- * Browse online character sources: search, preview, import, or import from a link. Everything comes
+ * Browse online character sources: one search box (with the library's filter syntax), a filter bar,
+ * saved searches, every site at once, preview and import, or import from a link. Everything comes
  * through the Everloom server, pictures included; adult content stays hidden unless turned on in
  * Settings. Sites the server must not fetch are listed with how to bring cards in (the browser bridge).
  */
 import type { SourceItem } from '@everloom/engine';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ArrowLeft, Check, Download, ExternalLink, Info, Link2, Lock, Search, Star } from 'lucide-react';
+import { ArrowLeft, Bookmark, Check, Download, ExternalLink, Info, Link2, Lock, Search, SlidersHorizontal, Star, Trash2, UserRound } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Page } from '@/app/Shell';
-import { get, post } from '@/lib/api';
+import { ApiError, del, get, post } from '@/lib/api';
 import { toast, toastError } from '@/lib/store';
 import { Badge, Button, EmptyState, Field, Icon, IconButton, Input, Segmented, Select, Sheet, Spinner } from '@/ui';
 import { SandboxedHtml } from '../library/SandboxedHtml';
+import { activeCount, FILTER_LABELS, FilterBar, filterParams, NO_FILTERS, type Filters } from './FilterBar';
 
-type Item = SourceItem & { ownedId: string | null };
+type Item = SourceItem & { ownedId: string | null; also?: Array<{ provider: string; key: string; url: string }> };
 interface Capability {
   id: string;
   name: string;
@@ -24,28 +26,63 @@ interface Capability {
   preview: boolean;
   import: boolean;
   updates: boolean;
-  sorts: Array<'popular' | 'new' | 'updated' | 'stars'>;
   note: string;
 }
-interface Providers {
+export interface AccountInfo {
+  kind: 'token' | 'password' | null;
+  hint: string | null;
+  usernameLabel: string | null;
+  connected: boolean;
+  username: string | null;
+  remembersPassword: boolean;
+  status: 'ok' | 'failed' | 'unknown' | null;
+  statusDetail: string | null;
+  checkedAt: number | null;
+}
+export interface ProviderInfo {
+  id: string;
+  name: string;
+  site: string;
+  onSite: string[];
+  sorts: Sort[];
+  hasTags: boolean;
+  notice: string | null;
+  noticeAccepted: boolean;
+  account: AccountInfo | null;
+  hasToken: boolean;
+}
+export interface Providers {
   nsfwAllowed: boolean;
-  providers: Array<{ id: string; name: string; site: string; hasToken: boolean }>;
+  providers: ProviderInfo[];
   capabilities: Capability[];
 }
+type Sort = 'popular' | 'new' | 'updated' | 'trending' | 'top' | 'views' | 'stars' | 'random';
+interface SearchPage {
+  items: Item[];
+  hasMore: boolean;
+  total?: number | null;
+  local?: string[];
+  errors?: string[];
+  sites?: Array<{ provider: string; name: string; ok: boolean; count: number; error: string | null }>;
+}
 const SOURCE_KEY = 'everloom:browse-source';
+const ALL = 'all';
 
 /** How each source was last browsed (sort, filters, scrolling), remembered on this device. */
 interface BrowsePrefs {
-  sort: 'popular' | 'new' | 'updated' | 'stars';
+  sort: Sort;
   hideOwned: boolean;
   adult: boolean;
   /** Load the next page on reaching the end instead of a "Load more" button. */
   auto: boolean;
+  filters: Filters;
+  showFilters: boolean;
 }
-const DEFAULT_PREFS: BrowsePrefs = { sort: 'popular', hideOwned: false, adult: false, auto: false };
+const DEFAULT_PREFS: BrowsePrefs = { sort: 'popular', hideOwned: false, adult: false, auto: false, filters: NO_FILTERS, showFilters: false };
 function readPrefs(id: string): BrowsePrefs {
   try {
-    return { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(`everloom:browse:${id}`) ?? '{}') };
+    const p = { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(`everloom:browse:${id}`) ?? '{}') };
+    return { ...p, filters: { ...NO_FILTERS, ...p.filters } };
   } catch {
     return DEFAULT_PREFS;
   }
@@ -61,19 +98,18 @@ interface Detail extends Item {
   hidden: boolean;
   description: string;
   version: string;
+  needsAccount?: boolean;
   preview: { first_mes: string; alternate_greetings: number; tokens: number | null } | null;
 }
 
-export const imgUrl = (provider: string, url: string | null) => (url ? `/api/sources/${provider}/image?url=${encodeURIComponent(url)}` : null);
-const SORTS = [
-  { value: 'popular', label: 'Popular' },
-  { value: 'new', label: 'New' },
-  { value: 'updated', label: 'Updated' },
-  { value: 'stars', label: 'Stars' },
-] as const;
+/** A picture from a source, through the server; `w` asks for a shrunk copy. */
+export const imgUrl = (provider: string, url: string | null, w?: number) => (url ? `/api/sources/${provider}/image?url=${encodeURIComponent(url)}${w ? `&w=${w}` : ''}` : null);
+const SORT_LABELS: Record<Sort, string> = { popular: 'Popular', new: 'New', updated: 'Updated', trending: 'Trending', top: 'Top rated', views: 'Most viewed', stars: 'Stars', random: 'Random' };
+const TIMED: Sort[] = ['popular', 'top', 'trending', 'views', 'stars'];
 
 export default function BrowsePage() {
   const navigate = useNavigate();
+  const qc = useQueryClient();
   const providers = useQuery({ queryKey: ['sources'], queryFn: () => get<Providers>('/api/sources') });
   const [sourceId, setSourceId] = useState<string>(() => {
     try {
@@ -82,7 +118,9 @@ export default function BrowsePage() {
       return 'chub';
     }
   });
-  const provider = providers.data?.providers.find((p) => p.id === sourceId) ?? providers.data?.providers[0];
+  const all = sourceId === ALL;
+  const provider = all ? null : (providers.data?.providers.find((p) => p.id === sourceId) ?? providers.data?.providers[0]);
+  const scope = all ? ALL : provider?.id;
   const pickSource = (id: string) => {
     setSourceId(id);
     try {
@@ -96,29 +134,35 @@ export default function BrowsePage() {
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
   const [prefs, setPrefsState] = useState<BrowsePrefs>(() => readPrefs(sourceId));
-  const caps = providers.data?.capabilities.find((c) => c.id === provider?.id);
-  const sorts = SORTS.filter((x) => !caps || caps.sorts.includes(x.value));
-  const sort = sorts.some((x) => x.value === prefs.sort) ? prefs.sort : (sorts[0]?.value ?? 'popular');
-  const { hideOwned, adult } = prefs;
+  const sortList: Sort[] = all ? ['popular', 'new'] : (provider?.sorts ?? ['popular']);
+  const sort = sortList.includes(prefs.sort) ? prefs.sort : (sortList[0] ?? 'popular');
+  const { hideOwned, adult, filters } = prefs;
   const setPrefs = (p: Partial<BrowsePrefs>) => {
     const next = { ...prefs, ...p };
     setPrefsState(next);
-    if (provider) writePrefs(provider.id, next);
+    if (scope) writePrefs(scope, next);
   };
   useEffect(() => {
-    if (provider) setPrefsState(readPrefs(provider.id));
-  }, [provider?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+    if (scope) setPrefsState(readPrefs(scope));
+  }, [scope]);
   const [open, setOpen] = useState<Item | null>(null);
   useEffect(() => {
     const t = setTimeout(() => setQuery(text.trim()), 400);
     return () => clearTimeout(t);
   }, [text]);
+  // Debounced so typing a token count doesn't fire a search per keystroke.
+  const [params, setParams] = useState(() => filterParams(filters));
+  useEffect(() => {
+    const t = setTimeout(() => setParams(filterParams(filters)), 400);
+    return () => clearTimeout(t);
+  }, [filters]);
+  const needsNotice = !!provider?.notice && !provider.noticeAccepted;
   const results = useInfiniteQuery({
-    queryKey: ['source-search', provider?.id, query, sort, hideOwned, adult],
-    enabled: !!provider,
+    queryKey: ['source-search', scope, query, sort, hideOwned, adult, params],
+    enabled: !!scope && !needsNotice,
     initialPageParam: 1,
-    queryFn: ({ pageParam }) => get<{ items: Item[]; hasMore: boolean }>(`/api/sources/${provider!.id}/search`, { q: query, page: pageParam, sort, hideOwned: hideOwned ? '1' : '0', nsfw: adult ? '1' : '0' }),
-    getNextPageParam: (last, all) => (last.hasMore ? all.length + 1 : undefined),
+    queryFn: ({ pageParam }) => get<SearchPage>(`/api/sources/${scope}/search`, { q: query, page: pageParam, sort, hideOwned: hideOwned ? '1' : '0', nsfw: adult ? '1' : '0', ...params }),
+    getNextPageParam: (last, pages) => (last.hasMore ? pages.length + 1 : undefined),
     retry: false,
   });
   // Infinite scroll, when chosen: the next page loads as the end of the grid comes into view.
@@ -132,15 +176,41 @@ export default function BrowsePage() {
     io.observe(el);
     return () => io.disconnect();
   });
+  const pages = results.data?.pages ?? [];
   const items = useMemo(() => {
     const seen = new Set<string>();
-    return (results.data?.pages ?? []).flatMap((p) => p.items).filter((i) => (seen.has(i.key) ? false : (seen.add(i.key), true)));
-  }, [results.data]);
+    return pages.flatMap((p) => p.items).filter((i) => (seen.has(`${i.provider}:${i.key}`) ? false : (seen.add(`${i.provider}:${i.key}`), true)));
+  }, [results.data]); // eslint-disable-line react-hooks/exhaustive-deps
+  const first = pages[0];
+  const pageOnly = [...new Set(pages.flatMap((p) => p.local ?? []))];
+  const nameOf = (id: string) => providers.data?.providers.find((p) => p.id === id)?.name ?? id;
+
+  const saved = useQuery({ queryKey: ['source-saved'], queryFn: () => get<Array<{ id: string; provider: string; name: string; query: string }>>('/api/sources/saved') });
+  const mine = (saved.data ?? []).filter((s) => s.provider === scope);
+  const fullQuery = () => [text.trim(), ...filters.tags.map((t) => `tag:"${t}"`), ...filters.exclude.map((t) => `-tag:"${t}"`), filters.creator.trim() && `creator:"${filters.creator.trim()}"`, filters.minTokens && `tokens>=${filters.minTokens}`, filters.maxTokens && `tokens<=${filters.maxTokens}`, filters.lorebook && (filters.lorebook === '1' ? 'has:lorebook' : 'no:lorebook'), filters.greetings && (filters.greetings === '1' ? 'has:greetings' : 'no:greetings'), filters.lang && `lang:${filters.lang}`, filters.time && `time:${filters.time}`, sort !== 'popular' && `sort:${sort}`].filter(Boolean).join(' ');
+  const [savedOpen, setSavedOpen] = useState(false);
+  const runSaved = (q: string) => {
+    // The saved text goes back in the search box; the server reads filters from it.
+    setPrefs({ filters: NO_FILTERS });
+    setText(q);
+    setSavedOpen(false);
+  };
+
+  const acceptNotice = async () => {
+    if (!provider) return;
+    try {
+      await post(`/api/sources/${provider.id}/notice`, {});
+      await qc.invalidateQueries({ queryKey: ['sources'] });
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  const errorCode = results.error instanceof ApiError ? results.error.code : undefined;
 
   return (
     <Page
       back={<IconButton icon={ArrowLeft} label="Back" onClick={() => navigate('/characters')} />}
-      title={provider ? `Browse ${provider.name}` : 'Browse online'}
+      title={all ? 'Browse all sources' : provider ? `Browse ${provider.name}` : 'Browse online'}
       actions={
         <>
           <IconButton icon={Link2} label="Import from a link" onClick={() => setLinking(true)} />
@@ -155,20 +225,30 @@ export default function BrowsePage() {
       ) : (
         <>
           <div className="mb-3 flex items-center gap-2">
-            <Select aria-label="Source" value={provider?.id ?? ''} onChange={(e) => pickSource(e.target.value)} className="w-auto min-w-44">
+            <Select aria-label="Source" value={scope ?? ''} onChange={(e) => pickSource(e.target.value)} className="w-auto min-w-44">
               {providers.data.providers.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.name}
                 </option>
               ))}
+              <option value={ALL}>All sources</option>
             </Select>
+            <span className="flex-1" />
+            <IconButton icon={Bookmark} label="Saved searches" onClick={() => setSavedOpen(true)} />
           </div>
-          <div className="relative">
-            <Icon icon={Search} size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" />
-            <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Search ${provider?.name ?? ''}`} aria-label="Search online characters" className="pl-10" />
+          <div className="flex items-center gap-2">
+            <div className="relative flex-1">
+              <Icon icon={Search} size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" />
+              <Input value={text} onChange={(e) => setText(e.target.value)} placeholder={`Search ${all ? 'every source' : (provider?.name ?? '')} — try tag:fantasy -tag:gore`} aria-label="Search online characters" className="pl-10" />
+            </div>
+            <Button variant={prefs.showFilters ? 'secondary' : 'ghost'} icon={SlidersHorizontal} onClick={() => setPrefs({ showFilters: !prefs.showFilters })} aria-expanded={prefs.showFilters}>
+              Filters{activeCount(filters) ? ` (${activeCount(filters)})` : ''}
+            </Button>
           </div>
+          {first?.errors?.length ? <p className="mt-1 text-xs text-warning">{first.errors.join(' · ')}</p> : null}
+          {prefs.showFilters && scope ? <FilterBar provider={scope} value={filters} onChange={(f) => setPrefs({ filters: f })} timeMatters={TIMED.includes(sort)} /> : null}
           <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2">
-            {sorts.length > 1 ? <Segmented label="Sort" value={sort} onChange={(v) => setPrefs({ sort: v })} options={sorts.map((x) => ({ ...x }))} /> : null}
+            {sortList.length > 1 ? <Segmented label="Sort" value={sort} onChange={(v) => setPrefs({ sort: v as Sort })} options={sortList.map((v) => ({ value: v, label: SORT_LABELS[v] }))} /> : null}
             <label className="flex items-center gap-2 text-sm text-fg-2">
               <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={hideOwned} onChange={(e) => setPrefs({ hideOwned: e.target.checked })} />
               Hide ones I have
@@ -183,9 +263,39 @@ export default function BrowsePage() {
               <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={prefs.auto} onChange={(e) => setPrefs({ auto: e.target.checked })} />
               Load as I scroll
             </label>
+            {provider?.account && !provider.account.connected && provider.account.kind === 'password' ? (
+              <button className="flex items-center gap-1 text-sm font-medium text-accent-text" onClick={() => navigate('/settings/sources#accounts')}>
+                <UserRound size={14} /> Sign in to {provider.name}
+              </button>
+            ) : null}
           </div>
-          {results.isError ? (
-            <EmptyState title={`Couldn't reach ${provider?.name}`} body={(results.error as Error).message} action={<Button onClick={() => results.refetch()}>Try again</Button>} className="mt-10" />
+          {pageOnly.length ? (
+            <p className="mt-2 text-xs text-fg-2" role="note">
+              {all ? 'Some sites' : provider?.name} can't filter by {pageOnly.map((f) => FILTER_LABELS[f] ?? f).join(', ')}; those are checked on each page here, so a page may show fewer results.
+            </p>
+          ) : null}
+          {all && first?.sites ? (
+            <p className="mt-2 text-xs text-fg-3">
+              {first.sites.map((s) => (s.ok ? `${s.name}: ${s.count}` : `${s.name}: unavailable`)).join(' · ')}
+            </p>
+          ) : null}
+          {needsNotice && provider ? (
+            <div className="mt-6 flex flex-col gap-3 rounded-lg border border-line bg-surface-2 p-4 text-sm" role="region" aria-label={`About ${provider.name}`}>
+              <p className="font-medium">Before browsing {provider.name}</p>
+              <p className="text-fg-2">{provider.notice}</p>
+              <div>
+                <Button variant="primary" onClick={acceptNotice}>
+                  I understand, continue
+                </Button>
+              </div>
+            </div>
+          ) : results.isError ? (
+            <EmptyState
+              title={errorCode === 'cooling_down' ? `${nameOf(scope ?? '')} asked for a pause` : errorCode === 'site_changed' ? `${nameOf(scope ?? '')} changed` : `Couldn't reach ${all ? 'the sources' : provider?.name}`}
+              body={(results.error as Error).message}
+              action={<Button onClick={() => results.refetch()}>Try again</Button>}
+              className="mt-10"
+            />
           ) : results.isLoading ? (
             <div className="flex justify-center py-16">
               <Spinner />
@@ -194,16 +304,22 @@ export default function BrowsePage() {
             <>
               <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" aria-label="Online characters">
                 {items.map((i) => (
-                  <li key={i.key}>
+                  <li key={`${i.provider}:${i.key}`}>
                     <button className="pressable group flex w-full flex-col text-left" onClick={() => setOpen(i)}>
                       <span className="relative block aspect-[3/4] w-full overflow-hidden rounded-lg bg-surface-2">
-                        {i.avatarUrl ? <img src={imgUrl(i.provider, i.avatarUrl)!} alt="" loading="lazy" className="size-full object-cover transition-transform group-hover:scale-[1.02]" /> : null}
+                        {i.avatarUrl ? <img src={imgUrl(i.provider, i.avatarUrl, 384)!} alt="" loading="lazy" decoding="async" className="size-full object-cover transition-transform group-hover:scale-[1.02]" /> : null}
                         {i.ownedId ? (
                           <span className="absolute left-2 top-2">
                             <Badge tone="success">
                               <Check size={12} className="-ml-0.5 mr-0.5 inline" />
                               In library
                             </Badge>
+                          </span>
+                        ) : null}
+                        {all ? (
+                          <span className="absolute bottom-2 left-2 flex flex-wrap gap-1">
+                            <Badge>{nameOf(i.provider)}</Badge>
+                            {i.also?.length ? <Badge tone="accent">+{i.also.length} more</Badge> : null}
                           </span>
                         ) : null}
                       </span>
@@ -228,18 +344,72 @@ export default function BrowsePage() {
               ) : null}
             </>
           ) : (
-            <EmptyState title="Nothing found" body={hideOwned ? 'You may already have everything that matches.' : 'Try different words.'} className="mt-10" />
+            <EmptyState title="Nothing found" body={hideOwned ? 'You may already have everything that matches.' : activeCount(filters) ? 'Try fewer filters.' : 'Try different words.'} className="mt-10" />
           )}
         </>
       )}
-      {open ? <PreviewSheet item={open} onClose={() => setOpen(null)} /> : null}
+      {open ? <PreviewSheet item={open} onClose={() => setOpen(null)} sourceName={nameOf} /> : null}
+      {scope ? <SavedSearches open={savedOpen} onOpenChange={setSavedOpen} scope={scope} current={fullQuery()} list={mine} onRun={runSaved} /> : null}
       <AboutSources open={about} onOpenChange={setAbout} caps={providers.data?.capabilities ?? []} />
       <LinkImport open={linking} onOpenChange={setLinking} caps={providers.data?.capabilities ?? []} />
     </Page>
   );
 }
 
-function PreviewSheet({ item, onClose }: { item: Item; onClose: () => void }) {
+/** Saved searches for this source: run one, delete one, or save what's on screen now. */
+function SavedSearches({ open, onOpenChange, scope, current, list, onRun }: { open: boolean; onOpenChange: (o: boolean) => void; scope: string; current: string; list: Array<{ id: string; name: string; query: string }>; onRun: (q: string) => void }) {
+  const qc = useQueryClient();
+  const [name, setName] = useState('');
+  const save = async () => {
+    try {
+      await post('/api/sources/saved', { provider: scope, name: name.trim() || current.slice(0, 40) || 'My search', q: current });
+      setName('');
+      await qc.invalidateQueries({ queryKey: ['source-saved'] });
+      toast({ title: 'Search saved', tone: 'success' });
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  const remove = async (id: string) => {
+    try {
+      await del(`/api/sources/saved/${id}`);
+      await qc.invalidateQueries({ queryKey: ['source-saved'] });
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange} title="Saved searches" description="Searches are kept as text, filters included, so you can also paste one into the search box." size="md">
+      <div className="flex flex-col gap-4">
+        <Field label="Save the current search" htmlFor="saved-name" hint={current ? <code className="break-all">{current}</code> : 'Nothing to save yet: type something or set a filter.'}>
+          <div className="flex gap-2">
+            <Input id="saved-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="Name" maxLength={80} />
+            <Button variant="primary" disabled={!current} onClick={save}>
+              Save
+            </Button>
+          </div>
+        </Field>
+        {list.length ? (
+          <ul className="flex flex-col divide-y divide-line" aria-label="Saved searches">
+            {list.map((s) => (
+              <li key={s.id} className="flex items-center gap-2 py-2">
+                <button className="pressable min-w-0 flex-1 text-left" onClick={() => onRun(s.query)}>
+                  <span className="block truncate font-medium">{s.name}</span>
+                  <span className="block truncate text-xs text-fg-2">{s.query}</span>
+                </button>
+                <IconButton icon={Trash2} label={`Delete ${s.name}`} onClick={() => remove(s.id)} />
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="text-sm text-fg-2">No saved searches for this source yet.</p>
+        )}
+      </div>
+    </Sheet>
+  );
+}
+
+function PreviewSheet({ item, onClose, sourceName }: { item: Item; onClose: () => void; sourceName: (id: string) => string }) {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const d = useQuery({ queryKey: ['source-item', item.provider, item.key], queryFn: () => get<Detail>(`/api/sources/${item.provider}/item`, { key: item.key }), retry: false });
@@ -271,14 +441,20 @@ function PreviewSheet({ item, onClose }: { item: Item; onClose: () => void }) {
             Open in library
           </Button>
         ) : (
-          <Button variant="primary" block icon={Download} loading={busy} disabled={!d.data} onClick={doImport}>
-            {d.data?.hidden ? 'Import public profile' : 'Import'}
-          </Button>
+          d.data?.needsAccount ? (
+            <Button variant="primary" block icon={UserRound} onClick={() => navigate('/settings/sources#accounts')}>
+              Sign in to {sourceName(item.provider)} to import
+            </Button>
+          ) : (
+            <Button variant="primary" block icon={Download} loading={busy} disabled={!d.data} onClick={doImport}>
+              {d.data?.hidden ? 'Import public profile' : 'Import'}
+            </Button>
+          )
         )
       }
     >
       <div className="flex gap-4">
-        {item.avatarUrl ? <img src={imgUrl(item.provider, item.avatarUrl)!} alt="" className="h-40 w-30 flex-none rounded-lg object-cover" /> : null}
+        {item.avatarUrl ? <img src={imgUrl(item.provider, item.avatarUrl, 320)!} alt="" className="h-40 w-30 flex-none rounded-lg object-cover" /> : null}
         <div className="flex min-w-0 flex-col gap-2 text-sm">
           {item.tagline ? <p className="text-fg-2">{item.tagline}</p> : null}
           <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-fg-2">
@@ -296,8 +472,21 @@ function PreviewSheet({ item, onClose }: { item: Item; onClose: () => void }) {
             ))}
           </div>
           <a href={item.url} target="_blank" rel="noreferrer noopener" className="flex items-center gap-1 text-xs font-medium text-accent-text">
-            View on the site <ExternalLink size={12} />
+            View on {sourceName(item.provider)} <ExternalLink size={12} />
           </a>
+          {item.also?.length ? (
+            <p className="text-xs text-fg-2">
+              Also on{' '}
+              {item.also.map((a, n) => (
+                <span key={`${a.provider}:${a.key}`}>
+                  {n ? ', ' : ''}
+                  <a href={a.url} target="_blank" rel="noreferrer noopener" className="text-accent-text">
+                    {sourceName(a.provider)}
+                  </a>
+                </span>
+              ))}
+            </p>
+          ) : null}
         </div>
       </div>
       {d.isLoading ? (
@@ -308,6 +497,14 @@ function PreviewSheet({ item, onClose }: { item: Item; onClose: () => void }) {
         <p className="mt-4 text-sm text-danger">{(d.error as Error).message}</p>
       ) : d.data ? (
         <div className="mt-5 flex flex-col gap-4">
+          {d.data.needsAccount ? (
+            <p className="flex items-start gap-2 rounded-md bg-surface-2 p-3 text-sm text-fg-2">
+              <UserRound size={16} className="mt-0.5 flex-none" />
+              <span>
+                <strong className="font-medium text-fg">{sourceName(item.provider)} shows definitions to members only.</strong> Sign in with your account under Settings › Character sources to preview and import. Fields the creator hid stay hidden either way.
+              </span>
+            </p>
+          ) : null}
           {d.data.hidden ? (
             <p className="flex items-start gap-2 rounded-md bg-surface-2 p-3 text-sm text-fg-2">
               <Lock size={16} className="mt-0.5 flex-none" />
@@ -352,7 +549,7 @@ function AboutSources({ open, onOpenChange, caps }: { open: boolean; onOpenChang
       description="Everloom only uses public endpoints, fetched by your server with polite limits. Sites that block automated requests work through the browser bridge instead."
       size="lg"
       footer={
-        <Button variant="secondary" block onClick={() => navigate('/settings/characters#bridge')}>
+        <Button variant="secondary" block onClick={() => navigate('/settings/sources#bridge')}>
           Set up the browser bridge
         </Button>
       }
@@ -391,7 +588,7 @@ function LinkImport({ open, onOpenChange, caps }: { open: boolean; onOpenChange:
       const host = u.hostname.replace(/^www\./, '');
       const cap = caps.find((c) => c.access !== 'server' && c.site && new URL(c.site).hostname.replace(/^www\./, '') === host);
       if (cap && !/\.(png|json|charx)$/i.test(u.pathname)) {
-        setError(cap.access === 'none' ? `${cap.name} isn't supported. ${cap.note}` : `Everloom doesn't fetch pages from ${cap.name}. Open the page in your browser and use "Send to Everloom" (Settings → Characters → Browser bridge).`);
+        setError(cap.access === 'none' ? `${cap.name} isn't supported. ${cap.note}` : `Everloom doesn't fetch pages from ${cap.name}. Open the page in your browser and use "Send to Everloom" (Settings › Character sources › Browser bridge).`);
         return;
       }
     } catch {
@@ -427,6 +624,12 @@ function LinkImport({ open, onOpenChange, caps }: { open: boolean; onOpenChange:
       <Field label="Link" htmlFor="import-url" error={error ?? undefined}>
         <Input id="import-url" type="url" inputMode="url" placeholder="https://…" value={url} onChange={(e) => setUrl(e.target.value)} onKeyDown={(e) => e.key === 'Enter' && url.trim().length >= 8 && void go()} />
       </Field>
+      <p className="mt-3 text-sm text-fg-2">
+        Copied a card with the bookmarklet?{' '}
+        <button className="font-medium text-accent-text" onClick={() => navigate('/bridge/receive')}>
+          Paste from bridge
+        </button>
+      </p>
     </Sheet>
   );
 }

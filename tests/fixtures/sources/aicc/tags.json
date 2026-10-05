@@ -1,0 +1,23 @@
+{
+ "message": "Tags retrieved successfully",
+ "data": [
+  {
+   "id": 361,
+   "name": "Adventure/RPG",
+   "slug": "adventure-rpg",
+   "rating": "both"
+  },
+  {
+   "id": 363,
+   "name": "Slice of Life",
+   "slug": "slice-of-life",
+   "rating": "both"
+  },
+  {
+   "id": 370,
+   "name": "Romance",
+   "slug": "romance",
+   "rating": "both"
+  }
+ ]
+}

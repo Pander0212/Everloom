@@ -1,0 +1,23 @@
+{
+ "about": "A page with no reader and no card link: public profile only, labelled hidden.",
+ "url": "https://datacat.run/c/abc123",
+ "meta": {
+  "title": "Sorrel",
+  "description": "A herbalist.",
+  "image": "https://cdn.example/sorrel.png"
+ },
+ "links": [
+  "https://datacat.run/",
+  "https://datacat.run/c/abc123"
+ ],
+ "responses": {},
+ "expect": {
+  "site": "datacat",
+  "hidden": true,
+  "card": {
+   "name": "Sorrel",
+   "creator_notes": "A herbalist."
+  },
+  "avatarUrl": "https://cdn.example/sorrel.png"
+ }
+}

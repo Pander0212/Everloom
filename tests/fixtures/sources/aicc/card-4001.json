@@ -1,0 +1,52 @@
+{
+ "message": "ok",
+ "data": {
+  "id": 4001,
+  "userId": 500,
+  "title": "Juno the Ferrywoman",
+  "description": "Juno the Ferrywoman: a made-up card for tests.",
+  "excerpt": "Juno the Ferrywoman, short version.",
+  "titleEn": "Juno the Ferrywoman",
+  "excerptEn": "Juno the Ferrywoman, short version.",
+  "imageUrl": "/uploads/character_cards/500/card-500-4001-opt.webp",
+  "language": "en",
+  "isNsfw": false,
+  "isAnimated": false,
+  "status": "published",
+  "downloadCount": 9,
+  "ratingAvg": null,
+  "ratingCount": 0,
+  "tokenCount": 800,
+  "createdAt": "2026-09-15T00:00:00.000Z",
+  "tags": [
+   {
+    "id": 363,
+    "name": "Slice of Life"
+   },
+   {
+    "id": 361,
+    "name": "Adventure/RPG"
+   }
+  ],
+  "author": "ferryman",
+  "descriptionFormat": "basic",
+  "updatedAt": "2026-09-16T00:00:00.000Z",
+  "attachedLorebookId": null,
+  "attachedLorebook": null,
+  "versions": [
+   {
+    "id": 1,
+    "version": 1,
+    "isCurrent": false,
+    "fileUrl": "/uploads/character_cards/500/old.png"
+   },
+   {
+    "id": 2,
+    "version": 2,
+    "isCurrent": true,
+    "fileUrl": "/uploads/character_cards/500/card-500-4001.png"
+   }
+  ],
+  "cardFormat": "st"
+ }
+}

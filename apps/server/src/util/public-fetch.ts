@@ -36,6 +36,8 @@ export interface PublicFetchOptions {
   maxRedirects?: number;
   /** A JSON POST (public APIs that take their query in the body). Redirects are not followed. */
   postJson?: unknown;
+  /** A form POST (sign-in endpoints that take username and password as a form). */
+  postForm?: Record<string, string>;
 }
 
 function guardedLookup(allowPrivate: boolean) {
@@ -67,8 +69,9 @@ export async function fetchPublic(raw: string, opts: PublicFetchOptions = {}): P
     if (net.isIP(host) && !opts.allowPrivate && isPrivateAddress(host)) throw new HttpError(400, `${host} is a private network address`);
     const res = await new Promise<PublicResponse>((resolve, reject) => {
       const lib = url.protocol === 'https:' ? https : http;
-      const payload = opts.postJson === undefined ? null : Buffer.from(JSON.stringify(opts.postJson));
-      const headers = { 'user-agent': 'Everloom (self-hosted; +https://github.com/Pander0212/Everloom)', accept: '*/*', ...opts.headers, ...(payload ? { 'content-type': 'application/json', 'content-length': String(payload.length) } : {}) };
+      const form = opts.postForm ? Buffer.from(new URLSearchParams(opts.postForm).toString()) : null;
+      const payload = form ?? (opts.postJson === undefined ? null : Buffer.from(JSON.stringify(opts.postJson)));
+      const headers = { 'user-agent': 'Everloom (self-hosted; +https://github.com/Pander0212/Everloom)', accept: '*/*', ...opts.headers, ...(payload ? { 'content-type': form ? 'application/x-www-form-urlencoded' : 'application/json', 'content-length': String(payload.length) } : {}) };
       const req = lib.request(url, { method: payload ? 'POST' : 'GET', headers, lookup: guardedLookup(!!opts.allowPrivate) as any, timeout: opts.timeoutMs ?? 20_000 }, (r) => {
         const len = Number(r.headers['content-length'] ?? 0);
         if (r.statusCode && r.statusCode >= 300 && r.statusCode < 400) {
@@ -95,7 +98,7 @@ export async function fetchPublic(raw: string, opts: PublicFetchOptions = {}): P
       req.on('error', (e: NodeJS.ErrnoException) => reject(e.code === 'EPRIVATE' ? new HttpError(400, e.message) : new HttpError(502, `Could not reach ${url.host}: ${e.message}`, 'upstream')));
       req.end(payload ?? undefined);
     });
-    if (opts.postJson !== undefined) return res;
+    if (opts.postJson !== undefined || opts.postForm) return res;
     if (res.status >= 300 && res.status < 400 && res.headers.location) {
       current = new URL(res.headers.location, url).href;
       continue;

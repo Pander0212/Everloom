@@ -1,0 +1,24 @@
+{
+ "routes": [
+  {
+   "url": "^https://character-tavern\\.com/search/cards/__data\\.json\\?.*x-sveltekit-invalidated=001",
+   "file": "search.ndjson"
+  },
+  {
+   "url": "^https://character-tavern\\.com/search/cards/__data\\.json\\?x-sveltekit-invalidated=01$",
+   "file": "tags.ndjson"
+  },
+  {
+   "url": "^https://character-tavern\\.com/character/quillwright/wren_of_the_lantern_archive/__data\\.json",
+   "file": "wren.ndjson"
+  },
+  {
+   "url": "^https://character-tavern\\.com/character/saltmarsh/captain_orla_vey/__data\\.json",
+   "file": "orla.ndjson"
+  },
+  {
+   "url": "^https://character-tavern\\.com/character/nightowl/velvet_lounge_host/__data\\.json",
+   "file": "velvet.ndjson"
+  }
+ ]
+}

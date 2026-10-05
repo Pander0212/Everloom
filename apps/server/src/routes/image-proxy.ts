@@ -31,7 +31,7 @@ export function registerImageProxy(app: FastifyInstance, ctx: AppContext) {
     if (!allow(o)) throw new HttpError(429, 'Too many images at once');
     // Pictures hosted by an online source go through that source (its pacing and cache).
     const host = new URL(url).hostname;
-    const source = Object.values(PROVIDERS).find((p) => p.imageHosts.includes(host));
+    const source = Object.values(PROVIDERS).find((p) => p.spec.imageHosts.includes(host));
     let body: Buffer;
     if (source && url.startsWith('https://')) body = await sourceImage(ctx, o, source.id, url).catch(() => Buffer.alloc(0));
     else {
