@@ -14,7 +14,7 @@
     "@everloom/engine": "*",
     "@fastify/cookie": "^11.1.2",
     "@fastify/static": "^10.1.5",
-    "better-sqlite3": "^13.0.3",
+    "better-sqlite3-multiple-ciphers": "^13.0.3",
     "fastify": "^5.12.5",
     "fflate": "^0.8.3",
     "js-tiktoken": "^1.0.21",

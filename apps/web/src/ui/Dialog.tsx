@@ -86,3 +86,63 @@ export function ConfirmHost() {
     />
   );
 }
+
+interface PasswordRequest {
+  title: string;
+  description?: string;
+  confirmLabel?: string;
+  /** Allow an empty answer ("no password"). */
+  optional?: boolean;
+  resolve: (password: string | null) => void;
+}
+const usePasswordStore = create<{ req: PasswordRequest | null; set: (r: PasswordRequest | null) => void }>((set) => ({ req: null, set: (req) => set({ req }) }));
+
+/** Ask for a password (exports, encrypted imports). Resolves null when cancelled. */
+export function askPassword(opts: Omit<PasswordRequest, 'resolve'>): Promise<string | null> {
+  return new Promise((resolve) => usePasswordStore.getState().set({ ...opts, resolve }));
+}
+
+export function PasswordHost() {
+  const { req, set } = usePasswordStore();
+  const [value, setValue] = useState('');
+  const close = (v: string | null) => {
+    req?.resolve(v);
+    set(null);
+    setValue('');
+  };
+  return (
+    <Dialog
+      open={!!req}
+      onOpenChange={(o) => !o && close(null)}
+      title={req?.title ?? ''}
+      description={req?.description}
+      footer={
+        <>
+          <Button variant="ghost" onClick={() => close(null)}>
+            Cancel
+          </Button>
+          <Button variant="primary" disabled={!req?.optional && !value} onClick={() => close(value)}>
+            {req?.confirmLabel ?? 'OK'}
+          </Button>
+        </>
+      }
+    >
+      <form
+        onSubmit={(e) => {
+          e.preventDefault();
+          if (req?.optional || value) close(value);
+        }}
+      >
+        <input
+          type="password"
+          autoFocus
+          aria-label="Password"
+          autoComplete="new-password"
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className="h-11 w-full rounded-md border border-line bg-surface-2 px-3 text-base outline-none focus-visible:border-accent"
+        />
+      </form>
+    </Dialog>
+  );
+}

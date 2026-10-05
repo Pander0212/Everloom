@@ -4,6 +4,7 @@
  * through the Everloom server, pictures included; adult content stays hidden unless turned on in
  * Settings. Sites the server must not fetch are listed with how to bring cards in (the browser bridge).
  */
+import { contentStorageAllowed } from '@/lib/vaultMode';
 import type { SourceItem } from '@everloom/engine';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Bookmark, Check, Download, ExternalLink, Info, Link2, Lock, Search, SlidersHorizontal, Star, Trash2, UserRound } from 'lucide-react';
@@ -89,7 +90,7 @@ function readPrefs(id: string): BrowsePrefs {
 }
 function writePrefs(id: string, p: BrowsePrefs) {
   try {
-    localStorage.setItem(`everloom:browse:${id}`, JSON.stringify(p));
+    if (contentStorageAllowed()) localStorage.setItem(`everloom:browse:${id}`, JSON.stringify(p));
   } catch {
     /* remembered for this visit only */
   }

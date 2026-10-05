@@ -1,4 +1,5 @@
-import { existsSync, mkdirSync, unlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, unlinkSync } from 'node:fs';
+import { readContentFile, writeContentFile } from '../vault/vault.js';
 import path from 'node:path';
 import sharp from 'sharp';
 import { sniffImageType } from '@everloom/engine';
@@ -61,7 +62,7 @@ export async function saveImage(
   }
   const id = newId('m_');
   const filename = `${id}.${type === 'jpeg' ? 'jpg' : type}`;
-  writeFileSync(path.join(ownerDir(ctx, owner), filename), out);
+  writeContentFile(ctx.vault, path.join(ownerDir(ctx, owner), filename), out);
   const row: MediaRow = {
     id,
     owner_id: owner,
@@ -104,7 +105,7 @@ export async function saveMedia(ctx: AppContext, owner: string, bytes: Buffer, o
   if (bytes.length > MAX_AV_BYTES) throw new HttpError(413, 'File is larger than 60 MB');
   const id = newId('m_');
   const filename = `${id}.${type}`;
-  writeFileSync(path.join(ownerDir(ctx, owner), filename), bytes);
+  writeContentFile(ctx.vault, path.join(ownerDir(ctx, owner), filename), bytes);
   const row: MediaRow = { id, owner_id: owner, kind: opts.kind, filename, mime: AV_MIME[type], size: bytes.length, width: null, height: null, character_id: opts.characterId ?? null, meta: JSON.stringify(opts.meta ?? {}), created_at: Date.now() };
   ctx.db
     .prepare('INSERT INTO media (id, owner_id, kind, filename, mime, size, width, height, character_id, meta, created_at) VALUES (@id, @owner_id, @kind, @filename, @mime, @size, @width, @height, @character_id, @meta, @created_at)')
@@ -120,6 +121,12 @@ export function getMedia(ctx: AppContext, owner: string, id: string): { row: Med
   const file = path.resolve(dir, row.filename);
   if (!file.startsWith(dir + path.sep) || !existsSync(file)) throw new HttpError(404, 'Not found');
   return { row, file };
+}
+
+/** A media file's bytes (decrypted when the vault wrote it). */
+export function readMedia(ctx: AppContext, owner: string, id: string): { row: MediaRow; bytes: Buffer } {
+  const { row, file } = getMedia(ctx, owner, id);
+  return { row, bytes: readContentFile(ctx.vault, file) };
 }
 
 export function deleteMedia(ctx: AppContext, owner: string, id: string) {

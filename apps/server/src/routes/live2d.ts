@@ -3,6 +3,7 @@
  * uploads their own copy (from Live2D's site, under Live2D's license) and it's served only to them.
  * Models are uploaded per character as a zip holding a .model3.json and its files.
  */
+import { readContentFile, writeContentFile } from '../vault/vault.js';
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
@@ -54,7 +55,7 @@ export function registerLive2d(app: FastifyInstance, ctx: AppContext) {
     const b = parse(z.object({ source: z.string().min(1000).max(3_500_000) }), req.body);
     // A light sanity check that this is the Cubism Core for Web, not some other script.
     if (!/Live2DCubismCore/.test(b.source)) throw new HttpError(400, "That doesn't look like live2dcubismcore.min.js (Cubism Core for Web).");
-    writeFileSync(path.join(dir(ctx, owner(req)), 'core.js'), b.source);
+    writeContentFile(ctx.vault, path.join(dir(ctx, owner(req)), 'core.js'), Buffer.from(b.source));
     return { coreInstalled: true };
   });
   app.delete('/api/live2d/core', async (req) => {
@@ -64,7 +65,7 @@ export function registerLive2d(app: FastifyInstance, ctx: AppContext) {
   app.get('/api/live2d/core.js', async (req, reply) => {
     const f = path.join(dir(ctx, owner(req)), 'core.js');
     if (!existsSync(f)) throw new HttpError(404, 'Upload the Cubism Core first');
-    return reply.header('content-type', 'text/javascript; charset=utf-8').header('cache-control', 'private, no-cache').send(readFileSync(f));
+    return reply.header('content-type', 'text/javascript; charset=utf-8').header('cache-control', ctx.vault.enabled ? 'no-store' : 'private, no-cache').send(readContentFile(ctx.vault, f));
   });
 
   app.post('/api/live2d/models/:characterId', { bodyLimit: 60 * 1024 * 1024 }, async (req) => {
@@ -89,7 +90,7 @@ export function registerLive2d(app: FastifyInstance, ctx: AppContext) {
       if (!target.startsWith(root + path.sep)) throw new HttpError(400, 'Unsafe path in the zip');
       if (!Object.keys(TYPES).some((ext) => n.toLowerCase().endsWith(ext))) continue;
       mkdirSync(path.dirname(target), { recursive: true });
-      writeFileSync(target, files[n]!);
+      writeContentFile(ctx.vault, target, Buffer.from(files[n]!));
     }
     return { model: `/api/live2d/models/${id}/${findModel(root)}` };
   });
@@ -106,6 +107,6 @@ export function registerLive2d(app: FastifyInstance, ctx: AppContext) {
     const f = path.resolve(root, decodeURIComponent(rest));
     if (!f.startsWith(root + path.sep) || !existsSync(f) || statSync(f).isDirectory()) throw new HttpError(404, 'Not found');
     const ext = Object.keys(TYPES).find((e) => f.toLowerCase().endsWith(e)) ?? '';
-    return reply.header('content-type', TYPES[ext] ?? 'application/octet-stream').header('cache-control', 'private, max-age=3600').header('x-content-type-options', 'nosniff').send(readFileSync(f));
+    return reply.header('content-type', TYPES[ext] ?? 'application/octet-stream').header('cache-control', ctx.vault.enabled ? 'no-store' : 'private, max-age=3600').header('x-content-type-options', 'nosniff').send(readContentFile(ctx.vault, f));
   });
 }

@@ -25,7 +25,7 @@ export default function LorePage() {
   const importFiles = async (files: File[]) => {
     for (const f of files) {
       try {
-        await upload('/api/lorebooks/import', f, { name: f.name.replace(/\.json$/i, '') });
+        await upload('/api/lorebooks/import', f, { name: f.name.replace(/\.json(\.evlt)?$/i, '') });
         toast({ title: `Imported ${f.name}`, tone: 'success' });
       } catch (e) {
         toastError(e);
@@ -50,7 +50,7 @@ export default function LorePage() {
       title="Lore"
       actions={
         <>
-          <FileButton accept=".json,application/json" multiple onFiles={importFiles} icon={Upload} variant="secondary">
+          <FileButton accept=".json,.evlt,application/json" multiple onFiles={importFiles} icon={Upload} variant="secondary">
             <span className="hidden sm:inline">Import</span>
           </FileButton>
           <IconButton icon={Plus} label="New lorebook" onClick={create} />

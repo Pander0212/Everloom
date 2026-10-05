@@ -9,7 +9,7 @@ await build({
   outfile: 'dist/index.js',
   sourcemap: true,
   // Native / heavy deps stay external and are resolved from node_modules at runtime.
-  external: ['better-sqlite3', 'sharp', 'js-tiktoken', 'qrcode', 'yauzl', 'yazl', 'fastify', '@fastify/*'],
+  external: ['better-sqlite3-multiple-ciphers', 'sharp', 'js-tiktoken', 'qrcode', 'yauzl', 'yazl', 'fastify', '@fastify/*'],
   banner: { js: "import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);" },
 });
 console.log('server built');

@@ -3,6 +3,7 @@
  * optionally, the messages themselves), filters, sorts and presets. A message hit jumps straight
  * to that message.
  */
+import { contentStorageAllowed } from '@/lib/vaultMode';
 import type { ChatSummary, FilterPreset } from '@everloom/engine';
 import { useQuery } from '@tanstack/react-query';
 import { Check, MessageSquarePlus, MessagesSquare, Plug, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
@@ -52,7 +53,7 @@ export default function ChatsPage() {
   const navigate = useNavigate();
   useEffect(() => {
     try {
-      localStorage.setItem(KEY, JSON.stringify(view));
+      if (contentStorageAllowed()) localStorage.setItem(KEY, JSON.stringify(view));
     } catch {
       /* private mode */
     }

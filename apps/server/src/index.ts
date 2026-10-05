@@ -3,6 +3,10 @@ import { loadConfig } from './config.js';
 import { migrate, openDb } from './db/index.js';
 import { hashPassword, randomToken } from './security/crypto.js';
 import { applyPendingRestore, startScheduler } from './services/backup.js';
+import { startVaultTimer } from './services/vault.js';
+import Database from 'better-sqlite3-multiple-ciphers';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 
 async function main() {
   const cfg = loadConfig();
@@ -21,11 +25,14 @@ async function main() {
   }
   const { app, ctx } = await buildApp(cfg);
   const stopScheduler = startScheduler(ctx);
+  const stopVault = startVaultTimer(ctx);
   const shutdown = async (signal: string) => {
     console.log(`${signal} received, shutting down`);
     stopScheduler();
+    stopVault();
     await app.close();
     ctx.db.close();
+    if (ctx.sys !== ctx.db) ctx.sys.close();
     process.exit(0);
   };
   process.on('SIGINT', () => void shutdown('SIGINT'));
@@ -36,8 +43,11 @@ async function main() {
 
 /** Recovery for a locked-out owner: sets a new random password, signs out every session, clears lockouts. */
 async function resetPassword(dbPath: string, username: string | undefined, disable2fa: boolean) {
-  const db = openDb(dbPath);
-  migrate(db);
+  // With the vault on, accounts live in the plain system store (the content stays encrypted).
+  const sysPath = path.join(path.dirname(dbPath), 'system.db');
+  const vaultOn = existsSync(path.join(path.dirname(dbPath), 'vault.json')) && existsSync(sysPath);
+  const db = vaultOn ? new Database(sysPath) : openDb(dbPath);
+  if (!vaultOn) migrate(db);
   const users = db.prepare('SELECT id, username FROM users').all() as Array<{ id: string; username: string }>;
   const user = username ? users.find((u) => u.username === username) : users.length === 1 ? users[0] : undefined;
   if (!user) {

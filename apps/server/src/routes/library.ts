@@ -1,4 +1,5 @@
 /** Connections, characters, personas, lorebooks, presets, settings, media. */
+import { readContentFile } from '../vault/vault.js';
 import {
   emptyCardData, exportSillyTavernPreset, importSillyTavernPreset, normalizeBook, worldFromSillyTavern, worldToSillyTavern,
   DEFAULT_PRESET, type CardData, type PromptPreset,
@@ -90,13 +91,17 @@ export function registerLibrary(app: FastifyInstance, ctx: AppContext) {
   app.get('/media/:id', async (req, reply) => {
     const { row, file } = getMedia(ctx, owner(req), (req.params as any).id);
     reply.header('content-type', row.mime);
-    reply.header('cache-control', 'private, max-age=31536000, immutable');
+    // With the vault on, nothing is kept by the browser or the service worker.
+    reply.header('cache-control', ctx.vault.enabled ? 'no-store' : 'private, max-age=31536000, immutable');
+    if (!ctx.vault.enabled) reply.header('x-everloom-cacheable', 'yes');
     reply.header('content-disposition', 'inline');
     reply.header('accept-ranges', 'bytes');
+    // Encrypted files are decrypted whole (media is small); plain ones stream from disk.
+    const bytes = ctx.vault.enabled ? readContentFile(ctx.vault, file) : null;
+    const size = bytes ? bytes.length : row.size;
     // Byte ranges, so video and audio can seek (iOS needs this to play at all).
     const range = /^bytes=(\d*)-(\d*)$/.exec(String(req.headers.range ?? ''));
     if (range && (range[1] || range[2])) {
-      const size = row.size;
       const start = range[1] ? Number(range[1]) : Math.max(0, size - Number(range[2]));
       const end = range[1] && range[2] ? Math.min(Number(range[2]), size - 1) : size - 1;
       if (start >= size || start > end) {
@@ -104,9 +109,9 @@ export function registerLibrary(app: FastifyInstance, ctx: AppContext) {
         return reply.send();
       }
       reply.code(206).header('content-range', `bytes ${start}-${end}/${size}`).header('content-length', end - start + 1);
-      return reply.send(createReadStream(file, { start, end }));
+      return reply.send(bytes ? bytes.subarray(start, end + 1) : createReadStream(file, { start, end }));
     }
-    return reply.send(createReadStream(file));
+    return reply.send(bytes ?? createReadStream(file));
   });
 
   // ---------------- characters

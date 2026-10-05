@@ -8,10 +8,12 @@ import type { Config } from './config.js';
 import { HttpError, type AppContext } from './context.js';
 import { reconcileLegacyCampaigns } from './services/campaigns.js';
 import { openDb, type DB } from './db/index.js';
+import { lockedDb, openSystemDb, Vault } from './vault/vault.js';
 import { registerAuth } from './routes/auth.js';
 import { runWithShield } from './privacy/shield.js';
 import { installShield } from './services/shield.js';
 import { registerPrivacy } from './routes/privacy.js';
+import { registerVault } from './routes/vault.js';
 import { registerChats } from './routes/chats.js';
 import { registerEvents } from './routes/events.js';
 import { registerGame } from './routes/game.js';
@@ -27,12 +29,13 @@ import { registerBridge } from './routes/bridge.js';
 import { registerCustomize } from './routes/customize.js';
 import { registerLive2d } from './routes/live2d.js';
 import { registerAssetRoutes } from './routes/assets.js';
-import { recordError } from './services/diagnostics.js';
+import { logSafeError, recordError, setContentFreeLogs } from './services/diagnostics.js';
 import { backfillMeta } from './services/characters.js';
 import { registerInspector } from './routes/inspector.js';
 import { registerMemory } from './routes/memory.js';
 import { registerLibrary } from './routes/library.js';
 import { registerSystem } from './routes/system.js';
+import { decryptWithPassword, encryptWithPassword, isPasswordEncrypted } from './vault/crypto.js';
 
 export const VERSION = '0.1.0';
 
@@ -58,12 +61,19 @@ export interface BuiltApp {
 }
 
 export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } = {}): Promise<BuiltApp> {
-  const db = opts.db ?? openDb(cfg.dbPath);
-  const ctx: AppContext = { cfg, db, bus: new Bus() };
-  // Library columns for characters made before they existed (fast; only rows still missing them).
-  backfillMeta(ctx);
-  // Campaigns saved by an older release keep the results they recorded (see the function).
-  reconcileLegacyCampaigns(ctx);
+  // With the vault on, the content database stays closed (locked) until the passphrase is given;
+  // accounts and sessions live in the small plain system store.
+  const vault = new Vault(cfg);
+  const db = vault.enabled ? lockedDb() : (opts.db ?? openDb(cfg.dbPath));
+  const sys = vault.enabled ? openSystemDb(vault.systemPath) : db;
+  const ctx: AppContext = { cfg, db, sys, bus: new Bus(), vault };
+  setContentFreeLogs(() => ctx.vault.enabled);
+  if (!vault.enabled) {
+    // Library columns for characters made before they existed (fast; only rows still missing them).
+    backfillMeta(ctx);
+    // Campaigns saved by an older release keep the results they recorded (see the function).
+    reconcileLegacyCampaigns(ctx);
+  }
   const app = Fastify({
     logger: opts.logger === false ? false : { level: cfg.logLevel, redact: ['req.headers.cookie', 'req.headers.authorization', 'req.headers["x-csrf-token"]'] },
     trustProxy: cfg.trustProxy,
@@ -88,13 +98,43 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
     return payload;
   });
 
+  // Password-protected exports: a download asked for with x-export-password comes back sealed
+  // (scrypt + AES-256-GCM) and named .evlt; an upload of such a file is opened with x-import-password.
+  app.addHook('onSend', async (req, reply, payload) => {
+    const pw = req.headers['x-export-password'];
+    const cd = String(reply.getHeader('content-disposition') ?? '');
+    if (typeof pw !== 'string' || !pw || !cd.startsWith('attachment') || reply.statusCode >= 300) return payload;
+    let buf: Buffer;
+    if (Buffer.isBuffer(payload)) buf = payload;
+    else if (typeof payload === 'string') buf = Buffer.from(payload);
+    else if (payload && typeof (payload as any)[Symbol.asyncIterator] === 'function') {
+      const parts: Buffer[] = [];
+      for await (const c of payload as AsyncIterable<Buffer | string>) parts.push(Buffer.isBuffer(c) ? c : Buffer.from(c));
+      buf = Buffer.concat(parts);
+    } else return payload;
+    const sealed = await encryptWithPassword(pw, buf);
+    reply.header('content-disposition', cd.replace(/filename="([^"]+)"/, (_m, n: string) => `filename="${n}.evlt"`));
+    reply.header('content-type', 'application/octet-stream');
+    reply.removeHeader('content-length');
+    return sealed;
+  });
+  app.addHook('preValidation', async (req) => {
+    const body = req.body;
+    if (!Buffer.isBuffer(body) || !isPasswordEncrypted(body)) return;
+    const pw = req.headers['x-import-password'];
+    if (typeof pw !== 'string' || !pw) throw new HttpError(400, 'This file is protected with a password', 'password_required');
+    const plain = await decryptWithPassword(pw, body);
+    if (!plain) throw new HttpError(400, 'That password does not open this file', 'wrong_password');
+    req.body = plain;
+  });
+
   app.setErrorHandler((err: any, req, reply) => {
     if (err instanceof HttpError) {
       return reply.code(err.status).send({ error: err.message, code: err.code });
     }
     if (err.validation) return reply.code(400).send({ error: err.message, code: 'validation' });
     if (err.statusCode && err.statusCode < 500) return reply.code(err.statusCode).send({ error: err.message, code: err.code });
-    req.log.error(err);
+    req.log.error(logSafeError(err));
     recordError(req.method, req.url, err);
     return reply.code(500).send({ error: 'Something went wrong on the server', code: 'internal' });
   });
@@ -132,6 +172,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerAssetRoutes(app, ctx);
   registerSystem(app, ctx);
   registerPrivacy(app, ctx);
+  registerVault(app, ctx);
 
   const indexFile = path.join(cfg.webDir, 'index.html');
   if (existsSync(indexFile)) {

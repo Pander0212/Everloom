@@ -1,6 +1,6 @@
 import { PackageOpen } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { api, post } from '@/lib/api';
+import { post, upload } from '@/lib/api';
 import { cx } from '@/lib/format';
 import { toast, toastError } from '@/lib/store';
 import { Badge, Button, EmptyState, FileButton, Segmented, Sheet, Spinner } from '@/ui';
@@ -25,7 +25,7 @@ export function BundleImportSheet({ open, onOpenChange, file, onDone }: { open: 
   const read = async (f: File) => {
     setBusy(true);
     try {
-      const p = await api<{ token: string; items: Item[] }>('/api/library/bundle/preview', { method: 'POST', raw: f, contentType: 'application/zip' });
+      const p = await upload<{ token: string; items: Item[] }>('/api/library/bundle/preview', f);
       setPreview(p);
       setChoices(Object.fromEntries(p.items.map((i) => [i.index, i.conflict ? (i.conflict.reason === 'identical' ? 'skip' : 'new') : 'new'])));
     } catch (e) {
@@ -96,7 +96,7 @@ export function BundleImportSheet({ open, onOpenChange, file, onDone }: { open: 
           }}
           className={cx('rounded-lg border-2 border-dashed border-line-strong', drag && 'border-accent bg-accent-soft')}
         >
-          <EmptyState icon={PackageOpen} title="Drop a .zip here" body="Or choose one. Nothing is added until you confirm." action={<FileButton accept=".zip,application/zip" onFiles={(f) => void read(f[0])} variant="secondary">Choose a file</FileButton>} />
+          <EmptyState icon={PackageOpen} title="Drop a .zip here" body="Or choose one. Nothing is added until you confirm." action={<FileButton accept=".zip,.evlt,application/zip" onFiles={(f) => void read(f[0])} variant="secondary">Choose a file</FileButton>} />
         </div>
       )}
     </Sheet>

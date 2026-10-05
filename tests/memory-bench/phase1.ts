@@ -7,7 +7,7 @@
  * important events longest), so the old numbers are, if anything, flattering. In real-model mode
  * the Phase-1 prompt is sent to the model.
  */
-import Database from 'better-sqlite3';
+import Database from 'better-sqlite3-multiple-ciphers';
 import { extractJson } from '@everloom/engine';
 import { ftsQuery } from '../../apps/server/src/services/search.js';
 import type { BenchTurn } from './campaign.js';

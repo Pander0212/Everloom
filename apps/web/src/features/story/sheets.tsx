@@ -291,7 +291,7 @@ export function ChatInfoSheet({ chat, open, onOpenChange }: { chat: ChatDTO; ope
             Export (SillyTavern JSONL)
           </Button>
           {chat.characterId ? (
-            <FileButton variant="ghost" icon={Upload} className="justify-start" accept=".jsonl,application/jsonl,text/plain" onFiles={(f) => importJsonl(f[0])}>
+            <FileButton variant="ghost" icon={Upload} className="justify-start" accept=".jsonl,.evlt,application/jsonl,text/plain" onFiles={(f) => importJsonl(f[0])}>
               Import a JSONL chat
             </FileButton>
           ) : null}

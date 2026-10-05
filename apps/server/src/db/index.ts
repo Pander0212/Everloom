@@ -1,4 +1,4 @@
-import Database from 'better-sqlite3';
+import Database from 'better-sqlite3-multiple-ciphers';
 import { existsSync, mkdirSync, readdirSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { MIGRATIONS } from './migrations.js';

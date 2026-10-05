@@ -6,8 +6,9 @@ import { CustomCss } from '@/lib/customCss';
 import { startEvents, stopEvents } from '@/lib/events';
 import { useSettings } from '@/lib/queries';
 import { applyMotion, applyPalette, applyTextSize, applyTheme, watchSystemTheme } from '@/lib/theme';
-import { Button, ConfirmHost, Spinner, Toaster } from '@/ui';
-import { LoginPage, SetupPage } from './AuthPages';
+import { Button, ConfirmHost, PasswordHost, Spinner, Toaster } from '@/ui';
+import { LoginPage, SetupPage, UnlockPage } from './AuthPages';
+import { onVaultLocked, setVaultOn } from '@/lib/vaultMode';
 import { StuckHelp } from './ErrorBoundary';
 import { ConnectionBanner, Shell } from './Shell';
 
@@ -82,8 +83,9 @@ export function App() {
       // Never wait forever on the first request: a stuck one becomes a retry and then an error screen.
       const ac = new AbortController();
       const t = setTimeout(() => ac.abort(), 15_000);
-      const s = await api<{ setupRequired: boolean; authenticated: boolean; username: string | null; csrf: string | null }>('/api/auth/status', { signal: ac.signal }).finally(() => clearTimeout(t));
+      const s = await api<{ setupRequired: boolean; authenticated: boolean; username: string | null; csrf: string | null; vault?: { enabled: boolean; locked: boolean } }>('/api/auth/status', { signal: ac.signal }).finally(() => clearTimeout(t));
       setCsrf(s.csrf);
+      setVaultOn(!!s.vault?.enabled);
       return s;
     },
     staleTime: Infinity,
@@ -92,6 +94,16 @@ export function App() {
     refetchInterval: (q) => (q.state.status === 'error' ? 5000 : false),
   });
   const [, force] = useState(0);
+  // The vault locked (idle, Lock now, another device): drop everything held in memory and ask again.
+  useEffect(
+    () =>
+      onVaultLocked(() => {
+        stopEvents();
+        qc.removeQueries({ predicate: (q) => q.queryKey[0] !== 'auth' });
+        void qc.invalidateQueries({ queryKey: ['auth'] });
+      }),
+    [qc],
+  );
   useEffect(
     () =>
       onAuthRequired(() => {
@@ -130,6 +142,7 @@ export function App() {
     );
   else if (status.data?.setupRequired) body = <SetupPage onDone={refresh} />;
   else if (!status.data?.authenticated) body = <LoginPage onDone={refresh} />;
+  else if (status.data.vault?.locked) body = <UnlockPage onDone={refresh} />;
   else body = <AuthedApp />;
   return (
     <>
@@ -137,6 +150,7 @@ export function App() {
       {body}
       <Toaster />
       <ConfirmHost />
+      <PasswordHost />
     </>
   );
 }

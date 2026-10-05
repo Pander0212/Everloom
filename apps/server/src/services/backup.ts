@@ -2,6 +2,7 @@
  * Backups: SQLite online backup + media folder, zipped, with retention.
  * Restore is staged and applied on the next start, before the database is opened.
  */
+import { logSafeError } from './diagnostics.js';
 import { createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
@@ -30,14 +31,23 @@ function walk(dir: string, base = dir, out: string[] = []): string[] {
 
 export async function createBackup(ctx: AppContext, label = ''): Promise<{ name: string; size: number }> {
   const tmpDb = path.join(ctx.cfg.backupDir, `.tmp-${Date.now()}.db`);
-  await ctx.db.backup(tmpDb);
+  // VACUUM INTO: a consistent copy, encrypted with the same key when the vault is on.
+  ctx.db.prepare('VACUUM INTO ?').run(tmpDb);
   let name = `everloom-${stamp()}${label ? `-${label}` : ''}.zip`;
   if (existsSync(path.join(ctx.cfg.backupDir, name))) name = name.replace('.zip', `-${Date.now() % 1000}.zip`).replace(/-(\d+)\.zip$/, '.zip');
   const out = path.join(ctx.cfg.backupDir, name);
   const zip = new yazl.ZipFile();
   zip.addFile(tmpDb, 'everloom.db');
   for (const rel of walk(ctx.cfg.mediaDir)) zip.addFile(path.join(ctx.cfg.mediaDir, rel), `media/${rel.split(path.sep).join('/')}`);
-  zip.addBuffer(Buffer.from(JSON.stringify({ app: 'everloom', format: 1, createdAt: new Date().toISOString() })), 'manifest.json');
+  // An encrypted backup carries its wrapped key and the account store: it opens with the passphrase.
+  if (ctx.vault.enabled) {
+    zip.addFile(ctx.vault.path, 'vault.json');
+    const sysCopy = path.join(ctx.cfg.backupDir, `.tmp-${Date.now()}-system.db`);
+    ctx.sys.prepare('VACUUM INTO ?').run(sysCopy);
+    zip.addFile(sysCopy, 'system.db');
+    zip.once('end', () => rmSync(sysCopy, { force: true }));
+  }
+  zip.addBuffer(Buffer.from(JSON.stringify({ app: 'everloom', format: 1, encrypted: ctx.vault.enabled, createdAt: new Date().toISOString() })), 'manifest.json');
   zip.end();
   await pipeline(zip.outputStream, createWriteStream(out));
   unlinkSync(tmpDb);
@@ -63,7 +73,8 @@ export function backupPath(ctx: AppContext, name: string): string {
 }
 
 export function pruneBackups(ctx: AppContext) {
-  const owner = (ctx.db.prepare('SELECT id FROM users ORDER BY created_at LIMIT 1').get() as { id: string } | undefined)?.id;
+  const owner = (ctx.sys.prepare('SELECT id FROM users ORDER BY created_at LIMIT 1').get() as { id: string } | undefined)?.id;
+  if (ctx.vault.locked) return;
   const keep = owner ? getSettings(ctx, owner).backups.retention : ctx.cfg.backupRetention;
   const all = listBackups(ctx).filter((b) => !b.name.includes('-pre'));
   for (const b of all.slice(Math.max(1, keep))) unlinkSync(path.join(ctx.cfg.backupDir, b.name));
@@ -138,6 +149,12 @@ export function applyPendingRestore(dataDir: string): boolean {
   const dbPath = path.join(dataDir, 'everloom.db');
   for (const suffix of ['', '-wal', '-shm']) if (existsSync(dbPath + suffix)) rmSync(dbPath + suffix);
   renameSync(path.join(staging, 'everloom.db'), dbPath);
+  // An encrypted backup brings its key file and account store; a plain one turns the vault off.
+  for (const f of ['vault.json', 'system.db']) {
+    const target = path.join(dataDir, f);
+    for (const suffix of ['', '-wal', '-shm']) if (existsSync(target + suffix)) rmSync(target + suffix);
+    if (existsSync(path.join(staging, f))) renameSync(path.join(staging, f), target);
+  }
   const media = path.join(dataDir, 'media');
   if (existsSync(path.join(staging, 'media'))) {
     rmSync(media, { recursive: true, force: true });
@@ -150,7 +167,9 @@ export function applyPendingRestore(dataDir: string): boolean {
 export function startScheduler(ctx: AppContext): () => void {
   const tick = async () => {
     try {
-      const owner = (ctx.db.prepare('SELECT id FROM users ORDER BY created_at LIMIT 1').get() as { id: string } | undefined)?.id;
+      // Locked: nothing to back up until the owner unlocks (the key isn't here).
+      if (ctx.vault.locked) return;
+      const owner = (ctx.sys.prepare('SELECT id FROM users ORDER BY created_at LIMIT 1').get() as { id: string } | undefined)?.id;
       if (!owner) return;
       const s = getSettings(ctx, owner);
       if (!s.backups.nightly) return;
@@ -160,7 +179,7 @@ export function startScheduler(ctx: AppContext): () => void {
       setKv(ctx, owner, 'lastNightlyBackup', Date.now());
       await createBackup(ctx, 'nightly');
     } catch (e) {
-      console.error('Nightly backup failed', e);
+      console.error('Nightly backup failed', logSafeError(e));
     }
   };
   const timer = setInterval(() => void tick(), 10 * 60 * 1000);

@@ -1,5 +1,5 @@
 import { EMOTIONS, formatClock, partOfDay, stripInlineTags } from '@everloom/engine';
-import { readFileSync } from 'node:fs';
+import { readContentFile } from '../vault/vault.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
@@ -168,5 +168,5 @@ function referenceVoice(ctx: AppContext, owner: string, id: string): { audio: Bu
   const { row, file } = getMedia(ctx, owner, id);
   if (row.kind !== 'voice-ref') throw new HttpError(404, 'Voice not found');
   if (!(JSON.parse(row.meta || '{}') as { consent?: unknown }).consent) throw new HttpError(403, 'This voice has no consent on record');
-  return { audio: readFileSync(file), mime: row.mime };
+  return { audio: readContentFile(ctx.vault, file), mime: row.mime };
 }

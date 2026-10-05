@@ -1,4 +1,5 @@
 /** Library view state: query, tri-state tags, sort, view and collection, with presets. */
+import { contentStorageAllowed } from '@/lib/vaultMode';
 import type { CharacterSummary, FilterPreset, LibrarySort, TagState } from '@everloom/engine';
 import { matchItem, parseQuery, sortItems } from '@everloom/engine';
 import { useEffect, useMemo, useRef, useState } from 'react';
@@ -39,7 +40,7 @@ export function useLibraryState(chars: CharacterSummary[] | undefined, collectio
   }, [settings.data]);
   useEffect(() => {
     try {
-      localStorage.setItem(KEY, JSON.stringify(state));
+      if (contentStorageAllowed()) localStorage.setItem(KEY, JSON.stringify(state));
     } catch {
       /* private mode */
     }

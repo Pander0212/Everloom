@@ -195,6 +195,12 @@ Everloom can be a plain roleplay frontend or a full RPG. **Settings → Features
 
 **Settings → Privacy → Name shield**: list names (yours, people you know, places) that should never reach the AI provider. Each gets a stand-in (suggested, re-rollable, or your own); the provider only ever sees the stand-in, and Everloom swaps the real name back into the reply before it's shown or saved. It covers every model call, embeddings, cloud voices and image prompts, catches possessives and capitalization, and refuses a request if a protected name would still go out. The prompt inspector shows the prompt *as stored* and *as sent*. Limits: context can still identify someone, misspellings need to be added as extra forms, and a model may shorten a stand-in (flagged on the message).
 
+### Vault (encryption at rest)
+
+**Settings → Privacy → Vault** encrypts everything Everloom keeps on the server's disk: the whole database (chats, characters, memories, search index, settings) with SQLCipher-compatible encryption, and every picture, voice, sprite and model file with AES-256-GCM. You choose a passphrase (or use your login password, so signing in unlocks it) and get a **recovery key**, shown once. While it's locked, nothing can be read; it locks when you press **Lock now**, after the idle time you choose, when you sign out and whenever the server restarts. Backups stay encrypted; exports can be protected with a password (`.evlt` files, which every import screen opens). The browser keeps no drafts or content in storage while it's on.
+
+What it can't do: if you lose both the passphrase and the recovery key, the data is gone. While unlocked, the key is in the server's memory, so someone in control of the running server could reach it; the vault protects the disk, stopped servers and stolen backups. Old backups made before you turned it on are readable until you delete them (the page offers to), and SSDs can keep traces of deleted files. Account names, file sizes and dates aren't hidden.
+
 ### Characters from the web
 
 **Characters → Browse** searches Chub, Character Tavern, RisuRealm, Pygmalion, Wyvern, Botbooru, Saucepan and AI Character Cards (or **All sources** at once, with duplicates marked). The search box takes filters: `elf tag:fantasy -tag:gore creator:name tokens<2000 has:lorebook sort:new time:week lang:en`, and **Filters** opens the same as a bar (tags with suggestions from the site: tap a chip to switch it between include and exclude). Filters a site can't apply itself are checked on each page, and Everloom says which. Searches can be saved. **Import from a link** takes any card file link (PNG, JSON, CHARX) or a page on those sites. Adult content stays hidden unless you turn it on in **Settings → Character sources**.
@@ -330,6 +336,7 @@ It prints a new password, signs out every session and clears lockouts. (Without 
 - Everything except sign-in, first-run setup and the health check needs a session.
 - Content-driven fetches (images linked in cards, online sources, the image proxy) can't reach loopback, private or link-local addresses; the address is checked when connecting and on every redirect.
 - Creator notes render in a sandboxed frame that can't run scripts. Custom CSS is cleaned (no imports or remote resources) and never applies to Settings; add `?safe-mode` to any address to turn it off.
+- Optional Vault: the database and media encrypted at rest, locked until the passphrase is given (see [Vault](#vault-encryption-at-rest)).
 - Online-source API keys are encrypted like the others. Adult content from online sources is off until you turn it on.
 
 ## License

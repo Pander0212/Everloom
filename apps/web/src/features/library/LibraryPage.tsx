@@ -10,7 +10,7 @@ import { CheckSquare, Copy, Dices, Download, Folder, FolderPlus, Globe, Image as
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Page } from '@/app/Shell';
-import { api, apiFetch, get, post, upload } from '@/lib/api';
+import { api, apiFetch, exportHeaders, get, post, upload } from '@/lib/api';
 import { cx } from '@/lib/format';
 import { useCharacters, useSettings } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
@@ -42,11 +42,13 @@ export interface CollectionDTO {
 export const useCollections = () => useQuery({ queryKey: ['collections'], queryFn: () => get<CollectionDTO[]>('/api/library/collections') });
 
 export async function downloadBundle(ids: string[]) {
-  const res = await apiFetch('/api/library/bundle', { method: 'POST', body: { ids } });
+  const headers = await exportHeaders();
+  if (!headers) return;
+  const res = await apiFetch('/api/library/bundle', { method: 'POST', body: { ids }, headers });
   const blob = await res.blob();
   const a = document.createElement('a');
   a.href = URL.createObjectURL(blob);
-  a.download = `everloom-characters-${new Date().toISOString().slice(0, 10)}.zip`;
+  a.download = `everloom-characters-${new Date().toISOString().slice(0, 10)}.zip${headers['x-export-password'] ? '.evlt' : ''}`;
   a.click();
   setTimeout(() => URL.revokeObjectURL(a.href), 10_000);
 }
@@ -122,7 +124,7 @@ export default function LibraryPage() {
   };
 
   const importFiles = async (files: File[]) => {
-    const zip = files.find((f) => /\.zip$/i.test(f.name) || f.type.includes('zip'));
+    const zip = files.find((f) => /\.zip(\.evlt)?$/i.test(f.name) || f.type.includes('zip'));
     if (zip) {
       setBundleFile(zip);
       setSheet('bundle');
@@ -185,7 +187,7 @@ export default function LibraryPage() {
       title="Characters"
       actions={
         <>
-          <FileButton accept=".png,.webp,.json,.zip,image/png,image/webp,application/json,application/zip" multiple onFiles={importFiles} loading={importing} icon={Upload} variant="secondary" size="md">
+          <FileButton accept=".png,.webp,.json,.zip,.evlt,image/png,image/webp,application/json,application/zip" multiple onFiles={importFiles} loading={importing} icon={Upload} variant="secondary" size="md">
             <span className="hidden sm:inline">Import</span>
           </FileButton>
           <Menu
@@ -294,7 +296,7 @@ export default function LibraryPage() {
           body="Import SillyTavern cards (PNG, WebP or JSON), a bundle (.zip), or create one."
           action={
             <div className="flex gap-2">
-              <FileButton accept=".png,.webp,.json,.zip" multiple onFiles={importFiles} variant="primary" icon={Upload}>
+              <FileButton accept=".png,.webp,.json,.zip,.evlt" multiple onFiles={importFiles} variant="primary" icon={Upload}>
                 Import
               </FileButton>
               <Button variant="ghost" onClick={create}>

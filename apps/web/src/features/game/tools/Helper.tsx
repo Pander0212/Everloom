@@ -1,4 +1,5 @@
 import type { CampaignState, Op } from '@everloom/engine';
+import { contentStorageAllowed } from '@/lib/vaultMode';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cat, Check, Eraser, Send, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -116,7 +117,7 @@ export default function Helper() {
               const v = e.target.value.trim() || 'Pip';
               setName(v);
               try {
-                localStorage.setItem(NAME_KEY, v);
+                if (contentStorageAllowed()) localStorage.setItem(NAME_KEY, v);
               } catch {
                 /* private mode */
               }

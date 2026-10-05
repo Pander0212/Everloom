@@ -1,4 +1,5 @@
 import sharp from 'sharp';
+import { readContentFile } from '../vault/vault.js';
 import yauzl from 'yauzl';
 import {
   buildV2Json, cardHash, characterBookToWorld, emptyCardData, readCardFile, worldToCharacterBook, writeCardToPng,
@@ -258,7 +259,7 @@ export async function exportCardPng(ctx: AppContext, owner: string, id: string):
   let png: Buffer;
   if (row.avatar) {
     const { file } = getMedia(ctx, owner, row.avatar);
-    png = await sharp(readFileSync(file)).png().toBuffer();
+    png = await sharp(readContentFile(ctx.vault, file)).png().toBuffer();
   } else {
     png = await sharp({ create: { width: 400, height: 600, channels: 3, background: { r: 38, g: 40, b: 46 } } }).png().toBuffer();
   }

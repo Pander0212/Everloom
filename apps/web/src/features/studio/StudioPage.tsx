@@ -1,3 +1,4 @@
+import { contentStorageAllowed } from '@/lib/vaultMode';
 /**
  * Character studio: write a card with an AI's help. Brainstorm concepts, write a full card from a
  * brief, refine the whole card, (re)write one field, or select a passage and revise just that.
@@ -54,7 +55,7 @@ export default function StudioPage() {
 
   useEffect(() => {
     try {
-      localStorage.setItem(STORE, JSON.stringify({ draft, baseId, brief }));
+      if (contentStorageAllowed()) localStorage.setItem(STORE, JSON.stringify({ draft, baseId, brief }));
     } catch {
       /* no storage */
     }

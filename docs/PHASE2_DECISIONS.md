@@ -484,6 +484,71 @@ are global only: a per-chat mix of 37 switches would be hard to reason about.
 **Not done:** new Classic chats are created without a game; switching such a chat to Story or Full
 RPG later doesn't create one (the chat menu says to start a new chat for that).
 
+## Part 4 — Vault
+
+**Keys.** A random 256-bit data key does the work. It is stored only wrapped: once by a key derived
+from the passphrase (scrypt, N = 2^17, r = 8, p = 1, 16-byte salt) and once by a recovery key (240
+random bits as 48 characters in groups of four, shown once; the alphabet leaves out 0, 1, O and I,
+and case, spaces and dashes don't matter when it's typed back). Both
+wraps are AES-256-GCM, so a wrong secret is detected, never "decrypted" into garbage. The wrapped
+keys, salts and the vault's state live in `vault.json`. Separate subkeys (HKDF) are used for the
+database, the files and nothing else, so one key never does two jobs.
+
+**The database.** `better-sqlite3` became `better-sqlite3-multiple-ciphers` (same API, SQLCipher-
+compatible page encryption). The whole content database is encrypted: chats, characters, memories,
+the search index, settings, the game state. We checked the obvious traps: `VACUUM INTO` from an
+encrypted database writes an encrypted copy with the same key (good, backups use it), while the
+online `backup()` API refuses a cipher mismatch (so it isn't used). WAL and the shared-memory file
+are encrypted pages too.
+
+**What has to be readable before unlocking.** Accounts, sessions, the login lockout counters and
+two-factor secrets (encrypted with the server key, as before) move to a small **system store** (`system.db`) that stays plain: the server has
+to check a sign-in before anything can be decrypted. It holds no story content. Everything else
+answers **423 Locked** until the vault is unlocked; only health, sign-in, the vault's own routes and
+the event stream (so the app learns it locked) stay open.
+
+**Files.** Pictures, voices, sprites, music, Live2D models: every file under `media/` and `live2d/`
+is sealed individually (AES-256-GCM, magic `EVLTENC1`, a fresh nonce per file). Reads go through one
+helper that accepts both states, so an interrupted seal never breaks a page. Served files are
+`Cache-Control: no-store`, and the service worker only caches responses the server marks
+cacheable, which it never does with the vault on.
+
+**Turning it on, resumably.** Backup first (plain, and reported afterwards with a *Delete* button),
+then the keys are written (state `enabling`), the system store is built, an encrypted copy of the
+database is made with `VACUUM INTO` + rekey and **verified** (integrity check and row counts of every
+table against the original) before it's swapped in by rename. The old plain file is overwritten and
+deleted, then the files are sealed one by one (each via a temporary file and a rename). If anything
+fails before the swap, the plain database is still in charge and nothing changed; if the server
+stops after the keys were written, the settings page shows *Finish turning on*. Turning it off is
+the mirror image, with the accounts merged back into the main database.
+
+**Locking.** *Lock now*, an idle timer (1 minute to a day; default 30 minutes), signing out, and
+every restart lock it: the database is closed and the key bytes are zeroed. Unlock with the
+passphrase or the recovery key. The owner can choose to use the login password as the passphrase;
+then signing in unlocks it, and changing the password rewraps the key (the data isn't re-encrypted).
+
+**Nothing readable on the device.** With the vault on, the app stops saving drafts, searches, the
+Studio's work, view choices and similar in browser storage, clears what was there, drops everything
+it has in memory when the vault locks (the live event or any 423), and the service worker caches no
+pictures.
+
+**Logs, backups, exports.** With the vault on, error logs keep the error's type and route, not its
+message (messages can quote content). Backups include `vault.json` and `system.db` and stay
+encrypted (a locked vault can't be backed up: there is nothing consistent to copy without the
+key). Any export can be sealed with a password (scrypt + AES-256-GCM, `.evlt`); with the vault on,
+every export offers it, and every import screen recognises a sealed file and asks for its password.
+
+**Limits (stated in the app and the README).**
+- Lose both the passphrase and the recovery key and the data is gone.
+- While unlocked, the key is in the server's memory: anyone in full control of the running server
+  (root, a memory dump) could reach it. The vault protects the disk, stolen backups and a stopped
+  server, not a compromised live one.
+- Overwriting before deleting is best effort: SSDs, copy-on-write file systems and snapshots can
+  keep old blocks. Backups made before the vault was on are readable until you delete them.
+- What the browser shows is in the browser's memory while it's open; screenshots and the operating
+  system's own swap are outside Everloom's reach.
+- File sizes and counts, timestamps and the accounts list (user names) aren't hidden.
+
 ## Part 5 — Name shield
 
 **One choke point.** Every request Everloom makes to an outside AI service goes through

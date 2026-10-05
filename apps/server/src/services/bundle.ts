@@ -12,6 +12,7 @@
  * Import accepts an Everloom bundle or a plain zip of SillyTavern files (cards, chats in a folder
  * named after the card, worlds). It is previewed first, with conflicts for the owner to resolve.
  */
+import { readContentFile } from '../vault/vault.js';
 import { cardHash, readCardFile, sniffImageType, worldFromSillyTavern, worldToSillyTavern, type CardData, type CharacterGame } from '@everloom/engine';
 import { strToU8, unzipSync, zipSync, type Zippable } from 'fflate';
 import { readFileSync } from 'node:fs';
@@ -62,7 +63,7 @@ export async function exportBundle(ctx: AppContext, owner: string, ids: string[]
         try {
           const { row, file } = getMedia(ctx, owner, mid);
           const path = `gallery/${slug}/${row.filename}`;
-          files[path] = [new Uint8Array(readFileSync(file)), { level: 0 }];
+          files[path] = [new Uint8Array(readContentFile(ctx.vault, file)), { level: 0 }];
           (entry.gallery as string[]).push(path);
         } catch {
           /* missing file: skipped (the integrity check reports it) */

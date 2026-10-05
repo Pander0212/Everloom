@@ -1,3 +1,5 @@
+import { askPassword } from '@/ui/Dialog';
+import { askExportPassword, notifyVaultLocked } from './vaultMode';
 /** Fetch wrapper: same-origin cookies, CSRF header, client id (for echo suppression) and typed errors. */
 let csrfToken = '';
 export const clientId: string = (() => {
@@ -80,6 +82,7 @@ export async function apiFetch(path: string, opts: ApiOptions = {}): Promise<Res
       /* not json */
     }
     if (res.status === 401 && code === 'auth_required') authListeners.forEach((fn) => fn());
+    if (res.status === 423 && code === 'locked') notifyVaultLocked();
     throw new ApiError(res.status, msg, code);
   }
   return res;
@@ -99,8 +102,32 @@ export const post = <T = any>(path: string, body: unknown = {}) => api<T>(path, 
 export const put = <T = any>(path: string, body: unknown) => api<T>(path, { method: 'PUT', body });
 export const patch = <T = any>(path: string, body: unknown) => api<T>(path, { method: 'PATCH', body });
 export const del = <T = any>(path: string) => api<T>(path, { method: 'DELETE' });
-export const upload = <T = any>(path: string, file: Blob, query?: ApiOptions['query']) =>
-  api<T>(path, { method: 'POST', raw: file, contentType: file.type || 'application/octet-stream', query });
+/** Upload a file; a password-protected Everloom export asks for its password and is sent again. */
+export async function upload<T = any>(path: string, file: Blob, query?: ApiOptions['query']): Promise<T> {
+  const send = (headers?: Record<string, string>) => api<T>(path, { method: 'POST', raw: file, contentType: file.type || 'application/octet-stream', query, headers });
+  try {
+    return await send();
+  } catch (e) {
+    if (!(e instanceof ApiError) || e.code !== 'password_required') throw e;
+    for (;;) {
+      const password = await askPassword({ title: 'This file is protected', description: 'Enter the password it was exported with.', confirmLabel: 'Open' });
+      if (!password) throw e;
+      try {
+        return await send({ 'x-import-password': password });
+      } catch (e2) {
+        if (!(e2 instanceof ApiError) || e2.code !== 'wrong_password') throw e2;
+      }
+    }
+  }
+}
+
+/** Exports can be password-protected (always offered while the vault is on). */
+async function exportHeaders(): Promise<Record<string, string> | null> {
+  if (!askExportPassword()) return {};
+  const password = await askPassword({ title: 'Protect this export with a password?', description: "Leave it empty to export without one. Anyone with the password can open the file; without it, nobody can.", confirmLabel: 'Export', optional: true });
+  if (password === null) return null;
+  return password ? { 'x-export-password': password } : {};
+}
 
 /** POST and read an SSE response as an async stream of JSON events. */
 export async function* streamPost<T = any>(path: string, body: unknown, signal?: AbortSignal, extraHeaders?: Record<string, string>): AsyncGenerator<T> {
@@ -131,8 +158,11 @@ export async function* streamPost<T = any>(path: string, body: unknown, signal?:
 }
 
 /** Download a server file (keeps cookies; works in standalone PWA). */
+export { exportHeaders };
 export async function download(path: string, fallbackName: string) {
-  const res = await apiFetch(path);
+  const headers = await exportHeaders();
+  if (!headers) return;
+  const res = await apiFetch(path, { headers });
   const blob = await res.blob();
   const cd = res.headers.get('content-disposition') ?? '';
   const name = /filename="([^"]+)"/.exec(cd)?.[1] ?? fallbackName;

@@ -135,7 +135,7 @@ describe('backups', () => {
     expect(existsSync(path.join(c.dataDir, 'restore-pending', 'everloom.db'))).toBe(true);
     c.built.ctx.db.close();
     expect(applyPendingRestore(c.dataDir)).toBe(true);
-    const Database = (await import('better-sqlite3')).default;
+    const Database = (await import('better-sqlite3-multiple-ciphers')).default;
     const db = new Database(path.join(c.dataDir, 'everloom.db'));
     const names = (db.prepare('SELECT name FROM personas').all() as any[]).map((r) => r.name);
     db.close();

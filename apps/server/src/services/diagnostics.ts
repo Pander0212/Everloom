@@ -13,8 +13,22 @@ import { listConnections } from './connections.js';
 import { getSettings } from './settings.js';
 
 const errors: Array<{ at: number; method: string; url: string; message: string }> = [];
+/** With the vault on, logs keep only what kind of error happened: messages can contain story text. */
+let contentFreeLogs: () => boolean = () => false;
+export const setContentFreeLogs = (when: () => boolean) => {
+  contentFreeLogs = when;
+};
+export function logSafeError(e: unknown): { name: string; code?: string; message?: string; stack?: string } {
+  const err = e as Error & { code?: string };
+  if (!contentFreeLogs()) return { name: err?.name ?? 'Error', code: err?.code, message: String(err?.message ?? e), stack: err?.stack };
+  // Stack frames only (file:line), no message.
+  const frames = String(err?.stack ?? '').split('\n').slice(1, 8).join('\n');
+  return { name: err?.name ?? 'Error', code: err?.code, stack: frames };
+}
+
 export function recordError(method: string, url: string, e: unknown) {
-  errors.push({ at: Date.now(), method, url: url.split('?')[0]!.slice(0, 200), message: String((e as Error)?.message ?? e).slice(0, 400) });
+  const safe = logSafeError(e);
+  errors.push({ at: Date.now(), method, url: url.split('?')[0]!.slice(0, 200), message: (safe.message ?? `${safe.name}${safe.code ? ` (${safe.code})` : ''}`).slice(0, 400) });
   if (errors.length > 100) errors.splice(0, errors.length - 100);
 }
 export const recentErrors = () => [...errors];

@@ -70,7 +70,7 @@ export default function PromptsSection() {
   };
   const importPreset = async (f: File) => {
     try {
-      const saved = await upload<PresetDTO>('/api/presets/import', f, { name: f.name.replace(/\.json$/i, '') });
+      const saved = await upload<PresetDTO>('/api/presets/import', f, { name: f.name.replace(/\.json(\.evlt)?$/i, '') });
       await qc.invalidateQueries({ queryKey: ['presets'] });
       await update({ activePresetId: saved.id });
       toast({ title: `Imported ${saved.name}`, tone: 'success' });
@@ -152,7 +152,7 @@ export default function PromptsSection() {
               </option>
             ))}
           </Select>
-          <FileButton accept=".json" onFiles={(f) => importPreset(f[0])} icon={Upload} variant="secondary">
+          <FileButton accept=".json,.evlt" onFiles={(f) => importPreset(f[0])} icon={Upload} variant="secondary">
             Import
           </FileButton>
         </div>

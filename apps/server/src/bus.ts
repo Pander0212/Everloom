@@ -29,6 +29,11 @@ export class Bus {
     }
   }
 
+  /** To every signed-in owner (server-wide events such as the vault locking). */
+  publishAll(type: string, data: unknown) {
+    for (const owner of this.listeners.keys()) this.publish(owner, type, data);
+  }
+
   count(ownerId: string): number {
     return this.listeners.get(ownerId)?.size ?? 0;
   }

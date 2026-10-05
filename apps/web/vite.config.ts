@@ -54,7 +54,8 @@ export default defineConfig({
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/media/'),
             handler: 'CacheFirst',
-            options: { cacheName: 'media', expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 60 } },
+            // Only what the server marks cacheable: with the vault on it marks nothing, so no picture stays on the device.
+            options: { cacheName: 'media', expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 60 }, cacheableResponse: { statuses: [200], headers: { 'x-everloom-cacheable': 'yes' } } },
           },
         ],
       },

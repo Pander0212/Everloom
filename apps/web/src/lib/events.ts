@@ -2,6 +2,7 @@
 import type { MessageDTO } from '@everloom/engine';
 import { create } from 'zustand';
 import { clientId } from './api';
+import { notifyVaultLocked } from './vaultMode';
 import { queryClient, qk, removeMessages, setCampaignState, upsertMessage } from './queries';
 import { toast, useUi } from './store';
 
@@ -60,6 +61,7 @@ export function startEvents() {
     if (d.changes?.length && (d.source !== 'user' || d.origin !== clientId)) toast({ title: d.source === 'ai' ? 'Story update' : 'Updated', lines: d.changes });
   });
   on('campaign.toast', (d) => d.changes?.length && toast({ title: 'Story update', lines: d.changes }));
+  on('vault.state', (d) => d.locked && notifyVaultLocked());
   on('shield.notice', (d) => toast({ title: 'Name shield', lines: [d.message] }));
   on('tracker.status', (d) => useLive.setState((s) => ({ tracker: { ...s.tracker, [d.messageId]: d.status } })));
   // Bulk work (imports, scripts) can send hundreds of these; refetch once they settle.

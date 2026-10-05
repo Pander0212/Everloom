@@ -9,8 +9,10 @@ import { useEffect, useState } from 'react';
 import { post } from '@/lib/api';
 import { useCharacters, useChats, usePersonas } from '@/lib/queries';
 import { toastError } from '@/lib/store';
+import { askExportPasswordChoice, setAskExportPassword, vaultOn } from '@/lib/vaultMode';
 import { Button, Field, IconButton, Input, Select, Switch, Textarea, ToggleRow } from '@/ui';
 import { Section, useSettingsPatch } from '../common';
+import { VaultSection } from './Vault';
 
 const KINDS: Array<{ value: ShieldKind; label: string }> = [
   { value: 'full', label: 'Full name' },
@@ -42,6 +44,8 @@ export default function PrivacySection() {
   };
   return (
     <>
+      <VaultSection />
+      <ExportPasswordSection />
       <Section title="Name shield" description="Names you list here never reach the AI provider. It gets a stand-in name instead, and Everloom puts the real name back in the reply before anything is saved or shown.">
         <div className="flex flex-col gap-4">
           <ToggleRow label="Use the name shield" description="Off, everything is sent as written." checked={sh.enabled} onChange={(v) => update({ privacy: { shield: { enabled: v } } } as never)} />
@@ -80,6 +84,25 @@ export default function PrivacySection() {
         </ul>
       </Section>
     </>
+  );
+}
+
+function ExportPasswordSection() {
+  const [ask, setAsk] = useState(askExportPasswordChoice);
+  const forced = vaultOn();
+  return (
+    <Section title="Exports">
+      <ToggleRow
+        label="Offer a password for exports"
+        description={forced ? 'Always on while the vault is on. Leave the password empty to export a plain file.' : 'Each export asks for an optional password. A protected file (.evlt) opens only in Everloom, with that password.'}
+        checked={forced || ask}
+        disabled={forced}
+        onChange={(v) => {
+          setAsk(v);
+          setAskExportPassword(v);
+        }}
+      />
+    </Section>
   );
 }
 

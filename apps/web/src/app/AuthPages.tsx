@@ -83,6 +83,43 @@ export function SetupPage({ onDone }: { onDone: () => void }) {
   );
 }
 
+/** The vault is locked: the passphrase (or the recovery key) opens it. Nothing else is shown. */
+export function UnlockPage({ onDone }: { onDone: () => void }) {
+  const [useRecovery, setUseRecovery] = useState(false);
+  const [secret, setSecret] = useState('');
+  const [error, setError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const submit = async (e: FormEvent) => {
+    e.preventDefault();
+    setError(null);
+    setBusy(true);
+    try {
+      await post('/api/vault/unlock', useRecovery ? { recoveryKey: secret } : { passphrase: secret });
+      setSecret('');
+      onDone();
+    } catch (err) {
+      setError((err as Error).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <Frame title="Everloom is locked" subtitle="Your stories are encrypted on the server. Enter your vault passphrase to open them.">
+      <form onSubmit={submit} className="flex flex-col gap-4">
+        <Field label={useRecovery ? 'Recovery key' : 'Vault passphrase'} htmlFor="vault-secret" error={error}>
+          <Input id="vault-secret" type={useRecovery ? 'text' : 'password'} autoComplete="off" autoCapitalize="characters" value={secret} onChange={(e) => setSecret(e.target.value)} required autoFocus invalid={!!error} />
+        </Field>
+        <Button type="submit" variant="primary" size="lg" block loading={busy}>
+          Unlock
+        </Button>
+        <button type="button" className="text-sm font-medium text-accent-text" onClick={() => (setUseRecovery(!useRecovery), setSecret(''), setError(null))}>
+          {useRecovery ? 'Use the passphrase instead' : 'Forgot the passphrase? Use the recovery key'}
+        </button>
+      </form>
+    </Frame>
+  );
+}
+
 export function LoginPage({ onDone }: { onDone: () => void }) {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
