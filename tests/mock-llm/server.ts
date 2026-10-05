@@ -8,6 +8,7 @@
  *   POST /__control             (set behaviour: trackerMode, story, delayMs, failNext, trackerOps)
  */
 import http from 'node:http';
+import { pathToFileURL } from 'node:url';
 
 export interface MockControl {
   trackerMode: 'valid' | 'messy' | 'broken-once' | 'garbage' | 'empty';
@@ -335,7 +336,7 @@ export function startMockLlm(port = 0): Promise<{ url: string; close: () => Prom
 }
 
 // Run directly: `npx tsx tests/mock-llm/server.ts [port]`
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const port = Number(process.argv[2] ?? process.env.MOCK_LLM_PORT ?? 5055);
   startMockLlm(port).then(({ url }) => console.log(`Mock LLM listening at ${url}`));
 }
