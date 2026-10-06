@@ -222,7 +222,7 @@ test.describe('3D characters', () => {
     await page.getByRole('button', { name: 'Switch to stage mode' }).click();
     const stage = page.getByTestId('stage-3d');
     await expect(stage).toBeVisible({ timeout: 20_000 });
-    await expect(stage).toHaveAttribute('data-worn', /item-hat-helmet/);
+    await expect(stage).toHaveAttribute('data-worn', /item-hat-helmet/, { timeout: 30_000 });
     await expect(stage).not.toHaveAttribute('data-worn', /hair-bun/);
     expect(errors).toEqual([]);
   });

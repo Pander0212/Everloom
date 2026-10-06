@@ -74,6 +74,8 @@ test.describe('stage and sound', () => {
   test('stage mode: the director places a sprite, effects play, speech bubbles', async ({ page, errors }) => {
     const { chat } = await story(page);
     await api(page, 'PATCH', '/api/settings', { stage: { bubbles: true, live2d: false } });
+    // Pictures only on this device: Iris has no picture, and would otherwise stand as a code-made 3D figure.
+    await page.addInitScript(() => localStorage.setItem('everloom:3d', JSON.stringify({ spritesOnly: true })));
     await api(page, 'POST', `/api/campaigns/${chat.campaignId}/ops`, { chatId: chat.id, ops: [{ type: 'stage.layer', character: 'Iris Vale', position: 'left', anim: 'bounce' }] });
     await page.goto(`/chat/${chat.id}`);
     await page.getByRole('button', { name: 'Switch to stage mode' }).click();
