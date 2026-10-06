@@ -174,13 +174,14 @@ test.describe('stage and sound', () => {
     const sets = lib.getByRole('region', { name: 'Expression sets' });
     await expect(sets).toContainText('Iris');
     await expect(sets).toContainText('2 expressions');
-    await sets.getByRole('button', { name: 'Give to Iris Vale' }).click();
+    // (Other specs may have added sets of their own, such as the demo character's.)
+    await sets.getByRole('listitem').filter({ hasNotText: 'Mira' }).filter({ hasText: 'Iris' }).getByRole('button', { name: 'Give to Iris Vale' }).click();
     await expect.poll(async () => Object.keys((await api(page, 'GET', `/api/characters/${ch.id}`)).game?.expressions ?? {}).sort()).toEqual(['joy', 'neutral']);
 
     await lib.getByRole('radiogroup', { name: 'Type' }).getByRole('radio', { name: 'Backgrounds' }).click();
     await lib.getByRole('button', { name: 'street, background' }).click();
     await page.getByRole('dialog', { name: 'street' }).getByRole('button', { name: 'Background for this chat' }).click();
-    const bg = (await api(page, 'GET', '/api/assets?type=background')).assets[0].id;
+    const bg = (await api(page, 'GET', '/api/assets?type=background')).assets.find((a: { name: string }) => a.name === 'street').id;
     await expect.poll(async () => (await api(page, 'GET', `/api/chats/${chat.id}`)).metadata.background).toBe(bg);
     // Clean up so other specs start from an empty library.
     for (const a of (await api(page, 'GET', '/api/assets')).assets) await api(page, 'DELETE', `/api/assets/${a.id}`);

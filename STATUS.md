@@ -2,7 +2,7 @@
 
 Snapshot of what's built, what's partial, and how it was tested. Everloom 0.1.0.
 
-## Phase 4 (in progress)
+## Phase 4
 
 Decisions and reasoning: [docs/PHASE2_DECISIONS.md › Phase 4](docs/PHASE2_DECISIONS.md#phase-4--scripting-sources-feature-switches-privacy-windows-artwork).
 
@@ -16,12 +16,20 @@ Decisions and reasoning: [docs/PHASE2_DECISIONS.md › Phase 4](docs/PHASE2_DECI
 - **Artwork (Part 7)**: research-first prompting notes (`docs/art/PROMPTING.md`, written before any call), a plan, a style guide from a side-by-side model comparison, and a ledger of every call (`docs/art/LEDGER.md`: NanoGPT subscription images: 67 on 2026-10-05 and 10 on 2026-10-06, each day against a cap of 95, $0.088 of ElectronHub against $2.00; nothing charged, checked per call). Shipped: 139 pixel-art item icons on one grid, palette and outline covering every item the app ships, matched by name with the line icon as fallback, in inventory, equipment, shops, crafting and loot, with a per-item picture picker (bundled or asset-library icons); 12 backgrounds and 6 portraits the owner can add to the asset library; Mira Vale, a demo character with an 8-expression set; genre cards and maps in the new-game screens; illustrations on six empty screens; Pip in the helper; six enemy portraits; about 2 MB in total (WebP, AVIF for the larger pictures, lazy-loaded, not precached by the service worker). Everything is optional (Settings › Appearance › Illustrations) and replaceable; licensing is in CREDITS.
 - **Key safety**: a pre-commit hook (`scripts/hooks/pre-commit`, set up by `npm install`) refuses commits containing the artwork API keys; it compares hashes, so the keys are stored nowhere.
 
-### Not built (Parts 1–5)
+### Not built (Parts 1–7)
 - **Scripting gaps**: STscript closures, loops and `/if`; most of Tavern Helper's API beyond the common functions (presets, character editing, audio, imports); full jQuery/lodash; an extension index or signed packages. A deliberately hostile approved script can still freeze the tab (the docs say how to get out). The Tavern Helper layer was tested with card-style scripts written for the tests, not downloaded cards (the build environment can't reach card sites).
 - **Switching a game-less Classic chat to Story or Full RPG** doesn't create a game for it; start a new chat.
 - **DataCat direct fetching** — declined: its API is built around recovering definitions creators hid elsewhere. The bridge covers pages the player opens (public fields only).
 - **Pygmalion, Wyvern and Character Tavern account features**, and **Chub account features** (favorites, follows, timeline) — their member endpoints need browser sessions or couldn't be checked from here.
 - **Chub parameters** beyond the ones Phase 3 verified are sent as documented but unverified; the final page check keeps results right, and the self-test shows what the site honours.
+
+- **Artwork gaps**: no character-creation portrait picker (the six portraits are asset-library pictures to apply by hand); expression sets only for the demo character; the ElectronHub budget was barely used, since nothing generated there could be shipped under its terms.
+- **Windows release on a tag** hasn't been exercised (no version tag pushed); the build, installer, zip and smoke test are green in CI.
+
+### Phase 4 tests
+- **Unit and integration (Vitest): 433 tests, all passing**, including scripting, extensions, the vault, the name shield, features, the Windows server side and the bundled art.
+- **End to end (Playwright): 96 passed, 1 skipped** (the desktop-only floating-panel test on phone) on desktop 1280 dark and phone 360 light, zero console errors. New in Phase 4: scripting, extensions, vault, privacy, features and the art specs.
+- **Windows**: the CI smoke test on `windows-latest` (install → chat → restart → uninstall keeping data → portable).
 
 ## Phase 3 (the remaining gameplay systems)
 
