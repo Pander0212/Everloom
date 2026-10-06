@@ -1,30 +1,60 @@
-/** On a character: which 3D avatar it uses and how it appears on the stage. */
-import type { CharacterGame } from '@everloom/engine';
+/** On a character: how it appears on the stage (3D of some kind, Live2D or pictures), and which avatar. */
+import type { AvatarKind, CharacterGame } from '@everloom/engine';
 import { Wand2 } from 'lucide-react';
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { useFeatureOn } from '@/lib/features';
+import { cx } from '@/lib/format';
 import { toast, toastError } from '@/lib/store';
 import { Button, Field, Select } from '@/ui';
 import { createCodeAvatar, fillRecipe, useAvatars } from './api';
+
+type Choice = 'auto' | 'imported' | 'parts' | 'code' | 'live2d' | 'sprite';
+const CHOICES: Array<{ value: Choice; label: string; line: string }> = [
+  { value: 'auto', label: 'Automatic', line: 'Its 3D avatar if it has one, then Live2D, then pictures; a code-made figure if it has none of these.' },
+  { value: 'imported', label: '3D model', line: 'A model file you imported (GLB, VRM, or FBX/PMX through Blender).' },
+  { value: 'parts', label: 'Parts-made', line: 'Built in the parts maker from hair, clothes and bodies of a part pack.' },
+  { value: 'code', label: 'Code-made', line: 'A simple figure built by Everloom from a few choices; no file, runs on any phone.' },
+  { value: 'live2d', label: 'Live2D', line: 'Its Live2D model, if one is installed for it.' },
+  { value: 'sprite', label: 'Pictures', line: 'Its portrait and expression pictures.' },
+];
 
 export function DisplayFields({ game, setGame, characterId }: { game: CharacterGame; setGame: (p: Partial<CharacterGame>) => void; characterId?: string }) {
   const on = useFeatureOn('avatars3d');
   const avatars = useAvatars(on);
   const navigate = useNavigate();
   const [making, setMaking] = useState(false);
+  const [picked, setPicked] = useState<Choice | null>(null);
   if (!on) return null;
   const ready = (avatars.data ?? []).filter((a) => a.status === 'ready');
   const chosen = ready.find((a) => a.id === game.avatar3d);
-  /** A code-made avatar from this character's description, linked and opened for editing. */
+  const display = game.display ?? 'auto';
+  const kindOf = (k: AvatarKind | undefined): Choice => (k === 'parts' ? 'parts' : k === 'code' ? 'code' : 'imported');
+  const current: Choice = display === 'live2d' ? 'live2d' : display === 'sprite' ? 'sprite' : display === '3d' ? (chosen ? kindOf(chosen.kind) : 'code') : 'auto';
+  const choice = picked ?? current;
+  const kind: AvatarKind | null = choice === 'imported' ? 'imported' : choice === 'parts' ? 'parts' : choice === 'code' ? 'code' : null;
+  const options = kind ? ready.filter((a) => (kind === 'imported' ? a.kind === 'imported' || a.kind === 'realistic' : a.kind === kind)) : [];
+
+  const pick = (c: Choice) => {
+    setPicked(c);
+    if (c === 'auto') setGame({ display: 'auto' });
+    else if (c === 'live2d' || c === 'sprite') setGame({ display: c });
+    else {
+      // Keep the avatar if it's of this kind; otherwise the first one of the kind (code-made: none
+      // means a figure from the description).
+      const keep = chosen && kindOf(chosen.kind) === c ? chosen.id : c === 'code' ? undefined : ready.find((a) => kindOf(a.kind) === c)?.id;
+      setGame({ display: '3d', avatar3d: keep });
+    }
+  };
+
+  /** A code-made avatar from this character's description, linked in the draft. */
   const make = async () => {
     if (!characterId) return;
     setMaking(true);
     try {
       const { recipe, source } = await fillRecipe({ characterId });
       const a = await createCodeAvatar('', recipe);
-      // Linked in the draft; saving the character keeps it.
-      setGame({ avatar3d: a.id });
+      setGame({ avatar3d: a.id, display: '3d' });
       toast({ title: 'Code-made look ready', lines: [source === 'model' ? 'Filled in by the utility model.' : 'Worked out from the description.', 'Save the character to keep it.'], tone: 'success', action: { label: 'Edit the look', run: () => navigate(`/characters/avatars/${a.id}`) } });
     } catch (e) {
       toastError(e);
@@ -32,34 +62,45 @@ export function DisplayFields({ game, setGame, characterId }: { game: CharacterG
       setMaking(false);
     }
   };
+
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
-      <Field label="3D avatar" htmlFor="avatar3d" hint={<Link to="/characters/avatars" className="underline">Import or edit avatars</Link>}>
-        <Select id="avatar3d" value={game.avatar3d ?? ''} onChange={(e) => setGame({ avatar3d: e.target.value || undefined })}>
-          <option value="">None (a code-made figure from the description when there's no picture)</option>
-          {ready.map((a) => (
-            <option key={a.id} value={a.id}>
-              {a.name}
-              {a.kind === 'code' ? ' (code-made)' : ''}
-            </option>
-          ))}
-        </Select>
-      </Field>
-      <Field label="On the stage" htmlFor="display" hint="Automatic uses 3D when there's an avatar, then Live2D, then pictures.">
-        <Select id="display" value={game.display ?? 'auto'} onChange={(e) => setGame({ display: e.target.value as CharacterGame['display'] })}>
-          <option value="auto">Automatic</option>
-          <option value="3d">3D</option>
-          <option value="live2d">Live2D</option>
-          <option value="sprite">Pictures</option>
-        </Select>
-      </Field>
-      {characterId && !chosen ? (
-        <div className="sm:col-span-2">
+    <div className="grid gap-3">
+      <div role="radiogroup" aria-label="On the stage" className="grid gap-2 sm:grid-cols-2" data-testid="display-picker">
+        {CHOICES.map((c) => (
+          <button key={c.value} type="button" role="radio" aria-checked={choice === c.value} onClick={() => pick(c.value)} className={cx('pressable rounded-lg border p-3 text-left', choice === c.value ? 'border-accent bg-accent/10' : 'border-line bg-surface hover:border-line-strong')}>
+            <span className="block text-sm font-medium">{c.label}</span>
+            <span className="mt-0.5 block text-xs text-fg-2">{c.line}</span>
+          </button>
+        ))}
+      </div>
+      {kind ? (
+        <Field label="Avatar" htmlFor="avatar3d" hint={<Link to="/characters/avatars" className="underline">All avatars</Link>}>
+          <Select id="avatar3d" value={game.avatar3d && options.some((a) => a.id === game.avatar3d) ? game.avatar3d : ''} onChange={(e) => setGame({ avatar3d: e.target.value || undefined, display: '3d' })}>
+            <option value="">{kind === 'code' ? 'Made from the description (automatic)' : 'Choose…'}</option>
+            {options.map((a) => (
+              <option key={a.id} value={a.id}>
+                {a.name}
+              </option>
+            ))}
+          </Select>
+        </Field>
+      ) : null}
+      {choice === 'code' && characterId ? (
+        <div>
           <Button variant="secondary" icon={Wand2} loading={making} onClick={make} data-testid="make-code-avatar">
-            Make a code-made look
+            Make a code-made look to edit
           </Button>
-          <p className="mt-1 text-xs text-fg-2">Built from the description (the utility model fills it in when one is set up). No file to download; edit it like any avatar.</p>
         </div>
+      ) : null}
+      {choice === 'parts' && !options.length ? (
+        <Button variant="secondary" onClick={() => navigate('/characters/maker')}>
+          Open the parts maker
+        </Button>
+      ) : null}
+      {choice === 'imported' && !options.length ? (
+        <Button variant="secondary" onClick={() => navigate('/characters/avatars')}>
+          Import a model
+        </Button>
       ) : null}
     </div>
   );
