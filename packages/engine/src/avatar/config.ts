@@ -54,7 +54,7 @@ export const GarmentSchema = z.object({
   hides: z.array(z.enum(BODY_REGIONS as unknown as [string, ...string[]])).max(BODY_REGIONS.length).default([]),
   /** Other garment slots this one hides while worn (a hood or helmet hides the hair). */
   hidesSlots: z.array(z.enum(GARMENT_SLOTS)).max(GARMENT_SLOTS.length).default([]),
-  variants: z.array(z.object({ id, name: label, tint: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().default(null), texture: z.string().max(64).nullable().default(null) })).max(16).default([]),
+  variants: z.array(z.object({ id, name: label, tint: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().default(null), texture: z.string().max(64).nullable().default(null), /** How many times a pattern tile repeats across the garment. */ repeat: z.number().min(0.25).max(32).default(1) })).max(16).default([]),
   variant: id.nullable().default(null),
   /** Bone chains in the garment (a skirt, a cape) swing with physics. */
   springs: z.boolean().default(true),

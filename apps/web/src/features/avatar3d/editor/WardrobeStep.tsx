@@ -6,9 +6,12 @@
 import { BODY_REGIONS, GARMENT_SLOTS, HUMANOID_BONES, type AvatarAccessory, type AvatarConfig, type AvatarOutfit, type AvatarPart, type Garment, type GarmentSlot } from '@everloom/engine';
 import { useQuery } from '@tanstack/react-query';
 import { get } from '@/lib/api';
-import { Plus, Shirt, Trash2, Upload } from 'lucide-react';
+import { Plus, Shirt, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { addOutfitModel, fitGarment, useBlender, type AvatarDetail } from '@/features/avatars/api';
+import { api } from '@/lib/api';
+import { AiMade } from './AiMade';
+import { TextureMaker } from './TextureMaker';
 import { cx } from '@/lib/format';
 import { toastError } from '@/lib/store';
 import { Badge, Button, Checkbox, Field, FileButton, IconButton, Input, SectionTitle, Select, Slider, Switch } from '@/ui';
@@ -38,6 +41,7 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
   const [open, setOpen] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
   const blender = useBlender();
+  const [aiOpen, setAiOpen] = useState(false);
 
   const setPart = (id: string, p: Partial<AvatarPart>) => set({ parts: config.parts.map((x) => (x.id === id ? { ...x, ...p } : x)) });
   const setOutfit = (id: string, p: Partial<AvatarOutfit>) => set({ outfits: config.outfits.map((x) => (x.id === id ? { ...x, ...p } : x)) });
@@ -267,11 +271,18 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
                   className="h-8 w-10 cursor-pointer rounded border border-line bg-transparent"
                   onChange={(e) => {
                     const id = newId('c', g.variants.map((v) => v.id));
-                    setGarment(g.id, { variants: [...g.variants, { id, name: e.target.value, tint: e.target.value, texture: null }].slice(0, 16), variant: id });
+                    setGarment(g.id, { variants: [...g.variants, { id, name: e.target.value, tint: e.target.value, texture: null, repeat: 1 }].slice(0, 16), variant: id });
                   }}
                 />
               </div>
             </Field>
+            <TextureMaker
+              onMade={(tex, name) => {
+                const id = newId('t', g.variants.map((v) => v.id));
+                setGarment(g.id, { variants: [...g.variants, { id, name, tint: null, texture: tex, repeat: 4 }].slice(0, 16), variant: id });
+              }}
+              base={g.variants.find((v) => v.id === g.variant)?.texture ?? null}
+            />
             <label className="flex items-center justify-between gap-3 text-sm">
               <span>Swinging parts (skirt, cape) move with physics</span>
               <Switch checked={g.springs} onChange={(v) => setGarment(g.id, { springs: v })} label="Garment physics" />
@@ -398,6 +409,27 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
       }}>
         Add an accessory (GLB)
       </FileButton>
+      <Button size="sm" variant="ghost" icon={Sparkles} onClick={() => setAiOpen(true)} data-testid="ai-open">
+        Make with AI
+      </Button>
+      <AiMade
+        open={aiOpen}
+        onOpenChange={setAiOpen}
+        onAccept={async (m) => {
+          if (m.kind === 'prop') {
+            const id = newId('acc', config.accessories.map((a) => a.id));
+            set({ accessories: [...config.accessories, { id, name: m.name, model: m.model, bone: 'rightHand', position: [0, 0, 0], rotation: [0, 0, 0], scale: 0.3, on: true, items: [] }] });
+            setOpen(id);
+            return;
+          }
+          if (!blender.data?.found) throw new Error('Fitting a garment needs Blender (Settings › 3D characters).');
+          const slot = guessSlot(m.name);
+          const r = await api<{ model: string; modelLow: string; hides: string[] }>(`/api/avatars/${avatar.id}/fit-garment`, { method: 'POST', query: { filename: 'made.glb', slot, media: m.model } });
+          const id = newId('g', config.garments.map((x) => x.id));
+          set({ garments: [...config.garments, { id, name: m.name, model: r.model, modelLow: r.modelLow, slot, layer: slot === 'outer' ? 3 : 1, hides: r.hides as Garment['hides'], hidesSlots: [], variants: [], variant: null, springs: true, family: config.family, on: true, items: [] }] });
+          setOpen(id);
+        }}
+      />
     </div>
   );
 }

@@ -10,6 +10,11 @@ import { shieldStream } from '../privacy/shield.js';
 export type LlmProvider = 'openai' | 'anthropic' | 'gemini' | 'textgen';
 
 export interface ConnectionParams {
+  /** Image connections: text put before and after every prompt (a model's prompt style). */
+  prompt_prefix?: string;
+  prompt_suffix?: string;
+  /** Image connections: an editing model (takes a picture and changes it). */
+  edit?: boolean;
   temperature?: number;
   top_p?: number;
   top_k?: number;

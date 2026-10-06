@@ -24,7 +24,7 @@ export function garmentOf(pack: LoadedPack, group: string, part: PackPart, slot:
       const s = /^hides-(\w+)$/.exec(t)?.[1];
       return s && (GARMENT_SLOTS as readonly string[]).includes(s) ? [s as GarmentSlot] : [];
     }),
-    variants: color ? [{ id: 'chosen', name: 'Chosen colour', tint: color, texture: null }] : [],
+    variants: color ? [{ id: 'chosen', name: 'Chosen colour', tint: color, texture: null, repeat: 1 }] : [],
     variant: color ? 'chosen' : null,
     springs: true,
     family: `pack:${pack.id}`,

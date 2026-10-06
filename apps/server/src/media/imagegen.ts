@@ -13,6 +13,8 @@ export interface ImageRequest {
   height?: number;
   seed?: number;
   signal?: AbortSignal;
+  /** A picture to edit (editing models only). */
+  image?: Buffer;
 }
 
 const MAX_BYTES = 25 * 1024 * 1024;
@@ -58,13 +60,29 @@ async function fail(res: Response, what: string): Promise<never> {
 }
 
 /** Returns raw image bytes (validated later by saveImage). */
-export async function generateImage(conn: ResolvedConnection, req: ImageRequest): Promise<Buffer> {
+export async function generateImage(conn: ResolvedConnection, reqIn: ImageRequest): Promise<Buffer> {
+  // A connection can carry a prompt style for its model (the NanoGPT presets do): text before and after.
+  const pre = String(conn.params.prompt_prefix ?? '').trim();
+  const post = String(conn.params.prompt_suffix ?? '').trim();
+  const req = pre || post ? { ...reqIn, prompt: [pre, reqIn.prompt, post].filter(Boolean).join(' ') } : reqIn;
   const b = base(conn);
   const { w, h } = size(conn, req);
   const negative = [req.negative, conn.params.negative_prompt].filter(Boolean).join(', ');
   const seed = req.seed ?? Math.floor(Math.random() * 2 ** 31);
   switch (conn.provider) {
     case 'img-openai': {
+      if (conn.params.edit) {
+        // Editing models (NanoGPT's Step Image Edit 2): the picture goes to the edits endpoint as a data URL.
+        if (!req.image) throw new HttpError(400, 'This image model edits pictures: give it one to change', 'needs_image');
+        const mime = req.image[0] === 0xff ? 'image/jpeg' : req.image.subarray(8, 12).toString() === 'WEBP' ? 'image/webp' : 'image/png';
+        const res = await safeFetch(`${b}/images/edits`, { shield: 'image', method: 'POST', headers: openaiHeaders(conn), body: JSON.stringify({ model: conn.model, prompt: req.prompt.slice(0, 512), imageDataUrl: `data:${mime};base64,${req.image.toString('base64')}`, n: 1 }), timeoutMs: 180_000, signal: req.signal });
+        if (!res.ok) await fail(res, 'Image edit');
+        const j = await readJson(res, 60 * 1024 * 1024);
+        const d = j.data?.[0];
+        if (d?.b64_json) return Buffer.from(d.b64_json, 'base64');
+        if (d?.url) return fetchImage(d.url, req.signal);
+        throw new HttpError(502, 'The image service returned no image', 'upstream');
+      }
       const body: Record<string, unknown> = { model: conn.model || 'dall-e-3', prompt: req.prompt.slice(0, 4000), n: 1, size: `${w}x${h}`, ...(conn.params.extra_body ?? {}) };
       // gpt-image-* always returns base64 and rejects response_format.
       if (!/^gpt-image/.test(String(body.model))) body.response_format = 'b64_json';

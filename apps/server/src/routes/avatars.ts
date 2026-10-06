@@ -8,7 +8,10 @@ import { blenderJobs, findBlender, runBlenderJob, setBlenderPath } from '../serv
 import { addOutfitModel, cleanupAvatar, fitGarment, renderTurntable, avatarDetail, garmentLibrary, createAvatar, deleteAvatar, getAvatarRow, listAvatars, reprocessAvatar, setAvatarThumbnail, updateAvatar } from '../services/avatars/service.js';
 import { createCodeAvatar, createPartsAvatar, fillRecipe, garmentForItem } from '../services/avatars/recipes.js';
 import { deletePack, importPack, listPacks, setPackEnabled } from '../services/avatars/packs.js';
+import { discardModel3dJob, getModel3dJob, startModel3dJob } from '../services/avatars/model3d.js';
+import { generateTexture } from '../services/avatars/textures.js';
 import { getCharacter } from '../services/characters.js';
+import { readMedia } from '../services/media.js';
 import { parse } from '../util/validate.js';
 
 const MOTION_TYPES: Record<string, string> = { fbx: 'fbx', bvh: 'bvh', vmd: 'vmd', glb: 'glb', gltf: 'glb', vrma: 'glb' };
@@ -56,6 +59,23 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     const out = [];
     for (const it of b.items) out.push({ name: it.name, ...(await garmentForItem(ctx, owner(req), it)) });
     return out;
+  });
+
+  // ---- AI-made props and garments (image-to-3D connection) --------------------------------------
+  /** JSON {prompt, kind} or a picture as the body with ?prompt=&kind= (a picture is better). */
+  app.post('/api/avatars/generate', { bodyLimit: 20 * 1024 * 1024 }, async (req) => {
+    const raw = Buffer.isBuffer(req.body) ? (req.body as Buffer) : null;
+    const b = parse(z.object({ prompt: z.string().trim().min(2).max(600), kind: z.enum(['prop', 'garment']).default('prop') }), raw ? (req.query ?? {}) : (req.body ?? {}));
+    return startModel3dJob(ctx, owner(req), { ...b, image: raw ?? undefined });
+  });
+  app.get('/api/avatars/generate/:job', async (req) => getModel3dJob(owner(req), (req.params as { job: string }).job));
+  /** Discard what a job made. */
+  app.delete('/api/avatars/generate/:job', async (req) => discardModel3dJob(ctx, owner(req), (req.params as { job: string }).job));
+
+  /** A seamless garment texture from the image connection (or a variant of one with an editing model). */
+  app.post('/api/avatars/texture', async (req) => {
+    const b = parse(z.object({ prompt: z.string().trim().min(2).max(400), base: z.string().regex(/^[\w-]{1,64}$/).nullable().optional() }), req.body ?? {});
+    return generateTexture(ctx, owner(req), b);
   });
 
   // ---- Part packs (the parts maker) -------------------------------------------------------------
@@ -112,9 +132,15 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
 
   /** A garment mesh fitted to this avatar's body by the Blender worker (experimental). */
   app.post('/api/avatars/:id/fit-garment', { bodyLimit: 100 * 1024 * 1024 }, async (req) => {
-    const body = req.body as Buffer;
+    const q = parse(z.object({ filename: z.string().min(3).max(200), slot: z.enum(GARMENT_SLOTS), offset: z.coerce.number().min(0).max(0.05).optional(), media: z.string().regex(/^[\w-]{1,64}$/).optional() }), req.query ?? {});
+    // The garment: the request body, or a model file already here (one an AI job made).
+    let body = req.body as Buffer;
+    if (q.media) {
+      const m = readMedia(ctx, owner(req), q.media);
+      if (!m.row.kind.startsWith('model')) throw new HttpError(400, 'Not a model file');
+      body = m.bytes;
+    }
     if (!Buffer.isBuffer(body)) throw new HttpError(400, 'Send the garment file as the request body');
-    const q = parse(z.object({ filename: z.string().min(3).max(200), slot: z.enum(GARMENT_SLOTS), offset: z.coerce.number().min(0).max(0.05).optional() }), req.query ?? {});
     return fitGarment(ctx, owner(req), (req.params as { id: string }).id, body, q);
   });
 

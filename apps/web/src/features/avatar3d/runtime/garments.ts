@@ -103,6 +103,10 @@ export class Garments {
       void new THREE.TextureLoader().loadAsync(`/media/${v.texture}`).then((tex) => {
         tex.colorSpace = THREE.SRGBColorSpace;
         tex.flipY = false;
+        if (v.repeat && v.repeat !== 1) {
+          tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+          tex.repeat.set(v.repeat, v.repeat);
+        }
         root.traverse((o) => {
           const m = (o as THREE.Mesh).material;
           if (!m) return;

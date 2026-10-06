@@ -13,9 +13,11 @@ export interface ProviderPreset {
   provider: ProviderId;
   baseUrl: string;
   needsKey: boolean;
-  group: 'llm' | 'tts' | 'image';
+  group: 'llm' | 'tts' | 'image' | 'model3d';
   hint?: string;
   params?: Record<string, unknown>;
+  /** The model the preset is for (NanoGPT image models). */
+  model?: string;
 }
 
 export const PRESETS: ProviderPreset[] = [
@@ -39,8 +41,17 @@ export const PRESETS: ProviderPreset[] = [
   { key: 'tts-elevenlabs', label: 'ElevenLabs', provider: 'tts-elevenlabs', baseUrl: 'https://api.elevenlabs.io', needsKey: true, group: 'tts' },
   { key: 'img-openai', label: 'OpenAI-compatible images', provider: 'img-openai', baseUrl: 'https://api.openai.com/v1', needsKey: true, group: 'image', params: { image_size: '1024x1024' } },
   { key: 'img-openrouter', label: 'OpenRouter image models', provider: 'img-openrouter', baseUrl: 'https://openrouter.ai/api/v1', needsKey: true, group: 'image' },
+  // NanoGPT image models, with the prompt style each one wants (docs/art/PROMPTING.md).
+  { key: 'img-nano-hidream', label: 'NanoGPT · HiDream I1', provider: 'img-openai', baseUrl: 'https://nano-gpt.com/api/v1', needsKey: true, group: 'image', model: 'hidream', hint: 'Strong composition and anime; full sentences, medium first.', params: { image_size: '1024x1024', prompt_prefix: 'Illustration:', prompt_suffix: 'Clean plain background, no text or lettering anywhere, no signature.' } },
+  { key: 'img-nano-chroma', label: 'NanoGPT · Chroma', provider: 'img-openai', baseUrl: 'https://nano-gpt.com/api/v1', needsKey: true, group: 'image', model: 'chroma', hint: 'Painterly scenes; describe style and lighting.', params: { image_size: '1024x1024', prompt_suffix: 'No text, no watermark.' } },
+  { key: 'img-nano-zimage', label: 'NanoGPT · Z Image Turbo', provider: 'img-openai', baseUrl: 'https://nano-gpt.com/api/v1', needsKey: true, group: 'image', model: 'z-image-turbo', hint: 'Fast and sharp; leans photographic, so the style is named twice.', params: { image_size: '1024x1024', prompt_prefix: 'Anime cel-shaded illustration, flat colors, clean line art:', prompt_suffix: 'Flat colors, clean line art, sharp focus, no writing or symbols.' } },
+  { key: 'img-nano-qwen', label: 'NanoGPT · Qwen Image', provider: 'img-openai', baseUrl: 'https://nano-gpt.com/api/v1', needsKey: true, group: 'image', model: 'qwen-image', hint: 'Best at layouts, grids and tiles; say exactly what goes where.', params: { image_size: '1024x1024', prompt_suffix: 'No text, no labels, no numbers.' } },
+  { key: 'img-nano-step', label: 'NanoGPT · Step Image Edit 2 (edits)', provider: 'img-openai', baseUrl: 'https://nano-gpt.com/api/v1', needsKey: true, group: 'image', model: 'step-image-edit-2', hint: 'Edits a picture you give it (variants of a texture); keeps its size.', params: { edit: true } },
   { key: 'img-pollinations', label: 'Pollinations (free)', provider: 'img-pollinations', baseUrl: 'https://image.pollinations.ai', needsKey: false, group: 'image' },
   { key: 'img-comfyui', label: 'ComfyUI', provider: 'img-comfyui', baseUrl: 'http://127.0.0.1:8188', needsKey: false, group: 'image' },
+  { key: '3d-meshy', label: 'Meshy', provider: '3d-meshy', baseUrl: 'https://api.meshy.ai', needsKey: true, group: 'model3d', hint: 'Text or picture to 3D, textured. Paid per model.' },
+  { key: '3d-fal-hunyuan', label: 'fal.ai · Hunyuan3D 2', provider: '3d-fal', baseUrl: 'https://queue.fal.run', needsKey: true, group: 'model3d', model: 'fal-ai/hunyuan3d/v2', hint: 'Picture to 3D (text is drawn first with your image connection).' },
+  { key: '3d-fal-trellis', label: 'fal.ai · TRELLIS', provider: '3d-fal', baseUrl: 'https://queue.fal.run', needsKey: true, group: 'model3d', model: 'fal-ai/trellis', hint: 'Picture to 3D, fast.' },
   { key: 'img-a1111', label: 'AUTOMATIC1111 / Forge', provider: 'img-a1111', baseUrl: 'http://127.0.0.1:7860', needsKey: false, group: 'image' },
 ];
 
@@ -48,7 +59,7 @@ const isLlm = (p: string) => ['openai', 'anthropic', 'gemini', 'textgen'].includ
 
 type Draft = { name: string; provider: ProviderId; baseUrl: string; model: string; apiKey: string | undefined; params: Record<string, any> };
 
-export function ConnectionSheet({ open, onOpenChange, connection, group }: { open: boolean; onOpenChange: (o: boolean) => void; connection: ConnectionDTO | null; group: 'llm' | 'tts' | 'image' }) {
+export function ConnectionSheet({ open, onOpenChange, connection, group }: { open: boolean; onOpenChange: (o: boolean) => void; connection: ConnectionDTO | null; group: 'llm' | 'tts' | 'image' | 'model3d' }) {
   const qc = useQueryClient();
   const [presetKey, setPresetKey] = useState('');
   const [d, setD] = useState<Draft | null>(null);
@@ -64,7 +75,7 @@ export function ConnectionSheet({ open, onOpenChange, connection, group }: { ope
     setSavedId(connection?.id ?? null);
     if (connection) {
       setD({ name: connection.name, provider: connection.provider, baseUrl: connection.baseUrl, model: connection.model, apiKey: undefined, params: { ...connection.params } });
-      setPresetKey(PRESETS.find((p) => p.provider === connection.provider && p.baseUrl === connection.baseUrl)?.key ?? '');
+      setPresetKey(PRESETS.find((p) => p.provider === connection.provider && p.baseUrl === connection.baseUrl && (!p.model || p.model === connection.model))?.key ?? PRESETS.find((p) => p.provider === connection.provider && p.baseUrl === connection.baseUrl)?.key ?? '');
     } else {
       const first = PRESETS.find((p) => p.group === group)!;
       setPresetKey(first.key);
@@ -78,7 +89,7 @@ export function ConnectionSheet({ open, onOpenChange, connection, group }: { ope
   const choosePreset = (key: string) => {
     const p = PRESETS.find((x) => x.key === key)!;
     setPresetKey(key);
-    set({ provider: p.provider, baseUrl: p.baseUrl, name: connection ? d.name : p.label, params: { ...defaults(p), ...(connection ? d.params : {}) } });
+    set({ provider: p.provider, baseUrl: p.baseUrl, name: connection ? d.name : p.label, ...(p.model ? { model: p.model } : {}), params: { ...defaults(p), ...(connection ? d.params : {}) } });
   };
   const persist = async (): Promise<string | null> => {
     const body = { name: d.name.trim() || preset?.label || 'Connection', provider: d.provider, baseUrl: d.baseUrl.trim(), model: d.model.trim(), params: d.params, ...(d.apiKey !== undefined && d.apiKey !== '' ? { apiKey: d.apiKey } : {}) };

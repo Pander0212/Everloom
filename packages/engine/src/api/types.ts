@@ -11,7 +11,8 @@ import type { CampaignState } from '../game/state.js';
 export type ProviderId =
   | 'openai' | 'anthropic' | 'gemini' | 'textgen'
   | 'tts-openai' | 'tts-elevenlabs'
-  | 'img-openai' | 'img-openrouter' | 'img-pollinations' | 'img-comfyui' | 'img-a1111';
+  | 'img-openai' | 'img-openrouter' | 'img-pollinations' | 'img-comfyui' | 'img-a1111'
+  | '3d-meshy' | '3d-fal';
 
 export interface ConnectionDTO {
   id: string;
@@ -243,7 +244,7 @@ export interface Settings {
   };
   /** Stage extras: speech bubbles, and Live2D (off by default; needs the owner's own Cubism Core). */
   stage: { bubbles: boolean; live2d: boolean; /** Scene effects the owner turned off. */ fxOff?: string[] };
-  roles: { main: string | null; utility: string | null; background: string | null; embeddings: string | null; tts: string | null; image: string | null };
+  roles: { main: string | null; utility: string | null; background: string | null; embeddings: string | null; tts: string | null; image: string | null; model3d?: string | null };
   activePresetId: string | null;
   defaultPersonaId: string | null;
   tracker: { mode: 'off' | 'inline' | 'separate'; injectBudget: number; injectState: boolean };

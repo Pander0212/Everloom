@@ -138,7 +138,7 @@ function workerPath(): string | null {
   return workerFile;
 }
 
-function optimizeOffThread(bytes: Buffer, opts: OptimizeOptions): Promise<OptimizeResult> {
+export function optimizeOffThread(bytes: Buffer, opts: OptimizeOptions): Promise<OptimizeResult> {
   const file = workerPath();
   if (!file) return optimizeModel(bytes, opts);
   return new Promise((resolve, reject) => {

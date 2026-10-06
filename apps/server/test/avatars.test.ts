@@ -188,6 +188,52 @@ describe('garments for items on code-made characters', () => {
   });
 });
 
+describe('AI-made props (image-to-3D connection)', () => {
+  it('runs a Meshy job from text (preview, then texturing) and keeps the cleaned-up model until discarded', async () => {
+    const http = await import('node:http');
+    const seen: string[] = [];
+    let polls = 0;
+    const srv = http.createServer((req, res) => {
+      seen.push(`${req.method} ${req.url} ${req.headers.authorization}`);
+      const send = (o: unknown) => (res.setHeader('content-type', 'application/json'), res.end(JSON.stringify(o)));
+      if (req.url === '/m.glb') return res.end(MANNEQUIN);
+      if (req.method === 'POST' && req.url === '/openapi/v2/text-to-3d') {
+        let b = '';
+        req.on('data', (d) => (b += d));
+        return req.on('end', () => send({ result: JSON.parse(b).mode === 'refine' ? 'task-refine' : 'task-preview' }));
+      }
+      if (req.url?.startsWith('/openapi/v2/text-to-3d/')) {
+        polls++;
+        return send(polls % 2 ? { status: 'IN_PROGRESS', progress: 50 } : { status: 'SUCCEEDED', progress: 100, model_urls: { glb: `http://127.0.0.1:${(srv.address() as any).port}/m.glb` } });
+      }
+      res.statusCode = 404;
+      res.end();
+    });
+    await new Promise<void>((r) => srv.listen(0, '127.0.0.1', r));
+    try {
+      c = await createClient();
+      expect((await c.req('POST', '/api/avatars/generate', { prompt: 'a brass lantern' })).json.error).toMatch(/3D model connection/);
+      const conn = (await c.req('POST', '/api/connections', { name: 'Meshy', provider: '3d-meshy', baseUrl: `http://127.0.0.1:${(srv.address() as any).port}`, apiKey: 'msy-test' })).json;
+      await c.req('PATCH', '/api/settings', { roles: { model3d: conn.id } });
+      const job = (await c.req('POST', '/api/avatars/generate', { prompt: 'a brass lantern', kind: 'prop' })).json;
+      expect(job.state).toBe('running');
+      let j = job;
+      await waitFor(async () => {
+        j = (await c!.req('GET', `/api/avatars/generate/${job.id}`)).json;
+        return j.state !== 'running';
+      }, 60_000);
+      expect(j).toMatchObject({ state: 'done', progress: 100 });
+      expect(j.model).toMatch(/^m_/);
+      expect(seen.filter((x) => x.startsWith('POST'))).toEqual([expect.stringContaining('Bearer msy-test'), expect.stringContaining('Bearer msy-test')]);
+      expect((await c.req('GET', `/media/${j.model}`)).status).toBe(200);
+      await c.req('DELETE', `/api/avatars/generate/${job.id}`);
+      expect((await c.req('GET', `/media/${j.model}`)).status).toBe(404);
+    } finally {
+      srv.close();
+    }
+  }, 90_000);
+});
+
 describe('part packs and parts-made avatars', () => {
   const BASICS = path.resolve(__dirname, '../../web/public/avatar/packs/basics');
   /** A small pack zip in the CharacterStudio layout, from two of the built-in parts. */

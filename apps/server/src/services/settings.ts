@@ -10,7 +10,7 @@ export const DEFAULT_SETTINGS: Settings = {
   genreTheme: true,
   audio: { music: false, ambient: false, musicVolume: 0.5, ambientVolume: 0.35, crossfadeMs: 2500, playlists: [], ambientFiles: {} },
   stage: { bubbles: false, live2d: false },
-  roles: { main: null, utility: null, background: null, embeddings: null, tts: null, image: null },
+  roles: { main: null, utility: null, background: null, embeddings: null, tts: null, image: null, model3d: null },
   activePresetId: null,
   defaultPersonaId: null,
   tracker: { mode: 'separate', injectBudget: 600, injectState: true },

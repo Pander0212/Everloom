@@ -1,5 +1,5 @@
 import type { ConnectionDTO } from '@everloom/engine';
-import { AudioLines, Bot, Image, Plus } from 'lucide-react';
+import { AudioLines, Bot, Box, Image, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { useConnections } from '@/lib/queries';
 import { Badge, Button, Field, Icon, ListRow, Select } from '@/ui';
@@ -10,22 +10,23 @@ const GROUPS = [
   { id: 'llm' as const, title: 'Language models', icon: Bot, match: (p: string) => ['openai', 'anthropic', 'gemini', 'textgen'].includes(p) },
   { id: 'tts' as const, title: 'Voice', icon: AudioLines, match: (p: string) => p.startsWith('tts-') },
   { id: 'image' as const, title: 'Images', icon: Image, match: (p: string) => p.startsWith('img-') },
+  { id: 'model3d' as const, title: '3D models', icon: Box, match: (p: string) => p.startsWith('3d-') },
 ];
 
 export default function ConnectionsSection() {
   const conns = useConnections();
   const { settings, update } = useSettingsPatch();
-  const [edit, setEdit] = useState<{ c: ConnectionDTO | null; group: 'llm' | 'tts' | 'image' } | null>(null);
+  const [edit, setEdit] = useState<{ c: ConnectionDTO | null; group: 'llm' | 'tts' | 'image' | 'model3d' } | null>(null);
   const list = conns.data ?? [];
   const llms = list.filter((c) => GROUPS[0].match(c.provider));
   const label = (c: ConnectionDTO) => PRESETS.find((p) => p.provider === c.provider && p.baseUrl === c.baseUrl)?.label ?? c.provider;
   const roleBadge = (c: ConnectionDTO) => {
     const r = settings?.roles;
     if (!r) return null;
-    const roles = [r.main === c.id && 'Main', r.utility === c.id && 'Utility', r.tts === c.id && 'Voice', r.image === c.id && 'Images', r.embeddings === c.id && 'Embeddings'].filter(Boolean) as string[];
+    const roles = [r.main === c.id && 'Main', r.utility === c.id && 'Utility', r.tts === c.id && 'Voice', r.image === c.id && 'Images', r.model3d === c.id && '3D', r.embeddings === c.id && 'Embeddings'].filter(Boolean) as string[];
     return roles.length ? <Badge tone="accent">{roles.join(' · ')}</Badge> : null;
   };
-  const roleSelect = (key: 'main' | 'utility' | 'background' | 'embeddings' | 'tts' | 'image', label2: string, options: ConnectionDTO[], hint: string, emptyLabel: string) => (
+  const roleSelect = (key: 'main' | 'utility' | 'background' | 'embeddings' | 'tts' | 'image' | 'model3d', label2: string, options: ConnectionDTO[], hint: string, emptyLabel: string) => (
     <Field label={label2} htmlFor={`role-${key}`} hint={hint}>
       <Select id={`role-${key}`} value={settings?.roles[key] ?? ''} onChange={(e) => update({ roles: { [key]: e.target.value || null } })}>
         <option value="">{emptyLabel}</option>
@@ -59,7 +60,7 @@ export default function ConnectionsSection() {
                 ))}
               </div>
             ) : (
-              <p className="text-sm text-fg-2">{g.id === 'llm' ? 'Add at least one model to start chatting.' : g.id === 'tts' ? 'Optional. Without one, the browser voice is used.' : 'Optional. Pollinations works without a key.'}</p>
+              <p className="text-sm text-fg-2">{g.id === 'llm' ? 'Add at least one model to start chatting.' : g.id === 'tts' ? 'Optional. Without one, the browser voice is used.' : g.id === 'model3d' ? 'Optional. For AI-made props on 3D characters (Meshy, or Hunyuan3D and TRELLIS on fal.ai).' : 'Optional. Pollinations works without a key.'}</p>
             )}
           </Section>
         );
@@ -72,6 +73,7 @@ export default function ConnectionsSection() {
           {roleSelect('embeddings', 'Embeddings', llms.filter((c) => c.provider !== 'anthropic'), 'Semantic memory recall and lorebook retrieval.', 'Same as main model')}
           {roleSelect('tts', 'Voice', list.filter((c) => c.provider.startsWith('tts-')), 'Used when voice provider is set to a connection.', 'None')}
           {roleSelect('image', 'Images', list.filter((c) => c.provider.startsWith('img-')), 'Portraits, sprites, backgrounds.', 'None')}
+          {roleSelect('model3d', '3D models', list.filter((c) => c.provider.startsWith('3d-')), 'Props and accessories for 3D characters, made from a description or a picture.', 'None')}
         </div>
       </Section>
       <ConnectionSheet open={!!edit} onOpenChange={(o) => !o && setEdit(null)} connection={edit?.c ?? null} group={edit?.group ?? 'llm'} />

@@ -19,13 +19,14 @@ import * as presets from '../services/presets.js';
 import { ensureEmbeddings } from '../services/semantic.js';
 import { getSettings, updateSettings } from '../services/settings.js';
 import { testImageConnection } from '../media/imagegen.js';
+import { testModel3dConnection } from '../services/avatars/model3d.js';
 import { listVoices } from '../media/tts.js';
 import { parse } from '../util/validate.js';
 import { reviewItems } from '../services/scripts.js';
 
 const connectionInput = z.object({
   name: z.string().trim().min(1).max(80),
-  provider: z.enum(['openai', 'anthropic', 'gemini', 'textgen', 'tts-openai', 'tts-elevenlabs', 'img-openai', 'img-openrouter', 'img-pollinations', 'img-comfyui', 'img-a1111']),
+  provider: z.enum(['openai', 'anthropic', 'gemini', 'textgen', 'tts-openai', 'tts-elevenlabs', 'img-openai', 'img-openrouter', 'img-pollinations', 'img-comfyui', 'img-a1111', '3d-meshy', '3d-fal']),
   baseUrl: z.string().trim().max(500).optional(),
   model: z.string().trim().max(200).optional(),
   apiKey: z.string().max(2000).nullable().optional(),
@@ -64,6 +65,7 @@ export function registerLibrary(app: FastifyInstance, ctx: AppContext) {
   app.post('/api/connections/:id/test', async (req) => {
     const conn = conns.resolveConnection(ctx, owner(req), (req.params as any).id);
     if (conn.provider.startsWith('img-')) return testImageConnection(conn);
+    if (conn.provider.startsWith('3d-')) return testModel3dConnection(conn);
     if (conn.provider.startsWith('tts-')) {
       try {
         const voices = await listVoices(conn);
