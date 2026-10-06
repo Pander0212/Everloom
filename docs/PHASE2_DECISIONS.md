@@ -836,3 +836,23 @@ family. A parts-made character is stored as its body model plus garments (the ch
 default); the rest of the pack's clothing is in the family's garment library, so equipping an item
 linked to a part swaps it on the stage (and rolls back with swipes). The merged GLB/VRM is made on
 demand for download.
+
+## Realistic characters: MPFB
+
+- **Why MPFB:** the only maintained, scriptable generator of realistic, rigged, clothed humans with
+  freely usable output. MakeHuman's system assets are CC0 and characters made with it are the
+  owner's to use. MPFB itself is GPL-3.0, so it is never bundled: the owner installs it (one button,
+  official download URLs, pinned hashes) and it runs only inside Blender on their server, like any
+  other Blender add-on. Everloom talks to it only through the worker script's job file.
+- **Where it lives:** its own Blender extensions folder under the data folder
+  (`BLENDER_USER_EXTENSIONS` for MPFB jobs only), so the owner's Blender profile and their other
+  add-ons (MMD Tools) are left alone. An MPFB the owner installed themselves also works.
+- **Export fixes found by rendering:** the glTF exporter marks every material with a linked alpha as
+  `BLEND`, which made skin show through clothes and textures look patchy. Skin, eyes and clothes are
+  now opaque and hair cards are `MASK`. Shape keys are baked before the hide-under-clothes masks are
+  applied (Blender can't apply modifiers to meshes with shape keys), which also means no face shapes
+  for now.
+- **Adults only:** the age slider is clamped to 18 years and over on the server.
+- **Tested:** a gated server test (`EVERLOOM_BLENDER` and `EVERLOOM_MPFB_ZIPS`) installs from the
+  real zips, makes a clothed character and imports it with every bone mapped; the installer's
+  checksum refusal and zip-path checks run in every test run.

@@ -59,3 +59,4 @@ export * from './avatar/config.js';
 export * from './avatar/wardrobe.js';
 export * from './avatar/recipe.js';
 export * from './avatar/packs.js';
+export * from './avatar/realistic.js';

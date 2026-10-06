@@ -179,11 +179,14 @@ export function blenderQueueLength() {
 }
 
 export interface BlenderJob {
-  op: 'convert' | 'motion' | 'optimize' | 'fit' | 'render';
+  op: 'convert' | 'motion' | 'optimize' | 'fit' | 'render' | 'mpfb' | 'mpfb_assets';
   /** Input files by name (written into the job folder). */
   files: Record<string, Buffer>;
   input: string;
+  /** The file the job makes ('' for jobs that only answer, such as listing MPFB's assets). */
   output: string;
+  /** Blender extensions folder to use instead of the owner's profile (the MPFB that Everloom installed). */
+  extensions?: string;
   timeoutMs?: number;
   extra?: Record<string, unknown>;
 }
@@ -224,19 +227,25 @@ export async function runBlenderJob(ctx: AppContext, owner: string, job: Blender
         writeFileSync(path.join(dir, name), bytes, { mode: 0o600 });
       }
       writeFileSync(path.join(dir, 'job.json'), JSON.stringify({ op: job.op, input: job.input, output: job.output, ...(job.extra ?? {}) }));
-      const r = await run(info.path!, ['--background', '--factory-startup', '--disable-autoexec', '--python-exit-code', '3', '--python', workerScript(), '--', path.join(dir, 'job.json')], { cwd: dir, timeoutMs: job.timeoutMs ?? 5 * 60_000 });
+      const r = await run(info.path!, ['--background', '--factory-startup', '--disable-autoexec', '--python-exit-code', '3', '--python', workerScript(), '--', path.join(dir, 'job.json')], {
+        cwd: dir,
+        timeoutMs: job.timeoutMs ?? 5 * 60_000,
+        env: job.extensions ? { ...minimalEnv(dir), BLENDER_USER_EXTENSIONS: job.extensions } : undefined,
+      });
       // The log never holds file contents; paths are the job's own temporary folder.
       entry.log = r.out.split(dir).join('<job>').slice(-4000);
       if (r.timedOut) throw new HttpError(504, 'Blender took too long and was stopped', 'blender_timeout');
       const res = existsSync(path.join(dir, 'result.json')) ? (JSON.parse(readFileSync(path.join(dir, 'result.json'), 'utf8')) as Record<string, unknown>) : null;
       if (!res?.ok) {
         const err = String(res?.error ?? 'Blender stopped without a result');
+        if (err.includes('MPFB_MISSING')) throw new HttpError(424, 'Realistic characters need MPFB (the MakeHuman add-on): install it in Settings → 3D characters.', 'mpfb_missing');
         if (err.includes('MMD_TOOLS_MISSING')) throw new HttpError(424, 'PMX, PMD and VMD files need the free MMD Tools add-on in Blender (Edit → Preferences → Get Extensions → "MMD Tools").', 'mmd_tools_missing');
         throw new HttpError(422, `Blender could not convert the file: ${err}`, 'blender_failed');
       }
+      entry.state = 'done';
+      if (!job.output) return { output: Buffer.alloc(0), result: res };
       const out = path.join(dir, job.output);
       if (!existsSync(out)) throw new HttpError(422, 'Blender produced no file', 'blender_failed');
-      entry.state = 'done';
       return { output: readFileSync(out), result: res };
     } catch (e) {
       entry.state = 'failed';

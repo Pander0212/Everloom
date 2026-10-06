@@ -4,7 +4,8 @@ import { useQuery } from '@tanstack/react-query';
 import { lazy, Suspense, useState } from 'react';
 import { del, get } from '@/lib/api';
 import { useNavigate } from 'react-router';
-import { deleteClip, refreshBlender, setBlenderPath, useAvatarClips, useAvatars, useBlender, useBlenderJobs } from '@/features/avatars/api';
+import { deleteClip, refreshBlender, setBlenderPath, useAvatarClips, useAvatars, useBlender, useBlenderJobs, useMpfb } from '@/features/avatars/api';
+import { MpfbSetup } from '@/features/avatars/Realistic';
 import { usePrefs3D, type Quality3D } from '@/features/avatars/prefs';
 import { deletePack, importPack, setPackEnabled, usePacks } from '@/features/avatars/packs';
 import { toastError } from '@/lib/store';
@@ -19,6 +20,7 @@ export default function ThreeDSection() {
   const avatars = useAvatars();
   const blender = useBlender();
   const jobs = useBlenderJobs(!!blender.data?.found);
+  const mpfb = useMpfb(!!blender.data?.found);
   const [path, setPath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const clips = useAvatarClips();
@@ -255,6 +257,12 @@ export default function ThreeDSection() {
           </div>
         ) : null}
       </Section>
+
+      {blender.data?.found ? (
+        <Section title="Realistic characters" description="MPFB (the MakeHuman add-on) makes realistic humans in Blender: Avatars › Make › Realistic.">
+          <MpfbSetup status={mpfb.data} />
+        </Section>
+      ) : null}
     </>
   );
 }

@@ -4,6 +4,7 @@
 # Only reads the input and writes the output in the job's own folder; never touches the network.
 import json
 import os
+import re
 import sys
 import traceback
 
@@ -436,7 +437,112 @@ def op_render(job):
     return {"frames": len(paths)}
 
 
-OPS = {"convert": op_convert, "motion": op_motion, "info": op_info, "optimize": op_optimize, "fit": op_fit, "render": op_render}
+def op_mpfb(job):
+    """
+    A realistic human with MPFB (the MakeHuman add-on, installed by the owner): macro sliders
+    (gender, age, weight, muscle, height, proportions), skin, eyes, brows, lashes, hair and clothes
+    from MakeHuman's CC0 system assets, the game-engine skeleton, exported as GLB.
+    """
+    import addon_utils  # noqa: F811
+
+    clear_scene()
+    mod = next((m.__name__ for m in addon_utils.modules() if m.__name__.endswith(".mpfb")), None)
+    if not mod:
+        raise RuntimeError("MPFB_MISSING")
+    addon_utils.enable(mod, default_set=True)
+    import importlib
+
+    hs = importlib.import_module(mod + ".services.humanservice").HumanService
+    ls = importlib.import_module(mod + ".services.locationservice").LocationService
+    data = ls.get_user_data()
+    def asset(kind, name):
+        if not name:
+            return None
+        if not re.match(r"^[A-Za-z0-9_\-]+$", name):
+            raise RuntimeError("Bad asset name")
+        ext = "mhmat" if kind == "skins" else "mhclo"
+        path = os.path.join(data, kind, name, name + "." + ext)
+        if not os.path.exists(path):
+            raise RuntimeError("Asset not installed: %s/%s" % (kind, name))
+        return path
+    macro = {"gender": 0.5, "age": 0.5, "muscle": 0.5, "weight": 0.5, "proportions": 0.5, "height": 0.5, "cupsize": 0.5, "firmness": 0.5, "race": {"asian": 0.33, "caucasian": 0.33, "african": 0.33}}
+    for k, v in (job.get("macro") or {}).items():
+        if k == "race" and isinstance(v, dict):
+            macro["race"].update({r: float(x) for r, x in v.items() if r in macro["race"]})
+        elif k in macro and k != "race":
+            macro[k] = max(0.0, min(1.0, float(v)))
+    basemesh = hs.create_human(macro_detail_dict=macro, scale=0.1)
+    hs.add_builtin_rig(basemesh, job.get("rig", "game_engine"))
+    if job.get("skin"):
+        hs.set_character_skin(asset("skins", job["skin"]), basemesh, skin_type="GAMEENGINE")
+    for kind, key in (("eyes", "eyes"), ("eyebrows", "eyebrows"), ("eyelashes", "eyelashes"), ("hair", "hair")):
+        p = asset(kind, job.get(key))
+        if p:
+            hs.add_mhclo_asset(p, basemesh, asset_type={"eyes": "Eyes", "eyebrows": "Eyebrows", "eyelashes": "Eyelashes", "hair": "Hair"}[kind], subdiv_levels=0, material_type="GAMEENGINE")
+    for c in job.get("clothes") or []:
+        hs.add_mhclo_asset(asset("clothes", c), basemesh, asset_type="Clothes", subdiv_levels=0, material_type="GAMEENGINE")
+    # The body's shape keys are its sliders: bake the current mix into the mesh first (modifiers
+    # can't be applied to a mesh with shape keys), then apply the masks that remove helper geometry
+    # and the skin under clothes.
+    for o in [o for o in bpy.data.objects if o.type == "MESH"]:
+        if o.data.shape_keys:
+            o.shape_key_add(name="__mix", from_mix=True)
+            for k in list(o.data.shape_keys.key_blocks):
+                if k.name != "__mix":
+                    o.shape_key_remove(k)
+            o.shape_key_remove(o.data.shape_keys.key_blocks["__mix"])
+        for m in list(o.modifiers):
+            if m.type in ("MASK", "SUBSURF"):
+                with bpy.context.temp_override(object=o, active_object=o):
+                    try:
+                        bpy.ops.object.modifier_apply(modifier=m.name)
+                    except RuntimeError:
+                        o.modifiers.remove(m)
+    # glTF alpha: the exporter makes every material with a linked Alpha "BLEND", which sorts badly
+    # (skin shows through clothes). Hair, brows and lashes are cards: cut them out (a ROUND node
+    # before Alpha exports as MASK at 0.5); everything else is opaque.
+    cards = [n for n in (job.get("hair"), job.get("eyebrows"), job.get("eyelashes")) if n]
+    for mat in bpy.data.materials:
+        nt = mat.node_tree
+        if not nt:
+            continue
+        for bsdf in [n for n in nt.nodes if n.type == "BSDF_PRINCIPLED"]:
+            alpha = bsdf.inputs["Alpha"]
+            src = alpha.links[0].from_socket if alpha.links else None
+            for l in list(alpha.links):
+                nt.links.remove(l)
+            if src is not None and any(c in mat.name for c in cards):
+                rnd = nt.nodes.new("ShaderNodeMath")
+                rnd.operation = "ROUND"
+                nt.links.new(src, rnd.inputs[0])
+                nt.links.new(rnd.outputs[0], alpha)
+            else:
+                alpha.default_value = 1.0
+    out = inside(job, job["output"])
+    export_glb(out)
+    meshes = [o for o in bpy.data.objects if o.type == "MESH"]
+    return {"triangles": tris(meshes), "meshes": [o.name for o in meshes], "bones": sum(len(a.data.bones) for a in bpy.data.objects if a.type == "ARMATURE")}
+
+
+def op_mpfb_assets(job):
+    """What MPFB and its asset packs offer here (names only)."""
+    import addon_utils  # noqa: F811
+
+    mod = next((m.__name__ for m in addon_utils.modules() if m.__name__.endswith(".mpfb")), None)
+    if not mod:
+        return {"installed": False}
+    addon_utils.enable(mod, default_set=True)
+    import importlib
+
+    data = importlib.import_module(mod + ".services.locationservice").LocationService.get_user_data()
+    out = {"installed": True}
+    for kind in ("skins", "eyes", "eyebrows", "eyelashes", "hair", "clothes"):
+        d = os.path.join(data, kind)
+        out[kind] = sorted(n for n in os.listdir(d) if os.path.isdir(os.path.join(d, n))) if os.path.isdir(d) else []
+    return out
+
+
+OPS = {"convert": op_convert, "motion": op_motion, "info": op_info, "optimize": op_optimize, "fit": op_fit, "render": op_render, "mpfb": op_mpfb, "mpfb_assets": op_mpfb_assets}
 
 
 def main():

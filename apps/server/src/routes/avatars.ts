@@ -10,6 +10,7 @@ import { createCodeAvatar, createPartsAvatar, fillRecipe, garmentForItem } from 
 import { deletePack, importPack, listPacks, setPackEnabled } from '../services/avatars/packs.js';
 import { discardModel3dJob, getModel3dJob, startModel3dJob } from '../services/avatars/model3d.js';
 import { generateTexture } from '../services/avatars/textures.js';
+import { createRealisticAvatar, installMpfb, mpfbInstalledInfo, mpfbStatus, removeMpfb } from '../services/avatars/mpfb.js';
 import { getCharacter } from '../services/characters.js';
 import { readMedia, saveModelFile } from '../services/media.js';
 import { ownerForToken } from '../services/bridge.js';
@@ -253,5 +254,19 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     const b = parse(z.object({ path: z.string().max(500).nullable() }), req.body ?? {});
     setBlenderPath(ctx, owner(req), b.path);
     return findBlender(ctx, owner(req), { refresh: true });
+  });
+
+  // ---- Realistic characters (MPFB) ------------------------------------------------------------
+
+  app.get('/api/mpfb', async (req) => ({ ...(await mpfbStatus(ctx, owner(req), { refresh: (req.query as { refresh?: string }).refresh === '1' })), copy: mpfbInstalledInfo(ctx) }));
+  /** Downloads MPFB (GPL-3.0) and MakeHuman's CC0 assets from their official sources. */
+  app.post('/api/mpfb/install', async () => installMpfb(ctx));
+  app.delete('/api/mpfb', async () => {
+    removeMpfb(ctx);
+    return { ok: true };
+  });
+  app.post('/api/avatars/realistic', async (req) => {
+    const b = parse(z.object({ name: z.string().max(80).optional(), spec: z.unknown() }), req.body ?? {});
+    return createRealisticAvatar(ctx, owner(req), b);
   });
 }

@@ -8,6 +8,7 @@ import { CANONICAL_EXPRESSIONS } from './expressions.js';
 import { BODY_REGIONS, HUMANOID_BONES } from './skeleton.js';
 import { AvatarRecipeSchema } from './recipe.js';
 import { MakerSelectionSchema } from './packs.js';
+import { RealisticSpecSchema } from './realistic.js';
 
 const id = z.string().regex(/^[a-z0-9_-]{1,40}$/);
 const label = z.string().trim().min(1).max(60);
@@ -126,6 +127,8 @@ export const AvatarConfigSchema = z.object({
   recipe: AvatarRecipeSchema.optional(),
   /** Parts-made avatars: the pack and the parts chosen in the maker (stays editable). */
   maker: MakerSelectionSchema.optional(),
+  /** Realistic (MPFB) avatars: the sliders and assets it was made from (to make it again). */
+  realistic: RealisticSpecSchema.optional(),
 });
 export type AvatarConfig = z.infer<typeof AvatarConfigSchema>;
 export type AvatarPart = z.infer<typeof AvatarPartSchema>;

@@ -1,5 +1,5 @@
 /** 3D avatars API (no three.js here: this module is safe to load with 3D characters off). */
-import type { AvatarConfig, AvatarKind, AvatarRecipe, ExpressionMap, HumanBone, RigBone } from '@everloom/engine';
+import type { AvatarConfig, AvatarKind, AvatarRecipe, ExpressionMap, HumanBone, RealisticSpec, RigBone } from '@everloom/engine';
 import { useQuery } from '@tanstack/react-query';
 import { api, del, get, patch, post, put } from '@/lib/api';
 import { queryClient } from '@/lib/queries';
@@ -207,3 +207,30 @@ export async function cleanupAvatar(id: string, opts: { maxTriangles: number; ma
   return r;
 }
 export const renderTurntable = (id: string) => post<{ url: string; frames: number }>(`/api/avatars/${id}/turntable`, {});
+
+/** Realistic characters (MPFB in Blender): whether it's ready, and what it can make. */
+export interface MpfbStatus {
+  blender: boolean;
+  blenderVersion: string | null;
+  blenderRecent: boolean;
+  managed: boolean;
+  installed: boolean;
+  install: { state: 'idle' | 'running' | 'done' | 'failed'; stage: string; progress: number; error: string | null };
+  assets: Record<'skins' | 'eyes' | 'eyebrows' | 'eyelashes' | 'hair' | 'clothes', string[]> | null;
+  copy: { installedAt: number } | null;
+}
+export const useMpfb = (enabled = true) =>
+  useQuery({ queryKey: ['mpfb'], queryFn: () => get<MpfbStatus>('/api/mpfb'), enabled, staleTime: 5 * 60_000, refetchInterval: (q) => ((q.state.data as MpfbStatus | undefined)?.install.state === 'running' ? 2000 : false) });
+export async function installMpfb() {
+  await post('/api/mpfb/install', {});
+  await queryClient.invalidateQueries({ queryKey: ['mpfb'] });
+}
+export async function removeMpfb() {
+  await del('/api/mpfb');
+  await queryClient.invalidateQueries({ queryKey: ['mpfb'] });
+}
+export async function createRealisticAvatar(name: string, spec: RealisticSpec): Promise<AvatarSummary> {
+  const r = await post<AvatarSummary>('/api/avatars/realistic', { name, spec });
+  refresh();
+  return r;
+}

@@ -295,11 +295,38 @@ What it does (Settings › 3D characters › Blender lists recent jobs with thei
 | Convert | Import | FBX, PMX/PMD, OBJ, DAE to GLB; VMD and stubborn FBX motions |
 | Clean up | Avatar › Optimize | Merges duplicate points, simplifies meshes over a triangle budget (faces with expressions are left alone), shrinks textures, then prepares the model again |
 | Turntable | Avatar › Optimize | Eight views rendered with Cycles on the CPU (no graphics card needed) |
+| Realistic character | Avatars › Make › Realistic | MPFB makes a human from sliders and MakeHuman assets (see below) |
 | Fit a garment | Dressing room › Garments | A garment mesh (GLB, OBJ, FBX, DAE) is placed where its slot sits on the body, the parts inside the skin are wrapped just outside it, the skin weights are copied from the nearest body surface, and the body regions it covers are worked out (to hide skin). **Experimental:** close-fitting things work; loose or layered ones come out rough |
 
 Tested here: an FBX round trip of the mannequin keeps all its bones; a plain tube fitted as a top
 covers the chest, belly and hips and bends with the body; clean-up of the mannequin to 2,000
 triangles; an 8-view turntable in about 6 seconds.
+
+## Realistic characters (MPFB)
+
+Avatars › Make › **Realistic** makes a human with [MPFB](https://static.makehumancommunity.org/mpfb.html),
+the MakeHuman add-on for Blender, on your server. Offered only where Blender runs (4.2 or later).
+
+- **Setup:** the first time, Everloom offers to install MPFB 2.0.17 (GPL-3.0, from
+  extensions.blender.org) and MakeHuman's system assets (CC0: skins, eyes, brows, lashes, hair,
+  clothes; from makehumancommunity.org), about 330 MB. Both downloads are checked against pinned
+  SHA-256 hashes and unzipped as they stream into `<data>/blender/extensions`, which is used as
+  Blender's extensions folder for these jobs only: your own Blender profile isn't touched. If MPFB
+  is already installed in your Blender (with the system assets), that one is used instead. Settings ›
+  3D characters › Realistic characters can reinstall or remove Everloom's copy. Neither is shipped
+  with Everloom.
+- **Choices:** feminine to masculine, age (adults only: the slider starts at 18), weight, muscle,
+  height; skin, hair, eyes, eyebrows, eyelashes and any of the clothes. They're saved on the avatar
+  (`realistic` in its settings).
+- **The job:** MPFB builds the body with the game-engine skeleton (53 bones), puts on the assets, the
+  body's sliders are baked in, helper geometry and the skin under clothes are removed, skin and
+  clothes are opaque and hair, brows and lashes are cut-outs (glTF `MASK`) so nothing sorts wrongly.
+  The GLB (about 34,000 triangles, 20 MB with 2–4K PNG textures) then goes through the normal
+  import: bones mapped automatically, textures to KTX2, a lighter copy for phones (about 4.5 MB and
+  0.9 MB). About half a minute in Blender plus a minute of preparing on a small server.
+- **Limits:** the face doesn't move yet (MPFB's face shape keys come in separate packs, and the
+  masks that remove hidden skin can't be applied to a mesh with shape keys); clothes are part of the
+  model (add more with the wardrobe). Looks best with the PBR look.
 
 ## AI-made props, garments and textures
 
