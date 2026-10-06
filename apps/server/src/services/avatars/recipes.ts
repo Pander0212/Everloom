@@ -3,7 +3,7 @@
  * a character's description; whatever it returns is checked field by field against the schema,
  * and anything unusable keeps the value worked out from the text without a model.
  */
-import { AvatarConfigSchema, AvatarRecipeSchema, AGE_STAGES, BOTTOMS, EXTRAS, HAIR_STYLES, HATS, recipeFromText, SHOES, TOPS, type AvatarRecipe } from '@everloom/engine';
+import { AvatarConfigSchema, AvatarRecipeSchema, AGE_STAGES, BOTTOMS, EXTRAS, garmentFromItem, GarmentRecipeSchema, HAIR_STYLES, HATS, PATTERNS, recipeFromText, SHOES, TOPS, type AvatarRecipe, type GarmentRecipe } from '@everloom/engine';
 import { HttpError, type AppContext } from '../../context.js';
 import { newId } from '../../security/crypto.js';
 import { utilityJson } from '../utility.js';
@@ -65,5 +65,48 @@ export async function fillRecipe(ctx: AppContext, owner: string, input: { name: 
     return { recipe: mergeRecipe(base, j), source: 'model' };
   } catch {
     return { recipe: base, source: 'text' };
+  }
+}
+
+const GARMENT_SYSTEM = `An item in a story is worn by a simple stylised 3D figure. Say what it looks like as ONE garment. Reply with JSON only, one of:
+{"slot":"top","kind":${list(TOPS.filter((t) => t !== 'none'))},"color":"#rrggbb","sleeve":0-1,"looseness":0-1,"collar":true|false,"pattern":${list(PATTERNS)}}
+{"slot":"bottom","kind":${list(BOTTOMS.filter((t) => t !== 'none'))},"color":"#rrggbb","length":0-1,"looseness":0-1,"pattern":${list(PATTERNS)}}
+{"slot":"shoes","kind":${list(SHOES.filter((t) => t !== 'none'))},"color":"#rrggbb"}
+{"slot":"hat","kind":${list(HATS.filter((t) => t !== 'none'))},"color":"#rrggbb"}
+{"slot":"extra","kind":${list(EXTRAS)},"color":"#rrggbb"}
+or {"none":true} if it isn't worn (a weapon, a ring, a potion).`;
+
+export interface ItemInfo {
+  name: string;
+  desc?: string;
+  category?: string;
+  slot?: string | null;
+  tags?: string[];
+}
+
+const keyOf = (name: string) => name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, ' ').trim().slice(0, 120);
+
+/**
+ * The garment an item makes on a code-made character: the rules when they recognise it; otherwise
+ * the utility model, once per item name (saved), validated by the schema. Without a model, the
+ * rules' best guess for the slot.
+ */
+export async function garmentForItem(ctx: AppContext, owner: string, item: ItemInfo): Promise<{ garment: GarmentRecipe | null; source: 'rules' | 'model' | 'slot' }> {
+  const ruled = garmentFromItem(item);
+  if (ruled.sure) return { garment: ruled.garment, source: 'rules' };
+  const key = keyOf(item.name);
+  const row = ctx.db.prepare('SELECT recipe, source FROM item_garments WHERE owner_id = ? AND key = ?').get(owner, key) as { recipe: string | null; source: string } | undefined;
+  if (row) return { garment: row.recipe ? GarmentRecipeSchema.parse(JSON.parse(row.recipe)) : null, source: 'model' };
+  try {
+    const j = await utilityJson<Record<string, unknown>>(ctx, owner, GARMENT_SYSTEM, `Item: ${item.name}\nCategory: ${item.category ?? 'unknown'}\nWorn on: ${item.slot ?? 'unknown'}\n${(item.desc ?? '').slice(0, 1500)}`, 300, '3D garment for an item');
+    const parsed = j && j.none === true ? null : GarmentRecipeSchema.safeParse(j);
+    if (parsed && !parsed.success) throw new Error('invalid');
+    const garment = parsed ? parsed.data : null;
+    ctx.db.prepare('INSERT OR REPLACE INTO item_garments (owner_id, key, recipe, source, created_at) VALUES (?, ?, ?, ?, ?)').run(owner, key, garment ? JSON.stringify(garment) : null, 'model', Date.now());
+    return { garment, source: 'model' };
+  } catch {
+    // No model, or an answer that fails the schema: the slot's plain garment (not saved, so a
+    // model set up later still gets asked).
+    return { garment: ruled.garment, source: 'slot' };
   }
 }

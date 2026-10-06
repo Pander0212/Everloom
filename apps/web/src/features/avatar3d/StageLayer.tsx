@@ -4,14 +4,14 @@
  * the weather and the kind of place. A character whose model can't load is reported so the stage
  * shows its picture instead.
  */
-import { AvatarConfigSchema, resolveWardrobe, type AvatarRecipe, type Emotion } from '@everloom/engine';
-import { useQueries } from '@tanstack/react-query';
+import { AvatarConfigSchema, resolveWardrobe, wearGarments, type AvatarRecipe, type Emotion, type GarmentRecipe } from '@everloom/engine';
+import { useQueries, useQuery } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { avatarKeys, type AvatarDetail } from '@/features/avatars/api';
 import { usePrefs3D, wantsLowDetail } from '@/features/avatars/prefs';
 import { speechVisemes } from '@/features/story/tts';
 import { danceRate, musicBeat, onMusicBeat } from '@/lib/tempo';
-import { get } from '@/lib/api';
+import { get, post } from '@/lib/api';
 import { lookFor } from './Preview3D';
 import { lightingFor } from './runtime/lighting';
 import { loadModel, type LoadedModel } from './runtime/loader';
@@ -34,6 +34,8 @@ export interface CastMember {
   /** The outfit the story put them in, and the names of what they have equipped. */
   outfit?: string | null;
   equipped?: string[];
+  /** Equipped items in full (code-made characters wear them as generated garments). */
+  wearing?: Array<{ name: string; desc?: string; category?: string; slot?: string | null; tags?: string[] }>;
 }
 
 export interface StageLayerProps {
@@ -96,10 +98,26 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
   // Load, reload (settings changed) and remove characters.
   // What each character wears decides which model file loads (a whole-outfit model) and its parts.
   const detailOf = (c: CastMember) => (c.avatarId ? byId.get(c.avatarId) : undefined);
+
+  // Code-made characters wear their equipped items as garments (looked up once per item name).
+  const codeItems = [...new Map(cast.filter((c) => !c.avatarId || byId.get(c.avatarId)?.kind === 'code').flatMap((c) => c.wearing ?? []).map((i) => [i.name, i] as const)).values()].sort((a, b) => a.name.localeCompare(b.name));
+  const garmentsQ = useQuery({
+    queryKey: ['avatar-garments', codeItems.map((i) => i.name)],
+    queryFn: () => post<Array<{ name: string; garment: GarmentRecipe | null }>>('/api/avatars/garments', { items: codeItems.slice(0, 12) }),
+    enabled: codeItems.length > 0,
+    staleTime: Infinity,
+  });
+  const garmentOf = new Map((garmentsQ.data ?? []).map((g) => [g.name, g.garment]));
+  /** The recipe a code-made cast member is built from, wearing what they have equipped. */
+  const recipeOf = (c: CastMember, base: AvatarRecipe | null | undefined): AvatarRecipe | null => {
+    if (!base) return null;
+    const worn = (c.wearing ?? []).flatMap((i) => (garmentOf.get(i.name) ? [garmentOf.get(i.name)!] : []));
+    return worn.length ? wearGarments(base, worn) : base;
+  };
   const dressed = new Map(cast.map((c) => [c.id, detailOf(c) ? resolveWardrobe(detailOf(c)!.config, { story: c.outfit, equipped: c.equipped }) : null]));
   const dressedRef = useRef(dressed);
   dressedRef.current = dressed;
-  const castKey = cast.map((c) => `${c.id}:${c.avatarId ?? JSON.stringify(c.recipe)}:${detailOf(c)?.updatedAt ?? ''}:${dressed.get(c.id)?.outfit?.model ?? ''}`).join('|');
+  const castKey = cast.map((c) => `${c.id}:${c.avatarId ?? JSON.stringify(c.recipe)}:${detailOf(c)?.updatedAt ?? ''}:${dressed.get(c.id)?.outfit?.model ?? ''}:${(c.wearing ?? []).map((i) => (garmentOf.has(i.name) ? i.name : '')).join(',')}`).join('|');
   useEffect(() => {
     const s = stage.current;
     if (!s) return;
@@ -109,7 +127,7 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
     for (const c of cast) {
       const d = detailOf(c);
       // Code-made: an avatar of kind "code", or a recipe from the description (no saved avatar).
-      const recipe = d ? (d.kind === 'code' ? d.config.recipe : null) : c.recipe;
+      const recipe = recipeOf(c, d ? (d.kind === 'code' ? d.config.recipe : null) : c.recipe);
       if (!d && !recipe) continue;
       const cfg = d?.config ?? AvatarConfigSchema.parse({ look: 'toon' });
       const w = dressed.get(c.id);

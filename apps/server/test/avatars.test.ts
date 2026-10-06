@@ -10,6 +10,7 @@ import { optimizeModel } from '../src/services/avatars/optimize.js';
 import { avatarSettled, sniffModel } from '../src/services/avatars/service.js';
 import { mergeRecipe } from '../src/services/avatars/recipes.js';
 import { recipeFromText } from '@everloom/engine';
+import { startMockLlm } from '../../../tests/mock-llm/server.js';
 import { createClient, FIXTURES, waitFor, type TestClient } from './helpers.js';
 
 const MANNEQUIN = readFileSync(path.join(FIXTURES, 'avatars/models/mannequin-m.glb'));
@@ -148,6 +149,42 @@ describe('code-made avatars', () => {
     const patched = await c.req('PATCH', `/api/avatars/${made.json.id}`, { config: { ...d.config, recipe: { ...d.config.recipe, hair: { style: 'bun', color: '#ffffff', length: 0.5 } } } });
     expect(patched.json.config.recipe.hair.style).toBe('bun');
     expect((await c.req('DELETE', `/api/avatars/${made.json.id}`)).status).toBe(200);
+  });
+});
+
+describe('garments for items on code-made characters', () => {
+  it('rules first, then the model once per item; answers that fail the schema are rejected', async () => {
+    const mock = await startMockLlm();
+    try {
+      c = await createClient();
+      const items = [{ name: 'Iron Helmet', category: 'armor', slot: 'head' }, { name: 'Moonweave Garb', category: 'clothing', slot: 'body' }, { name: 'Cursed Raiment', category: 'clothing', slot: 'body' }, { name: 'Sword', category: 'weapon', slot: 'weapon' }];
+      // Without a model: rules, or the slot's plain garment.
+      let r = (await c.req('POST', '/api/avatars/garments', { items })).json;
+      expect(r.map((x: any) => x.source)).toEqual(['rules', 'slot', 'slot', 'rules']);
+      expect(r[0].garment).toMatchObject({ slot: 'hat', kind: 'helmet' });
+      expect(r[3].garment).toBeNull();
+      await c.req('POST', '/api/connections', { name: 'Mock', provider: 'openai', baseUrl: mock.url, model: 'mock-story', params: { max_tokens: 300, context_size: 8192 } });
+      r = (await c.req('POST', '/api/avatars/garments', { items })).json;
+      expect(r[1]).toMatchObject({ source: 'model', garment: { slot: 'top', kind: 'robe', pattern: 'dots' } });
+      // "kimono" isn't a kind: rejected, and the slot's plain garment is used instead.
+      expect(r[2]).toMatchObject({ source: 'slot', garment: { slot: 'top', kind: 'shirt' } });
+      // Saved: asked once.
+      const calls = (await c.req('GET', '/api/calls')).json;
+      const before = (Array.isArray(calls) ? calls : calls.calls ?? []).length;
+      await c.req('POST', '/api/avatars/garments', { items: [items[1]] });
+      const after = ((await c.req('GET', '/api/calls')).json);
+      expect((Array.isArray(after) ? after : after.calls ?? []).length).toBe(before);
+
+      // The look: the model's valid fields are kept, the rest come from the text.
+      const look = (await c.req('POST', '/api/avatars/recipe', { name: 'Gran', text: 'A kind old woman.' })).json;
+      expect(look.source).toBe('model');
+      expect(look.recipe.hair).toMatchObject({ style: 'bun', color: '#ffffff' });
+      expect(look.recipe.top.kind).toBe('robe');
+      expect(look.recipe.top.color).toMatch(/^#[0-9a-f]{6}$/i);
+      expect(look.recipe.body.age).toBe('elder');
+    } finally {
+      await mock.close();
+    }
   });
 });
 

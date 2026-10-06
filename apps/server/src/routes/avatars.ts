@@ -6,7 +6,7 @@ import { ClipSchema, EMOTE_CATEGORIES, EMOTE_ID } from '@everloom/engine';
 import { HttpError, owner, type AppContext } from '../context.js';
 import { findBlender, runBlenderJob, setBlenderPath } from '../services/blender.js';
 import { addOutfitModel, avatarDetail, garmentLibrary, createAvatar, deleteAvatar, getAvatarRow, listAvatars, reprocessAvatar, setAvatarThumbnail, updateAvatar } from '../services/avatars/service.js';
-import { createCodeAvatar, fillRecipe } from '../services/avatars/recipes.js';
+import { createCodeAvatar, fillRecipe, garmentForItem } from '../services/avatars/recipes.js';
 import { getCharacter } from '../services/characters.js';
 import { parse } from '../util/validate.js';
 
@@ -40,6 +40,15 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
       text ||= [c.card.description, c.card.personality].filter(Boolean).join('\n\n');
     }
     return fillRecipe(ctx, owner(req), { name: name || 'Someone', text });
+  });
+
+  /** What items look like on code-made characters (rules, else the utility model once per item). */
+  app.post('/api/avatars/garments', async (req) => {
+    const item = z.object({ name: z.string().min(1).max(120), desc: z.string().max(2000).optional(), category: z.string().max(40).optional(), slot: z.string().max(20).nullable().optional(), tags: z.array(z.string().max(40)).max(20).optional() });
+    const b = parse(z.object({ items: z.array(item).max(12) }), req.body ?? {});
+    const out = [];
+    for (const it of b.items) out.push({ name: it.name, ...(await garmentForItem(ctx, owner(req), it)) });
+    return out;
   });
 
   /** Garments that fit a body family, from all the owner's avatars. */

@@ -25,6 +25,25 @@ export interface CodePart extends SkinnedMesh {
   color: string;
   roughness: number;
   metalness: number;
+  pattern: 'plain' | 'stripes' | 'checks' | 'dots';
+  /** Texture coordinates for the pattern (wrapped around the body like a label). */
+  uvs?: Float32Array;
+}
+
+/** Cylindrical coordinates around the body's axis: about one pattern repeat every 3.5 cm. */
+function wrapUvs(positions: Float32Array, H: number): Float32Array {
+  const n = positions.length / 3;
+  const uv = new Float32Array(n * 2);
+  const step = 0.021 * H;
+  for (let v = 0; v < n; v++) {
+    const x = positions[v * 3]!;
+    const y = positions[v * 3 + 1]!;
+    const z = positions[v * 3 + 2]!;
+    // Arms and legs wrap around their own axis roughly: distance along x for arms, angle for the rest.
+    uv[v * 2] = Math.abs(x) > 0.16 * H ? Math.abs(x) / step : ((Math.atan2(x, z) + Math.PI) * 0.09 * H) / step;
+    uv[v * 2 + 1] = y / step;
+  }
+  return uv;
 }
 
 export interface CodeGeometry {
@@ -122,12 +141,13 @@ export function codeGeometry(input: AvatarRecipe | unknown, opts: BuildOptions =
   // Body, minus the skin that clothes cover.
   const covers = outfit.parts.filter((p) => p.covers).map((p) => p.field);
   const body = cull(meshField({ shapes: plan.shapes, blend: plan.blend }, 0.009 * H * q), covers, 0.0025 * H);
-  parts.push({ name: 'Body', color: recipe.body.skin, roughness: 0.7, metalness: 0, ...skin(body, plan.shapes, boneIndex, 0.016 * H) });
+  parts.push({ name: 'Body', color: recipe.body.skin, roughness: 0.7, metalness: 0, pattern: 'plain', ...skin(body, plan.shapes, boneIndex, 0.016 * H) });
   for (const p of outfit.parts) {
     const m = meshField(p.field, p.cell * H * q);
     if (!m.indices.length) continue;
     const shapes = p.weights ?? [...p.field.shapes, ...plan.shapes];
-    parts.push({ name: p.name, color: p.color, roughness: p.roughness ?? 0.8, metalness: p.metalness ?? 0, ...skin(m, shapes, boneIndex, (p.sigma ?? 0.016) * H, p.covers ? (p.field.offset ?? 0) : 0) });
+    const pattern = p.pattern ?? 'plain';
+    parts.push({ name: p.name, color: p.color, roughness: p.roughness ?? 0.8, metalness: p.metalness ?? 0, pattern, ...(pattern !== 'plain' ? { uvs: wrapUvs(m.positions, H) } : {}), ...skin(m, shapes, boneIndex, (p.sigma ?? 0.016) * H, p.covers ? (p.field.offset ?? 0) : 0) });
   }
 
   // The face follows the head.
@@ -148,6 +168,7 @@ export function codeGeometry(input: AvatarRecipe | unknown, opts: BuildOptions =
 /** The arrays to transfer (not copy) from a worker. */
 export function transferables(g: CodeGeometry): ArrayBuffer[] {
   const out: ArrayBuffer[] = [];
+  for (const p of g.parts) if (p.uvs) out.push(p.uvs.buffer as ArrayBuffer);
   for (const p of [...g.parts, g.face]) out.push(p.positions.buffer as ArrayBuffer, p.normals.buffer as ArrayBuffer, p.indices.buffer as ArrayBuffer, p.skinIndex.buffer as ArrayBuffer, p.skinWeight.buffer as ArrayBuffer);
   out.push(g.face.uvs.buffer as ArrayBuffer, g.face.palette.buffer as ArrayBuffer, ...Object.values(g.face.morphs).map((m) => m.buffer as ArrayBuffer));
   return [...new Set(out)];

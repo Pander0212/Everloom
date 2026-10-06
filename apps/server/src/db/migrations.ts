@@ -633,4 +633,20 @@ CREATE TABLE avatar_clips (
 CREATE UNIQUE INDEX avatar_clips_emote ON avatar_clips(owner_id, emote);
 `,
   },
+  {
+    version: 10,
+    name: 'code-made garments for items',
+    sql: `
+-- What an item looks like on a code-made character, written once by the utility model for items
+-- the rules don't know (keyed by the item's normalized name).
+CREATE TABLE item_garments (
+  owner_id TEXT NOT NULL,
+  key TEXT NOT NULL,
+  recipe TEXT,
+  source TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, key)
+);
+`,
+  },
 ];

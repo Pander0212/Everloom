@@ -87,6 +87,8 @@ function classify(messages: any[]): string {
   if (/custom CSS snippets for the Everloom app/i.test(sys)) return 'css';
   if (/recommend which roleplay character to play next/i.test(sys)) return 'recommend';
   if (/You write lorebook entries for a roleplay story/i.test(sys)) return 'lore';
+  if (/is worn by a simple stylised 3D figure/i.test(sys)) return 'garment';
+  if (/You describe how a story character looks/i.test(sys)) return 'look';
   if (/character writer helping someone build a roleplay character card/i.test(sys)) return 'studio';
   if (/connection test/i.test(sys)) return 'test';
   if (/helper companion/i.test(sys)) return 'helper';
@@ -211,6 +213,14 @@ function answerFor(kind: string, messages: any[]): string {
       return /they are calling you/.test(all) ? 'Hey! Good to hear from you.' : 'Sure, I can do that. Talk soon.';
     case 'wizard':
       return JSON.stringify({ opening: 'The rain has not stopped for three days when you arrive in Northcrest.', items: [{ name: 'Umbrella', category: 'tool' }], npcs: [{ name: 'Iris Thorne', role: 'Bartender' }], location: { world: 'Aurel', region: 'Greenmarch', local: 'Northcrest', description: 'A rain-soaked market town on the river.', kind: 'town' }, quests: [{ title: 'Dry Ground', desc: 'Find shelter before nightfall.', objectives: ['Find an inn'] }], facts: ['It has rained for three days.'] });
+    case 'garment':
+      // A valid garment for most items; one that fails the schema for "Cursed" ones; not worn for rings.
+      if (/Cursed/.test(all)) return JSON.stringify({ slot: 'top', kind: 'kimono', color: 'blue' });
+      if (/^Item: .*\bring\b/im.test(all)) return JSON.stringify({ none: true });
+      return JSON.stringify({ slot: 'top', kind: 'robe', color: '#3b5ba8', pattern: 'dots', looseness: 0.6 });
+    case 'look':
+      // Half valid: the hair is kept, the bad colour is dropped.
+      return JSON.stringify({ hair: { style: 'bun', color: '#ffffff' }, top: { kind: 'robe', color: 'nope' }, body: { age: 'elder' } });
     default:
       return storyFor(messages);
   }

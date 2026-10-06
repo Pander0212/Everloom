@@ -3,7 +3,7 @@
  * live in the preview. "Fill from a character" asks the utility model for a look that matches a
  * character's description (or works it out from the text when no model is set up).
  */
-import { AGE_STAGES, AvatarRecipeSchema, BOTTOMS, EXTRAS, HAIR_STYLES, HATS, SHOES, TOPS, type AvatarRecipe } from '@everloom/engine';
+import { AGE_STAGES, AvatarRecipeSchema, BOTTOMS, EXTRAS, HAIR_STYLES, HATS, PATTERNS, SHOES, TOPS, type AvatarRecipe } from '@everloom/engine';
 import { ArrowLeft, MoreHorizontal, Trash2, Wand2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
@@ -193,6 +193,19 @@ export default function CodeMadeEditor({ avatar }: { avatar: AvatarDetail }) {
                     <Slider label="Sleeves" min={0.1} max={1} step={0.05} value={recipe.top.sleeve} onChange={(sleeve) => set('top', { sleeve })} />
                   </Field>
                 ) : null}
+                {recipe.top.kind !== 'none' && recipe.top.kind !== 'armor' ? (
+                  <>
+                    <Field label="Top pattern">
+                      <Segmented label="Top pattern" size="sm" options={PATTERNS.map((p) => ({ value: p, label: label(p) }))} value={recipe.top.pattern} onChange={(pattern) => set('top', { pattern })} />
+                    </Field>
+                    <Field label="Fit" hint="Fitted to loose.">
+                      <Slider label="Top fit" min={0} max={1} step={0.05} value={recipe.top.looseness} onChange={(looseness) => set('top', { looseness })} />
+                    </Field>
+                    <div className="sm:col-span-2">
+                      <ToggleRow label="Collar" checked={recipe.top.collar || recipe.top.kind === 'jacket' || recipe.top.kind === 'robe'} disabled={recipe.top.kind === 'jacket' || recipe.top.kind === 'robe'} onChange={(collar) => set('top', { collar })} />
+                    </div>
+                  </>
+                ) : null}
                 <Field label="Bottom" htmlFor="cm-bottom" hint={recipe.top.kind === 'robe' ? 'A robe brings its own long skirt.' : undefined}>
                   <Options id="cm-bottom" value={recipe.bottom.kind} options={BOTTOMS} onChange={(kind) => set('bottom', { kind, length: kind === 'shorts' ? 0.3 : kind === 'none' ? recipe.bottom.length : Math.max(recipe.bottom.length, 0.6) })} />
                 </Field>
@@ -202,6 +215,11 @@ export default function CodeMadeEditor({ avatar }: { avatar: AvatarDetail }) {
                 {recipe.bottom.kind !== 'none' ? (
                   <Field label="Length" className="sm:col-span-2">
                     <Slider label="Length" min={0} max={1} step={0.05} value={recipe.bottom.length} onChange={(length) => set('bottom', { length })} />
+                  </Field>
+                ) : null}
+                {recipe.bottom.kind !== 'none' ? (
+                  <Field label="Bottom pattern" className="sm:col-span-2">
+                    <Segmented label="Bottom pattern" size="sm" options={PATTERNS.map((p) => ({ value: p, label: label(p) }))} value={recipe.bottom.pattern} onChange={(pattern) => set('bottom', { pattern })} />
                   </Field>
                 ) : null}
                 <Field label="Shoes" htmlFor="cm-shoes">

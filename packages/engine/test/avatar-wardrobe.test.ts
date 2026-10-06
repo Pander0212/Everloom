@@ -76,3 +76,30 @@ describe('garments (wardrobe level 3)', () => {
     expect(w.hidden).toContain('forearms');
   });
 });
+
+describe('garments for code-made characters', async () => {
+  const { garmentFromItem, wearGarments, GarmentRecipeSchema, AvatarRecipeSchema } = await import('../src/index.js');
+  it('knows the built-in kinds of worn items', () => {
+    expect(garmentFromItem({ name: 'Iron Helmet', category: 'armor', slot: 'head' })).toMatchObject({ sure: true, garment: { slot: 'hat', kind: 'helmet' } });
+    expect(garmentFromItem({ name: 'Red silk gown' })).toMatchObject({ sure: true, garment: { slot: 'top', kind: 'robe', color: '#a65b5b' } });
+    expect(garmentFromItem({ name: 'Leather boots', slot: 'feet' }).garment).toMatchObject({ slot: 'shoes', kind: 'boots' });
+    expect(garmentFromItem({ name: 'Sword', category: 'weapon', slot: 'weapon' })).toEqual({ garment: null, sure: true });
+    // Worn but unknown: a plain garment for the slot, flagged for the model.
+    expect(garmentFromItem({ name: 'Moonweave Garb', category: 'clothing', slot: 'body' })).toMatchObject({ sure: false, garment: { slot: 'top', kind: 'shirt' } });
+  });
+  it('validates model-written garments and wears them', () => {
+    expect(GarmentRecipeSchema.safeParse({ slot: 'top', kind: 'kimono', color: '#ffffff' }).success).toBe(false);
+    expect(GarmentRecipeSchema.safeParse({ slot: 'hat', kind: 'none', color: '#ffffff' }).success).toBe(false);
+    const base = AvatarRecipeSchema.parse({ extras: [{ kind: 'scarf', color: '#111111' }] });
+    const r = wearGarments(base, [
+      { slot: 'top', kind: 'armor', color: '#8a8f99' },
+      { slot: 'extra', kind: 'cape', color: '#222222' },
+      { slot: 'extra', kind: 'scarf', color: '#333333' },
+      { slot: 'hat', kind: 'helmet', color: '#8a8f99' },
+    ]);
+    expect(r.top).toMatchObject({ kind: 'armor', color: '#8a8f99' });
+    expect(r.hat.kind).toBe('helmet');
+    expect(r.extras).toEqual([{ kind: 'scarf', color: '#333333' }, { kind: 'cape', color: '#222222' }]);
+    expect(base.top.kind).toBe('shirt');
+  });
+});

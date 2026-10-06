@@ -13,8 +13,9 @@ export const HAIR_STYLES = ['none', 'buzz', 'short', 'bob', 'long', 'ponytail', 
 export const TOPS = ['none', 'tshirt', 'shirt', 'tank', 'sweater', 'jacket', 'robe', 'armor'] as const;
 export const BOTTOMS = ['none', 'pants', 'shorts', 'skirt', 'long_skirt'] as const;
 export const SHOES = ['none', 'shoes', 'boots', 'sandals'] as const;
-export const HATS = ['none', 'cap', 'beanie', 'wizard', 'hood', 'crown', 'headband'] as const;
+export const HATS = ['none', 'cap', 'beanie', 'wizard', 'hood', 'crown', 'headband', 'helmet'] as const;
 export const EXTRAS = ['cape', 'scarf', 'belt', 'glasses', 'earrings', 'apron'] as const;
+export const PATTERNS = ['plain', 'stripes', 'checks', 'dots'] as const;
 
 export const AvatarRecipeSchema = z.object({
   v: z.literal(1).default(1),
@@ -42,8 +43,21 @@ export const AvatarRecipeSchema = z.object({
     })
     .default({ eyes: '#5a3d2b', eyeSize: 0.55, brows: null, blush: false }),
   hair: z.object({ style: z.enum(HAIR_STYLES).default('short'), color: hex.default('#3b2a20'), length: unit.default(0.5) }).default({ style: 'short', color: '#3b2a20', length: 0.5 }),
-  top: z.object({ kind: z.enum(TOPS).default('shirt'), color: hex.default('#5b7fa6'), sleeve: unit.default(0.5), accent: hex.nullable().default(null) }).default({ kind: 'shirt', color: '#5b7fa6', sleeve: 0.5, accent: null }),
-  bottom: z.object({ kind: z.enum(BOTTOMS).default('pants'), color: hex.default('#3d3a4a'), length: unit.default(1) }).default({ kind: 'pants', color: '#3d3a4a', length: 1 }),
+  top: z
+    .object({
+      kind: z.enum(TOPS).default('shirt'),
+      color: hex.default('#5b7fa6'),
+      sleeve: unit.default(0.5),
+      accent: hex.nullable().default(null),
+      /** 0 fitted … 1 loose. */
+      looseness: unit.default(0.3),
+      collar: z.boolean().default(false),
+      pattern: z.enum(PATTERNS).default('plain'),
+    })
+    .default({ kind: 'shirt', color: '#5b7fa6', sleeve: 0.5, accent: null, looseness: 0.3, collar: false, pattern: 'plain' }),
+  bottom: z
+    .object({ kind: z.enum(BOTTOMS).default('pants'), color: hex.default('#3d3a4a'), length: unit.default(1), looseness: unit.default(0.3), pattern: z.enum(PATTERNS).default('plain') })
+    .default({ kind: 'pants', color: '#3d3a4a', length: 1, looseness: 0.3, pattern: 'plain' }),
   shoes: z.object({ kind: z.enum(SHOES).default('shoes'), color: hex.default('#3a2a20') }).default({ kind: 'shoes', color: '#3a2a20' }),
   hat: z.object({ kind: z.enum(HATS).default('none'), color: hex.default('#6b3a2a') }).default({ kind: 'none', color: '#6b3a2a' }),
   extras: z.array(z.object({ kind: z.enum(EXTRAS), color: hex.default('#7a2a2a') })).max(6).default([]),
@@ -109,4 +123,96 @@ export function recipeFromText(name: string, text: string, opts: { age?: number 
     hat: { kind: hat, color: cloth(/(hat|hood|cap|beanie)/) ?? '#3a3550' },
     extras,
   });
+}
+
+/**
+ * What an inventory item looks like when worn by a code-made character: one garment for one slot.
+ * Built-in item kinds get one from rules; for anything the story invents, the utility model writes
+ * one (validated by this schema).
+ */
+export const GarmentRecipeSchema = z.discriminatedUnion('slot', [
+  z.object({ slot: z.literal('top'), kind: z.enum(TOPS).exclude(['none']), color: hex, sleeve: unit.optional(), looseness: unit.optional(), collar: z.boolean().optional(), pattern: z.enum(PATTERNS).optional(), accent: hex.optional() }),
+  z.object({ slot: z.literal('bottom'), kind: z.enum(BOTTOMS).exclude(['none']), color: hex, length: unit.optional(), looseness: unit.optional(), pattern: z.enum(PATTERNS).optional() }),
+  z.object({ slot: z.literal('shoes'), kind: z.enum(SHOES).exclude(['none']), color: hex }),
+  z.object({ slot: z.literal('hat'), kind: z.enum(HATS).exclude(['none']), color: hex }),
+  z.object({ slot: z.literal('extra'), kind: z.enum(EXTRAS), color: hex }),
+]);
+export type GarmentRecipe = z.infer<typeof GarmentRecipeSchema>;
+
+const COLOURS: Record<string, string> = { red: '#a65b5b', crimson: '#8a2a2a', scarlet: '#b03a2e', navy: '#2a3a5a', blue: '#5b7fa6', green: '#5ba67a', black: '#25232a', white: '#e8e4dc', gray: '#7a7a80', grey: '#7a7a80', brown: '#6b4a35', leather: '#6b4a35', yellow: '#c9a83a', purple: '#7a5ba6', pink: '#d38aa8', orange: '#c27a3a', gold: '#c9a23a', golden: '#c9a23a', silver: '#b8b8c0', steel: '#8a8f99', iron: '#6f737a', bronze: '#a0703a', wool: '#b8a888', linen: '#d8d0bc', silk: '#d8c8e0', velvet: '#6a2a4a' };
+
+/**
+ * A garment for an item from its name, description, category and slot, without a model. `sure` is
+ * false when nothing in the words named a garment (the caller may then ask the utility model).
+ */
+export function garmentFromItem(item: { name: string; desc?: string; category?: string; slot?: string | null; tags?: string[] }): { garment: GarmentRecipe | null; sure: boolean } {
+  const t = ` ${[item.name, item.desc ?? '', ...(item.tags ?? [])].join(' ').toLowerCase()} `;
+  const has = (re: RegExp) => re.test(t);
+  let color = '';
+  for (const [w, c] of Object.entries(COLOURS)) if (new RegExp(`\\b${w}\\b`).test(t)) {
+    color = c;
+    break;
+  }
+  const metal = has(/\b(plate|mail|steel|iron|bronze|helm|helmet|greaves|gauntlet|cuirass|breastplate)\b/);
+  const c = (fallback: string) => color || (metal ? '#8a8f99' : fallback);
+  const slot = item.slot ?? null;
+  const g = (x: GarmentRecipe) => ({ garment: GarmentRecipeSchema.parse(x), sure: true });
+  // Head.
+  if (has(/\b(helm|helmet|coif)\b/)) return g({ slot: 'hat', kind: 'helmet', color: c('#8a8f99') });
+  if (has(/\b(hood|cowl)\b/)) return g({ slot: 'hat', kind: 'hood', color: c('#4a4a52') });
+  if (has(/\b(crown|tiara|diadem)\b/)) return g({ slot: 'hat', kind: 'crown', color: c('#c9a23a') });
+  if (has(/\b(witch|wizard|pointed) hat\b/)) return g({ slot: 'hat', kind: 'wizard', color: c('#3a3550') });
+  if (has(/\b(beanie|wool hat|knit cap|toque)\b/)) return g({ slot: 'hat', kind: 'beanie', color: c('#6b3a2a') });
+  if (has(/\b(cap|hat)\b/)) return g({ slot: 'hat', kind: 'cap', color: c('#3a3550') });
+  if (has(/\b(headband|circlet|bandana)\b/)) return g({ slot: 'hat', kind: 'headband', color: c('#a65b5b') });
+  // Back and extras.
+  if (has(/\b(cape|cloak|mantle)\b/)) return g({ slot: 'extra', kind: 'cape', color: c('#6b2a2a') });
+  if (has(/\b(scarf|shawl)\b/)) return g({ slot: 'extra', kind: 'scarf', color: c('#a65b5b') });
+  if (has(/\b(glasses|spectacles|goggles)\b/)) return g({ slot: 'extra', kind: 'glasses', color: c('#2a2a2a') });
+  if (has(/\b(earrings?)\b/)) return g({ slot: 'extra', kind: 'earrings', color: c('#c9a23a') });
+  if (has(/\b(belt|sash)\b/)) return g({ slot: 'extra', kind: 'belt', color: c('#3a2a20') });
+  if (has(/\b(apron)\b/)) return g({ slot: 'extra', kind: 'apron', color: c('#e8e4dc') });
+  // Feet.
+  if (has(/\b(boots|greaves|sabatons)\b/)) return g({ slot: 'shoes', kind: 'boots', color: c('#3a2a20') });
+  if (has(/\b(sandals)\b/)) return g({ slot: 'shoes', kind: 'sandals', color: c('#6b4a35') });
+  if (has(/\b(shoes|slippers|loafers|sneakers)\b/)) return g({ slot: 'shoes', kind: 'shoes', color: c('#3a2a20') });
+  // Legs.
+  if (has(/\b(gown|dress|frock)\b/)) return g({ slot: 'top', kind: 'robe', color: c('#7a5ba6') });
+  if (has(/\b(long skirt)\b/)) return g({ slot: 'bottom', kind: 'long_skirt', color: c('#7a5ba6'), length: 1 });
+  if (has(/\b(skirt|kilt)\b/)) return g({ slot: 'bottom', kind: 'skirt', color: c('#3d3a4a'), length: 0.6 });
+  if (has(/\b(shorts)\b/)) return g({ slot: 'bottom', kind: 'shorts', color: c('#3d3a4a'), length: 0.3 });
+  if (has(/\b(trousers|pants|breeches|leggings|jeans|chausses)\b/)) return g({ slot: 'bottom', kind: 'pants', color: c('#3d3a4a'), length: 1 });
+  // Body.
+  if (has(/\b(armou?r|plate|mail|cuirass|breastplate|brigandine)\b/) || (item.category === 'armor' && slot === 'body')) return g({ slot: 'top', kind: 'armor', color: c('#8a8f99'), sleeve: 0.4 });
+  if (has(/\b(robe|vestment|cassock)\b/)) return g({ slot: 'top', kind: 'robe', color: c('#7a5ba6') });
+  if (has(/\b(jacket|coat|doublet|jerkin|blazer|parka)\b/)) return g({ slot: 'top', kind: 'jacket', color: c('#6b4a35'), collar: true });
+  if (has(/\b(sweater|jumper|pullover|hoodie|cardigan)\b/)) return g({ slot: 'top', kind: 'sweater', color: c('#a6935b'), looseness: 0.5 });
+  if (has(/\b(t-shirt|tee)\b/)) return g({ slot: 'top', kind: 'tshirt', color: c('#d8d2c4') });
+  if (has(/\b(tank top|vest|camisole)\b/)) return g({ slot: 'top', kind: 'tank', color: c('#d8d2c4') });
+  if (has(/\b(shirt|tunic|blouse|top)\b/)) return g({ slot: 'top', kind: 'shirt', color: c('#d8d2c4'), sleeve: 0.8 });
+  // Only the slot says it's worn: a plain garment there, but not a sure one.
+  const bySlot: Record<string, GarmentRecipe> = { head: { slot: 'hat', kind: item.category === 'armor' ? 'helmet' : 'cap', color: c('#3a3550') }, body: { slot: 'top', kind: item.category === 'armor' ? 'armor' : 'shirt', color: c('#d8d2c4') }, legs: { slot: 'bottom', kind: 'pants', color: c('#3d3a4a') }, feet: { slot: 'shoes', kind: 'shoes', color: c('#3a2a20') }, back: { slot: 'extra', kind: 'cape', color: c('#6b2a2a') } };
+  const worn = item.category === 'clothing' || item.category === 'armor' || (slot && slot in bySlot);
+  if (worn && slot && bySlot[slot]) return { garment: GarmentRecipeSchema.parse(bySlot[slot]), sure: false };
+  return { garment: null, sure: !worn };
+}
+
+/** A recipe wearing these garments (later ones win in the same slot; extras add up). */
+export function wearGarments(r: AvatarRecipe, garments: GarmentRecipe[]): AvatarRecipe {
+  const out: AvatarRecipe = structuredClone(r);
+  for (const g of garments) {
+    if (g.slot === 'top') out.top = { ...out.top, sleeve: g.kind === 'tshirt' ? 0.3 : 0.9, looseness: 0.3, collar: false, pattern: 'plain', accent: null, ...stripUndefined(g), kind: g.kind } as AvatarRecipe['top'];
+    else if (g.slot === 'bottom') out.bottom = { ...out.bottom, length: 1, looseness: 0.3, pattern: 'plain', ...stripUndefined(g), kind: g.kind } as AvatarRecipe['bottom'];
+    else if (g.slot === 'shoes') out.shoes = { kind: g.kind, color: g.color };
+    else if (g.slot === 'hat') out.hat = { kind: g.kind, color: g.color };
+    else if (!out.extras.some((e) => e.kind === g.kind) && out.extras.length < 6) out.extras = [...out.extras, { kind: g.kind, color: g.color }];
+    else out.extras = out.extras.map((e) => (e.kind === g.kind ? { kind: g.kind, color: g.color } : e));
+  }
+  return AvatarRecipeSchema.parse(out);
+}
+
+function stripUndefined<T extends object>(o: T): Partial<T> {
+  const x: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(o)) if (v !== undefined && k !== 'slot') x[k] = v;
+  return x as Partial<T>;
 }

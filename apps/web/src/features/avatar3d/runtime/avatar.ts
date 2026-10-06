@@ -484,5 +484,6 @@ export class Avatar {
       m.geometry.dispose();
       for (const mat of Array.isArray(m.material) ? m.material : [m.material]) mat.dispose();
     });
+    for (const t of (this.model.scene.userData.disposables as THREE.Texture[] | undefined) ?? []) t.dispose();
   }
 }

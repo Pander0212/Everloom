@@ -23,6 +23,31 @@ function geometry(m: SkinnedMesh): THREE.BufferGeometry {
   return g;
 }
 
+/** A small repeating pattern: white with darker marks, multiplied by the garment's colour. */
+const patterns = new Map<string, THREE.DataTexture>();
+function patternTexture(kind: 'stripes' | 'checks' | 'dots'): THREE.DataTexture {
+  let t = patterns.get(kind);
+  if (t) return t;
+  const N = 32;
+  const data = new Uint8Array(N * N * 4);
+  for (let y = 0; y < N; y++)
+    for (let x = 0; x < N; x++) {
+      const dark = kind === 'stripes' ? y < N / 3 : kind === 'checks' ? (x < N / 2) !== (y < N / 2) : Math.hypot(x - N / 2 + 0.5, y - N / 2 + 0.5) < N / 5;
+      const i = (y * N + x) * 4;
+      const v = dark ? 150 : 255;
+      data.set([v, v, v, 255], i);
+    }
+  t = new THREE.DataTexture(data, N, N, THREE.RGBAFormat);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.magFilter = THREE.LinearFilter;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  t.generateMipmaps = true;
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.needsUpdate = true;
+  patterns.set(kind, t);
+  return t;
+}
+
 export function assembleCodeModel(g: CodeGeometry): LoadedModel {
   const scene = new THREE.Group();
   scene.name = 'CodeMade';
@@ -49,7 +74,11 @@ export function assembleCodeModel(g: CodeGeometry): LoadedModel {
     meshes.push(sm);
     return sm;
   };
-  for (const p of g.parts) attach(p.name, p, new THREE.MeshStandardMaterial({ name: p.name, color: new THREE.Color(p.color), roughness: p.roughness, metalness: p.metalness }));
+  for (const p of g.parts) {
+    const map = p.pattern !== 'plain' && p.uvs ? patternTexture(p.pattern) : null;
+    const m = attach(p.name, p, new THREE.MeshStandardMaterial({ name: p.name, color: new THREE.Color(p.color), roughness: p.roughness, metalness: p.metalness, map }));
+    if (map) m.geometry.setAttribute('uv', new THREE.BufferAttribute(p.uvs!, 2));
+  }
 
   // The face: features are drawn from a strip of colours (one pair per feature).
   const f = g.face;
@@ -58,6 +87,8 @@ export function assembleCodeModel(g: CodeGeometry): LoadedModel {
   palette.magFilter = THREE.LinearFilter;
   palette.minFilter = THREE.LinearFilter;
   palette.needsUpdate = true;
+  // Freed with the character (pattern textures are shared and stay).
+  scene.userData.disposables = [palette];
   const faceMat = new THREE.MeshStandardMaterial({ name: 'face_overlay', map: palette, roughness: 0.9, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   const face = attach('face_overlay', f, faceMat);
   face.geometry.setAttribute('uv', new THREE.BufferAttribute(f.uvs, 2));

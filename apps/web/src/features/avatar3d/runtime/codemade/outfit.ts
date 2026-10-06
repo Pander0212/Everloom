@@ -28,6 +28,8 @@ export interface Part {
   covers?: boolean;
   roughness?: number;
   metalness?: number;
+  /** A printed pattern (stripes, checks, dots) over the colour. */
+  pattern?: 'plain' | 'stripes' | 'checks' | 'dots';
 }
 
 export interface Outfit {
@@ -64,7 +66,7 @@ export function planOutfit(plan: BodyPlan, r: AvatarRecipe): Outfit {
   const chains: Chain[] = [];
   const browY = at.chinY + hh * (plan.kid ? 0.36 : 0.42) + hh * 0.14;
   const hatKind = r.hat.kind;
-  const coversHead = hatKind === 'beanie' || hatKind === 'hood' || hatKind === 'cap';
+  const coversHead = hatKind === 'beanie' || hatKind === 'hood' || hatKind === 'cap' || hatKind === 'helmet';
 
   // ------------------------------------------------------------------ hair
   const style = coversHead && (r.hair.style === 'spiky' || r.hair.style === 'curly') ? 'short' : r.hair.style;
@@ -153,7 +155,8 @@ export function planOutfit(plan: BodyPlan, r: AvatarRecipe): Outfit {
   const top = r.top.kind;
   const accent = r.top.accent ?? shade(r.top.color, 0.7);
   if (top !== 'none') {
-    const thick = { tshirt: 0.006, shirt: 0.006, tank: 0.005, sweater: 0.01, jacket: 0.012, robe: 0.01, armor: 0.016 }[top] * H;
+    const loose = 0.55 + 1.5 * r.top.looseness;
+    const thick = { tshirt: 0.006, shirt: 0.006, tank: 0.005, sweater: 0.01, jacket: 0.012, robe: 0.01, armor: 0.016 }[top] * H * (top === 'armor' ? 1 : loose);
     const sleeve = top === 'tank' ? 0 : top === 'sweater' || top === 'jacket' || top === 'robe' ? 1 : top === 'tshirt' ? Math.min(r.top.sleeve, 0.35) : r.top.sleeve;
     // The whole body, cut by planes (it stands in a T-pose, so arms, legs and head separate cleanly):
     // the garment then follows the skin exactly where it covers it.
@@ -171,8 +174,8 @@ export function planOutfit(plan: BodyPlan, r: AvatarRecipe): Outfit {
       (x, y, z) => Math.min((top === 'tank' ? 0.06 : 0.042) * H + Math.max(0, y - at.shoulderY) * 0.8 - Math.hypot(x, (z - 0.012 * H) * 0.8), y - (at.shoulderY - (top === 'tank' ? 0.07 : 0.045) * H)),
       (_x, y) => y - at.chinY,
     ];
-    parts.push({ name: 'Top', field: { shapes, blend: plan.blend, offset: thick, clips, clipRound: 0.006 * H }, color: r.top.color, cell: 0.008, covers: true, roughness: top === 'armor' ? 0.35 : 0.85, metalness: top === 'armor' ? 0.6 : 0 });
-    if (top === 'jacket' || top === 'robe') parts.push({ name: 'Collar', field: { shapes: [torus([0, at.shoulderY - 0.004 * H, 0.004 * H], 0.047 * H, 0.011 * H, 'y', 'upperChest')], blend: 0.01 * H }, color: accent, cell: 0.005 });
+    parts.push({ name: 'Top', field: { shapes, blend: plan.blend, offset: thick, clips, clipRound: 0.006 * H }, color: r.top.color, cell: 0.008, covers: true, roughness: top === 'armor' ? 0.35 : 0.85, metalness: top === 'armor' ? 0.6 : 0, pattern: top === 'armor' ? 'plain' : r.top.pattern });
+    if (top === 'jacket' || top === 'robe' || r.top.collar) parts.push({ name: 'Collar', field: { shapes: [torus([0, at.shoulderY - 0.004 * H, 0.004 * H], 0.047 * H, 0.011 * H, 'y', 'upperChest')], blend: 0.01 * H }, color: accent, cell: 0.005 });
     if (top === 'armor')
       for (const s of [1, -1]) parts.push({ name: s > 0 ? 'PadL' : 'PadR', field: { shapes: [ellipsoid([s * at.shoulderX, at.shoulderY + 0.012 * H, 0], [0.05 * H, 0.03 * H, 0.05 * H], `${s > 0 ? 'left' : 'right'}Shoulder`)], blend: 0.01 * H, clips: [(_x, y) => at.shoulderY - 0.015 * H - y] }, color: shade(r.top.color, 0.85), cell: 0.007, roughness: 0.35, metalness: 0.6 });
   }
@@ -193,16 +196,17 @@ export function planOutfit(plan: BodyPlan, r: AvatarRecipe): Outfit {
     const top_ = bottom === 'none' ? at.hipsY + 0.01 * H : at.waistY + 0.006 * H;
     parts.push({
       name: bottom === 'none' ? 'Underwear' : 'Bottom',
-      field: { shapes: plan.shapes, blend: plan.blend, offset: (bottom === 'none' ? 0.003 : 0.007) * H, clips: [(_x, y) => y - top_, (_x, y) => end - y], clipRound: 0.005 * H },
+      field: { shapes: plan.shapes, blend: plan.blend, offset: (bottom === 'none' ? 0.003 : 0.007 * (0.7 + 0.6 * r.bottom.looseness)) * H, clips: [(_x, y) => y - top_, (_x, y) => end - y], clipRound: 0.005 * H },
       color: bottom === 'none' ? '#e8e2d8' : bottomColor,
       cell: 0.008,
       covers: true,
+      pattern: bottom === 'none' ? 'plain' : r.bottom.pattern,
     });
   } else {
     const hem = bottom === 'skirt' ? at.crotchY - (0.3 + 0.7 * bottomLength) * (at.crotchY - at.kneeY) : at.kneeY - bottomLength * (at.kneeY - at.ankleY - 0.025 * H);
     const c: V3 = [0, at.waistY, 0];
     const hipW = 0.1 * H * (0.82 + 0.55 * r.body.build);
-    const flare = roundCone([0, at.waistY, 0], [0, hem, 0], hipW * 0.8, hipW * (bottom === 'skirt' ? 1.35 : 1.5), 'hips');
+    const flare = roundCone([0, at.waistY, 0], [0, hem, 0], hipW * 0.8, hipW * (bottom === 'skirt' ? 1.35 : 1.5) * (0.85 + 0.5 * (top === 'robe' ? r.top.looseness : r.bottom.looseness)), 'hips');
     const skirtShapes = [rebone(hipsShape, 'hips'), ...by(plan, /UpperLeg$/).map((s) => rebone(s, 'hips')), scaled(flare, c, [1, 1, 0.75])];
     parts.push({
       name: 'Skirt',
@@ -210,6 +214,7 @@ export function planOutfit(plan: BodyPlan, r: AvatarRecipe): Outfit {
       color: bottomColor,
       cell: 0.008,
       covers: true,
+      pattern: top === 'robe' ? r.top.pattern : r.bottom.pattern,
       weights: [hipsShape, ...legShapes],
       sigma: 0.03,
     });
@@ -260,8 +265,16 @@ export function planOutfit(plan: BodyPlan, r: AvatarRecipe): Outfit {
       }
       field = { shapes, blend: 0.006 * H };
     }
+    if (hatKind === 'helmet')
+      field = {
+        shapes: [ellipsoid([hx, hy + hh * 0.04, hz - hh * 0.02], [rx * 1.17, ry * 1.13, rz * 1.17], 'head'), torus([hx, browY + hh * 0.06, hz - hh * 0.02], rx * 1.1, hh * 0.035, 'y', 'head'), roundBox([0, browY - hh * 0.04, hz + rz * 1.12], [hh * 0.018, hh * 0.1, hh * 0.012], hh * 0.008, 'head')],
+        blend: 0.008 * H,
+        // Above the brows, plus the nose guard in front.
+        clips: [(x, y, z) => (z > hz + rz * 0.95 && Math.abs(x) < hh * 0.045 ? -1 : browY + hh * 0.03 - y)],
+      };
     if (hatKind === 'headband') field = { shapes: [scaled(torus([hx, browY + hh * 0.1, hz - hh * 0.02], rx * 1.0, hh * 0.028, 'y', 'head'), [hx, browY + hh * 0.1, hz], [1, 1, rz / rx])], blend: 0.006 * H };
-    if (field) parts.push({ name: 'Hat', field, color: hatKind === 'crown' ? '#d4a93a' : c, cell: hatKind === 'crown' || hatKind === 'headband' ? 0.004 : 0.0075, roughness: hatKind === 'crown' ? 0.3 : 0.8, metalness: hatKind === 'crown' ? 0.8 : 0 });
+    const metal = hatKind === 'crown' || hatKind === 'helmet';
+    if (field) parts.push({ name: 'Hat', field, color: hatKind === 'crown' ? '#d4a93a' : c, cell: hatKind === 'crown' || hatKind === 'headband' ? 0.004 : 0.0075, roughness: metal ? 0.3 : 0.8, metalness: metal ? 0.8 : 0 });
   }
 
   // ------------------------------------------------------------------ extras

@@ -70,3 +70,36 @@ describe('code-made characters', async () => {
     expect(adult.shapes.length - child.shapes.length).toBe(2);
   }, 30_000);
 });
+
+describe('code-made garments fit every body', async () => {
+  const { planBody } = await import('../src/features/avatar3d/runtime/codemade/body');
+  const { planOutfit } = await import('../src/features/avatar3d/runtime/codemade/outfit');
+  const { evalField } = await import('../src/features/avatar3d/runtime/codemade/sdf');
+  const { mesh: meshField } = await import('../src/features/avatar3d/runtime/codemade/mesher');
+  const { AvatarRecipeSchema } = await import('@everloom/engine');
+  const extremes = [
+    { age: 'adult', build: 0, frame: 0, chest: 1, height: 2.1 },
+    { age: 'adult', build: 1, frame: 1, chest: 0, height: 1.45 },
+    { age: 'elder', build: 1, frame: 0, chest: 1, height: 1.5 },
+    { age: 'teen', build: 0, frame: 1, chest: 1, height: 1.9 },
+    { age: 'child', build: 1, frame: 0.5, chest: 1, height: 0.9 },
+  ] as const;
+  it.each(extremes)('skin stays under a fitted shirt and trousers: %o', (body) => {
+    const r = AvatarRecipeSchema.parse({ body, top: { kind: 'shirt', sleeve: 1, looseness: 0 }, bottom: { kind: 'pants', looseness: 0 } });
+    const plan = planBody(r);
+    const skin = { shapes: plan.shapes, blend: plan.blend };
+    for (const part of planOutfit(plan, r).parts.filter((p) => p.name === 'Top' || p.name === 'Bottom')) {
+      const cell = part.cell * plan.H * 1.6;
+      const m = meshField(part.field, cell);
+      let checked = 0;
+      for (let v = 0; v < m.positions.length; v += 3) {
+        const [x, y, z] = [m.positions[v]!, m.positions[v + 1]!, m.positions[v + 2]!];
+        // Away from the cut edges (sleeve ends, hems, neckline), the garment is outside the skin.
+        if ((part.field.clips ?? []).some((c) => c(x, y, z) > -3 * cell)) continue;
+        checked++;
+        expect(evalField(skin, x, y, z)).toBeGreaterThan((part.field.offset ?? 0) * 0.4);
+      }
+      expect(checked).toBeGreaterThan(200);
+    }
+  }, 60_000);
+});
