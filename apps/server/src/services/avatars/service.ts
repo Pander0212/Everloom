@@ -191,7 +191,8 @@ async function processAvatar(ctx: AppContext, owner: string, id: string, opts: P
     const config = parseConfig(row.config);
     // First run: start from the automatic mapping and the detected units.
     const fresh = !Object.keys(config.boneMap).length;
-    const next: AvatarConfig = fresh ? { ...config, boneMap: info.boneMap, expressionMap: info.expressionMap, scale: info.unitScale, look: config.look } : config;
+    // Size is left at 1: the browser measures the rendered model (root scales included) and fits it.
+    const next: AvatarConfig = fresh ? { ...config, boneMap: info.boneMap, expressionMap: info.expressionMap } : config;
     setStatus(ctx, owner, id, {
       status: 'ready',
       error: null,

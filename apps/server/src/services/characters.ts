@@ -41,6 +41,7 @@ function summary(r: any): CharacterSummary {
     linkedUrl: r.source ? (json<{ url?: string }>(r.source, {}).url ?? null) : null,
     collections: r.cols ? String(r.cols).split(',') : [],
     chatMode: json<{ chatMode?: CharacterSummary['chatMode'] }>(r.game, {}).chatMode ?? null,
+    avatar3d: json<{ avatar3d?: string }>(r.game, {}).avatar3d ?? null,
   };
 }
 

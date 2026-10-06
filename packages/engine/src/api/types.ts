@@ -76,6 +76,8 @@ export interface CharacterSummary {
   collections: string[];
   /** The mode new chats with this character start in (unset: ask). */
   chatMode?: FeaturePreset | null;
+  /** The 3D avatar this character uses, if any. */
+  avatar3d?: string | null;
 }
 
 export interface CharacterDTO extends CharacterSummary {

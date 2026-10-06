@@ -14,9 +14,13 @@ import { Avatar, IconButton, Popover, Sheet } from '@/ui';
 import type { MessageActions } from '@/features/story/Message';
 import { Atmosphere } from './Atmosphere';
 import { useGame } from './context';
+import { hasWebGL2, usePrefs3D } from '@/features/avatars/prefs';
+import { normalizeName } from '@everloom/engine';
 import { FX_LIST, useSceneMotion } from './StageFx';
 
 const Live2DSprite = lazy(() => import('./Live2DSprite'));
+// Only fetched when a character on stage has a 3D avatar and 3D is on for this device.
+const StageLayer3D = lazy(() => import('@/features/avatar3d/StageLayer'));
 
 
 /** Gentle life on the sprite: breathing while idle, a small bob while its line is being spoken. */
@@ -107,6 +111,11 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const layers = Object.values(campaign?.state?.stage?.layers ?? {});
   const layerFor = (c: CharacterDTO): StageLayer | undefined => layers.find((l) => l.name.toLowerCase() === c.name.toLowerCase() || l.name.toLowerCase().split(' ')[0] === c.name.toLowerCase().split(' ')[0]);
   const directed = layers.length > 0;
+  // 3D characters: feature on, this device allows it, the character has an avatar and wants 3D.
+  const avatarsOn = useFeatureOn('avatars3d');
+  const spritesOnly = usePrefs3D((p) => p.spritesOnly);
+  const [failed3d, setFailed3d] = useState<Record<string, string>>({});
+  const uses3d = (c: CharacterDTO) => avatarsOn && !spritesOnly && !!c.game?.avatar3d && (c.game.display ?? 'auto') !== 'sprite' && (c.game.display ?? 'auto') !== 'live2d' && !failed3d[c.id] && hasWebGL2();
 
   useEffect(() => {
     if (atEnd.current) setIdx(visible.length - 1);
@@ -153,11 +162,29 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
           {bg ? <img src={bg} alt="" className="h-full w-full object-cover" /> : <div className="h-full w-full" style={{ background: 'radial-gradient(120% 90% at 50% 20%, var(--surface-3), var(--bg))' }} />}
           {weatherOn ? <Atmosphere state={campaign?.state ?? null} /> : null}
         </div>
+        {chars.some(uses3d) ? (
+          <Suspense fallback={null}>
+            <StageLayer3D
+              className="pointer-events-none absolute inset-x-0 top-0 bottom-[30%] h-auto w-full sm:bottom-[16%]"
+              speakerId={speakingId ?? speaker?.id ?? null}
+              scene={campaign?.state ? { hour: ((campaign.state.time?.minutes ?? 720) / 60) % 24, weather: campaign.state.weather?.kind ?? null, locationKind: campaign.state.currentLocationId ? (campaign.state.locations[campaign.state.currentLocationId]?.kind ?? null) : null } : null}
+              onFail={(id, reason) => setFailed3d((f) => (f[id] ? f : { ...f, [id]: reason }))}
+              cast={chars.filter(uses3d).flatMap((c) => {
+                const layer = layerFor(c);
+                if (directed && (!layer || layer.position === 'off')) return [];
+                const active = speaker?.id === c.id || chars.length === 1;
+                const av = campaign?.state?.stage?.avatars?.[normalizeName(c.name)];
+                return [{ id: c.id, avatarId: c.game!.avatar3d!, slot: layer?.position, emotion: layer?.expression ?? (active ? emotion : 'neutral'), speaking: speakingId === c.id, emote: av?.emote ?? null, pose: av?.pose ?? null }];
+              })}
+            />
+          </Suspense>
+        ) : null}
         {/* Sprites: placed by the director when it has spoken, otherwise side by side */}
         <div className={cx('pointer-events-none absolute inset-x-0 bottom-0 top-0 px-2 pb-[38%] sm:pb-[22%]', !directed && 'flex items-end justify-center gap-0')}>
           {chars.map((c) => {
             const layer = layerFor(c);
             if (directed && (!layer || layer.position === 'off')) return null;
+            if (uses3d(c)) return null;
             const active = speaker?.id === c.id || chars.length === 1;
             const expr = layer?.expression ?? (active ? emotion : 'neutral');
             const src = spriteFor(c, expr);

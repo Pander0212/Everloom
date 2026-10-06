@@ -44,6 +44,7 @@ import { decryptWithPassword, encryptWithPassword, isPasswordEncrypted } from '.
 
 export const VERSION = '0.1.0';
 
+const KTX2_WORKER_CSP = "default-src 'none'; script-src 'self' 'unsafe-eval' 'wasm-unsafe-eval'";
 const CSP = [
   "default-src 'self'",
   "script-src 'self' 'wasm-unsafe-eval'",
@@ -51,7 +52,8 @@ const CSP = [
   "img-src 'self' data: blob:",
   "media-src 'self' data: blob:",
   "font-src 'self' data:",
-  "connect-src 'self'",
+  // blob: lets the 3D loader read the textures it unpacks from a model file.
+  "connect-src 'self' blob:",
   "worker-src 'self'",
   "manifest-src 'self'",
   "frame-ancestors 'none'",
@@ -100,7 +102,10 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
     reply.header('x-frame-options', frame ? 'SAMEORIGIN' : 'DENY');
     reply.header('cross-origin-opener-policy', 'same-origin');
     reply.header('permissions-policy', frame ? 'camera=(), geolocation=(), microphone=(), payment=(), usb=()' : 'camera=(), geolocation=(), microphone=(self)');
-    reply.header('content-security-policy', frame ? FRAME_CSP : CSP);
+    // The 3D texture transcoder worker (Emscripten) needs eval; only that file, which runs in a
+    // worker with no access to the page, gets it.
+    const ktx2Worker = req.url.split('?')[0] === '/three/basis/ktx2-worker.js';
+    reply.header('content-security-policy', frame ? FRAME_CSP : ktx2Worker ? KTX2_WORKER_CSP : CSP);
     if (req.url.startsWith('/api/')) reply.header('cache-control', 'no-store');
     return payload;
   });

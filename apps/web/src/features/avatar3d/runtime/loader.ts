@@ -24,15 +24,46 @@ export interface LoadedModel {
   secondaryChains: THREE.Object3D[][];
   /** Every mesh, by name (for wardrobe level 2: toggling parts). */
   meshes: THREE.Mesh[];
+  /** Height in metres as shown (after the saved scale and any automatic fit). */
   height: number;
+  /** Height before any scaling, in the file's own units. */
+  rawHeight: number;
+  /** The scale applied: the saved one, or an automatic fit when the size made no sense. */
+  scale: number;
+  autoFit: boolean;
+  /** Metres to raise the feet above the floor (negative: lower). */
+  floor: number;
 }
 
 let ktx2: KTX2Loader | null = null;
+
+/**
+ * three runs the Basis transcoder in a worker built from a blob, which inherits the page's CSP;
+ * the transcoder needs eval, which the page never allows. Use the same worker served as a file
+ * (tools/avatars/ktx2-worker.mjs), which the server gives a policy of its own.
+ */
+type KtxInternals = KTX2Loader & { init: () => Promise<void>; transcoderPending: Promise<void> | null; workerSourceURL: string; transcoderBinary: ArrayBuffer; workerConfig: unknown; workerPool: { setWorkerCreator: (f: () => Worker) => void } };
+function withFileWorker(loader: KTX2Loader): KTX2Loader {
+  const k = loader as KtxInternals;
+  const init = k.init.bind(k);
+  let ready: Promise<void> | null = null;
+  k.init = () =>
+    (ready ??= init().then(() => {
+      URL.revokeObjectURL(k.workerSourceURL);
+      k.workerPool.setWorkerCreator(() => {
+        const w = new Worker('/three/basis/ktx2-worker.js');
+        const bin = k.transcoderBinary.slice(0);
+        w.postMessage({ type: 'init', config: k.workerConfig, transcoderBinary: bin }, [bin]);
+        return w;
+      });
+    }));
+  return loader;
+}
 function loaderFor(renderer: THREE.WebGLRenderer | null): GLTFLoader {
   const l = new GLTFLoader();
   l.setMeshoptDecoder(MeshoptDecoder);
   if (renderer) {
-    ktx2 ??= new KTX2Loader().setTranscoderPath('/three/basis/').detectSupport(renderer);
+    ktx2 ??= withFileWorker(new KTX2Loader().setTranscoderPath('/three/basis/').detectSupport(renderer));
     l.setKTX2Loader(ktx2);
   }
   // We pose the raw bones ourselves and update springs and expressions directly (never vrm.update()).
@@ -40,11 +71,30 @@ function loaderFor(renderer: THREE.WebGLRenderer | null): GLTFLoader {
   return l;
 }
 
+/**
+ * Finds objects by the name in the model file. three.js changes some characters in node names
+ * ("mixamorig:Hips" becomes "mixamorigHips"), while saved settings use the file's names.
+ */
+export function nodeIndex(objects: THREE.Object3D[]): (fileName: string) => THREE.Object3D | undefined {
+  const map = new Map<string, THREE.Object3D>();
+  for (const o of objects) if (!map.has(o.name)) map.set(o.name, o);
+  return (n) => map.get(n) ?? map.get(THREE.PropertyBinding.sanitizeNodeName(n));
+}
+
 /** Options saved with the avatar at import: bone and expression mapping fixes, scale, facing. */
 export interface ModelOptions {
   boneMap?: Partial<Record<HumanBone, string>>;
   expressionMap?: ExpressionMap;
+  /** Multiplier from the file's units to metres. */
+  scale?: number;
+  /** Degrees to turn the model so it faces the camera. */
+  facing?: number;
+  floor?: number;
 }
+
+/** People are 0.4–3 m tall; outside that the units are off (centimetres, millimetres, inches). */
+const SANE = [0.4, 3] as const;
+const FIT_HEIGHT = 1.65;
 
 export async function loadModel(source: string | ArrayBuffer, renderer: THREE.WebGLRenderer | null, opts: ModelOptions = {}): Promise<LoadedModel> {
   const loader = loaderFor(renderer);
@@ -73,8 +123,9 @@ export async function loadModel(source: string | ArrayBuffer, renderer: THREE.We
   const auto = mapBones(rigBones, vrmMap);
   const map = { ...auto.map, ...(opts.boneMap ?? {}) };
   const bones: Partial<Record<HumanBone, THREE.Object3D>> = {};
+  const byName = nodeIndex(allBones);
   for (const [k, n] of Object.entries(map)) {
-    const o = allBones.find((b) => b.name === n);
+    const o = n ? byName(n) : undefined;
     if (o) bones[k as HumanBone] = o;
   }
   const missing = auto.missing.filter((b) => !bones[b]);
@@ -124,7 +175,16 @@ export async function loadModel(source: string | ArrayBuffer, renderer: THREE.We
   }
 
   scene.updateMatrixWorld(true);
-  const box = new THREE.Box3().setFromObject(scene);
-  const height = Math.max(0.01, box.max.y - box.min.y);
-  return { gltf, scene, vrm, bones, missing, morphMeshes, morphNames: [...names], expressions, faceRig: ex.rig, secondaryChains: chains, meshes, height };
+  const rawHeight = Math.max(1e-4, new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3()).y);
+  let scale = opts.scale ?? 1;
+  let autoFit = false;
+  if (rawHeight * scale < SANE[0] || rawHeight * scale > SANE[1]) {
+    scale = FIT_HEIGHT / rawHeight;
+    autoFit = true;
+  }
+  scene.scale.multiplyScalar(scale);
+  scene.rotation.y += ((opts.facing ?? 0) * Math.PI) / 180;
+  scene.updateMatrixWorld(true);
+  const height = Math.max(0.01, new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3()).y);
+  return { gltf, scene, vrm, bones, missing, morphMeshes, morphNames: [...names], expressions, faceRig: ex.rig, secondaryChains: chains, meshes, height, rawHeight, scale, autoFit, floor: opts.floor ?? 0 };
 }

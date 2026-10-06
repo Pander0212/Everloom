@@ -6,7 +6,7 @@
 import { useFeatures } from '@/lib/features';
 import type { CharacterSummary } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { CheckSquare, Copy, Dices, Download, Folder, FolderPlus, Globe, Image as ImageIcon, LayoutGrid, Link2, List, MoreHorizontal, PackageOpen, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Sparkles, Star, Tag, Trash2, Upload, Users, UsersRound, X } from 'lucide-react';
+import { Box, CheckSquare, Copy, Dices, Download, Folder, FolderPlus, Globe, Image as ImageIcon, LayoutGrid, Link2, List, MoreHorizontal, PackageOpen, Pencil, Plus, RefreshCw, Search, SlidersHorizontal, Sparkles, Star, Tag, Trash2, Upload, Users, UsersRound, X } from 'lucide-react';
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Page } from '@/app/Shell';
@@ -207,6 +207,7 @@ export default function LibraryPage() {
               { label: 'Character studio', icon: Sparkles, onSelect: () => navigate('/characters/studio') },
               ...(features.on.sources ? [{ label: 'Browse online', icon: Globe, onSelect: () => navigate('/characters/browse') }] : []),
               { label: 'New group', icon: UsersRound, onSelect: () => setSheet('group') },
+              ...(features.on.avatars3d ? [{ label: '3D avatars', icon: Box, onSelect: () => navigate('/characters/avatars') }] : []),
             ]}
           />
           <Menu

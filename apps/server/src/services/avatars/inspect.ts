@@ -238,7 +238,7 @@ export async function inspectModel(bytes: Buffer, glb?: Glb): Promise<ModelInfo>
   if (materials > BUDGET.materials) warnings.push({ code: 'materials', message: `${materials} materials means many draw calls; fewer is faster`, level: 'heavy' });
   if (joints.length > BUDGET.joints) warnings.push({ code: 'joints', message: `${joints.length} bones; some phones can't skin more than ${BUDGET.joints}`, level: 'heavy' });
   if (bytes.length > BUDGET.bytes) warnings.push({ code: 'file_size', message: `The file is ${Math.round(bytes.length / 1048576)} MB`, level: 'heavy' });
-  if (unitScale !== 1) warnings.push({ code: 'units', message: unitScale < 1 ? 'The model looks like it is in centimetres; it will be scaled to metres' : 'The model is tiny; it will be scaled up', level: 'info' });
+  if (unitScale !== 1) warnings.push({ code: 'units', message: unitScale < 1 ? 'The model may be in centimetres; check its size on the Fit step' : 'The model may be very small; check its size on the Fit step', level: 'info' });
 
   return {
     format,

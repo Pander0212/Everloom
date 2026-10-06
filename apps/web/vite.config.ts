@@ -80,8 +80,10 @@ export default defineConfig({
     chunkSizeWarningLimit: 1100,
     rollupOptions: {
       output: {
-        // Everything 3D in its own chunks (never precached; fetched only when a 3D screen opens).
-        manualChunks: (id) => (/node_modules\/(three|@pixiv)\//.test(id) ? '3d-three' : /features\/avatar3d\//.test(id) ? '3d-avatar' : undefined),
+        // Chunks holding 3D code get a 3d- name, so the service worker never precaches them and
+        // nothing 3D downloads until a 3D screen opens. (Grouping with manualChunks would pull
+        // shared modules into them.)
+        chunkFileNames: (c) => (c.moduleIds.some((id) => /features\/avatar3d\/|node_modules\/(three|@pixiv)\//.test(id)) ? 'assets/3d-[name]-[hash].js' : 'assets/[name]-[hash].js'),
       },
     },
   },

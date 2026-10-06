@@ -11,6 +11,7 @@ import { useImageGen } from '@/lib/imagegen';
 import { useCharacter, useChats, useConnections, useLorebooks } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
 import { NewChatSheet } from '@/features/chats/NewChatSheet';
+import { DisplayFields } from '@/features/avatars/DisplayFields';
 import { Avatar, Button, confirm, EmptyState, Field, FileButton, Icon, IconButton, Input, ListRow, Menu, Select, Sheet, Spinner, TabPanel, Tabs, Textarea } from '@/ui';
 
 type Draft = { card: CardData; game: CharacterGame };
@@ -543,6 +544,7 @@ function GameFields({ game, setGame, characterId }: { game: CharacterGame; setGa
           <Input id="speed" type="number" step={0.05} min={0.5} max={2} value={game.voice?.speed ?? 1} onChange={(e) => setGame({ voice: { ...game.voice, speed: Number(e.target.value) } })} />
         </Field>
       </div>
+      <DisplayFields game={game} setGame={setGame} />
       <div>
         <p className="text-sm font-medium">Expressions</p>
         <p className="mt-0.5 text-xs text-fg-2">Sprites shown in Stage mode. The reply's mood picks one; neutral is the fallback. Drawn sprites are saved with the card when you save.</p>

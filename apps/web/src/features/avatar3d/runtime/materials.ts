@@ -153,3 +153,24 @@ export function updateLook(root: THREE.Object3D, dt: number) {
     for (const mat of Array.isArray(m) ? m : [m]) if (isMToon(mat)) mat.update(dt);
   });
 }
+
+/**
+ * 'auto' look: VRM and other anime models (MToon, flat colours, few maps) get toon shading;
+ * models with normal and roughness/metal maps were made for realistic light and get PBR.
+ */
+export function autoLook(root: THREE.Object3D, isVrm: boolean): Look {
+  if (isVrm) return 'toon';
+  let maps = 0;
+  let mats = 0;
+  root.traverse((o) => {
+    const m = (o as THREE.Mesh).material;
+    if (!m) return;
+    for (const x of Array.isArray(m) ? m : [m]) {
+      if (isMToon(x)) return;
+      const s = x as THREE.MeshStandardMaterial;
+      mats++;
+      if (s.normalMap || s.roughnessMap || s.metalnessMap) maps++;
+    }
+  });
+  return mats && maps / mats >= 0.5 ? 'pbr' : 'toon';
+}

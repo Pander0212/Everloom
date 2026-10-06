@@ -25,6 +25,9 @@ export interface AvatarOptions {
   look: Look;
   outlines: boolean;
   physics: boolean;
+  /** Multipliers for hair and cloth springs (saved per avatar). */
+  stiffness?: number;
+  gravity?: number;
 }
 
 interface Layer {
@@ -86,16 +89,23 @@ export class Avatar {
   private springs: VRMSpringBoneManager | null = null;
   /** True while anything besides the quiet idle is happening (the stage renders faster then). */
   busy = false;
+  /** A fixed pose instead of the animation layers (the import wizard's checks). */
+  override: CanonicalPose | null = null;
+  /** Fixed morph weights instead of the expression system (the wizard's face preview). */
+  faceOverride: Record<string, number> | null = null;
 
   constructor(model: LoadedModel, options: AvatarOptions) {
     this.model = model;
     this.options = options;
     this.group.add(model.scene);
     this.rig = prepareRig(model.scene, model.bones);
+    // Models built facing away (VRM 0.x, MMD) are turned to face the camera. Retargeting works in
+    // the rig's own frame, so this changes nothing else.
+    if (Math.abs(this.rig.facing.w) < 0.5) model.scene.rotation.y += Math.PI;
     // The model's feet stand on the group's origin.
     model.scene.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(model.scene);
-    model.scene.position.y -= box.min.y;
+    model.scene.position.y -= box.min.y - model.floor;
     this.setLook(options.look, { outlines: options.outlines });
     this.setupSprings();
     void this.setBase('idle');
@@ -225,8 +235,9 @@ export class Avatar {
       }
     }
     this.busy = !!this.shot || !!this.talk || this.speaking || !/^idle/.test(this.basePoseId) || this.fading.length > 0;
-    // 4. procedural life.
-    this.procedural(pose, dt, camera);
+    // 4. procedural life (not over a fixed check pose).
+    if (this.override) copyPose(this.override, pose);
+    else this.procedural(pose, dt, camera);
     // 5. the model.
     applyCanonical(this.rig, pose);
     this.face(dt);
@@ -304,7 +315,7 @@ export class Avatar {
       }
     }
     if (this.basePoseId === 'sleep') blink = 1;
-    const target = faceWeights(this.model.expressions, { emotion: this.emotion, strength: this.emotionStrength, visemes: this.speaking ? this.visemes : undefined, blink });
+    const target = this.faceOverride ?? faceWeights(this.model.expressions, { emotion: this.emotion, strength: this.emotionStrength, visemes: this.speaking ? this.visemes : undefined, blink });
     // Smooth everything toward the target: expressions slowly, the mouth quickly, blinks instantly.
     const keys = new Set([...this.faceNow.keys(), ...Object.keys(target)]);
     const mouth = new Set(['aa', 'ih', 'ou', 'ee', 'oh', 'jawOpen'].flatMap((k) => (this.model.expressions[k as Viseme] ?? []).map((m) => m.morph)));
@@ -335,6 +346,10 @@ export class Avatar {
   private setupSprings() {
     if (this.model.vrm?.springBoneManager && this.model.vrm.springBoneManager.joints.size) {
       this.springs = this.model.vrm.springBoneManager;
+      for (const j of this.springs.joints) {
+        j.settings.stiffness *= this.options.stiffness ?? 1;
+        j.settings.gravityPower *= this.options.gravity ?? 1;
+      }
       this.springs.setInitState();
       return;
     }
@@ -360,7 +375,9 @@ export class Avatar {
       for (let i = 0; i < chain.length; i++) {
         const bone = chain[i]!;
         const child = chain[i + 1] ?? null;
-        const joint = new VRMSpringBoneJoint(bone, child, { hitRadius: 0.012 * h, stiffness: skirt ? 1.2 : 0.7, gravityPower: skirt ? 0.4 : 0.15, gravityDir: new THREE.Vector3(0, -1, 0), dragForce: skirt ? 0.5 : 0.4 }, [group]);
+        const k = this.options.stiffness ?? 1;
+        const g = this.options.gravity ?? 1;
+        const joint = new VRMSpringBoneJoint(bone, child, { hitRadius: 0.012 * h, stiffness: (skirt ? 1.2 : 0.7) * k, gravityPower: (skirt ? 0.4 : 0.15) * g, gravityDir: new THREE.Vector3(0, -1, 0), dragForce: skirt ? 0.5 : 0.4 }, [group]);
         mgr.addJoint(joint);
       }
     }
