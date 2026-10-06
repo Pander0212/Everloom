@@ -16,7 +16,7 @@ import { Atmosphere } from './Atmosphere';
 import { useGame } from './context';
 import { hasWebGL2, usePrefs3D } from '@/features/avatars/prefs';
 import { EmotePicker } from '@/features/avatars/EmotePicker';
-import { EMOTE_FOR, normalizeName } from '@everloom/engine';
+import { EMOTE_FOR, normalizeName, recipeFromText, type AvatarRecipe } from '@everloom/engine';
 import { FX_LIST, useSceneMotion } from './StageFx';
 
 const Live2DSprite = lazy(() => import('./Live2DSprite'));
@@ -138,7 +138,23 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   };
   const spritesOnly = usePrefs3D((p) => p.spritesOnly);
   const [failed3d, setFailed3d] = useState<Record<string, string>>({});
-  const uses3d = (c: CharacterDTO) => avatarsOn && !spritesOnly && !!c.game?.avatar3d && (c.game.display ?? 'auto') !== 'sprite' && (c.game.display ?? 'auto') !== 'live2d' && !failed3d[c.id] && hasWebGL2();
+  const codeNpcs = usePrefs3D((p) => p.codeNpcs);
+  /**
+   * 3D when the character has an avatar or is set to 3D; characters with no picture at all (most
+   * NPCs) get a code-made figure from their description.
+   */
+  const uses3d = (c: CharacterDTO) => {
+    const display = c.game?.display ?? 'auto';
+    if (!avatarsOn || spritesOnly || failed3d[c.id] || display === 'sprite' || display === 'live2d' || !hasWebGL2()) return false;
+    return !!c.game?.avatar3d || display === '3d' || (codeNpcs && !spriteFor(c, 'neutral') && !(live2dOn && live2d.data?.models[c.id]));
+  };
+  const recipes = useRef(new Map<string, AvatarRecipe>());
+  const recipeFor = (c: CharacterDTO) => {
+    const key = `${c.id}:${c.name}:${c.card.description.length}`;
+    let r = recipes.current.get(key);
+    if (!r) recipes.current.set(key, (r = recipeFromText(c.name, `${c.card.description}\n${c.card.personality}`)));
+    return r;
+  };
 
   useEffect(() => {
     if (atEnd.current) setIdx(visible.length - 1);
@@ -203,7 +219,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
                 // "everyone" (a group dance): the whole cast, unless someone has a pose of their own.
                 const all = avs?.everyone;
                 const av = own ? { ...own, pose: own.pose ?? all?.pose ?? null, emote: [own.emote, all?.emote].filter(Boolean).sort((a, b) => cueNo(b!.cue) - cueNo(a!.cue))[0] ?? null } : all;
-                return [{ id: c.id, avatarId: c.game!.avatar3d!, slot: layer?.position, emotion: layer?.expression ?? (active ? emotion : 'neutral'), speaking: speakingId === c.id, emote: av?.emote ?? null, auto: autoEmote(c), pose: av?.pose ?? (battle?.status === 'active' ? 'ready' : null), outfit: own?.outfit ?? all?.outfit ?? null, equipped: equippedNames(c) }];
+                return [{ id: c.id, avatarId: c.game?.avatar3d ?? null, recipe: c.game?.avatar3d ? null : recipeFor(c), slot: layer?.position, emotion: layer?.expression ?? (active ? emotion : 'neutral'), speaking: speakingId === c.id, emote: av?.emote ?? null, auto: autoEmote(c), pose: av?.pose ?? (battle?.status === 'active' ? 'ready' : null), outfit: own?.outfit ?? all?.outfit ?? null, equipped: equippedNames(c) }];
               })}
             />
           </Suspense>

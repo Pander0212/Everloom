@@ -4,7 +4,7 @@
  * the weather and the kind of place. A character whose model can't load is reported so the stage
  * shows its picture instead.
  */
-import { resolveWardrobe, type Emotion } from '@everloom/engine';
+import { AvatarConfigSchema, resolveWardrobe, type AvatarRecipe, type Emotion } from '@everloom/engine';
 import { useQueries } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { avatarKeys, type AvatarDetail } from '@/features/avatars/api';
@@ -14,13 +14,16 @@ import { danceRate, musicBeat, onMusicBeat } from '@/lib/tempo';
 import { get } from '@/lib/api';
 import { lookFor } from './Preview3D';
 import { lightingFor } from './runtime/lighting';
-import { loadModel } from './runtime/loader';
+import { loadModel, type LoadedModel } from './runtime/loader';
+import { loadCodeModel } from './runtime/codemade/build';
 import { dress } from './runtime/wardrobe';
 import { Stage3D, type Slot } from './runtime/stage';
 
 export interface CastMember {
   id: string;
-  avatarId: string;
+  /** A saved avatar; or none, with a recipe made from the character's description (code-made). */
+  avatarId: string | null;
+  recipe?: AvatarRecipe | null;
   slot?: Slot;
   emotion: string;
   speaking: boolean;
@@ -52,7 +55,7 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
   failRef.current = onFail;
   const speakingRef = useRef<string | null>(null);
 
-  const ids = [...new Set(cast.map((c) => c.avatarId))];
+  const ids = [...new Set(cast.flatMap((c) => (c.avatarId ? [c.avatarId] : [])))];
   const details = useQueries({ queries: ids.map((id) => ({ queryKey: avatarKeys.one(id), queryFn: () => get<AvatarDetail>(`/api/avatars/${id}`), staleTime: 5 * 60_000 })) });
   const byId = new Map(details.flatMap((q) => (q.data ? [[q.data.id, q.data] as const] : [])));
   details.forEach((q, i) => {
@@ -92,10 +95,11 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
 
   // Load, reload (settings changed) and remove characters.
   // What each character wears decides which model file loads (a whole-outfit model) and its parts.
-  const dressed = new Map(cast.map((c) => [c.id, byId.get(c.avatarId) ? resolveWardrobe(byId.get(c.avatarId)!.config, { story: c.outfit, equipped: c.equipped }) : null]));
+  const detailOf = (c: CastMember) => (c.avatarId ? byId.get(c.avatarId) : undefined);
+  const dressed = new Map(cast.map((c) => [c.id, detailOf(c) ? resolveWardrobe(detailOf(c)!.config, { story: c.outfit, equipped: c.equipped }) : null]));
   const dressedRef = useRef(dressed);
   dressedRef.current = dressed;
-  const castKey = cast.map((c) => `${c.id}:${c.avatarId}:${byId.get(c.avatarId)?.updatedAt ?? ''}:${dressed.get(c.id)?.outfit?.model ?? ''}`).join('|');
+  const castKey = cast.map((c) => `${c.id}:${c.avatarId ?? JSON.stringify(c.recipe)}:${detailOf(c)?.updatedAt ?? ''}:${dressed.get(c.id)?.outfit?.model ?? ''}`).join('|');
   useEffect(() => {
     const s = stage.current;
     if (!s) return;
@@ -103,26 +107,29 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
     for (const id of s.ids()) if (!wanted.has(id)) (s.remove(id), loaded.current.delete(id));
     const low = wantsLowDetail(prefs);
     for (const c of cast) {
-      const d = byId.get(c.avatarId);
-      if (!d) continue;
+      const d = detailOf(c);
+      // Code-made: an avatar of kind "code", or a recipe from the description (no saved avatar).
+      const recipe = d ? (d.kind === 'code' ? d.config.recipe : null) : c.recipe;
+      if (!d && !recipe) continue;
+      const cfg = d?.config ?? AvatarConfigSchema.parse({ look: 'toon' });
       const w = dressed.get(c.id);
-      const outfitModel = w?.outfit?.model ? `/media/${(low && w.outfit.modelLow) || w.outfit.model}` : null;
-      const stamp = `${d.id}:${d.updatedAt}:${low}:${outfitModel ?? ''}`;
+      const outfitModel = !recipe && w?.outfit?.model ? `/media/${(low && w.outfit.modelLow) || w.outfit.model}` : null;
+      const stamp = recipe ? `code:${JSON.stringify(recipe)}:${low}` : `${d!.id}:${d!.updatedAt}:${low}:${outfitModel ?? ''}`;
       if (loaded.current.get(c.id) === stamp) continue;
-      if (d.status !== 'ready' || !d.model) {
-        if (d.status === 'failed') failRef.current(c.id, 'failed');
+      if (!recipe && (d!.status !== 'ready' || !d!.model)) {
+        if (d!.status === 'failed') failRef.current(c.id, 'failed');
         continue;
       }
       loaded.current.set(c.id, stamp);
-      const cfg = d.config;
-      loadModel(outfitModel ?? ((low && d.low) || d.model), s.renderer, { boneMap: cfg.boneMap, expressionMap: cfg.expressionMap, scale: cfg.scale, facing: cfg.facing, floor: cfg.floor })
+      const load: Promise<LoadedModel> = recipe ? loadCodeModel(recipe, { low }) : loadModel(outfitModel ?? ((low && d!.low) || d!.model!), s.renderer, { boneMap: cfg.boneMap, expressionMap: cfg.expressionMap, scale: cfg.scale, facing: cfg.facing, floor: cfg.floor });
+      load
         .then((model) => {
           if (stage.current !== s || loaded.current.get(c.id) !== stamp) return;
-          const a = s.add(c.id, model, { look: lookFor(cfg, model), outlines: cfg.outlines, physics: cfg.physics.enabled });
+          const a = s.add(c.id, model, { look: recipe ? 'toon' : lookFor(cfg, model), outlines: cfg.outlines, physics: cfg.physics.enabled });
           a.options.stiffness = cfg.physics.stiffness;
           a.options.gravity = cfg.physics.gravity;
           const now = dressedRef.current.get(c.id);
-          if (now) dress(a, cfg, s.renderer, now);
+          if (now && !recipe) dress(a, cfg, s.renderer, now);
           s.snapCamera();
         })
         .catch((e: Error) => {
@@ -158,9 +165,9 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
     // Outfit changes that keep the same model file: parts, regions, accessories.
     for (const c of cast) {
       const a = s.get(c.id);
-      const d = byId.get(c.avatarId);
+      const d = detailOf(c);
       const w = dressed.get(c.id);
-      if (a && d && w) dress(a, d.config, s.renderer, w);
+      if (a && d && w && d.kind !== 'code') dress(a, d.config, s.renderer, w);
     }
     s.setSlots(slots, speakerId);
     s.setFraming(cast.length > 2 ? 'full' : 'half');

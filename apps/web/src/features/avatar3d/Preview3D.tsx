@@ -2,7 +2,7 @@
  * A 3D stage for one avatar (the import wizard, the dressing room, the detail sheet). Loads the
  * model with its saved settings and reloads when settings that change the model itself change.
  */
-import { AvatarConfigSchema, resolveWardrobe, type AvatarConfig } from '@everloom/engine';
+import { AvatarConfigSchema, resolveWardrobe, type AvatarConfig, type AvatarRecipe } from '@everloom/engine';
 import { useEffect, useRef, useState } from 'react';
 import { usePrefs3D } from '@/features/avatars/prefs';
 import { cx } from '@/lib/format';
@@ -10,6 +10,7 @@ import { Spinner } from '@/ui';
 import type { Avatar } from './runtime/avatar';
 import { PRESETS, type LightingPreset } from './runtime/lighting';
 import { loadModel, type LoadedModel } from './runtime/loader';
+import { loadCodeModel } from './runtime/codemade/build';
 import { autoLook } from './runtime/materials';
 import { canRender3D, Stage3D, type Framing } from './runtime/stage';
 import { dress } from './runtime/wardrobe';
@@ -32,6 +33,8 @@ export interface Preview3DProps {
   children?: React.ReactNode;
   /** Dress the preview: an outfit to try on (id), and equipped item names. */
   tryOn?: { outfit?: string | null; equipped?: string[] };
+  /** A code-made character: built from this recipe instead of a file. */
+  recipe?: AvatarRecipe | null;
 }
 
 /** The parts of the settings that require loading the model again. */
@@ -41,7 +44,7 @@ export function lookFor(config: Partial<AvatarConfig> | undefined, model: Loaded
   return !config?.look || config.look === 'auto' ? autoLook(model.scene, !!model.vrm) : config.look;
 }
 
-export default function Preview3D({ src: baseSrc, config, framing = 'full', inspect = false, lighting = 'studio', className, onLoaded, children, tryOn }: Preview3DProps) {
+export default function Preview3D({ src: baseSrc, config, framing = 'full', inspect = false, lighting = 'studio', className, onLoaded, children, tryOn, recipe }: Preview3DProps) {
   // A whole-outfit model replaces the base model while that outfit is on.
   const fullCfg = config ? AvatarConfigSchema.safeParse(config) : null;
   const wardrobe = fullCfg?.success ? resolveWardrobe(fullCfg.data, { story: tryOn?.outfit ?? null, equipped: tryOn?.equipped }) : null;
@@ -77,21 +80,24 @@ export default function Preview3D({ src: baseSrc, config, framing = 'full', insp
   }, [prefs.quality, prefs.fpsCap, prefs.physics, prefs.outlines]);
 
   const key = structural(config);
+  const recipeKey = recipe ? JSON.stringify(recipe) : '';
   useEffect(() => {
     const s = stage.current;
-    if (!s || !src) return;
+    if (!s || (!src && !recipe)) return;
     let cancelled = false;
-    setState('loading');
+    // A recipe being edited rebuilds in place: keep showing the last one until the new one is ready.
+    if (!recipe || !handle.current) setState('loading');
     setError(null);
-    loadModel(src, s.renderer, { boneMap: config?.boneMap, expressionMap: config?.expressionMap, scale: config?.scale, facing: config?.facing, floor: config?.floor })
+    (recipe ? loadCodeModel(recipe) : loadModel(src!, s.renderer, { boneMap: config?.boneMap, expressionMap: config?.expressionMap, scale: config?.scale, facing: config?.facing, floor: config?.floor }))
       .then((model) => {
         if (cancelled) return;
+        const first = !handle.current;
         const avatar = s.add('preview', model, { look: lookFor(config, model), outlines: config?.outlines ?? true, physics: config?.physics?.enabled ?? true });
         avatar.options.stiffness = config?.physics?.stiffness;
         avatar.options.gravity = config?.physics?.gravity;
-        s.snapCamera();
+        if (first || !recipe) s.snapCamera();
         handle.current = { stage: s, avatar, model };
-        if (wardrobeRef.current && fullCfg?.success) dress(avatar, fullCfg.data, s.renderer, wardrobeRef.current);
+        if (!recipe && wardrobeRef.current && fullCfg?.success) dress(avatar, fullCfg.data, s.renderer, wardrobeRef.current);
         setState('ready');
         loadedCb.current?.(handle.current);
       })
@@ -106,7 +112,7 @@ export default function Preview3D({ src: baseSrc, config, framing = 'full', insp
     };
     // Reload only for the model and settings that change it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src, key]);
+  }, [src, key, recipeKey]);
 
   // Parts, regions and accessories follow the settings and the outfit being tried on.
   const wardrobeRef = useRef(wardrobe);
@@ -114,7 +120,7 @@ export default function Preview3D({ src: baseSrc, config, framing = 'full', insp
   const wardrobeKey = JSON.stringify([wardrobe, config?.parts, config?.body]);
   useEffect(() => {
     const h = handle.current;
-    if (!h || state !== 'ready' || !wardrobe || !fullCfg?.success) return;
+    if (!h || state !== 'ready' || !wardrobe || !fullCfg?.success || recipe) return;
     // The body list decides region data, made once per wardrobe: start over when it changes.
     if (h.avatar.wardrobe && JSON.stringify(config?.body) !== bodyKey.current) {
       h.avatar.wardrobe.dispose();
@@ -146,7 +152,7 @@ export default function Preview3D({ src: baseSrc, config, framing = 'full', insp
   return (
     <div className={cx('relative overflow-hidden rounded-lg bg-[radial-gradient(ellipse_at_50%_35%,var(--surface-2),var(--surface))]', className)}>
       <canvas ref={canvas} data-testid="avatar-preview" data-state={state} className="block h-full w-full touch-none" />
-      {state === 'loading' && src ? (
+      {state === 'loading' && (src || recipe) ? (
         <div className="absolute inset-0 grid place-items-center">
           <Spinner />
         </div>

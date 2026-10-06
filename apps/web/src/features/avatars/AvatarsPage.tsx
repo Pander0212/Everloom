@@ -1,11 +1,12 @@
 /** The 3D avatar library: import models, see what's being prepared, open one to edit. */
-import { ArrowLeft, Box, Upload } from 'lucide-react';
+import { AvatarRecipeSchema } from '@everloom/engine';
+import { ArrowLeft, Box, Shapes, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Page } from '@/app/Shell';
 import { toastError } from '@/lib/store';
-import { Badge, EmptyState, FileButton, Icon, IconButton, Spinner } from '@/ui';
-import { fmtBytes, uploadAvatar, useAvatars, useBlender } from './api';
+import { Badge, Button, EmptyState, FileButton, Icon, IconButton, Spinner } from '@/ui';
+import { createCodeAvatar, fmtBytes, uploadAvatar, useAvatars, useBlender } from './api';
 
 export const MODEL_ACCEPT = '.glb,.vrm,.fbx,.pmx,.pmd,.obj,.dae';
 
@@ -26,14 +27,30 @@ export default function AvatarsPage() {
       setBusy(false);
     }
   };
+  const newCode = async () => {
+    setBusy(true);
+    try {
+      const a = await createCodeAvatar('New character', AvatarRecipeSchema.parse({}));
+      navigate(`/characters/avatars/${a.id}`);
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setBusy(false);
+    }
+  };
   return (
     <Page
       title="3D avatars"
       back={<IconButton icon={ArrowLeft} label="Characters" onClick={() => navigate('/characters')} />}
       actions={
-        <FileButton accept={MODEL_ACCEPT} onFiles={importFile} loading={busy} icon={Upload} data-testid="avatar-import">
-          Import
-        </FileButton>
+        <>
+          <Button variant="secondary" icon={Shapes} onClick={newCode} disabled={busy} data-testid="avatar-new-code">
+            Make
+          </Button>
+          <FileButton accept={MODEL_ACCEPT} onFiles={importFile} loading={busy} icon={Upload} data-testid="avatar-import">
+            Import
+          </FileButton>
+        </>
       }
     >
       <p className="mb-4 text-sm text-fg-2">
@@ -45,7 +62,7 @@ export default function AvatarsPage() {
           <Spinner />
         </div>
       ) : !list.data?.length ? (
-        <EmptyState icon={Box} title="No 3D avatars yet" body="Import a GLB or VRM model to give a character a 3D body on the stage." />
+        <EmptyState icon={Box} title="No 3D avatars yet" body="Import a GLB or VRM model, or make a code-made character from simple choices." />
       ) : (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" data-testid="avatar-list">
           {list.data.map((a) => (
@@ -57,7 +74,7 @@ export default function AvatarsPage() {
                 <div className="flex flex-col gap-1 p-2">
                   <span className="truncate text-sm font-medium">{a.name}</span>
                   <span className="flex flex-wrap items-center gap-1 text-xs text-fg-2">
-                    {a.status === 'processing' ? <Badge>Preparing</Badge> : a.status === 'failed' ? <Badge tone="danger">Failed</Badge> : <>{a.triangles ? `${Math.round(a.triangles / 1000)}k tris · ` : ''}{fmtBytes(a.size)}</>}
+                    {a.kind === 'code' ? <Badge>Code-made</Badge> : a.status === 'processing' ? <Badge>Preparing</Badge> : a.status === 'failed' ? <Badge tone="danger">Failed</Badge> : <>{a.triangles ? `${Math.round(a.triangles / 1000)}k tris · ` : ''}{fmtBytes(a.size)}</>}
                     {a.warnings && a.status === 'ready' ? <Badge tone="warning">{a.warnings} {a.warnings === 1 ? 'note' : 'notes'}</Badge> : null}
                   </span>
                 </div>

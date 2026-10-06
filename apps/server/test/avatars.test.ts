@@ -8,6 +8,8 @@ import { parseGlb, replaceViews, writeGlb } from '../src/services/avatars/glb.js
 import { inspectModel } from '../src/services/avatars/inspect.js';
 import { optimizeModel } from '../src/services/avatars/optimize.js';
 import { avatarSettled, sniffModel } from '../src/services/avatars/service.js';
+import { mergeRecipe } from '../src/services/avatars/recipes.js';
+import { recipeFromText } from '@everloom/engine';
 import { createClient, FIXTURES, waitFor, type TestClient } from './helpers.js';
 
 const MANNEQUIN = readFileSync(path.join(FIXTURES, 'avatars/models/mannequin-m.glb'));
@@ -109,6 +111,44 @@ describe('3D model files', () => {
     // Mesh data is byte-for-byte the same.
     expect(again.triangles).toBe(info.triangles);
   }, 60_000);
+});
+
+describe('code-made avatars', () => {
+  it('keeps only the valid parts of a model-made recipe', () => {
+    const base = recipeFromText('Mira', 'A tall woman with long red hair and green eyes, in a blue dress.');
+    expect(base.hair).toMatchObject({ style: 'long', color: '#a8371f' });
+    expect(base.bottom.kind).toBe('long_skirt');
+    const r = mergeRecipe(base, { hair: { style: 'mohawk', color: '#123456' }, top: { kind: 'armor', color: 'blue' }, body: 'nope', extras: [{ kind: 'cape', color: '#202020' }] });
+    expect(r.hair).toMatchObject({ style: 'long', color: '#123456' });
+    expect(r.top.kind).toBe('armor');
+    expect(r.top.color).toBe(base.top.color);
+    expect(r.body).toEqual(base.body);
+    expect(r.extras).toEqual([{ kind: 'cape', color: '#202020' }]);
+  });
+
+  it('children from the text get a child body', () => {
+    expect(recipeFromText('Pip', 'A little girl of seven with pigtails.').body.age).toBe('child');
+    expect(recipeFromText('Pip', 'anything', { age: 15 }).body.age).toBe('teen');
+  });
+
+  it('stores a recipe without a model file and fills one in without a model', async () => {
+    c = await createClient();
+    const bad = await c.req('POST', '/api/avatars/code', { name: 'X', recipe: { body: { age: 'baby' } } });
+    expect(bad.status).toBe(400);
+    const fill = await c.req('POST', '/api/avatars/recipe', { name: 'Old Tom', text: 'An elderly fisherman with a white beard and a grey beanie.' });
+    expect(fill.status).toBe(200);
+    expect(fill.json.source).toBe('text');
+    expect(fill.json.recipe.body.age).toBe('elder');
+    expect(fill.json.recipe.hat.kind).toBe('beanie');
+    const made = await c.req('POST', '/api/avatars/code', { name: 'Old Tom', recipe: fill.json.recipe });
+    expect(made.json).toMatchObject({ kind: 'code', status: 'ready', model: null });
+    const d = (await c.req('GET', `/api/avatars/${made.json.id}`)).json;
+    expect(d.config.recipe.hat.kind).toBe('beanie');
+    expect((await c.req('POST', `/api/avatars/${made.json.id}/reprocess`, {})).status).toBe(400);
+    const patched = await c.req('PATCH', `/api/avatars/${made.json.id}`, { config: { ...d.config, recipe: { ...d.config.recipe, hair: { style: 'bun', color: '#ffffff', length: 0.5 } } } });
+    expect(patched.json.config.recipe.hair.style).toBe('bun');
+    expect((await c.req('DELETE', `/api/avatars/${made.json.id}`)).status).toBe(200);
+  });
 });
 
 describe('avatars API', () => {

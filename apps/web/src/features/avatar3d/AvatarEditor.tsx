@@ -10,6 +10,7 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Page } from '@/app/Shell';
 import { deleteAvatar, reprocessAvatar, saveAvatar, useAvatar } from '@/features/avatars/api';
+import CodeMadeEditor from './CodeMadeEditor';
 import { toast, toastError } from '@/lib/store';
 import { Badge, Button, confirm, EmptyState, IconButton, Menu, Segmented, Spinner, TabPanel, Tabs, useDesktop } from '@/ui';
 import { BonesStep } from './editor/BonesStep';
@@ -32,7 +33,15 @@ const STEPS = [
   { value: 'details', label: 'Details' },
 ];
 
+/** Code-made avatars have their own editor (a recipe, no model file). */
 export default function AvatarEditor() {
+  const { id } = useParams();
+  const q = useAvatar(id);
+  if (q.data?.kind === 'code') return <CodeMadeEditor key={q.data.id} avatar={q.data} />;
+  return <ImportedEditor />;
+}
+
+function ImportedEditor() {
   const { id } = useParams();
   const navigate = useNavigate();
   const desktop = useDesktop();

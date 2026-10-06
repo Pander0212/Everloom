@@ -69,6 +69,7 @@ export default function ThreeDSection() {
 
       <Section title="On this device" description="Saved in this browser only, so a phone and a computer can differ.">
         <ToggleRow label="Show pictures instead of 3D" description="For slow or battery-tight devices. Nothing 3D is downloaded while this is on." checked={p.spritesOnly} onChange={(v) => p.set({ spritesOnly: v })} />
+        <ToggleRow label="Code-made figures for characters without a picture" description="Built from their description, with no file to download. Characters with a picture or Live2D keep it." checked={p.codeNpcs} onChange={(v) => p.set({ codeNpcs: v })} />
         <Field label="Quality" hint="Automatic lowers resolution, shadows, outlines and physics when frames run slow, and raises them when there's room.">
           <Segmented<Quality3D>
             label="3D quality"

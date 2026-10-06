@@ -544,7 +544,7 @@ function GameFields({ game, setGame, characterId }: { game: CharacterGame; setGa
           <Input id="speed" type="number" step={0.05} min={0.5} max={2} value={game.voice?.speed ?? 1} onChange={(e) => setGame({ voice: { ...game.voice, speed: Number(e.target.value) } })} />
         </Field>
       </div>
-      <DisplayFields game={game} setGame={setGame} />
+      <DisplayFields game={game} setGame={setGame} characterId={characterId} />
       <div>
         <p className="text-sm font-medium">Expressions</p>
         <p className="mt-0.5 text-xs text-fg-2">Sprites shown in Stage mode. The reply's mood picks one; neutral is the fallback. Drawn sprites are saved with the card when you save.</p>

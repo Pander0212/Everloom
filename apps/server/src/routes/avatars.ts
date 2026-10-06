@@ -6,6 +6,8 @@ import { ClipSchema, EMOTE_CATEGORIES, EMOTE_ID } from '@everloom/engine';
 import { HttpError, owner, type AppContext } from '../context.js';
 import { findBlender, runBlenderJob, setBlenderPath } from '../services/blender.js';
 import { addOutfitModel, avatarDetail, garmentLibrary, createAvatar, deleteAvatar, getAvatarRow, listAvatars, reprocessAvatar, setAvatarThumbnail, updateAvatar } from '../services/avatars/service.js';
+import { createCodeAvatar, fillRecipe } from '../services/avatars/recipes.js';
+import { getCharacter } from '../services/characters.js';
 import { parse } from '../util/validate.js';
 
 const MOTION_TYPES: Record<string, string> = { fbx: 'fbx', bvh: 'bvh', vmd: 'vmd', glb: 'glb', gltf: 'glb', vrma: 'glb' };
@@ -19,6 +21,25 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!Buffer.isBuffer(body)) throw new HttpError(400, 'Send the model file as the request body');
     const q = parse(z.object({ name: z.string().max(80).optional(), filename: z.string().max(200).optional() }), req.query ?? {});
     return createAvatar(ctx, owner(req), body, q);
+  });
+
+  /** A code-made character: a recipe, no model file. */
+  app.post('/api/avatars/code', async (req) => {
+    const b = parse(z.object({ name: z.string().max(80).optional(), recipe: z.unknown() }), req.body ?? {});
+    return createCodeAvatar(ctx, owner(req), b);
+  });
+
+  /** A recipe from a character's description (the utility model when available, else the text alone). */
+  app.post('/api/avatars/recipe', async (req) => {
+    const b = parse(z.object({ characterId: z.string().max(64).optional(), name: z.string().max(80).optional(), text: z.string().max(20_000).optional() }), req.body ?? {});
+    let name = b.name ?? '';
+    let text = b.text ?? '';
+    if (b.characterId) {
+      const c = getCharacter(ctx, owner(req), b.characterId);
+      name ||= c.name;
+      text ||= [c.card.description, c.card.personality].filter(Boolean).join('\n\n');
+    }
+    return fillRecipe(ctx, owner(req), { name: name || 'Someone', text });
   });
 
   /** Garments that fit a body family, from all the owner's avatars. */

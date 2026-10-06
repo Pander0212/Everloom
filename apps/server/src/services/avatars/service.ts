@@ -243,6 +243,7 @@ export function createAvatar(ctx: AppContext, owner: string, bytes: Buffer, opts
 
 export function reprocessAvatar(ctx: AppContext, owner: string, id: string, opts: Partial<OptimizeOptions>) {
   const row = getAvatarRow(ctx, owner, id);
+  if (row.kind === 'code') throw new HttpError(400, 'Code-made characters have no model file to optimize');
   if (row.status === 'processing' && queued.has(id)) throw new HttpError(409, 'This avatar is already being processed');
   setStatus(ctx, owner, id, { status: 'processing', error: null });
   enqueue(ctx, owner, id, opts);

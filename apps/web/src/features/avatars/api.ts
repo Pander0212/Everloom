@@ -1,5 +1,5 @@
 /** 3D avatars API (no three.js here: this module is safe to load with 3D characters off). */
-import type { AvatarConfig, AvatarKind, ExpressionMap, HumanBone, RigBone } from '@everloom/engine';
+import type { AvatarConfig, AvatarKind, AvatarRecipe, ExpressionMap, HumanBone, RigBone } from '@everloom/engine';
 import { useQuery } from '@tanstack/react-query';
 import { api, del, get, patch, post, put } from '@/lib/api';
 import { queryClient } from '@/lib/queries';
@@ -170,3 +170,13 @@ export async function deleteClip(id: string) {
 }
 
 export const fmtBytes = (n: number | null | undefined) => (n == null ? '—' : n < 1024 * 1024 ? `${Math.max(1, Math.round(n / 1024))} KB` : `${(n / 1048576).toFixed(1)} MB`);
+
+/** A code-made character (a recipe, no model file). */
+export async function createCodeAvatar(name: string, recipe: AvatarRecipe): Promise<AvatarSummary> {
+  const r = await post<AvatarSummary>('/api/avatars/code', { name, recipe });
+  refresh();
+  return r;
+}
+
+/** A recipe from a character's description: the utility model when there is one, else the text alone. */
+export const fillRecipe = (body: { characterId?: string; name?: string; text?: string }) => post<{ recipe: AvatarRecipe; source: 'model' | 'text' }>('/api/avatars/recipe', body);

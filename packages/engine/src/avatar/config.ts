@@ -6,6 +6,7 @@
 import { z } from 'zod';
 import { CANONICAL_EXPRESSIONS } from './expressions.js';
 import { BODY_REGIONS, HUMANOID_BONES } from './skeleton.js';
+import { AvatarRecipeSchema } from './recipe.js';
 
 const id = z.string().regex(/^[a-z0-9_-]{1,40}$/);
 const label = z.string().trim().min(1).max(60);
@@ -112,6 +113,8 @@ export const AvatarConfigSchema = z.object({
   family: z.string().max(40).nullable().default(null),
   /** The meshes that are the body's skin (regions of these hide under clothes). */
   body: z.array(nodeName).max(16).default([]),
+  /** Code-made avatars: the recipe the model is built from (no model file). */
+  recipe: AvatarRecipeSchema.optional(),
 });
 export type AvatarConfig = z.infer<typeof AvatarConfigSchema>;
 export type AvatarPart = z.infer<typeof AvatarPartSchema>;

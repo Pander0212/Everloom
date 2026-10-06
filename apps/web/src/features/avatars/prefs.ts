@@ -13,10 +13,12 @@ export interface Prefs3D {
   outlines: boolean;
   /** Show sprites instead of 3D on this device. */
   spritesOnly: boolean;
+  /** Characters with no picture (most NPCs) appear as code-made 3D figures. */
+  codeNpcs: boolean;
 }
 const KEY = 'everloom:3d';
 const isPhone = () => typeof window !== 'undefined' && Math.min(window.innerWidth, window.innerHeight) < 600;
-export const DEFAULT_PREFS_3D = (): Prefs3D => ({ quality: 'auto', fpsCap: isPhone() ? 30 : 60, physics: true, outlines: true, spritesOnly: false });
+export const DEFAULT_PREFS_3D = (): Prefs3D => ({ quality: 'auto', fpsCap: isPhone() ? 30 : 60, physics: true, outlines: true, spritesOnly: false, codeNpcs: true });
 
 function load(): Prefs3D {
   try {
