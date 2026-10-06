@@ -33,7 +33,7 @@ export interface StageLayerProps {
   onFail: (id: string, reason: string) => void;
 }
 
-export default function StageLayer({ cast, speakerId, scene, onFail, className }: StageLayerProps & { className?: string }) {
+export default function StageLayer({ cast, speakerId, scene, onFail, className, safeBottom = 0 }: StageLayerProps & { className?: string; safeBottom?: number }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const stage = useRef<Stage3D | null>(null);
   const prefs = usePrefs3D();
@@ -141,8 +141,17 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className }
   });
 
   useEffect(() => {
+    stage.current?.setSafeArea(safeBottom);
+  }, [safeBottom]);
+
+  useEffect(() => {
     stage.current?.setLighting(lightingFor(scene));
   }, [scene?.hour, scene?.weather, scene?.locationKind]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  return <canvas ref={canvas} data-testid="stage-3d" className={className ?? "pointer-events-none absolute inset-0 h-full w-full"} />;
+  // The box sets the size; the canvas fills it (a canvas sized by top/bottom alone keeps 300×150).
+  return (
+    <div className={className ?? 'pointer-events-none absolute inset-0'}>
+      <canvas ref={canvas} data-testid="stage-3d" className="block h-full w-full" />
+    </div>
+  );
 }

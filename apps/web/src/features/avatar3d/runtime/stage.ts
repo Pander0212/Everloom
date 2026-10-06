@@ -100,6 +100,8 @@ export class Stage3D {
   private speaker: string | null = null;
   private controls: OrbitControls | null = null;
   private drift = Math.random() * 10;
+  /** Fraction of the canvas at the bottom that other UI covers (the dialogue box). */
+  private safeBottom = 0;
   /** Called after every rendered frame (tests read stats here). */
   onFrame: ((s: StageStats) => void) | null = null;
   stats: StageStats = { fps: 0, frameMs: 0, level: 0, avatars: 0, drawCalls: 0, triangles: 0, paused: false };
@@ -171,9 +173,21 @@ export class Stage3D {
     const w = this.canvas.clientWidth || 300;
     const h = this.canvas.clientHeight || 400;
     this.renderer.setSize(w, h, false);
-    this.camera.aspect = w / h;
+    // Frame the shot in the uncovered part; the rest of the picture continues below it, behind the UI.
+    const vh = h * (1 - this.safeBottom);
+    this.camera.aspect = w / vh;
+    if (this.safeBottom > 0) this.camera.setViewOffset(w, vh, 0, 0, w, h);
+    else this.camera.clearViewOffset();
     this.camera.updateProjectionMatrix();
     this.kick();
+  }
+
+  /** The bottom fraction of the canvas that the page covers (0–0.6). */
+  setSafeArea(bottom: number) {
+    const b = Math.max(0, Math.min(0.6, bottom));
+    if (Math.abs(b - this.safeBottom) < 0.001) return;
+    this.safeBottom = b;
+    this.resize();
   }
 
   // ------------------------------------------------------------------ avatars
@@ -339,7 +353,7 @@ export class Stage3D {
     const cx = (minX + maxX) / 2 * 0.7 + (speaker ? speaker.x * 0.3 : (minX + maxX) / 2 * 0.3);
     const frame = { portrait: { y: 0.88, span: 0.36 }, half: { y: 0.7, span: 0.62 }, full: { y: 0.5, span: 1.15 } }[this.framing];
     const spanY = h * frame.span;
-    const spanX = (maxX - minX) + h * 0.5;
+    const spanX = (maxX - minX) + h * 0.62;
     const fovY = (this.camera.fov * Math.PI) / 180;
     const distY = spanY / 2 / Math.tan(fovY / 2);
     const distX = spanX / 2 / (Math.tan(fovY / 2) * this.camera.aspect);
