@@ -21,11 +21,12 @@ Everloom listens on port **8787** (so it can sit next to SillyTavern on 8000).
 4. [Update, back up, restore](#update-back-up-restore)
 5. [Move over from SillyTavern](#move-over-from-sillytavern)
 6. [Voice, images, music and Live2D](#voice-images-music-and-live2d)
-7. [Configuration](#configuration)
-8. [Install without Docker](#install-without-docker)
-9. [Development](#development)
-10. [Troubleshooting](#troubleshooting)
-11. [Security notes](#security-notes)
+7. [3D characters](#3d-characters)
+8. [Configuration](#configuration)
+9. [Install without Docker](#install-without-docker)
+10. [Development](#development)
+11. [Troubleshooting](#troubleshooting)
+12. [Security notes](#security-notes)
 
 ---
 
@@ -233,6 +234,56 @@ What it can't do: if you lose both the passphrase and the recovery key, the data
 Botbooru and Saucepan ask crawlers to stay away, so Everloom shows a notice once before fetching from them, and only ever fetches what you ask for. Saucepan needs your account for free-text search and importing; sign in under **Settings → Character sources → Accounts** (stored encrypted on your server, never shown again). If a site stops working, **Diagnostics** on the same page runs a self-test and can record the site's answers for a bug report.
 
 Some sites (JanitorAI, JannyAI, DataCat) block automated access or exist to recover hidden definitions, and Everloom won't fetch them. Use the **browser bridge** instead: in **Settings → Character sources → Browser bridge**, name your browser and press **Install and pair** (with Tampermonkey or Violentmonkey installed; on Android, Firefox or Kiwi). On a character page press **Send to Everloom**; on a search or profile page, **Send all**. Without a userscript manager, use the bookmarklet; on Android you can also **Share** a page to the installed Everloom app. What the page shows you comes across; a definition the creator hid stays hidden and the card is labelled so.
+
+## 3D characters
+
+Characters can stand on the stage as 3D models that breathe, look at whoever is talking, move their
+lips, show feelings, play emotes and dances, and wear what's in their inventory. It's a feature
+switch (**Settings → Features → 3D characters**): with it off, nothing 3D is ever downloaded. The
+full spec, with a checklist for model makers, is [docs/avatars.md](docs/avatars.md).
+
+**Four ways to get a character** (Characters › 3D avatars, or the picker on each character):
+
+- **Code-made:** built from simple choices (height, build, face, hair, clothes) with no files at
+  all; a few kilobytes, runs on any phone. Fill it in from the character's description in one tap.
+  Characters and NPCs without a picture get one automatically.
+- **From parts:** pick a body, hair, top, bottoms, shoes, hat and colours in the maker. Everloom
+  ships a small CC0 "Basics" pack; packs in CharacterStudio's format import as zips.
+- **Imported:** GLB or VRM (0.x and 1.0) straight away; FBX, PMX/PMD, OBJ and DAE through Blender.
+- **Realistic:** if Blender 4.2+ is on your server, MPFB (MakeHuman) makes realistic humans from
+  sliders, with clothes you can take off (one button installs MPFB and its CC0 assets).
+
+**Where to get good models:** [VRoid Studio](https://vroid.com/en/studio) (free, makes anime VRMs
+in minutes), [VRoid Hub](https://hub.vroid.com) and [Booth](https://booth.pm) (check each model's
+terms), [Quaternius](https://quaternius.com) and [Kenney](https://kenney.nl) (CC0), Ready Player
+Me-style GLBs, or your own Blender work with the Everloom add-on (`tools/blender-addon`, see
+[docs/blender-ai-workflow.md](docs/blender-ai-workflow.md)). Models from games or with "no
+redistribution" terms are fine for your own server but not for sharing.
+
+**Animations from Mixamo and MMD:** in Settings › 3D characters › Import a motion, drop an FBX from
+[Mixamo](https://www.mixamo.com) (download "Without Skin"), a BVH, a GLB/VRMA, or a VMD zipped with
+the PMX it was made for (MMD needs Blender with the MMD Tools add-on). Preview it on the mannequin,
+name it, pick its kind (and whether it loops), and it becomes an emote the story can use.
+
+**The wardrobe, in three levels:**
+
+1. **Whole outfits:** another model file of the same character (a ball gown version). The story or
+   an equipped item swaps between them.
+2. **Parts:** pieces inside one model (a jacket mesh, a hat) shown or hidden per outfit.
+3. **Garments:** separate clothes made for a body shape (a "body family"), worn in layers, with
+   colour and pattern variants; the skin under them hides. Equip a sword or a coat in the
+   inventory and the character wears it; swipe the message away and it comes off again.
+
+**What the AI tools can and can't do:** with a Meshy or fal.ai connection, *Make with AI* turns a
+description or picture into a prop (hats, weapons, bags: good) or, experimentally, a garment
+fitted with Blender (close-fitting clothes are fine, loose or layered ones come out rough). Your
+image connection can make seamless fabric textures. None of this makes a whole good character; for
+that, use VRoid, the parts maker, or a model made by a person.
+
+**On phones:** keep to two 3D characters at once, leave quality on *Automatic* (it lowers
+resolution, shadows and physics when frames run long), use the 30 fps cap, and prefer models under
+60,000 triangles (Everloom makes a lighter copy of each for phones and compresses textures).
+"Show pictures instead of 3D" in Settings › 3D characters turns 3D off on one device.
 
 ## Configuration
 

@@ -273,6 +273,34 @@ characters › *Code-made figures for characters without a picture* turns this o
   shadows, outlines and physics down when frames run long, and back up), a 30 or 60 fps cap, 30 fps
   when nothing but breathing moves, rendering paused when the tab or the canvas is out of sight, the
   lighter model on phones.
+- **Measured** (October 2026, `perf` run in headless Chromium with software WebGL, the 13,700-triangle
+  mannequin; "phone" is 390×844 at 2× with the CPU slowed 4×). The frame rate there is set by the
+  software rasteriser (12–24 fps whatever the load), so the number that carries over to real devices
+  is the CPU time each frame takes: under 12 ms even for four characters on high, well inside the
+  33 ms a 30 fps frame has. Rendering paused when the tab was hidden in every run, and the e2e
+  suite checks that nothing 3D downloads when the module or the device setting is off.
+
+| Profile | Quality | Avatars | CPU ms / frame | Draw calls | Triangles | JS heap |
+|---|---|---|---|---|---|---|
+| phone | low | 1 | 3 | 3 | 13,746 | 19 MB |
+| phone | low | 2 | 6.5 | 6 | 27,492 | 19 MB |
+| phone | low | 4 | 7.5 | 12 | 54,984 | 17 MB |
+| phone | medium | 1 | 4.3 | 5 | 27,490 | 16 MB |
+| phone | medium | 2 | 9.4 | 10 | 54,980 | 20 MB |
+| phone | medium | 4 | 10.7 | 20 | 109,960 | 26 MB |
+| phone | high | 1 | 5.5 | 10 | 54,980 | 19 MB |
+| phone | high | 2 | 7.8 | 19 | 109,958 | 19 MB |
+| phone | high | 4 | 11.5 | 37 | 219,914 | 22 MB |
+| desktop | low | 1 | 0.8 | 2 | 13,744 | 17 MB |
+| desktop | low | 2 | 1.6 | 6 | 27,492 | 22 MB |
+| desktop | low | 4 | 2.2 | 12 | 54,984 | 29 MB |
+| desktop | medium | 1 | 1 | 4 | 27,488 | 14 MB |
+| desktop | medium | 2 | 1.2 | 10 | 54,980 | 22 MB |
+| desktop | medium | 4 | 1.7 | 20 | 109,960 | 18 MB |
+| desktop | high | 1 | 1 | 9 | 54,978 | 20 MB |
+| desktop | high | 2 | 3.3 | 19 | 109,958 | 19 MB |
+| desktop | high | 4 | 2.5 | 37 | 219,914 | 31 MB |
+
 - **Fallbacks**: no WebGL 2, a model that fails to load, a lost GPU context or pictures-only on the
   device: the character shows as its sprite (or Live2D).
 

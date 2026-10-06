@@ -79,7 +79,9 @@ function onPath(): string | null {
 
 function run(file: string, argv: string[], opts: { cwd?: string; timeoutMs: number; env?: NodeJS.ProcessEnv }): Promise<{ code: number | null; out: string; timedOut: boolean }> {
   return new Promise((resolve) => {
-    const child = spawn(file, argv, { cwd: opts.cwd, env: opts.env ?? minimalEnv(opts.cwd ?? os.tmpdir()), stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true });
+    // Its own process group (not on Windows), so the time limit stops anything it started too.
+    const group = process.platform !== 'win32';
+    const child = spawn(file, argv, { cwd: opts.cwd, env: opts.env ?? minimalEnv(opts.cwd ?? os.tmpdir()), stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true, detached: group });
     let out = '';
     const take = (d: Buffer) => {
       if (out.length < 64_000) out += d.toString('utf8');
@@ -89,7 +91,12 @@ function run(file: string, argv: string[], opts: { cwd?: string; timeoutMs: numb
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill('SIGKILL');
+      try {
+        if (group && child.pid) process.kill(-child.pid, 'SIGKILL');
+        else child.kill('SIGKILL');
+      } catch {
+        child.kill('SIGKILL');
+      }
     }, opts.timeoutMs);
     child.on('error', () => {
       clearTimeout(timer);

@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import type { Page } from '@playwright/test';
-import { api, expect, test } from './fixtures';
+import { api, expect, mockControl, test } from './fixtures';
 
 // Software WebGL so the 3D screens render headless (only here: it slows the whole browser down).
 test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } });
@@ -16,6 +16,37 @@ function watch3d(page: Page) {
     if (/\/assets\/3d-|\/three\/basis\/|\/avatar\/clips\//.test(u)) hits.push(u);
   });
   return hits;
+}
+
+/** A click track: short ticks at the given tempo (mono 16-bit WAV). */
+function clicks(seconds: number, bpm: number): Buffer {
+  const rate = 11025;
+  const n = rate * seconds;
+  const b = Buffer.alloc(44 + n * 2);
+  b.write('RIFF', 0);
+  b.writeUInt32LE(36 + n * 2, 4);
+  b.write('WAVEfmt ', 8);
+  b.writeUInt32LE(16, 16);
+  b.writeUInt16LE(1, 20);
+  b.writeUInt16LE(1, 22);
+  b.writeUInt32LE(rate, 24);
+  b.writeUInt32LE(rate * 2, 28);
+  b.writeUInt16LE(2, 32);
+  b.writeUInt16LE(16, 34);
+  b.write('data', 36);
+  b.writeUInt32LE(n * 2, 40);
+  const every = Math.round((rate * 60) / bpm);
+  for (let i = 0; i < n; i++) {
+    const t = i % every;
+    const v = t < 400 ? Math.sin(t * 0.6) * Math.exp(-t / 80) * 26000 : 0;
+    b.writeInt16LE(Math.round(v), 44 + i * 2);
+  }
+  return b;
+}
+
+async function postBytes(page: Page, url: string, bytes: Buffer) {
+  const { csrf } = await (await page.request.get('/api/auth/status')).json();
+  return (await page.request.post(url, { data: bytes, headers: { 'content-type': 'application/octet-stream', 'x-csrf-token': csrf } })).json();
 }
 
 async function uploadAvatar(page: Page, name: string): Promise<string> {
@@ -190,6 +221,80 @@ test.describe('3D characters', () => {
     await expect(stage).toBeVisible({ timeout: 20_000 });
     await expect(stage).toHaveAttribute('data-worn', /item-hat-helmet/);
     await expect(stage).not.toHaveAttribute('data-worn', /hair-bun/);
+    expect(errors).toEqual([]);
+  });
+
+  test('the story changes the outfit and a swipe takes it back; a dance keeps time with the music; the dressing room', async ({ page, errors }) => {
+    const avatar = await uploadAvatar(page, 'Outfit body');
+    // A whole-outfit model ("Ball gown"), as the dressing room makes it.
+    const o = await postBytes(page, `/api/avatars/${avatar}/outfit-model?filename=gown.glb`, readFileSync(path.resolve('tests/fixtures/avatars/models/mannequin-f.glb')));
+    const detail = await api(page, 'GET', `/api/avatars/${avatar}`);
+    await api(page, 'PATCH', `/api/avatars/${avatar}`, { config: { ...detail.config, outfits: [{ id: 'gown', name: 'Ball gown', model: o.model, modelLow: o.modelLow }] } });
+    const name = `Odile ${test.info().project.name.replace(/-/g, ' ')}`;
+    const ch = await api(page, 'POST', '/api/characters', { card: { name, first_mes: 'Odile smooths her coat.' } });
+    await api(page, 'PATCH', `/api/characters/${ch.id}`, { game: { avatar3d: avatar, display: 'auto' } });
+    const chat = await api(page, 'POST', '/api/chats', { characterId: ch.id });
+    const key = name.toLowerCase();
+
+    // Music with a clear 100 BPM beat, and a dance.
+    const track = (await postBytes(page, '/api/media?kind=music', clicks(12, 100))).id as string;
+    const settings = await api(page, 'GET', '/api/settings');
+    await api(page, 'PATCH', '/api/settings', { audio: { ...settings.audio, music: true, playlists: [{ id: 'pl_party', name: 'Party', mood: 'party', tracks: [track] }] } });
+    await api(page, 'POST', `/api/campaigns/${chat.campaignId}/ops`, { chatId: chat.id, ops: [{ type: 'music.set', mood: 'party' }] });
+    await page.goto(`/chat/${chat.id}`);
+    await page.getByRole('button', { name: 'Switch to stage mode' }).click();
+    const stage = page.getByTestId('stage-3d');
+    await expect(stage).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('audio-director')).toHaveAttribute('data-playlist', 'Party');
+    await page.getByRole('button', { name: 'Emotes' }).click();
+    await page.getByTestId('emote-picker').getByRole('button', { name: 'Dance', exact: true }).click();
+    await page.keyboard.press('Escape');
+    // The tempo is read from the track; the dance (120 BPM at speed 1) slows to match it.
+    await expect(stage).toHaveAttribute('data-dance', /^(9[5-9]|10[0-5])(\.\d+)?\|.+:0\.8\d/, { timeout: 20_000 });
+
+    // The story puts on the ball gown; a new swipe without it takes it off again.
+    await mockControl({ trackerOps: [{ type: 'avatar.outfit', who: name, outfit: 'Ball gown' }] });
+    await page.getByLabel('Message', { exact: true }).fill('Shall we go to the ball?');
+    await page.getByRole('button', { name: 'Send' }).click();
+    await expect.poll(async () => (await api(page, 'GET', `/api/campaigns/${chat.campaignId}`)).state.stage.avatars[key]?.outfit, { timeout: 20_000 }).toBe('Ball gown');
+    await expect(stage).toHaveAttribute('data-outfit', new RegExp(`${ch.id}:gown`), { timeout: 20_000 });
+    await mockControl({ trackerOps: [] });
+    await page.getByRole('button', { name: 'New swipe' }).click();
+    await expect.poll(async () => (await api(page, 'GET', `/api/campaigns/${chat.campaignId}`)).state.stage.avatars[key]?.outfit ?? null, { timeout: 20_000 }).toBeNull();
+    await expect(stage).toHaveAttribute('data-outfit', new RegExp(`${ch.id}:(\\||$)`), { timeout: 20_000 });
+    await mockControl({ trackerOps: null });
+
+    // The dressing room: try the outfit on in the preview.
+    await page.goto(`/characters/avatars/${avatar}`);
+    await page.getByRole('tab', { name: 'Wardrobe' }).click();
+    await page.getByTestId('wardrobe').getByRole('button', { name: 'Ball gown' }).click();
+    await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+    expect(errors).toEqual([]);
+  });
+
+  test('3D on the character sheet and in the asset library', async ({ page, errors }) => {
+    const avatar = await uploadAvatar(page, 'Shelf body');
+    const name = `Pell ${test.info().project.name.replace(/-/g, ' ')}`;
+    const ch = await api(page, 'POST', '/api/characters', { card: { name } });
+    await api(page, 'PATCH', `/api/characters/${ch.id}`, { game: { avatar3d: avatar, display: 'auto' } });
+    await page.goto('/characters');
+    await page.getByRole('button', { name: new RegExp(name) }).first().click();
+    await page.getByTestId('detail-3d-show').click();
+    await expect(page.getByTestId('detail-3d').getByTestId('stage-3d')).toBeVisible({ timeout: 20_000 });
+    await page.keyboard.press('Escape');
+
+    const chat = await api(page, 'POST', '/api/chats', { characterId: ch.id });
+    await page.goto(`/chat/${chat.id}`);
+    await page.getByRole('button', { name: 'Actions and tools' }).click();
+    await page.getByLabel('Search tools and actions').fill('Stage & sound');
+    await page.getByRole('button', { name: 'Stage & sound', exact: true }).click();
+    await page.getByRole('tab', { name: 'Sprites' }).click();
+    await page.getByRole('button', { name: 'Asset library' }).click();
+    const lib = page.getByRole('dialog', { name: 'Asset library' });
+    await lib.getByRole('radiogroup', { name: 'Shelf' }).getByRole('radio', { name: '3D' }).click();
+    const shelf = lib.getByTestId('assets3d');
+    await shelf.getByLabel('Search 3D assets').fill('Shelf body');
+    await expect(shelf.getByText('Shelf body').first()).toBeVisible();
     expect(errors).toEqual([]);
   });
 

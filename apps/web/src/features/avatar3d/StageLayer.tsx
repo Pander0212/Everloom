@@ -211,11 +211,16 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
     const apply = (b: { bpm: number } | null) => {
       const s = stage.current;
       if (!s) return;
+      const rates: string[] = [];
       for (const id of s.ids()) {
         const a = s.get(id)!;
         const own = a.danceBpm;
-        a.setDanceRate(b && own ? danceRate(own, b.bpm) : 1);
+        const r = b && own ? danceRate(own, b.bpm) : 1;
+        a.setDanceRate(r);
+        if (own) rates.push(`${id}:${r.toFixed(2)}`);
       }
+      // What each dancer is doing, for tests and the inspector.
+      if (canvas.current) canvas.current.dataset.dance = `${b?.bpm ?? ''}|${rates.join(',')}`;
     };
     apply(musicBeat());
     const t = setInterval(() => apply(musicBeat()), 2000);
@@ -241,7 +246,7 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
   // The box sets the size; the canvas fills it (a canvas sized by top/bottom alone keeps 300×150).
   return (
     <div className={className ?? 'pointer-events-none absolute inset-0'}>
-      <canvas ref={canvas} data-testid="stage-3d" data-worn={cast.map((c) => `${c.id}:${(dressed.get(c.id)?.garments ?? []).map((g) => g.garment.id).join(',')}`).join('|')} className={inspect ? 'pointer-events-auto block h-full w-full touch-none' : 'block h-full w-full'} />
+      <canvas ref={canvas} data-testid="stage-3d" data-outfit={cast.map((c) => `${c.id}:${dressed.get(c.id)?.outfit?.id ?? ''}`).join('|')} data-worn={cast.map((c) => `${c.id}:${(dressed.get(c.id)?.garments ?? []).map((g) => g.garment.id).join(',')}`).join('|')} className={inspect ? 'pointer-events-auto block h-full w-full touch-none' : 'block h-full w-full'} />
     </div>
   );
 }
