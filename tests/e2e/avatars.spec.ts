@@ -126,6 +126,14 @@ test.describe('3D characters', () => {
     const id = page.url().split('/').pop()!;
     const saved = await api(page, 'GET', `/api/avatars/${id}`);
     expect(saved.config.recipe).toMatchObject({ hair: { style: 'bun' }, top: { kind: 'robe' } });
+    // Upgrade: open it in the parts maker with its choices carried over.
+    await page.getByRole('button', { name: 'More' }).click();
+    await page.getByRole('menuitem', { name: 'Open in the parts maker' }).click();
+    await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 45_000 });
+    await page.getByRole('tab', { name: 'Hair' }).click();
+    await expect(page.getByRole('option', { name: 'Bun', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('tab', { name: 'Tops' }).click();
+    await expect(page.getByRole('option', { name: 'Robe', exact: true })).toHaveAttribute('aria-selected', 'true');
 
     // A character with no picture at all: a figure made from the description.
     const ch = await api(page, 'POST', '/api/characters', { card: { name: 'Old Tam', description: 'An elderly fisherman with a white beard, a grey beanie and boots.', first_mes: 'Tam squints at the sea.' } });

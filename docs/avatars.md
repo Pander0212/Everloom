@@ -253,6 +253,9 @@ plain underwear, and child bodies never get a chest shape whatever the recipe sa
 returns is checked field by field; what doesn't fit the schema is replaced), and without a model the
 description's own words are used (hair, colours, clothes, "old", "little girl"…).
 
+**Upgrading:** a code-made character's menu has *Open in the parts maker*: its hairstyle, clothes,
+hat, colours and the closer of the two bodies carry over to the built-in pack.
+
 **NPCs:** a character with no picture, Live2D or avatar appears on the stage as a code-made figure
 from its description (stable: the same name always gets the same choices). Settings › 3D
 characters › *Code-made figures for characters without a picture* turns this off on a device.

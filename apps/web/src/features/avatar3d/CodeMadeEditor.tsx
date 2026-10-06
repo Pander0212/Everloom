@@ -4,7 +4,7 @@
  * character's description (or works it out from the text when no model is set up).
  */
 import { AGE_STAGES, AvatarRecipeSchema, BOTTOMS, EXTRAS, HAIR_STYLES, HATS, PATTERNS, SHOES, TOPS, type AvatarRecipe } from '@everloom/engine';
-import { ArrowLeft, MoreHorizontal, Trash2, Wand2 } from 'lucide-react';
+import { ArrowLeft, MoreHorizontal, Shirt, Trash2, Wand2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Page } from '@/app/Shell';
@@ -126,7 +126,7 @@ export default function CodeMadeEditor({ avatar }: { avatar: AvatarDetail }) {
           <Button onClick={save} loading={saving} disabled={!dirty} data-testid="avatar-save">
             Save
           </Button>
-          <Menu trigger={<IconButton icon={MoreHorizontal} label="More" />} items={[{ label: 'Delete', icon: Trash2, onSelect: remove, danger: true }]} />
+          <Menu trigger={<IconButton icon={MoreHorizontal} label="More" />} items={[{ label: 'Open in the parts maker', icon: Shirt, onSelect: () => navigate(`/characters/maker?from=${avatar.id}`) }, { label: 'Delete', icon: Trash2, onSelect: remove, danger: true }]} />
         </>
       }
     >

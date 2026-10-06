@@ -4,7 +4,7 @@
  * per part, randomize and undo. Saving keeps the pack's body and the chosen parts as garments of
  * the pack's body family, so equipped items can swap them on the stage later.
  */
-import { AvatarConfigSchema, packPath, packSlots, type AvatarConfig, type Garment, type GarmentSlot, type MakerSelection, type PackPart } from '@everloom/engine';
+import { AvatarConfigSchema, type AvatarRecipe, packPath, packSlots, type AvatarConfig, type Garment, type GarmentSlot, type MakerSelection, type PackPart } from '@everloom/engine';
 import { ArrowLeft, Copy, Dices, Download, Search, Shirt, Undo2 } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
@@ -33,6 +33,32 @@ function configFor(pack: LoadedPack, sel: MakerSelection, base?: AvatarConfig): 
   });
 }
 
+/**
+ * The upgrade path: a code-made character's recipe as a selection of the built-in pack (whose parts
+ * share the recipe's names), with its colours and the closer of the two bodies.
+ */
+function fromRecipe(pack: LoadedPack, base: MakerSelection, r: AvatarRecipe): MakerSelection {
+  const has = (g: string, id: string) => pack.manifest.traits.find((t) => t.trait === g)?.collection.some((p) => p.id === id);
+  const parts = { ...base.parts };
+  const colors: Record<string, string> = { BODY: r.body.skin };
+  const set = (g: string, id: string | null, color?: string) => {
+    if (id === null || id === 'none') parts[g] = null;
+    else if (has(g, id)) {
+      parts[g] = id;
+      if (color) colors[g] = color;
+    }
+  };
+  set('BODY', r.body.chest > 0.3 ? 'soft' : 'straight');
+  set('HAIR', r.hair.style, r.hair.color);
+  set('TOP', r.top.kind, r.top.color);
+  set('BOTTOM', r.top.kind === 'robe' ? null : r.bottom.kind, r.bottom.color);
+  set('SHOES', r.shoes.kind, r.shoes.color);
+  set('HAT', r.hat.kind, r.hat.color);
+  set('EXTRA', r.extras[0]?.kind ?? null, r.extras[0]?.color);
+  const body = pack.manifest.traits.find((t) => t.trait === 'BODY')!.collection.find((p) => p.id === parts.BODY)!;
+  return { ...base, parts, colors, body: packRef(pack, packPath(pack.manifest, body.directory))! };
+}
+
 function startSelection(pack: LoadedPack): MakerSelection {
   const m = pack.manifest;
   const { body } = packSlots(m);
@@ -54,7 +80,9 @@ export default function Maker({ avatar }: { avatar?: AvatarDetail }) {
   const packs = usePacks();
   const [params] = useSearchParams();
   const usable = (packs.data ?? []).filter((p) => p.enabled);
-  const [packId, setPackId] = useState<string | null>(avatar?.config.maker?.pack ?? params.get('pack'));
+  // Upgrading a code-made character: its recipe seeds the built-in pack's parts.
+  const from = useAvatar(params.get('from'));
+  const [packId, setPackId] = useState<string | null>(avatar?.config.maker?.pack ?? params.get('pack') ?? (params.get('from') ? 'basics' : null));
   const pack = usable.find((p) => p.id === packId) ?? usable[0];
   const [sel, setSel] = useState<MakerSelection | null>(avatar?.config.maker ?? null);
   const [history, setHistory] = useState<MakerSelection[]>([]);
@@ -65,12 +93,15 @@ export default function Maker({ avatar }: { avatar?: AvatarDetail }) {
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
+    if (params.get('from') && !from.data) return;
     if (pack && (!sel || sel.pack !== pack.id)) {
-      setSel(startSelection(pack));
+      const recipe = from.data?.kind === 'code' ? from.data.config.recipe : undefined;
+      setSel(recipe && pack.id === 'basics' ? fromRecipe(pack, startSelection(pack), recipe) : startSelection(pack));
+      if (from.data && !name) setName(from.data.name);
       setHistory([]);
     }
     if (pack && !group) setGroup(pack.manifest.traits[0]!.trait);
-  }, [pack?.id]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [pack?.id, from.data?.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const config = useMemo(() => (pack && sel ? configFor(pack, sel, avatar?.config) : null), [pack, sel, avatar?.config]);
 
