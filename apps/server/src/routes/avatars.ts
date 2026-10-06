@@ -11,7 +11,8 @@ import { deletePack, importPack, listPacks, setPackEnabled } from '../services/a
 import { discardModel3dJob, getModel3dJob, startModel3dJob } from '../services/avatars/model3d.js';
 import { generateTexture } from '../services/avatars/textures.js';
 import { getCharacter } from '../services/characters.js';
-import { readMedia } from '../services/media.js';
+import { readMedia, saveModelFile } from '../services/media.js';
+import { ownerForToken } from '../services/bridge.js';
 import { parse } from '../util/validate.js';
 
 const MOTION_TYPES: Record<string, string> = { fbx: 'fbx', bvh: 'bvh', vmd: 'vmd', glb: 'glb', gltf: 'glb', vrma: 'glb' };
@@ -77,6 +78,42 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     const b = parse(z.object({ prompt: z.string().trim().min(2).max(400), base: z.string().regex(/^[\w-]{1,64}$/).nullable().optional() }), req.body ?? {});
     return generateTexture(ctx, owner(req), b);
   });
+
+  // ---- The Blender add-on (tools/blender-addon): device-token uploads ---------------------------
+  const tokenOwner = (req: { headers: { authorization?: string } }) => {
+    const who = ownerForToken(ctx, req.headers.authorization);
+    if (!who) throw new HttpError(401, 'This device token is not known. Make one in Everloom: Settings › Character sources › Browser bridge › Add a device.', 'auth_required');
+    return who;
+  };
+  app.post('/api/addon/ping', async (req) => (tokenOwner(req), { ok: true, name: 'Everloom' }));
+  app.post('/api/addon/avatars', async (req) => listAvatars(ctx, tokenOwner(req)).filter((a) => a.kind === 'imported').map((a) => ({ id: a.id, name: a.name })));
+  app.post('/api/addon/upload', { bodyLimit: 200 * 1024 * 1024 }, async (req) => {
+    const who = tokenOwner(req);
+    const body = req.body as Buffer;
+    if (!Buffer.isBuffer(body)) throw new HttpError(400, 'Send the GLB as the request body');
+    const q = parse(z.object({ kind: z.enum(['avatar', 'garment', 'animation']), name: z.string().trim().min(1).max(80), avatar: z.string().max(64).optional(), slot: z.enum(GARMENT_SLOTS).default('top') }), req.query ?? {});
+    if (q.kind === 'avatar') {
+      const a = createAvatar(ctx, who, body, { name: q.name, filename: `${q.name}.glb` });
+      ctx.bus.publish(who, 'avatars.changed', {});
+      return { kind: 'avatar', id: a.id, open: `/characters/avatars/${a.id}` };
+    }
+    if (q.kind === 'garment') {
+      if (!q.avatar) throw new HttpError(400, 'Choose the avatar this garment is for');
+      const row = getAvatarRow(ctx, who, q.avatar);
+      const saved = await addOutfitModel(ctx, who, row.id, body, `${q.name}.glb`);
+      const cfg = avatarDetail(row).config;
+      const id = `g_${Date.now().toString(36)}`.slice(0, 40);
+      updateAvatar(ctx, who, row.id, { config: { ...cfg, garments: [...cfg.garments, { id, name: q.name.slice(0, 60), model: saved.model, modelLow: saved.modelLow, slot: q.slot, family: cfg.family }] } });
+      ctx.bus.publish(who, 'avatars.changed', {});
+      return { kind: 'garment', id, avatar: row.id, open: `/characters/avatars/${row.id}` };
+    }
+    // Animations wait in Settings › 3D characters › Motion clips until imported (named and previewed).
+    const m = saveModelFile(ctx, who, body, { kind: 'model-motion', ext: 'glb', meta: { name: q.name, from: 'blender' } });
+    return { kind: 'animation', id: m.id, open: '/settings/3d' };
+  });
+  app.get('/api/avatar-motions/inbox', async (req) =>
+    (ctx.db.prepare("SELECT id, meta, created_at FROM media WHERE owner_id = ? AND kind = 'model-motion' ORDER BY created_at DESC").all(owner(req)) as Array<{ id: string; meta: string; created_at: number }>).map((r) => ({ id: r.id, name: (JSON.parse(r.meta || '{}') as { name?: string }).name ?? 'Animation', url: `/media/${r.id}`, createdAt: r.created_at })),
+  );
 
   // ---- Part packs (the parts maker) -------------------------------------------------------------
   app.get('/api/avatar-packs', async (req) => listPacks(ctx, owner(req)));

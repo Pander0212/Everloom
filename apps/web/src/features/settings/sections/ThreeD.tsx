@@ -1,6 +1,8 @@
 /** Settings › 3D characters: this device's quality and effects, Blender, and the avatar library. */
 import { Box, Plus, RefreshCw, Shirt, Trash2, Upload } from 'lucide-react';
+import { useQuery } from '@tanstack/react-query';
 import { lazy, Suspense, useState } from 'react';
+import { del, get } from '@/lib/api';
 import { useNavigate } from 'react-router';
 import { deleteClip, refreshBlender, setBlenderPath, useAvatarClips, useAvatars, useBlender, useBlenderJobs } from '@/features/avatars/api';
 import { usePrefs3D, type Quality3D } from '@/features/avatars/prefs';
@@ -20,7 +22,8 @@ export default function ThreeDSection() {
   const [path, setPath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const clips = useAvatarClips();
-  const [importing, setImporting] = useState(false);
+  const [importing, setImporting] = useState<false | { files?: File[]; inbox?: string }>(false);
+  const inbox = useQuery({ queryKey: ['motion-inbox'], queryFn: () => get<Array<{ id: string; name: string; url: string }>>('/api/avatar-motions/inbox') });
   const packs = usePacks();
   const [packBusy, setPackBusy] = useState(false);
   return (
@@ -97,7 +100,7 @@ export default function ThreeDSection() {
         title="Motion clips"
         description="Your own emotes, from GLB, VRMA, FBX, BVH or VMD files. They join the built-in ones everywhere: the picker, /emote, and the story."
         action={
-          <Button size="sm" variant="secondary" icon={Plus} onClick={() => setImporting(true)} data-testid="clip-import">
+          <Button size="sm" variant="secondary" icon={Plus} onClick={() => setImporting({})} data-testid="clip-import">
             Import
           </Button>
         }
@@ -125,10 +128,44 @@ export default function ThreeDSection() {
           <p className="text-sm text-fg-2">No imported motions yet.</p>
         )}
       </Section>
-      <Sheet open={importing} onOpenChange={setImporting} title="Import a motion" size="lg">
+      {inbox.data?.length ? (
+        <Section title="From Blender" description="Animations the Blender add-on sent. Import each one to name it and choose how it plays.">
+          <div className="flex flex-col" data-testid="motion-inbox">
+            {inbox.data.map((m) => (
+              <ListRow
+                key={m.id}
+                title={m.name}
+                trailing={
+                  <span className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="secondary"
+                      onClick={async () => {
+                        const blob = await (await fetch(m.url)).blob();
+                        setImporting({ files: [new File([blob], `${m.name}.glb`, { type: 'model/gltf-binary' })], inbox: m.id });
+                      }}
+                    >
+                      Import
+                    </Button>
+                    <IconButton icon={Trash2} label={`Discard ${m.name}`} onClick={async () => (await del(`/api/media/${m.id}`).catch(toastError), void inbox.refetch())} />
+                  </span>
+                }
+              />
+            ))}
+          </div>
+        </Section>
+      ) : null}
+      <Sheet open={!!importing} onOpenChange={(o) => !o && setImporting(false)} title="Import a motion" size="lg">
         {importing ? (
           <Suspense fallback={<Spinner />}>
-            <ClipImporter onDone={() => setImporting(false)} />
+            <ClipImporter
+              initial={importing.files}
+              onDone={() => {
+                // Imported from the inbox: it leaves the inbox.
+                if (importing.inbox) void del(`/api/media/${importing.inbox}`).then(() => inbox.refetch());
+                setImporting(false);
+              }}
+            />
           </Suspense>
         ) : null}
       </Sheet>

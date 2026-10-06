@@ -1,0 +1,14 @@
+schema_version = "1.0.0"
+id = "everloom"
+version = "1.0.0"
+name = "Everloom exporter"
+tagline = "Check and export avatars, garments and animations for Everloom"
+maintainer = "Everloom"
+type = "add-on"
+blender_version_min = "4.2.0"
+license = ["SPDX:GPL-3.0-or-later"]
+permissions = ["network", "files"]
+
+[permissions_reason]
+network = "Sends the exported file to your own Everloom server"
+files = "Writes the exported GLB"

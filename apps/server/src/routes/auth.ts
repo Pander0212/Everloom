@@ -11,7 +11,7 @@ import { parse } from '../util/validate.js';
 
 export const SESSION_COOKIE = 'everloom_session';
 const SESSION_TTL = 30 * 24 * 3600 * 1000;
-const PUBLIC = new Set(['/api/health', '/api/auth/status', '/api/auth/setup', '/api/auth/login', '/api/bridge/import', '/api/bridge/pair', '/api/bridge/ping', '/api/bridge/everloom-bridge.user.js', '/api/sandbox/frame']);
+const PUBLIC = new Set(['/api/health', '/api/auth/status', '/api/auth/setup', '/api/auth/login', '/api/bridge/import', '/api/bridge/pair', '/api/bridge/ping', '/api/bridge/everloom-bridge.user.js', '/api/sandbox/frame', '/api/addon/ping', '/api/addon/avatars', '/api/addon/upload']);
 
 const credentials = z.object({
   username: z.string().trim().min(1).max(64),
@@ -71,7 +71,8 @@ export function registerAuth(app: FastifyInstance, ctx: AppContext) {
         }
       }
     }
-    if (PUBLIC.has(url) && !url.startsWith('/api/bridge/')) return;
+    // Bridge and Blender add-on routes use device tokens, and still wait for a locked vault.
+    if (PUBLIC.has(url) && !url.startsWith('/api/bridge/') && !url.startsWith('/api/addon/')) return;
     // The Windows app's control routes check their own token (see routes/desktop.ts).
     if (url.startsWith('/api/desktop/')) return;
     // Vault locked: nothing with content answers until it is unlocked (accounts and the vault itself do).

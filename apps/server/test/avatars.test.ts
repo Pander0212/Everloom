@@ -234,6 +234,29 @@ describe('AI-made props (image-to-3D connection)', () => {
   }, 90_000);
 });
 
+describe('Blender add-on uploads', () => {
+  it('needs a device token; sends avatars, garments for an avatar, and animations to the inbox', async () => {
+    c = await createClient();
+    const inject = (url: string, body?: Buffer, token?: string) => c!.built.app.inject({ method: 'POST', url, payload: body, headers: { 'content-type': 'application/octet-stream', ...(token ? { authorization: `Bearer ${token}` } : {}) } });
+    expect((await inject('/api/addon/ping')).statusCode).toBe(401);
+    expect((await inject('/api/addon/ping', undefined, 'evb_not_a_real_token_at_all_x')).statusCode).toBe(401);
+    const { token } = (await c.req('POST', '/api/bridge/devices', { label: 'Blender' })).json;
+    expect(JSON.parse((await inject('/api/addon/ping', undefined, token)).body)).toEqual({ ok: true, name: 'Everloom' });
+    const a = JSON.parse((await inject('/api/addon/upload?kind=avatar&name=Hero', MANNEQUIN, token)).body);
+    expect(a).toMatchObject({ kind: 'avatar', open: expect.stringMatching(/^\/characters\/avatars\/av_/) });
+    await avatarSettled(a.id);
+    expect(JSON.parse((await inject('/api/addon/avatars', undefined, token)).body)).toEqual([{ id: a.id, name: 'Hero' }]);
+    expect((await inject('/api/addon/upload?kind=garment&name=Coat', MANNEQUIN, token)).statusCode).toBe(400);
+    const g = JSON.parse((await inject(`/api/addon/upload?kind=garment&name=Coat&avatar=${a.id}&slot=outer`, MANNEQUIN, token)).body);
+    expect(g.kind).toBe('garment');
+    const d = (await c.req('GET', `/api/avatars/${a.id}`)).json;
+    expect(d.config.garments).toEqual([expect.objectContaining({ id: g.id, name: 'Coat', slot: 'outer' })]);
+    const m = JSON.parse((await inject('/api/addon/upload?kind=animation&name=Bow', MANNEQUIN, token)).body);
+    expect(m.kind).toBe('animation');
+    expect((await c.req('GET', '/api/avatar-motions/inbox')).json).toEqual([expect.objectContaining({ id: m.id, name: 'Bow' })]);
+  }, 60_000);
+});
+
 describe('part packs and parts-made avatars', () => {
   const BASICS = path.resolve(__dirname, '../../web/public/avatar/packs/basics');
   /** A small pack zip in the CharacterStudio layout, from two of the built-in parts. */

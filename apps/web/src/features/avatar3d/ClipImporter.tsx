@@ -92,7 +92,7 @@ async function load(files: File[]): Promise<Loaded> {
   return { files, names: first.animations.map((a, i) => a.name || `Animation ${i + 1}`), read };
 }
 
-export default function ClipImporter({ onDone }: { onDone: () => void }) {
+export default function ClipImporter({ onDone, initial }: { onDone: () => void; initial?: File[] }) {
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -104,6 +104,10 @@ export default function ClipImporter({ onDone }: { onDone: () => void }) {
   const [inPlace, setInPlace] = useState(true);
   const [clip, setClip] = useState<ClipJSON | null>(null);
   const handle = useRef<PreviewHandle | null>(null);
+  // Opened with a file already (an animation sent from Blender).
+  useEffect(() => {
+    if (initial?.length) void pick(initial);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const pick = async (files: File[]) => {
     setBusy(true);
