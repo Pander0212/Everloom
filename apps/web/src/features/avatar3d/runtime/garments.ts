@@ -79,7 +79,8 @@ export class Garments {
 
   private recolour(root: THREE.Object3D, g: Garment, variant: string | null) {
     const v = g.variants.find((x) => x.id === variant) ?? null;
-    const tint = new THREE.Color(v?.tint ?? '#ffffff');
+    // A colour variant replaces the garment's base colour (its texture still shows through).
+    const tint = v?.tint ? new THREE.Color(v.tint) : null;
     root.traverse((o) => {
       const m = (o as THREE.Mesh).material;
       if (!m) return;
@@ -88,10 +89,14 @@ export class Garments {
         if (!c) continue;
         const ud = mat.userData as { baseColor?: THREE.Color; baseShade?: THREE.Color };
         const base = (ud.baseColor ??= c.clone());
-        c.copy(base).multiply(tint);
-        // Toon shading keeps its own shadow colour: tint that as well.
+        c.copy(tint ?? base);
+        // Toon shading keeps its own shadow colour: keep it in proportion.
         const shade = (mat as unknown as { shadeColorFactor?: THREE.Color }).shadeColorFactor;
-        if (shade) shade.copy((ud.baseShade ??= shade.clone())).multiply(tint);
+        if (shade) {
+          const baseShade = (ud.baseShade ??= shade.clone());
+          if (!tint) shade.copy(baseShade);
+          else shade.setRGB(tint.r * (baseShade.r / Math.max(0.01, base.r)), tint.g * (baseShade.g / Math.max(0.01, base.g)), tint.b * (baseShade.b / Math.max(0.01, base.b)));
+        }
       }
     });
     if (v?.texture) {

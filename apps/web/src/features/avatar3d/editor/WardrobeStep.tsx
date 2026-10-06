@@ -3,7 +3,9 @@
  * regions they cover and the items that put them on), named outfits (a set of parts, or a whole
  * other model with the same skeleton), and accessories attached to bones. Tap an outfit to try it on.
  */
-import { BODY_REGIONS, HUMANOID_BONES, type AvatarAccessory, type AvatarConfig, type AvatarOutfit, type AvatarPart } from '@everloom/engine';
+import { BODY_REGIONS, GARMENT_SLOTS, HUMANOID_BONES, type AvatarAccessory, type AvatarConfig, type AvatarOutfit, type AvatarPart, type Garment, type GarmentSlot } from '@everloom/engine';
+import { useQuery } from '@tanstack/react-query';
+import { get } from '@/lib/api';
 import { Plus, Shirt, Trash2, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { addOutfitModel, type AvatarDetail } from '@/features/avatars/api';
@@ -14,6 +16,20 @@ import { Badge, Button, Checkbox, Field, FileButton, IconButton, Input, SectionT
 const newId = (prefix: string, taken: string[]) => {
   for (let i = 1; ; i++) if (!taken.includes(`${prefix}${i}`)) return `${prefix}${i}`;
 };
+/** A slot from a file name ("red_skirt.glb" → bottom). */
+function guessSlot(name: string): GarmentSlot {
+  const n = name.toLowerCase();
+  if (/hair|wig/.test(n)) return 'hair';
+  if (/hat|cap|helm|hood|crown/.test(n)) return 'head';
+  if (/dress|gown|robe|jumpsuit/.test(n)) return 'full';
+  if (/coat|jacket|cape|cloak/.test(n)) return 'outer';
+  if (/skirt|pants|trouser|shorts|jeans/.test(n)) return 'bottom';
+  if (/shoe|boot|sandal/.test(n)) return 'feet';
+  if (/glove|gauntlet/.test(n)) return 'hands';
+  if (/sock|stocking/.test(n)) return 'socks';
+  if (/bra|underwear|brief/.test(n)) return 'underwear';
+  return 'top';
+}
 const list = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 16);
 const REGION_LABEL: Record<string, string> = { head: 'Head', neck: 'Neck', chest: 'Chest', belly: 'Belly', hips: 'Hips', upperArms: 'Upper arms', forearms: 'Forearms', hands: 'Hands', thighs: 'Thighs', knees: 'Knees', calves: 'Calves', feet: 'Feet' };
 
@@ -24,6 +40,9 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
 
   const setPart = (id: string, p: Partial<AvatarPart>) => set({ parts: config.parts.map((x) => (x.id === id ? { ...x, ...p } : x)) });
   const setOutfit = (id: string, p: Partial<AvatarOutfit>) => set({ outfits: config.outfits.map((x) => (x.id === id ? { ...x, ...p } : x)) });
+  const setGarment = (id: string, p: Partial<Garment>) => set({ garments: config.garments.map((x) => (x.id === id ? { ...x, ...p } : x)) });
+  const lib = useQuery({ queryKey: ['avatar-garments', config.family], queryFn: () => get<Array<{ avatarId: string; avatarName: string; garment: Garment }>>('/api/avatar-garments', { family: config.family! }), enabled: !!config.family });
+  const library = (lib.data ?? []).filter((x) => x.avatarId !== avatar.id);
   const setAcc = (id: string, p: Partial<AvatarAccessory>) => set({ accessories: config.accessories.map((x) => (x.id === id ? { ...x, ...p } : x)) });
   const upload = async (key: string, f: File) => {
     setUploading(key);
@@ -68,6 +87,30 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
                   {config.parts.map((p) => (
                     <Checkbox key={p.id} label={p.name} checked={o.parts.includes(p.id)} onChange={(v) => setOutfit(o.id, { parts: v ? [...o.parts, p.id] : o.parts.filter((x) => x !== p.id) })} />
                   ))}
+                </div>
+              </Field>
+            ) : null}
+            {config.garments.length ? (
+              <Field label="Garments it wears">
+                <div className="flex flex-col gap-1">
+                  {config.garments.map((g) => {
+                    const worn = o.garments.find((x) => x.id === g.id);
+                    return (
+                      <div key={g.id} className="flex items-center gap-2">
+                        <Checkbox label={g.name} checked={!!worn} onChange={(v) => setOutfit(o.id, { garments: v ? [...o.garments, { id: g.id, variant: null }] : o.garments.filter((x) => x.id !== g.id) })} />
+                        {worn && g.variants.length ? (
+                          <Select aria-label={`${g.name} colour in ${o.name}`} value={worn.variant ?? ''} onChange={(e) => setOutfit(o.id, { garments: o.garments.map((x) => (x.id === g.id ? { ...x, variant: e.target.value || null } : x)) })} className="h-8 w-auto py-0 text-xs">
+                            <option value="">Original</option>
+                            {g.variants.map((v) => (
+                              <option key={v.id} value={v.id}>
+                                {v.name}
+                              </option>
+                            ))}
+                          </Select>
+                        ) : null}
+                      </div>
+                    );
+                  })}
                 </div>
               </Field>
             ) : null}
@@ -157,6 +200,118 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
       }}>
         New part
       </Button>
+
+      <SectionTitle>Garments</SectionTitle>
+      <p className="text-sm text-fg-2">Clothes made as their own files for this body (same skeleton). One per slot and layer is worn; outer layers go over inner ones.</p>
+      <Field label="Body family" hint="Avatars of the same family can share garments.">
+        <Input aria-label="Body family" value={config.family ?? ''} placeholder="everloom-adult" maxLength={40} onChange={(e) => set({ family: e.target.value.trim() || null })} />
+      </Field>
+      {config.garments.map((g) => (
+        <details key={g.id} open={open === g.id} onToggle={(e) => (e.currentTarget.open ? setOpen(g.id) : open === g.id && setOpen(null))} className="rounded-md border border-line">
+          <summary className="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm font-medium">
+            <span className="flex-1">{g.name}</span>
+            <Badge>{g.slot}</Badge>
+            <Switch checked={g.on} onChange={(v) => setGarment(g.id, { on: v })} label={`${g.name} worn`} />
+          </summary>
+          <div className="flex flex-col gap-3 border-t border-line p-3">
+            <div className="grid grid-cols-3 gap-2">
+              <Field label="Name" className="col-span-3 sm:col-span-1">
+                <Input aria-label="Garment name" value={g.name} maxLength={60} onChange={(e) => setGarment(g.id, { name: e.target.value || 'Garment' })} />
+              </Field>
+              <Field label="Slot">
+                <Select aria-label="Garment slot" value={g.slot} onChange={(e) => setGarment(g.id, { slot: e.target.value as Garment['slot'] })}>
+                  {GARMENT_SLOTS.map((x) => (
+                    <option key={x} value={x}>
+                      {x}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+              <Field label="Layer">
+                <Select aria-label="Garment layer" value={g.layer} onChange={(e) => setGarment(g.id, { layer: Number(e.target.value) })}>
+                  {['Under', 'Base', 'Mid', 'Outer'].map((x, i) => (
+                    <option key={x} value={i}>
+                      {x}
+                    </option>
+                  ))}
+                </Select>
+              </Field>
+            </div>
+            <Field label="Covers (skin there is hidden)">
+              <div className="flex flex-wrap gap-1">
+                {BODY_REGIONS.map((r) => (
+                  <button key={r} type="button" aria-pressed={g.hides.includes(r)} onClick={() => setGarment(g.id, { hides: g.hides.includes(r) ? g.hides.filter((x) => x !== r) : [...g.hides, r] })} className={cx('pressable rounded-full px-2.5 py-1 text-xs', g.hides.includes(r) ? 'bg-accent text-accent-fg' : 'bg-surface-2')}>
+                    {REGION_LABEL[r]}
+                  </button>
+                ))}
+              </div>
+            </Field>
+            <Field label="Colours" hint="Variants recolour the garment; the story and outfits can pick one.">
+              <div className="flex flex-wrap items-center gap-2">
+                <button type="button" onClick={() => setGarment(g.id, { variant: null })} className={cx('pressable rounded-full border px-2.5 py-1 text-xs', !g.variant ? 'border-accent' : 'border-line')}>
+                  Original
+                </button>
+                {g.variants.map((v) => (
+                  <span key={v.id} className="flex items-center gap-1">
+                    <button type="button" onClick={() => setGarment(g.id, { variant: v.id })} className={cx('pressable flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs', g.variant === v.id ? 'border-accent' : 'border-line')}>
+                      <span className="size-3 rounded-full" style={{ background: v.tint ?? '#fff' }} />
+                      {v.name}
+                    </button>
+                    <IconButton size="sm" icon={Trash2} label={`Delete colour ${v.name}`} onClick={() => setGarment(g.id, { variants: g.variants.filter((x) => x.id !== v.id), variant: g.variant === v.id ? null : g.variant })} />
+                  </span>
+                ))}
+                <input
+                  type="color"
+                  aria-label="Add a colour"
+                  className="h-8 w-10 cursor-pointer rounded border border-line bg-transparent"
+                  onChange={(e) => {
+                    const id = newId('c', g.variants.map((v) => v.id));
+                    setGarment(g.id, { variants: [...g.variants, { id, name: e.target.value, tint: e.target.value, texture: null }].slice(0, 16), variant: id });
+                  }}
+                />
+              </div>
+            </Field>
+            <label className="flex items-center justify-between gap-3 text-sm">
+              <span>Swinging parts (skirt, cape) move with physics</span>
+              <Switch checked={g.springs} onChange={(v) => setGarment(g.id, { springs: v })} label="Garment physics" />
+            </label>
+            <Field label="Put on by these items">
+              <Input aria-label="Garment items" defaultValue={g.items.join(', ')} onBlur={(e) => setGarment(g.id, { items: list(e.target.value) })} />
+            </Field>
+            <div className="flex justify-end">
+              <IconButton icon={Trash2} label={`Delete ${g.name}`} tone="danger" onClick={() => set({ garments: config.garments.filter((x) => x.id !== g.id), outfits: config.outfits.map((o) => ({ ...o, garments: o.garments.filter((x) => x.id !== g.id) })) })} />
+            </div>
+          </div>
+        </details>
+      ))}
+      <div className="flex flex-wrap gap-2">
+        <FileButton size="sm" variant="ghost" icon={Plus} accept=".glb,.vrm" loading={uploading === 'garment'} onFiles={async ([f]) => {
+          const r = f && (await upload('garment', f));
+          if (!r) return;
+          const id = newId('g', config.garments.map((x) => x.id));
+          const name = f!.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Garment';
+          const slot = guessSlot(name);
+          set({ garments: [...config.garments, { id, name, model: r.model, modelLow: r.modelLow, slot, layer: slot === 'outer' ? 3 : slot === 'underwear' || slot === 'socks' ? 0 : 1, hides: [], variants: [], variant: null, springs: true, family: config.family, on: true, items: [] }] });
+          setOpen(id);
+        }}>
+          Add a garment (GLB)
+        </FileButton>
+        {library.length ? (
+          <Select aria-label="Add from your other avatars" value="" onChange={(e) => {
+            const pick = library.find((x) => x.garment.model === e.target.value);
+            if (!pick) return;
+            const id = newId('g', config.garments.map((x) => x.id));
+            set({ garments: [...config.garments, { ...pick.garment, id }] });
+          }} className="h-9 w-auto py-0 text-sm">
+            <option value="">From your other avatars…</option>
+            {library.filter((x) => !config.garments.some((g) => g.model === x.garment.model)).map((x) => (
+              <option key={x.garment.model} value={x.garment.model}>
+                {x.garment.name} ({x.avatarName})
+              </option>
+            ))}
+          </Select>
+        ) : null}
+      </div>
 
       <SectionTitle>Body</SectionTitle>
       <Field label="Skin meshes" hint="The body itself. Regions covered by parts that are on are hidden on these.">

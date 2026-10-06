@@ -315,3 +315,22 @@ export function emotesForChat(ctx: AppContext, owner: string, characterIds: stri
   const has = ctx.db.prepare(`SELECT 1 FROM characters WHERE owner_id = ? AND id IN (${characterIds.map(() => '?').join(',')}) AND json_extract(game, '$.avatar3d') IS NOT NULL LIMIT 1`).get(owner, ...characterIds);
   return has ? emotesFor(ctx, owner) : [];
 }
+
+/**
+ * Garments that fit a body family, from all of the owner's avatars of that family (so a jacket made
+ * for one fits the others). Deduplicated by model file.
+ */
+export function garmentLibrary(ctx: AppContext, owner: string, family: string) {
+  const rows = ctx.db.prepare('SELECT id, name, config FROM avatars WHERE owner_id = ?').all(owner) as Array<{ id: string; name: string; config: string }>;
+  const seen = new Set<string>();
+  const out: Array<{ avatarId: string; avatarName: string; garment: AvatarConfig['garments'][number] }> = [];
+  for (const r of rows) {
+    const cfg = parseConfig(r.config);
+    for (const g of cfg.garments) {
+      if ((g.family ?? cfg.family) !== family || seen.has(g.model)) continue;
+      seen.add(g.model);
+      out.push({ avatarId: r.id, avatarName: r.name, garment: g });
+    }
+  }
+  return out;
+}
