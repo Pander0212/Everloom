@@ -344,16 +344,19 @@ export class Stage3D {
   private updateCamera(dt: number) {
     const list = [...this.entries.values()].filter((e) => e.slot !== 'off');
     if (!list.length) return;
-    const h = Math.max(...list.map((e) => e.avatar.height));
+    // Frame what is standing there now: a seated or lying character brings the camera down.
+    const h = list.every((e) => e.avatar.lying) ? Math.max(...list.map((e) => e.avatar.height)) : Math.max(...list.map((e) => e.avatar.poseHeight || e.avatar.height));
     const xs = list.map((e) => e.x);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
     const speaker = this.speaker ? this.entries.get(this.speaker) : undefined;
     // Frame everyone, leaning toward the speaker.
     const cx = (minX + maxX) / 2 * 0.7 + (speaker ? speaker.x * 0.3 : (minX + maxX) / 2 * 0.3);
-    const frame = { portrait: { y: 0.88, span: 0.36 }, half: { y: 0.7, span: 0.62 }, full: { y: 0.5, span: 1.15 } }[this.framing];
+    // Everyone lying down: the whole body, from a little above.
+    const allLying = list.every((e) => e.avatar.lying);
+    const frame = allLying ? { y: 0.12, span: 0.7 } : { portrait: { y: 0.88, span: 0.36 }, half: { y: 0.7, span: 0.62 }, full: { y: 0.5, span: 1.15 } }[this.framing];
     const spanY = h * frame.span;
-    const spanX = (maxX - minX) + h * 0.62;
+    const spanX = (maxX - minX) + h * (allLying ? 1.3 : 0.62);
     const fovY = (this.camera.fov * Math.PI) / 180;
     const distY = spanY / 2 / Math.tan(fovY / 2);
     const distX = spanX / 2 / (Math.tan(fovY / 2) * this.camera.aspect);
@@ -363,7 +366,7 @@ export class Stage3D {
     const dx = Math.sin(this.drift * 0.21) * h * 0.012;
     const dy = Math.sin(this.drift * 0.17 + 1) * h * 0.006;
     const target = new THREE.Vector3(cx, h * frame.y, 0);
-    const pos = new THREE.Vector3(cx + dx, h * frame.y + h * 0.02 + dy, dist);
+    const pos = new THREE.Vector3(cx + dx, h * frame.y + h * (allLying ? 0.5 : 0.02) + dy, dist);
     const k = 1 - Math.exp(-2.5 * dt);
     this.camTarget.lerp(target, k);
     this.camPos.lerp(pos, k);

@@ -1,0 +1,170 @@
+[
+ {
+  "id": "wave",
+  "frames": 70,
+  "seconds": 2.33,
+  "bytes": 39946,
+  "loop": false
+ },
+ {
+  "id": "bow",
+  "frames": 73,
+  "seconds": 2.43,
+  "bytes": 38939,
+  "loop": false
+ },
+ {
+  "id": "clap",
+  "frames": 67,
+  "seconds": 2.23,
+  "bytes": 38848,
+  "loop": false
+ },
+ {
+  "id": "shrug",
+  "frames": 58,
+  "seconds": 1.93,
+  "bytes": 34531,
+  "loop": false
+ },
+ {
+  "id": "point",
+  "frames": 61,
+  "seconds": 2.03,
+  "bytes": 52928,
+  "loop": false
+ },
+ {
+  "id": "hug",
+  "frames": 85,
+  "seconds": 2.83,
+  "bytes": 46346,
+  "loop": false
+ },
+ {
+  "id": "cheer",
+  "frames": 61,
+  "seconds": 2.03,
+  "bytes": 71082,
+  "loop": false
+ },
+ {
+  "id": "laugh",
+  "frames": 73,
+  "seconds": 2.43,
+  "bytes": 39964,
+  "loop": false
+ },
+ {
+  "id": "cry",
+  "frames": 97,
+  "seconds": 3.23,
+  "bytes": 55570,
+  "loop": false
+ },
+ {
+  "id": "angry",
+  "frames": 64,
+  "seconds": 2.13,
+  "bytes": 75895,
+  "loop": false
+ },
+ {
+  "id": "embarrassed",
+  "frames": 79,
+  "seconds": 2.63,
+  "bytes": 45549,
+  "loop": false
+ },
+ {
+  "id": "surprised",
+  "frames": 58,
+  "seconds": 1.93,
+  "bytes": 33848,
+  "loop": false
+ },
+ {
+  "id": "scared",
+  "frames": 70,
+  "seconds": 2.33,
+  "bytes": 34129,
+  "loop": false
+ },
+ {
+  "id": "thinking",
+  "frames": 91,
+  "seconds": 3.03,
+  "bytes": 78819,
+  "loop": false
+ },
+ {
+  "id": "sigh",
+  "frames": 70,
+  "seconds": 2.33,
+  "bytes": 39399,
+  "loop": false
+ },
+ {
+  "id": "victory",
+  "frames": 67,
+  "seconds": 2.23,
+  "bytes": 83475,
+  "loop": false
+ },
+ {
+  "id": "idle_relaxed",
+  "frames": 150,
+  "seconds": 5,
+  "bytes": 76996,
+  "loop": true
+ },
+ {
+  "id": "idle_shy",
+  "frames": 120,
+  "seconds": 4,
+  "bytes": 58563,
+  "loop": true
+ },
+ {
+  "id": "idle_tired",
+  "frames": 150,
+  "seconds": 5,
+  "bytes": 72418,
+  "loop": true
+ },
+ {
+  "id": "dance_sway",
+  "frames": 80,
+  "seconds": 2.67,
+  "bytes": 38332,
+  "loop": true
+ },
+ {
+  "id": "dance_bounce",
+  "frames": 56,
+  "seconds": 1.87,
+  "bytes": 25286,
+  "loop": true
+ },
+ {
+  "id": "dance_arms",
+  "frames": 131,
+  "seconds": 4.37,
+  "bytes": 54335,
+  "loop": true
+ },
+ {
+  "id": "lie_down",
+  "frames": 47,
+  "seconds": 1.57,
+  "bytes": 66713,
+  "loop": false
+ },
+ {
+  "id": "sleep",
+  "frames": 1,
+  "seconds": 0.03,
+  "bytes": 2544,
+  "loop": true
+ }
+]

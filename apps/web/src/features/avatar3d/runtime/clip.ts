@@ -34,7 +34,8 @@ export function decodeClip(j: ClipJSON): Clip {
   const tracks = new Map<HumanBone, Float32Array>();
   for (const b of HUMANOID_BONES) if (j.tracks[b]?.length) tracks.set(b, Float32Array.from(j.tracks[b]!));
   const frames = Math.max(1, j.frames);
-  return { id: j.id, fps: j.fps, frames, loop: j.loop, duration: Math.max(1, frames - 1) / j.fps, tracks, hips: j.hips?.length ? Float32Array.from(j.hips) : null };
+  // A loop's last frame leads back into the first (no duplicate end frame), so it lasts frames/fps.
+  return { id: j.id, fps: j.fps, frames, loop: j.loop, duration: (j.loop ? frames : Math.max(1, frames - 1)) / j.fps, tracks, hips: j.hips?.length ? Float32Array.from(j.hips) : null };
 }
 
 const r4 = (x: number) => Math.round(x * 10000) / 10000;

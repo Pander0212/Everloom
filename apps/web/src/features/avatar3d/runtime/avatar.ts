@@ -14,7 +14,7 @@
  */
 import * as THREE from 'three';
 import { VRMSpringBoneCollider, VRMSpringBoneColliderShapeSphere, VRMSpringBoneJoint, VRMSpringBoneManager } from '@pixiv/three-vrm';
-import { faceWeights, type Emotion, type HumanBone, type Viseme } from '@everloom/engine';
+import { BUILTIN_EMOTES, faceWeights, type Emotion, type HumanBone, type Viseme } from '@everloom/engine';
 import { applyCanonical, emptyPose, prepareRig, type CanonicalPose, type RigInfo } from './canonical';
 import { blendPose, copyPose, sampleClip, UPPER_BODY, type Clip } from './clip';
 import { clipIdFor, getClip } from './clips';
@@ -48,6 +48,7 @@ const smooth = (x: number) => x * x * (3 - 2 * x);
 const damp = (cur: number, target: number, rate: number, dt: number) => target + (cur - target) * Math.exp(-rate * dt);
 const DEG = Math.PI / 180;
 const _e = new THREE.Euler();
+const _v = new THREE.Vector3();
 const _q = new THREE.Quaternion();
 const rotate = (q: THREE.Quaternion | undefined, x: number, y: number, z: number) => {
   if (!q) return;
@@ -56,6 +57,7 @@ const rotate = (q: THREE.Quaternion | undefined, x: number, y: number, z: number
 
 /** Emotes that hold their last frame (they're states, not gestures). */
 const HOLD = new Set(['defeat', 'sleep', 'lie_down']);
+const LYING = new Set(['defeat', 'sleep', 'lie_down']);
 
 export class Avatar {
   readonly model: LoadedModel;
@@ -89,6 +91,14 @@ export class Avatar {
   private springs: VRMSpringBoneManager | null = null;
   /** True while anything besides the quiet idle is happening (the stage renders faster then). */
   busy = false;
+  /** The face an emote wears while it plays (a laugh looks amused), and a held pose's own face. */
+  private shotFace: Emotion | null = null;
+  private baseFace: Emotion | null = null;
+  /** Faces for emotes that aren't built in (imported clips). */
+  static faces: Record<string, Emotion> = {};
+  private faceOf(id: string): Emotion | null {
+    return Avatar.faces[id] ?? BUILTIN_EMOTES.find((e) => e.id === id)?.emotion ?? null;
+  }
   /** A fixed pose instead of the animation layers (the import wizard's checks). */
   override: CanonicalPose | null = null;
   /** Fixed morph weights instead of the expression system (the wizard's face preview). */
@@ -102,6 +112,7 @@ export class Avatar {
     // Models built facing away (VRM 0.x, MMD) are turned to face the camera. Retargeting works in
     // the rig's own frame, so this changes nothing else.
     if (Math.abs(this.rig.facing.w) < 0.5) model.scene.rotation.y += Math.PI;
+    this.baseYaw = model.scene.rotation.y;
     // The model's feet stand on the group's origin.
     model.scene.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(model.scene);
@@ -113,6 +124,29 @@ export class Avatar {
 
   get height() {
     return this.model.height;
+  }
+
+  /** How tall the character is right now (lower when sitting, kneeling or lying), smoothed. */
+  poseHeight = 0;
+  /** Lying down (or knocked down): the stage frames the whole body from above. */
+  get lying() {
+    return LYING.has(this.basePoseId);
+  }
+  private baseYaw = 0;
+  private lieTurn = 0;
+  private measurePose(dt: number) {
+    const head = this.rig.bones.head;
+    let h = this.model.height;
+    if (head) {
+      this.group.updateWorldMatrix(true, false);
+      const y = head.getWorldPosition(_v).y - this.group.position.y;
+      // The head bone sits below the top of the head; keep a margin, and never frame below a third.
+      h = Math.max(this.model.height * 0.3, Math.min(this.model.height, y * 1.14));
+    }
+    this.poseHeight = this.poseHeight ? damp(this.poseHeight, h, 3, dt) : h;
+    // Lying clips lie along the view; turn the body across the screen so it reads.
+    this.lieTurn = damp(this.lieTurn, this.lying ? -Math.PI / 2 : 0, 4, dt);
+    this.model.scene.rotation.y = this.baseYaw + this.lieTurn;
   }
 
   setLook(look: Look, opts: Partial<LookOptions> = {}) {
@@ -138,6 +172,7 @@ export class Avatar {
     const clip = (await getClip(id)) ?? (await getClip('idle'));
     if (!clip || ticket !== this.pending) return;
     this.basePoseId = emoteId;
+    this.baseFace = this.faceOf(emoteId);
     if (this.base) {
       this.base.target = 0;
       this.base.speed = 1 / Math.max(0.05, fade);
@@ -161,7 +196,9 @@ export class Avatar {
       this.playShot(clip, { fade: 0.25, onEnd: () => void this.holdLast(clip, emoteId) });
       return true;
     }
-    this.playShot(clip, { fade: 0.25 });
+    const face = this.faceOf(emoteId);
+    this.shotFace = face;
+    this.playShot(clip, { fade: 0.25, onEnd: () => void (this.shotFace === face && (this.shotFace = null)) });
     return true;
   }
 
@@ -240,6 +277,7 @@ export class Avatar {
     else this.procedural(pose, dt, camera);
     // 5. the model.
     applyCanonical(this.rig, pose);
+    this.measurePose(dt);
     this.face(dt);
     if (this.springs && this.options.physics) this.springs.update(dt);
     this.model.vrm?.expressionManager?.update();
@@ -315,7 +353,9 @@ export class Avatar {
       }
     }
     if (this.basePoseId === 'sleep') blink = 1;
-    const target = this.faceOverride ?? faceWeights(this.model.expressions, { emotion: this.emotion, strength: this.emotionStrength, visemes: this.speaking ? this.visemes : undefined, blink });
+    // An emote's face wins while it plays; a held pose's face only when the story has none.
+    const emotion = this.shotFace ?? (this.emotion === 'neutral' && this.baseFace ? this.baseFace : this.emotion);
+    const target = this.faceOverride ?? faceWeights(this.model.expressions, { emotion, strength: this.emotionStrength, visemes: this.speaking ? this.visemes : undefined, blink });
     // Smooth everything toward the target: expressions slowly, the mouth quickly, blinks instantly.
     const keys = new Set([...this.faceNow.keys(), ...Object.keys(target)]);
     const mouth = new Set(['aa', 'ih', 'ou', 'ee', 'oh', 'jawOpen'].flatMap((k) => (this.model.expressions[k as Viseme] ?? []).map((m) => m.morph)));

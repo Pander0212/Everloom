@@ -5,6 +5,8 @@
  * invents a name.
  */
 
+import type { Emotion } from '../game/emotion.js';
+
 export const EMOTE_CATEGORIES = ['idle', 'talk', 'emotion', 'social', 'state', 'dance', 'battle'] as const;
 export type EmoteCategory = (typeof EMOTE_CATEGORIES)[number];
 
@@ -22,63 +24,65 @@ export interface EmoteInfo {
   /** Where it comes from: a bundled clip name, an authored clip, or an owner's import. */
   source: 'bundled' | 'authored' | 'imported';
   tags?: string[];
+  /** The face it wears while playing (a laugh looks happy). */
+  emotion?: Emotion;
 }
 
 export const EMOTE_ID = /^[a-z][a-z0-9_]{0,39}$/;
 
-const e = (id: string, label: string, category: EmoteCategory, loop: boolean, source: EmoteInfo['source'], aliases: string[] = [], bpm?: number): EmoteInfo => ({ id, label, category, loop, source, aliases, ...(bpm ? { bpm } : {}) });
+const e = (id: string, label: string, category: EmoteCategory, loop: boolean, source: EmoteInfo['source'], aliases: string[] = [], bpm?: number, emotion?: Emotion): EmoteInfo => ({ id, label, category, loop, source, aliases, ...(bpm ? { bpm } : {}), ...(emotion ? { emotion } : {}) });
 
 /** Everything Everloom ships. The web app holds the clips; the server and the story only need the names. */
 export const BUILTIN_EMOTES: EmoteInfo[] = [
   // idles (poses)
   e('idle', 'Idle', 'idle', true, 'bundled', ['neutral', 'stand', 'idle_neutral']),
   e('idle_relaxed', 'Relaxed', 'idle', true, 'authored', ['relaxed', 'at ease']),
-  e('idle_shy', 'Shy', 'idle', true, 'authored', ['shy', 'bashful']),
+  e('idle_shy', 'Shy', 'idle', true, 'authored', ['shy', 'bashful'], undefined, 'nervousness'),
   e('idle_confident', 'Confident', 'idle', true, 'bundled', ['confident', 'arms crossed', 'fold arms']),
   e('idle_tired', 'Tired', 'idle', true, 'authored', ['tired', 'exhausted', 'weary']),
   // talking
   e('talk', 'Talking', 'talk', true, 'bundled', ['talking', 'speak', 'gesture']),
   // emotions
-  e('laugh', 'Laugh', 'emotion', false, 'authored', ['laughing', 'giggle', 'chuckle']),
-  e('cry', 'Cry', 'emotion', false, 'authored', ['crying', 'sob', 'weep']),
-  e('angry', 'Angry', 'emotion', false, 'authored', ['anger', 'furious', 'stomp']),
-  e('embarrassed', 'Embarrassed', 'emotion', false, 'authored', ['embarrassment', 'flustered', 'blush']),
-  e('surprised', 'Surprised', 'emotion', false, 'authored', ['surprise', 'startled', 'gasp']),
-  e('scared', 'Scared', 'emotion', false, 'authored', ['fear', 'afraid', 'cower', 'flinch']),
-  e('thinking', 'Thinking', 'emotion', false, 'authored', ['think', 'ponder', 'hmm']),
-  e('sigh', 'Sigh', 'emotion', false, 'authored', ['sighs']),
+  e('laugh', 'Laugh', 'emotion', false, 'authored', ['laughing', 'giggle', 'chuckle'], undefined, 'amusement'),
+  e('cry', 'Cry', 'emotion', false, 'authored', ['crying', 'sob', 'weep'], undefined, 'sadness'),
+  e('angry', 'Angry', 'emotion', false, 'authored', ['anger', 'furious', 'stomp'], undefined, 'anger'),
+  e('embarrassed', 'Embarrassed', 'emotion', false, 'authored', ['embarrassment', 'flustered', 'blush'], undefined, 'embarrassment'),
+  e('surprised', 'Surprised', 'emotion', false, 'authored', ['surprise', 'startled', 'gasp'], undefined, 'surprise'),
+  e('scared', 'Scared', 'emotion', false, 'authored', ['fear', 'afraid', 'cower', 'flinch'], undefined, 'fear'),
+  e('thinking', 'Thinking', 'emotion', false, 'authored', ['think', 'ponder', 'hmm'], undefined, 'curiosity'),
+  e('sigh', 'Sigh', 'emotion', false, 'authored', ['sighs'], undefined, 'relief'),
   // social
-  e('wave', 'Wave', 'social', false, 'authored', ['waves', 'hello', 'goodbye', 'hi', 'bye']),
+  e('wave', 'Wave', 'social', false, 'authored', ['waves', 'hello', 'goodbye', 'hi', 'bye'], undefined, 'joy'),
   e('nod', 'Nod', 'social', false, 'bundled', ['nods', 'yes', 'agree']),
   e('shake_head', 'Shake head', 'social', false, 'bundled', ['no', 'shakes head', 'disagree']),
   e('bow', 'Bow', 'social', false, 'authored', ['bows', 'curtsy']),
-  e('clap', 'Clap', 'social', false, 'authored', ['claps', 'applause', 'applaud']),
-  e('shrug', 'Shrug', 'social', false, 'authored', ['shrugs']),
+  e('clap', 'Clap', 'social', false, 'authored', ['claps', 'applause', 'applaud'], undefined, 'joy'),
+  e('shrug', 'Shrug', 'social', false, 'authored', ['shrugs'], undefined, 'confusion'),
   e('point', 'Point', 'social', false, 'authored', ['points']),
-  e('hug', 'Hug', 'social', false, 'authored', ['hugs', 'embrace']),
-  e('cheer', 'Cheer', 'social', false, 'authored', ['cheers', 'celebrate', 'hooray', 'yay']),
+  e('hug', 'Hug', 'social', false, 'authored', ['hugs', 'embrace'], undefined, 'love'),
+  e('cheer', 'Cheer', 'social', false, 'authored', ['cheers', 'celebrate', 'hooray', 'yay'], undefined, 'joy'),
   e('drink', 'Drink', 'social', false, 'bundled', ['drinks', 'sip', 'eat', 'consume']),
   // states (poses)
   e('sit', 'Sit', 'state', true, 'bundled', ['sits', 'sitting', 'sit down']),
-  e('lie_down', 'Lie down', 'state', true, 'bundled', ['lie', 'lying', 'lay down']),
+  e('lie_down', 'Lie down', 'state', true, 'authored', ['lie', 'lying', 'lay down']),
   e('sleep', 'Sleep', 'state', true, 'authored', ['sleeping', 'asleep', 'nap']),
   e('kneel', 'Kneel', 'state', true, 'bundled', ['kneels', 'kneeling', 'crouch']),
   e('walk_in', 'Walk in', 'state', false, 'bundled', ['enter', 'arrive', 'walks in']),
   e('walk_out', 'Walk out', 'state', false, 'bundled', ['leave', 'exit', 'walks out']),
   // dances (poses)
-  e('dance', 'Dance', 'dance', true, 'bundled', ['dancing', 'dance_groove'], 120),
-  e('dance_sway', 'Sway', 'dance', true, 'authored', ['sway', 'slow dance'], 90),
-  e('dance_bounce', 'Bounce', 'dance', true, 'authored', ['bounce', 'party'], 128),
-  e('dance_arms', 'Arm wave', 'dance', true, 'authored', ['arm wave', 'wave dance'], 110),
+  e('dance', 'Dance', 'dance', true, 'bundled', ['dancing', 'dance_groove'], 120, 'joy'),
+  e('dance_sway', 'Sway', 'dance', true, 'authored', ['sway', 'slow dance'], 90, 'joy'),
+  e('dance_bounce', 'Bounce', 'dance', true, 'authored', ['bounce', 'party'], 128, 'joy'),
+  e('dance_arms', 'Arm wave', 'dance', true, 'authored', ['arm wave', 'wave dance'], 110, 'joy'),
   // battle
   e('ready', 'Ready stance', 'battle', true, 'bundled', ['battle ready', 'stance', 'guard up']),
   e('attack', 'Attack', 'battle', false, 'bundled', ['strike', 'slash', 'hit them']),
   e('punch', 'Punch', 'battle', false, 'bundled', ['jab']),
   e('cast', 'Cast', 'battle', false, 'bundled', ['spell', 'magic']),
-  e('hit', 'Hit', 'battle', false, 'bundled', ['hurt', 'take hit', 'ouch']),
+  e('hit', 'Hit', 'battle', false, 'bundled', ['hurt', 'take hit', 'ouch'], undefined, 'fear'),
   e('defend', 'Defend', 'battle', false, 'bundled', ['block', 'parry', 'guard']),
-  e('victory', 'Victory', 'battle', false, 'authored', ['win', 'triumph', 'fist pump']),
-  e('defeat', 'Defeat', 'battle', false, 'bundled', ['lose', 'fall', 'knocked out']),
+  e('victory', 'Victory', 'battle', false, 'authored', ['win', 'triumph', 'fist pump'], undefined, 'pride'),
+  e('defeat', 'Defeat', 'battle', false, 'bundled', ['lose', 'fall', 'knocked out'], undefined, 'sadness'),
 ];
 
 /** Emotes that persist (a pose) rather than play once. */
