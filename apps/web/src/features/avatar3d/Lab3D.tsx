@@ -6,12 +6,13 @@ import { BUILTIN_EMOTES, EMOTIONS, type Emotion } from '@everloom/engine';
 import { useEffect, useRef, useState } from 'react';
 import { Button, FileButton, Select } from '@/ui';
 import { loadModel } from './runtime/loader';
+import { loadCodeModel } from './runtime/codemade/build';
 import { PRESETS, type LightingPreset } from './runtime/lighting';
 import { Stage3D, type Framing, type Quality, type StageStats } from './runtime/stage';
 
 declare global {
   interface Window {
-    __lab?: { stage: Stage3D; load: (buf: ArrayBuffer, id?: string) => Promise<void> };
+    __lab?: { stage: Stage3D; load: (buf: ArrayBuffer, id?: string) => Promise<void>; code: (recipe: unknown, id?: string) => Promise<number> };
   }
 }
 
@@ -42,7 +43,17 @@ export default function Lab3D() {
         setError((e as Error).message);
       }
     };
-    window.__lab = { stage: s, load };
+    /** Builds a code-made character from a recipe (in the worker); returns the time taken in ms. */
+    const code = async (recipe: unknown, id = `c${s.ids().length + 1}`) => {
+      const t = performance.now();
+      const model = await loadCodeModel(recipe);
+      const ms = performance.now() - t;
+      s.add(id, model);
+      s.snapCamera();
+      setIds(s.ids());
+      return ms;
+    };
+    window.__lab = { stage: s, load, code };
     return () => {
       s.dispose();
       delete window.__lab;

@@ -74,13 +74,23 @@ function toonFrom(src: THREE.Material, tint: THREE.Color): MToonMaterial {
   });
   m.name = `${s.name || 'material'} (toon)`;
   if ((src as THREE.MeshStandardMaterial).vertexColors) m.vertexColors = true;
+  keepOffset(src, m);
   return m;
+}
+
+/** Decals drawn on a surface (a code-made face) keep their depth offset in every look. */
+function keepOffset(src: THREE.Material, m: THREE.Material) {
+  m.polygonOffset = src.polygonOffset;
+  m.polygonOffsetFactor = src.polygonOffsetFactor;
+  m.polygonOffsetUnits = src.polygonOffsetUnits;
 }
 
 function pbrFrom(src: THREE.Material): THREE.Material {
   if (!isMToon(src)) return src;
   const m = new THREE.MeshStandardMaterial({ color: src.color, map: src.map ?? null, normalMap: src.normalMap ?? null, emissive: src.emissive, emissiveMap: src.emissiveMap ?? null, roughness: 0.75, metalness: 0, transparent: src.transparent, alphaTest: src.alphaTest, side: src.side });
   m.name = `${src.name} (pbr)`;
+  m.vertexColors = src.vertexColors;
+  keepOffset(src, m);
   return m;
 }
 

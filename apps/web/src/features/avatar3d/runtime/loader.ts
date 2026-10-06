@@ -10,7 +10,7 @@ import { VRMLoaderPlugin, type VRM } from '@pixiv/three-vrm';
 import { mapBones, mapExpressions, type ExpressionMap, type HumanBone, type MorphWeight, type RigBone } from '@everloom/engine';
 
 export interface LoadedModel {
-  gltf: GLTF;
+  gltf: GLTF | null;
   scene: THREE.Object3D;
   vrm: VRM | null;
   bones: Partial<Record<HumanBone, THREE.Object3D>>;

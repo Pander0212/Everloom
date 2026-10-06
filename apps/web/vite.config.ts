@@ -75,6 +75,11 @@ export default defineConfig({
       '/media': { target: backend, changeOrigin: false },
     },
   },
+  // Workers only exist for 3D (code-made characters): same 3d- prefix, so they are never precached.
+  worker: {
+    format: 'es',
+    rollupOptions: { output: { entryFileNames: 'assets/3d-[name]-[hash].js', chunkFileNames: 'assets/3d-[name]-[hash].js' } },
+  },
   build: {
     target: 'es2022',
     chunkSizeWarningLimit: 1100,
