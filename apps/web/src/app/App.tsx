@@ -27,6 +27,7 @@ const SettingsPage = lazy(() => import('@/features/settings/SettingsPage'));
 const StoryView = lazy(() => import('@/features/story/StoryView'));
 const DesignPage = lazy(() => import('@/features/design/DesignPage'));
 const ExtensionScreen = lazy(() => import('@/scripting/ExtensionScreen'));
+const Lab3D = lazy(() => import('@/features/avatar3d/Lab3D'));
 
 export function PageFallback() {
   return (
@@ -58,6 +59,7 @@ function AuthedApp() {
       <Routes>
         <Route path="/chat/:id" element={<StoryView />} />
         <Route path="/design" element={<DesignPage />} />
+        <Route path="/lab/3d" element={<Lab3D />} />
         <Route element={<Shell />}>
           <Route index element={<ChatsPage />} />
           <Route path="characters" element={<CharactersPage />} />

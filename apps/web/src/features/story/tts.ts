@@ -7,7 +7,7 @@ let current: HTMLAudioElement | null = null;
 // The analyser taps a copy of the playing audio (captureStream), so the voice itself always plays
 // as before. Where that isn't available, and for the browser's own voices, a gentle made-up
 // movement stands in while speech is playing.
-let meter: { ctx: AudioContext; analyser: AnalyserNode; data: Uint8Array<ArrayBuffer>; el: HTMLAudioElement } | null = null;
+let meter: { ctx: AudioContext; analyser: AnalyserNode; data: Uint8Array<ArrayBuffer>; freq: Uint8Array<ArrayBuffer>; el: HTMLAudioElement } | null = null;
 
 function tapLevel(audio: HTMLAudioElement) {
   meter = null;
@@ -21,7 +21,7 @@ function tapLevel(audio: HTMLAudioElement) {
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 512;
       ctx.createMediaStreamSource(stream).connect(analyser);
-      meter = { ctx, analyser, data: new Uint8Array(analyser.fftSize), el: audio };
+      meter = { ctx, analyser, data: new Uint8Array(analyser.fftSize), freq: new Uint8Array(analyser.frequencyBinCount), el: audio };
       audio.addEventListener('ended', () => void ctx.close(), { once: true });
     } catch {
       meter = null;
@@ -43,6 +43,36 @@ export function speechLevel(): number {
   if (!playing) return 0;
   const t = performance.now() / 1000;
   return 0.25 + 0.35 * Math.abs(Math.sin(t * 9)) * (0.6 + 0.4 * Math.sin(t * 2.3));
+}
+
+/**
+ * Mouth shapes for 3D lip-sync: the loudness split into vowel-like shapes from where the energy sits
+ * in the spectrum (low formants open the jaw, high ones spread the lips, the middle rounds them).
+ * Without an analyser (browser voices), vowels cycle at a speaking rhythm.
+ */
+export function speechVisemes(): { aa: number; ih: number; ou: number; ee: number; oh: number } {
+  const level = speechLevel();
+  if (level <= 0.02) return { aa: 0, ih: 0, ou: 0, ee: 0, oh: 0 };
+  if (meter && meter.el === current && !meter.el.paused) {
+    meter.analyser.getByteFrequencyData(meter.freq);
+    const hz = meter.ctx.sampleRate / 2 / meter.freq.length;
+    const band = (a: number, b: number) => {
+      let sum = 0;
+      for (let i = Math.floor(a / hz); i <= Math.min(meter!.freq.length - 1, Math.ceil(b / hz)); i++) sum += meter!.freq[i]!;
+      return sum;
+    };
+    const low = band(250, 900);
+    const mid = band(900, 1600);
+    const high = band(1600, 3400);
+    const total = low + mid + high || 1;
+    const back = low / total;
+    const front = high / total;
+    const round = mid / total;
+    return { aa: level * Math.min(1, back * 1.4), ee: level * front * 0.8, ih: level * front * 0.5, oh: level * round * 0.9, ou: level * round * 0.4 };
+  }
+  const t = performance.now() / 1000;
+  const k = (phase: number) => Math.max(0, Math.sin(t * 7.3 + phase));
+  return { aa: level * k(0), ee: level * k(2.1) * 0.6, oh: level * k(4.2) * 0.7, ih: level * k(1.1) * 0.3, ou: level * k(3.3) * 0.3 };
 }
 
 export function stopSpeaking() {

@@ -5,6 +5,7 @@
 import { extOpReference } from '../scripting/ext-ops.js';
 import { z } from 'zod';
 import { AI_OPS3, OpSchemas3 } from './ops3.js';
+import { emoteOpReference, type EmoteInfo } from '../avatar/emotes.js';
 
 const name = z.string().trim().min(1).max(120);
 const text = z.string().trim().max(4000);
@@ -506,10 +507,12 @@ export const OP_REFERENCE = `Allowed ops (JSON objects with "type"):
 - {"type":"asset.add","name":"Chestnut Horse","kind":"animal","value":40}  the player comes to own property, a vehicle, a business or an animal`;
 
 /** The op reference limited to some op types (feature switches): a line stays if it shows one of them. */
-export function opReferenceFor(allowed: readonly string[]): string {
+export function opReferenceFor(allowed: readonly string[], opts: { emotes?: readonly EmoteInfo[] } = {}): string {
   const set = new Set(allowed);
   const [head, ...lines] = OP_REFERENCE.split('\n');
   const kept = lines.filter((l) => [...l.matchAll(/"type":"([a-z.]+)"/g)].some((m) => set.has(m[1]!)));
   const ext = set.has('ext.op') ? extOpReference() : '';
-  return [head, ...kept, ...(ext ? [ext] : [])].join('\n');
+  // 3D characters: only offered when the story has installed emotes to choose from.
+  const avatar = set.has('avatar.emote') && opts.emotes?.length ? emoteOpReference(opts.emotes) : '';
+  return [head, ...kept, ...(ext ? [ext] : []), ...(avatar ? [avatar] : [])].join('\n');
 }

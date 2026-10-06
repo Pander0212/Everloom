@@ -275,6 +275,10 @@ export const OpSchemas3 = {
   'cutscene.remove': z.object({ type: z.literal('cutscene.remove'), name }),
   'music.set': z.object({ type: z.literal('music.set'), playlist: z.string().trim().max(80).nullable().optional(), mood: z.string().trim().max(30).nullable().optional() }),
   'ambient.set': z.object({ type: z.literal('ambient.set'), kind: z.enum(['auto', 'none', 'rain', 'storm', 'wind', 'city', 'crowd', 'forest', 'sea', 'fire', 'night']) }),
+  // ---- 3D characters (Phase 5): what a character does and wears on the stage
+  'avatar.emote': z.object({ type: z.literal('avatar.emote'), who: name, emote: z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_]{0,39}$/) }),
+  'avatar.pose': z.object({ type: z.literal('avatar.pose'), who: name, pose: z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_]{0,39}$/).nullable() }),
+  'avatar.outfit': z.object({ type: z.literal('avatar.outfit'), who: name, outfit: z.string().trim().max(60).nullable() }),
   // ---- transit
   'transit.add': z.object({
     type: z.literal('transit.add'),
@@ -297,4 +301,4 @@ export const OpSchemas3 = {
 } as const;
 
 /** Phase 3 ops the model may emit: things the story establishes, never the player's own money moves. */
-export const AI_OPS3 = ['currency.define', 'shop.upsert', 'bill.add', 'asset.add', 'home.add', 'room.add', 'household.add', 'household.update', 'transit.add', 'route.require', 'mail.receive', 'feed.post', 'fx.play', 'stage.layer', 'cutscene.play', 'music.set', 'ambient.set'] as const;
+export const AI_OPS3 = ['currency.define', 'shop.upsert', 'bill.add', 'asset.add', 'home.add', 'room.add', 'household.add', 'household.update', 'transit.add', 'route.require', 'mail.receive', 'feed.post', 'fx.play', 'stage.layer', 'cutscene.play', 'music.set', 'ambient.set', 'avatar.emote', 'avatar.pose', 'avatar.outfit'] as const;

@@ -174,6 +174,9 @@ const STEPS: Step[] = [
   { type: 'cutscene.remove', name: 'Dawn' },
   { type: 'music.set', mood: 'calm' },
   { type: 'ambient.set', kind: 'rain' },
+  { type: 'avatar.pose', who: 'Mara', pose: 'sit' },
+  { type: 'avatar.emote', who: 'Mara', emote: 'wave' },
+  { type: 'avatar.outfit', who: 'Mara', outfit: 'Rain gear' },
   // ---- transit
   { type: 'location.move', to: 'Millbrook' },
   { type: 'transit.add', name: 'River Coach', mode: 'caravan', stops: ['Millbrook', 'Eastport'], first: '06:00', last: '22:00', every: 60, hop: 40, fare: 3 },

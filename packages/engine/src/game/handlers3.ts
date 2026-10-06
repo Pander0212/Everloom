@@ -39,7 +39,7 @@ import type { ApplyContext } from './reducer.js';
 import type { OpOf, OpType } from './ops.js';
 import { findExact, findFuzzy, findItem, findNpc, nextCounter, uniqueId } from './resolve.js';
 import type { Change } from './simulate.js';
-import { emptyStage, type Account, type CampaignState, type Home, type HouseholdMember, type Item, type Location, type Mail, type PartyMember, type Route, type ScheduleSlot } from './state.js';
+import { emptyStage, type Account, type AvatarStageState, type CampaignState, type Home, type HouseholdMember, type Item, type Location, type Mail, type PartyMember, type Route, type ScheduleSlot } from './state.js';
 
 export interface Kit {
   ctx: ApplyContext;
@@ -187,6 +187,16 @@ function holderFor(s: CampaignState, to: string, kit: Kit): { holder: string | n
 }
 
 // ------------------------------------------------------------------ handlers
+
+/** The stage slot of a 3D character (by NPC name, or as written for the main character). */
+function avatarSlot(s: CampaignState, who: string): AvatarStageState {
+  const st = (s.stage ??= emptyStage());
+  const avatars = (st.avatars ??= {});
+  const npc = findNpc(s, who)?.npc;
+  const nm = npc?.name ?? who.trim();
+  const key = normalizeName(nm);
+  return (avatars[key] ??= { name: nm, pose: null, outfit: null, emote: null });
+}
 
 export const HANDLERS3: Handlers = {
   // ---------------- money
@@ -836,6 +846,17 @@ export const HANDLERS3: Handlers = {
   },
   'ambient.set': (s, op) => {
     (s.stage ??= emptyStage()).ambient = op.kind;
+  },
+  // ---------------- 3D characters
+  'avatar.emote': (s, op) => {
+    const a = avatarSlot(s, op.who);
+    a.emote = { id: op.emote, cue: `em_${nextCounter(s.counters, 'cue')}` };
+  },
+  'avatar.pose': (s, op) => {
+    avatarSlot(s, op.who).pose = op.pose;
+  },
+  'avatar.outfit': (s, op) => {
+    avatarSlot(s, op.who).outfit = op.outfit;
   },
   // ---------------- transit
   'transit.add': (s, op, kit) => {

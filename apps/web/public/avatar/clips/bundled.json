@@ -1,0 +1,163 @@
+[
+ {
+  "id": "idle",
+  "frames": 75,
+  "seconds": 2.5,
+  "bytes": 40831,
+  "loop": true
+ },
+ {
+  "id": "talk",
+  "frames": 88,
+  "seconds": 2.93,
+  "bytes": 101413,
+  "loop": true
+ },
+ {
+  "id": "dance",
+  "frames": 30,
+  "seconds": 1,
+  "bytes": 19231,
+  "loop": true
+ },
+ {
+  "id": "sit",
+  "frames": 50,
+  "seconds": 1.67,
+  "bytes": 37717,
+  "loop": true
+ },
+ {
+  "id": "sit_talk",
+  "frames": 88,
+  "seconds": 2.93,
+  "bytes": 94760,
+  "loop": true
+ },
+ {
+  "id": "sit_enter",
+  "frames": 40,
+  "seconds": 1.33,
+  "bytes": 54914,
+  "loop": false
+ },
+ {
+  "id": "sit_exit",
+  "frames": 32,
+  "seconds": 1.07,
+  "bytes": 45341,
+  "loop": false
+ },
+ {
+  "id": "walk",
+  "frames": 40,
+  "seconds": 1.33,
+  "bytes": 24929,
+  "loop": true
+ },
+ {
+  "id": "kneel",
+  "frames": 88,
+  "seconds": 2.93,
+  "bytes": 107557,
+  "loop": true
+ },
+ {
+  "id": "ready",
+  "frames": 50,
+  "seconds": 1.67,
+  "bytes": 42600,
+  "loop": true
+ },
+ {
+  "id": "attack",
+  "frames": 47,
+  "seconds": 1.57,
+  "bytes": 29972,
+  "loop": false
+ },
+ {
+  "id": "punch",
+  "frames": 27,
+  "seconds": 0.9,
+  "bytes": 15158,
+  "loop": false
+ },
+ {
+  "id": "cast",
+  "frames": 16,
+  "seconds": 0.53,
+  "bytes": 19020,
+  "loop": false
+ },
+ {
+  "id": "hit",
+  "frames": 11,
+  "seconds": 0.37,
+  "bytes": 15883,
+  "loop": false
+ },
+ {
+  "id": "defeat",
+  "frames": 73,
+  "seconds": 2.43,
+  "bytes": 101175,
+  "loop": false
+ },
+ {
+  "id": "interact",
+  "frames": 61,
+  "seconds": 2.03,
+  "bytes": 36277,
+  "loop": false
+ },
+ {
+  "id": "idle_confident",
+  "frames": 75,
+  "seconds": 2.5,
+  "bytes": 33108,
+  "loop": true
+ },
+ {
+  "id": "shake_head",
+  "frames": 76,
+  "seconds": 2.53,
+  "bytes": 41278,
+  "loop": false
+ },
+ {
+  "id": "nod",
+  "frames": 76,
+  "seconds": 2.53,
+  "bytes": 49764,
+  "loop": false
+ },
+ {
+  "id": "lie_to_idle",
+  "frames": 47,
+  "seconds": 1.57,
+  "bytes": 66727,
+  "loop": false
+ },
+ {
+  "id": "drink",
+  "frames": 41,
+  "seconds": 1.37,
+  "bytes": 37768,
+  "loop": false
+ },
+ {
+  "id": "defend",
+  "frames": 38,
+  "seconds": 1.27,
+  "bytes": 35479,
+  "loop": false
+ },
+ {
+  "id": "hit_big",
+  "frames": 26,
+  "seconds": 0.87,
+  "bytes": 35523,
+  "loop": false
+ }
+]

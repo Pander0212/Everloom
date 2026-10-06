@@ -13,6 +13,7 @@
     "@everloom/engine": "*",
     "@fontsource-variable/inter": "^5.3.0",
     "@fontsource-variable/source-serif-4": "^5.3.0",
+    "@pixiv/three-vrm": "^3.5.5",
     "@radix-ui/react-dialog": "^1.1.23",
     "@radix-ui/react-dropdown-menu": "^2.1.16",
     "@radix-ui/react-popover": "^1.1.15",
@@ -29,6 +30,7 @@
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "react-router": "^7.18.4",
+    "three": "^0.186.1",
     "vaul": "^1.1.2",
     "zustand": "^5.0.15"
   },
@@ -36,6 +38,7 @@
     "@tailwindcss/vite": "^4.3.3",
     "@types/react": "^19.1.0",
     "@types/react-dom": "^19.1.0",
+    "@types/three": "^0.186.0",
     "@vitejs/plugin-react": "^6.1.1",
     "tailwindcss": "^4.3.3",
     "vite": "^8.3.1",

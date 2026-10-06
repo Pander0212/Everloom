@@ -692,6 +692,15 @@ export interface StageState {
   playing: { id: string; cue: string } | null;
   music: { playlist: string | null; mood: string | null };
   ambient: AmbientKind;
+  /** 3D characters: held pose, a named outfit (null: by equipment), and the last one-off emote. */
+  avatars?: Record<string, AvatarStageState>;
+}
+export interface AvatarStageState {
+  name: string;
+  pose: string | null;
+  outfit: string | null;
+  /** The last one-off emote; `cue` changes every time so the same emote can play twice. */
+  emote: { id: string; cue: string } | null;
 }
 export const emptyStage = (): StageState => ({ cues: [], layers: {}, cutscenes: {}, playing: null, music: { playlist: null, mood: null }, ambient: 'auto' });
 

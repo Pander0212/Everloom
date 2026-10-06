@@ -51,3 +51,7 @@ export * from './scripting/regex.js';
 export * from './scripting/slash.js';
 export * from './scripting/ext-ops.js';
 export * from './scripting/bundle.js';
+export * from './avatar/skeleton.js';
+export * from './avatar/bonemap.js';
+export * from './avatar/expressions.js';
+export * from './avatar/emotes.js';
