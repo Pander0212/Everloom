@@ -1,11 +1,13 @@
 /** Settings › 3D characters: this device's quality and effects, Blender, and the avatar library. */
-import { Box, RefreshCw } from 'lucide-react';
-import { useState } from 'react';
+import { Box, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { lazy, Suspense, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { refreshBlender, setBlenderPath, useAvatars, useBlender } from '@/features/avatars/api';
+import { deleteClip, refreshBlender, setBlenderPath, useAvatarClips, useAvatars, useBlender } from '@/features/avatars/api';
 import { usePrefs3D, type Quality3D } from '@/features/avatars/prefs';
 import { toastError } from '@/lib/store';
-import { Button, Field, Input, Segmented, ToggleRow } from '@/ui';
+import { Button, confirm, Field, IconButton, Input, ListRow, Segmented, Sheet, Spinner, ToggleRow } from '@/ui';
+
+const ClipImporter = lazy(() => import('@/features/avatar3d/ClipImporter'));
 import { Section } from '../common';
 
 export default function ThreeDSection() {
@@ -15,6 +17,8 @@ export default function ThreeDSection() {
   const blender = useBlender();
   const [path, setPath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const clips = useAvatarClips();
+  const [importing, setImporting] = useState(false);
   return (
     <>
       <Section title="Avatars" description="3D models for your characters. Each character can show as 3D, Live2D or pictures (set on the character).">
@@ -22,6 +26,46 @@ export default function ThreeDSection() {
           Open the avatar library{avatars.data ? ` (${avatars.data.length})` : ''}
         </Button>
       </Section>
+
+      <Section
+        title="Motion clips"
+        description="Your own emotes, from GLB, VRMA, FBX, BVH or VMD files. They join the built-in ones everywhere: the picker, /emote, and the story."
+        action={
+          <Button size="sm" variant="secondary" icon={Plus} onClick={() => setImporting(true)}>
+            Import
+          </Button>
+        }
+      >
+        {clips.data?.length ? (
+          <div className="flex flex-col" data-testid="clip-list">
+            {clips.data.map((c) => (
+              <ListRow
+                key={c.id}
+                title={c.label}
+                subtitle={`${c.id} · ${c.category}${c.source ? ` · ${c.source}` : ''}`}
+                trailing={
+                  <IconButton
+                    icon={Trash2}
+                    label={`Delete ${c.label}`}
+                    onClick={async () => {
+                      if (await confirm({ title: `Delete “${c.label}”?`, description: 'Characters stop using it; the story can no longer pick it.', confirmLabel: 'Delete', danger: true })) await deleteClip(c.id).catch(toastError);
+                    }}
+                  />
+                }
+              />
+            ))}
+          </div>
+        ) : (
+          <p className="text-sm text-fg-2">No imported motions yet.</p>
+        )}
+      </Section>
+      <Sheet open={importing} onOpenChange={setImporting} title="Import a motion" size="lg">
+        {importing ? (
+          <Suspense fallback={<Spinner />}>
+            <ClipImporter onDone={() => setImporting(false)} />
+          </Suspense>
+        ) : null}
+      </Sheet>
 
       <Section title="On this device" description="Saved in this browser only, so a phone and a computer can differ.">
         <ToggleRow label="Show pictures instead of 3D" description="For slow or battery-tight devices. Nothing 3D is downloaded while this is on." checked={p.spritesOnly} onChange={(v) => p.set({ spritesOnly: v })} />

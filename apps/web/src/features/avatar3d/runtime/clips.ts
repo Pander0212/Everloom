@@ -18,6 +18,12 @@ export function registerClip(id: string, json: ClipJSON) {
   registered.set(id, decodeClip({ ...json, id }));
 }
 
+/** Forget a cached clip (after an imported one is replaced or deleted). */
+export function forgetClip(id: string) {
+  registered.delete(id);
+  loaded.delete(id);
+}
+
 export function clipIdFor(emote: string): string {
   return CLIP_FOR[emote] ?? emote;
 }
@@ -27,7 +33,9 @@ export function getClip(id: string): Promise<Clip | null> {
   if (r) return Promise.resolve(r);
   let p = loaded.get(id);
   if (!p) {
+    // Built-in clips are static files; the owner's imported ones come from the server.
     p = fetch(`/avatar/clips/${encodeURIComponent(id)}.json`)
+      .then((res) => (res.ok ? res : fetch(`/api/avatar-clips/${encodeURIComponent(id)}`, { credentials: 'same-origin' })))
       .then((res) => (res.ok ? (res.json() as Promise<ClipJSON>) : null))
       .then((j) => (j ? decodeClip(j) : null))
       .catch(() => null);

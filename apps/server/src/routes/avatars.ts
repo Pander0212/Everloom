@@ -1,5 +1,6 @@
 /** 3D avatars: import, settings, outfits, thumbnails; motion clips; the Blender worker's status. */
 import type { FastifyInstance } from 'fastify';
+import { unzipSync } from 'fflate';
 import { z } from 'zod';
 import { ClipSchema, EMOTE_CATEGORIES, EMOTE_ID } from '@everloom/engine';
 import { HttpError, owner, type AppContext } from '../context.js';
@@ -84,8 +85,25 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     const body = req.body as Buffer;
     if (!Buffer.isBuffer(body)) throw new HttpError(400, 'Send the motion file as the request body');
     const q = parse(z.object({ filename: z.string().max(200) }), req.query ?? {});
-    const ext = MOTION_TYPES[q.filename.split('.').pop()!.toLowerCase()];
+    const kind = q.filename.split('.').pop()!.toLowerCase();
+    // VMD comes zipped with the PMX/PMD model it was made for (MMD motions need their model).
+    if (kind === 'zip') {
+      let files: Record<string, Uint8Array>;
+      try {
+        files = unzipSync(body);
+      } catch {
+        throw new HttpError(400, 'That is not a zip file');
+      }
+      const motion = Object.keys(files).find((n) => /\.vmd$/i.test(n));
+      const model = Object.keys(files).find((n) => /\.pm[xd]$/i.test(n));
+      if (!motion || !model) throw new HttpError(400, 'A VMD motion needs its PMX model alongside it');
+      const mext = model.toLowerCase().endsWith('.pmd') ? 'pmd' : 'pmx';
+      const r = await runBlenderJob(ctx, owner(req), { op: 'motion', files: { 'input.vmd': Buffer.from(files[motion]!), [`model.${mext}`]: Buffer.from(files[model]!) }, input: 'input.vmd', output: 'motion.glb', timeoutMs: 3 * 60_000, extra: { model: `model.${mext}` } });
+      return reply.header('content-type', 'model/gltf-binary').header('cache-control', 'no-store').send(r.output);
+    }
+    const ext = MOTION_TYPES[kind];
     if (!ext || ext === 'glb') throw new HttpError(415, 'Convert FBX, BVH or VMD files here; GLB and VRMA load directly');
+    if (ext === 'vmd') throw new HttpError(400, 'A VMD motion needs its PMX model: choose both files together');
     const r = await runBlenderJob(ctx, owner(req), { op: 'motion', files: { [`input.${ext}`]: body }, input: `input.${ext}`, output: 'motion.glb', timeoutMs: 3 * 60_000 });
     return reply.header('content-type', 'model/gltf-binary').header('cache-control', 'no-store').send(r.output);
   });

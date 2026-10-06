@@ -120,3 +120,26 @@ test.describe('3D characters', () => {
     expect(errors).toEqual([]);
   });
 });
+
+test.describe('3D motions', () => {
+  test('import a BVH motion as an emote; it joins the picker', async ({ page, errors }) => {
+    await page.goto('/settings/3d');
+    await page.getByRole('button', { name: 'Import', exact: true }).click();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Choose a motion file' }).click();
+    await (await chooser).setFiles(path.resolve('tests/fixtures/avatars/motions/greet.bvh'));
+    await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+    const id = `greet_${test.info().project.name.replace(/[^a-z0-9]/g, '_')}`.slice(0, 40);
+    await page.getByLabel('Emote id').fill(id);
+    await page.getByLabel('Emote label').fill('Big greeting');
+    await page.getByTestId('clip-save').click();
+    await expect(page.getByTestId('clip-list')).toContainText('Big greeting');
+    const clips = await api(page, 'GET', '/api/avatar-clips');
+    expect(clips.map((c: { id: string }) => c.id)).toContain(id);
+    const clip = await api(page, 'GET', `/api/avatar-clips/${id}`);
+    expect(clip.frames).toBeGreaterThan(10);
+    expect(Object.keys(clip.tracks)).toEqual(expect.arrayContaining(['rightUpperArm', 'rightLowerArm']));
+    await api(page, 'DELETE', `/api/avatar-clips/${id}`);
+    expect(errors).toEqual([]);
+  });
+});
