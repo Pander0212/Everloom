@@ -50,7 +50,7 @@ export default defineConfig({
         navigateFallbackDenylist: [/^\/api\//, /^\/media\//],
         globPatterns: ['**/*.{js,css,html,woff2,svg,png}'],
         // Everloom's pictures load when a screen needs them (and are cached then), not at install.
-        globIgnores: ['art/**'],
+        globIgnores: ['art/**', 'avatar/**', 'three/**', 'assets/3d-*'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         runtimeCaching: [
           {
@@ -77,6 +77,12 @@ export default defineConfig({
   },
   build: {
     target: 'es2022',
-    chunkSizeWarningLimit: 700,
+    chunkSizeWarningLimit: 1100,
+    rollupOptions: {
+      output: {
+        // Everything 3D in its own chunks (never precached; fetched only when a 3D screen opens).
+        manualChunks: (id) => (/node_modules\/(three|@pixiv)\//.test(id) ? '3d-three' : /features\/avatar3d\//.test(id) ? '3d-avatar' : undefined),
+      },
+    },
   },
 });
