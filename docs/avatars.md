@@ -43,6 +43,46 @@ For two characters at 30 fps on a mid-range phone:
 
 The import report lists anything over budget.
 
+## Checklist for creators
+
+Before you send a model, garment, motion or part pack to Everloom (the Blender add-on runs most of
+these checks for you):
+
+**An avatar**
+
+- [ ] One GLB (textures embedded) or VRM 0.x/1.0; FBX, PMX, OBJ and DAE work only through Blender.
+- [ ] A skeleton with hips, spine, head, both upper arms and both upper legs (any common naming).
+- [ ] Every mesh skinned to that skeleton, at most 4 weights per vertex, weights normalized.
+- [ ] Real-world size in metres, feet on the ground, transforms applied (any facing is fine).
+- [ ] Under 60,000 triangles (150,000 at most), 24 materials, 256 bones; textures 2048 px or less.
+- [ ] For a moving face: blink, the five vowel shapes (aa, ih, ou, ee, oh) and a few emotions as
+      morph targets (VRM presets, ARKit's 52, VRoid's `Fcl_*` or MMD names all map).
+- [ ] Bodies all-ages: no anatomical detail; underwear or clothes on the base body.
+- [ ] You may share it: the license allows redistribution if you put it in a bundle or pack.
+
+**A garment** (wardrobe level 3)
+
+- [ ] Made on the same body as the avatar family it's for (the same skeleton and bone names).
+- [ ] Skinned to that skeleton, with the body's weights copied onto it so they bend together.
+- [ ] A few millimetres off the skin everywhere; nothing passes through the body in its rest pose.
+- [ ] One slot (hair, head, top, bottom, full, outer, hands, feet, socks, underwear); list the body
+      regions it covers so the skin under it can hide.
+- [ ] For colour variants: a light base colour (variants multiply it) or a texture per variant.
+
+**A motion**
+
+- [ ] FBX, BVH, GLB/VRMA, or VMD zipped with its PMX; one action per file.
+- [ ] Starts and ends in a neutral standing pose (one-shots) or loops seamlessly (idles, dances).
+- [ ] No root motion that walks off: Everloom keeps characters in place.
+- [ ] For a dance, its tempo in BPM, so it can follow the music.
+
+**A part pack** (the parts maker)
+
+- [ ] CharacterStudio's `manifest.json`, every part a full rigged model on the same skeleton.
+- [ ] A body trait; other traits mapped to slots (`everloom.slots` if the names aren't obvious).
+- [ ] A thumbnail per part; `type` tags such as `hides-hair` where a part covers another.
+- [ ] `everloom.license` and `everloom.credits` (or a LICENSE file) that allow sharing.
+
 ## What Everloom stores beside the file
 
 `AvatarConfig` (`packages/engine/src/avatar/config.ts`, validated on every save):
@@ -413,7 +453,9 @@ animations wait in Settings › 3D characters › *From Blender*. See its README
 |---|---|
 | `packages/engine/src/avatar/` | skeleton, bone and expression mapping, emotes, config, wardrobe, recipes |
 | `apps/server/src/services/avatars/` | GLB reader, inspection, optimization, storage and processing |
-| `apps/server/src/blender/worker.py` | the Blender worker script (convert, motion, optimize, fit, render) |
+| `apps/server/src/blender/worker.py` | the Blender worker script (convert, motion, optimize, fit, render, mpfb) |
+| `apps/server/src/services/avatars/mpfb.ts` | realistic characters: MPFB install, status, the job, garments |
+| `apps/server/src/services/avatars/bundle3d.ts`, `library3d.ts` | avatars in character bundles; the asset library's 3D shelf |
 | `apps/server/src/services/avatars/model3d.ts`, `textures.ts` | image-to-3D jobs; seamless garment textures |
 | `tools/blender-addon/` | the Blender exporter add-on (GPL-3.0) |
 | `apps/web/src/features/avatar3d/runtime/` | loading, retargeting, clips, avatar, stage, materials, lighting, wardrobe, import |
@@ -424,3 +466,5 @@ animations wait in Settings › 3D characters › *From Blender*. See its README
 | `apps/web/src/features/avatar3d/` | the wizard, preview, stage layer, motion importer |
 | `apps/web/public/avatar/clips/` | the built-in clips |
 | `tools/avatars/` | building the bundled and authored clips |
+| `apps/web/public/avatar/fabrics/`, `tools/avatars/build-fabrics.ts` | fabric detail maps for code-made clothes, and how they were made |
+| `apps/web/src/features/avatars/Realistic.tsx`, `Assets3D.tsx` | the realistic maker and MPFB setup; the 3D shelf |

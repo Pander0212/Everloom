@@ -145,6 +145,9 @@ test.describe('3D characters', () => {
   test('code-made: make one, edit it, and pictureless characters appear as code-made figures', async ({ page, errors }) => {
     await page.goto('/characters/avatars');
     await page.getByTestId('avatar-make').click();
+    // Realistic characters are only offered where Blender runs.
+    const blender = await api(page, 'GET', '/api/blender');
+    await expect(page.getByRole('menuitem', { name: /Realistic/ })).toHaveCount(blender.found ? 1 : 0);
     await page.getByRole('menuitem', { name: /Code-made/ }).click();
     await expect(page).toHaveURL(/\/characters\/avatars\/av_/);
     await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 45_000 });

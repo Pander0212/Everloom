@@ -789,6 +789,34 @@ truncation but not swapped (that would be guessing).
 
 # Phase 5 — 3D characters
 
+## The shape of it
+
+- **One engine: three.js** with @pixiv/three-vrm for VRM: it has maintained VRM 0.x/1.0 and MToon
+  support, KTX2 and meshopt loaders, and loads in pieces. Everything 3D lives in chunks named `3d-*` that the service worker never precaches and
+  that load only when the 3D module is on and a 3D character is on screen.
+- **The model file stays a plain GLB or VRM.** Everything Everloom adds (bone and face mapping,
+  size, look, wardrobe, recipes, maker choices) is the avatar's settings beside it, validated by
+  one schema in the engine, so files can be replaced and settings travel in bundles.
+- **A canonical skeleton** (VRM 1.0's humanoid names): bones are mapped once at import (by name
+  patterns, then by shape); clips are stored for the canonical skeleton and retargeted at load, so
+  one emote library serves every model. Story ops can only name installed emotes.
+- **Optimisation happens once, on the server, off the main thread:** meshopt, KTX2 (UASTC/ETC1S by
+  texture role), resized textures and a lighter copy for phones. The browser picks the copy by
+  device and quality.
+- **Code-made characters are signed distance fields meshed with surface nets in a Web Worker.**
+  Clothes are the same body field pushed outward and cut, so they fit any slider setting by
+  construction; tested at every extreme. Faces are decal patches with morph targets drawn from a
+  palette texture (MToon ignores vertex colours). It's the default for anyone without a model.
+- **Image-to-3D**: Meshy and fal.ai (Hunyuan3D, TRELLIS) behind one `model3d` role; Tripo left
+  out because its API docs couldn't be read from here. Results are props first; garments go
+  through Blender fitting and are marked experimental.
+- **The owner's image keys (§8)** were used for fabric tiles only, where code couldn't do as well;
+  everything else 3D (textures for the parts pack, faces, thumbnails) is drawn by code or rendered.
+  Texture prompting rules were written into `docs/art/PROMPTING.md` before any call.
+- **Bundles and the asset library share one avatar folder format** (`avatars/<name>/avatar.json`
+  with the settings and the files they reference); media ids are remapped on import, and the
+  realistic body family (named after the avatar) is renamed with it.
+
 ## Parts maker: CharacterStudio evaluated
 
 [CharacterStudio](https://github.com/M3-org/CharacterStudio) (cloned and read, October 2026):

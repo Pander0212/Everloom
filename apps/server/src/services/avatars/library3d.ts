@@ -51,7 +51,7 @@ export function list3d(ctx: AppContext, owner: string, f: { q?: string; type?: s
     out.push({ key: `model:${r.id}`, type: 'model', name: r.name, tags: tags[`model:${r.id}`] ?? [], avatar: av, detail: kind, thumb: r.thumb_media ? mediaUrl(r.thumb_media) : null });
     for (const g of cfg.garments) {
       const key = `garment:${r.id}:${g.id}`;
-      out.push({ key, type: 'garment', name: g.name, tags: tags[key] ?? [], avatar: av, detail: `${g.slot}${g.family ? ` · ${g.family}` : ''}`, thumb: null });
+      out.push({ key, type: 'garment', name: g.name, tags: tags[key] ?? [], avatar: av, detail: `${g.slot}${g.family && !g.family.startsWith('mpfb:') ? ` · ${g.family}` : ''}`, thumb: null });
     }
     for (const a of cfg.accessories) {
       const key = `accessory:${r.id}:${a.id}`;
