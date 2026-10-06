@@ -25,6 +25,50 @@ export const AvatarPartSchema = z.object({
   /** Parts in the same group replace each other (one hairstyle at a time). */
   group: z.string().max(40).optional(),
   on: z.boolean().default(true),
+  /** Inventory items (by name) that put this part on when equipped (a helmet item shows the helmet). */
+  items: z.array(z.string().max(120)).max(16).default([]),
+});
+
+/** Where a garment goes; one garment per slot and layer is worn at a time. */
+export const GARMENT_SLOTS = ['hair', 'head', 'top', 'bottom', 'full', 'outer', 'hands', 'feet', 'socks', 'underwear'] as const;
+export type GarmentSlot = (typeof GARMENT_SLOTS)[number];
+
+/**
+ * Wardrobe level 3: a garment is its own model file rigged to the same body family's skeleton; it is
+ * bound to the avatar's bones when worn. Layers stack (0 under, 3 outer); variants recolour it or
+ * swap its texture.
+ */
+export const GarmentSchema = z.object({
+  id,
+  name: label,
+  model: z.string().max(64),
+  modelLow: z.string().max(64).nullable().default(null),
+  slot: z.enum(GARMENT_SLOTS),
+  layer: z.number().int().min(0).max(3).default(1),
+  hides: z.array(z.enum(BODY_REGIONS as unknown as [string, ...string[]])).max(BODY_REGIONS.length).default([]),
+  variants: z.array(z.object({ id, name: label, tint: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().default(null), texture: z.string().max(64).nullable().default(null) })).max(16).default([]),
+  variant: id.nullable().default(null),
+  /** Bone chains in the garment (a skirt, a cape) swing with physics. */
+  springs: z.boolean().default(true),
+  /** The body family it was made for (garments fit any avatar of that family). */
+  family: z.string().max(40).nullable().default(null),
+  on: z.boolean().default(true),
+  items: z.array(z.string().max(120)).max(16).default([]),
+});
+export type Garment = z.infer<typeof GarmentSchema>;
+
+/** A rigid accessory (sword, hat, glasses) attached to a bone: its own small model file. */
+export const AvatarAccessorySchema = z.object({
+  id,
+  name: label,
+  model: z.string().max(64),
+  bone: z.enum(HUMANOID_BONES as unknown as [string, ...string[]]),
+  /** Position (metres), rotation (degrees) and size relative to the bone. */
+  position: z.tuple([z.number(), z.number(), z.number()]).default([0, 0, 0]),
+  rotation: z.tuple([z.number(), z.number(), z.number()]).default([0, 0, 0]),
+  scale: z.number().min(0.01).max(100).default(1),
+  on: z.boolean().default(true),
+  items: z.array(z.string().max(120)).max(16).default([]),
 });
 
 /** Level 1 wardrobe: a named outfit; a different model file, or a set of parts switched on. */
@@ -36,6 +80,8 @@ export const AvatarOutfitSchema = z.object({
   modelLow: z.string().max(64).nullable().default(null),
   /** Parts to switch on (all others in this list's groups go off). */
   parts: z.array(id).max(64).default([]),
+  /** Garments to wear (others in the same slot and layer come off), with a variant each. */
+  garments: z.array(z.object({ id, variant: id.nullable().default(null) })).max(32).default([]),
   /** Inventory items (by name) that put this outfit on when equipped. */
   items: z.array(z.string().max(120)).max(16).default([]),
 });
@@ -60,10 +106,17 @@ export const AvatarConfigSchema = z.object({
   parts: z.array(AvatarPartSchema).max(64).default([]),
   outfits: z.array(AvatarOutfitSchema).max(32).default([]),
   outfit: id.nullable().default(null),
+  accessories: z.array(AvatarAccessorySchema).max(32).default([]),
+  garments: z.array(GarmentSchema).max(64).default([]),
+  /** The body family this avatar belongs to (which garments fit it). */
+  family: z.string().max(40).nullable().default(null),
+  /** The meshes that are the body's skin (regions of these hide under clothes). */
+  body: z.array(nodeName).max(16).default([]),
 });
 export type AvatarConfig = z.infer<typeof AvatarConfigSchema>;
 export type AvatarPart = z.infer<typeof AvatarPartSchema>;
 export type AvatarOutfit = z.infer<typeof AvatarOutfitSchema>;
+export type AvatarAccessory = z.infer<typeof AvatarAccessorySchema>;
 
 export const AVATAR_KINDS = ['imported', 'parts', 'code', 'realistic'] as const;
 export type AvatarKind = (typeof AVATAR_KINDS)[number];

@@ -20,6 +20,8 @@ import { blendPose, copyPose, sampleClip, UPPER_BODY, type Clip } from './clip';
 import { clipIdFor, getClip } from './clips';
 import type { LoadedModel } from './loader';
 import { applyLook, type Look, type LookOptions } from './materials';
+import type { Wardrobe } from './wardrobe';
+import type { Garments } from './garments';
 
 export interface AvatarOptions {
   look: Look;
@@ -119,6 +121,9 @@ export class Avatar {
   set baseTime(t: number) {
     if (this.base) this.base.time = t;
   }
+  /** Parts, hidden regions and accessories (set by whoever placed the avatar). */
+  wardrobe: Wardrobe | null = null;
+  garments: Garments | null = null;
   /** A fixed pose instead of the animation layers (the import wizard's checks). */
   override: CanonicalPose | null = null;
   /** Fixed morph weights instead of the expression system (the wizard's face preview). */
@@ -173,6 +178,7 @@ export class Avatar {
     this.options.look = look;
     if (opts.outlines !== undefined) this.options.outlines = opts.outlines;
     applyLook(this.model.scene, look, { outlines: this.options.outlines, ...opts });
+    this.garments?.relook(look, this.options.outlines);
   }
 
   // ------------------------------------------------------------------ motion
@@ -403,6 +409,8 @@ export class Avatar {
 
   // ------------------------------------------------------------------ springs
 
+  private colliders: { colliders: VRMSpringBoneCollider[]; name: string } | null = null;
+
   private setupSprings() {
     if (this.model.vrm?.springBoneManager && this.model.vrm.springBoneManager.joints.size) {
       this.springs = this.model.vrm.springBoneManager;
@@ -413,39 +421,62 @@ export class Avatar {
       this.springs.setInitState();
       return;
     }
-    if (!this.model.secondaryChains.length) return;
-    const mgr = new VRMSpringBoneManager();
+    this.addSpringChains(this.model.secondaryChains);
+  }
+
+  /** Spheres on the head, chest, hips and thighs keep hair and skirts outside the body. */
+  private colliderGroup() {
+    if (this.colliders) return this.colliders;
     const h = this.model.height;
-    // Spheres on the head, chest, hips and thighs keep hair and skirts outside the body.
     const group = { colliders: [] as VRMSpringBoneCollider[], name: 'body' };
     const sphere = (bone: THREE.Object3D | undefined, r: number, offset = new THREE.Vector3()) => {
       if (!bone) return;
-      const c = new VRMSpringBoneCollider(new VRMSpringBoneColliderShapeSphere({ radius: r * h, offset }));
+      // Radii are in metres; the bone may sit inside a scaled model (centimetre files).
+      const s = new THREE.Vector3().setFromMatrixScale(bone.matrixWorld).x || 1;
+      const c = new VRMSpringBoneCollider(new VRMSpringBoneColliderShapeSphere({ radius: (r * h) / s, offset: offset.divideScalar(s) }));
       bone.add(c);
       group.colliders.push(c);
     };
     const b = this.rig.bones;
+    this.model.scene.updateMatrixWorld(true);
     sphere(b.head, 0.06, new THREE.Vector3(0, 0.05 * h, 0));
     sphere(b.upperChest ?? b.chest, 0.08);
     sphere(b.hips, 0.09);
     sphere(b.leftUpperLeg, 0.055, new THREE.Vector3(0, -0.08 * h, 0));
     sphere(b.rightUpperLeg, 0.055, new THREE.Vector3(0, -0.08 * h, 0));
-    for (const chain of this.model.secondaryChains) {
-      const skirt = /skirt|スカート|cloth|coat|cape/i.test(chain[0]!.name);
+    this.colliders = group;
+    return group;
+  }
+
+  /** Makes bone chains swing (hair, skirts, capes); returns the joints so they can be removed. */
+  addSpringChains(chains: THREE.Object3D[][]): VRMSpringBoneJoint[] {
+    if (!chains.length) return [];
+    const mgr = this.springs ?? new VRMSpringBoneManager();
+    const group = this.colliderGroup();
+    const h = this.model.height;
+    const k = this.options.stiffness ?? 1;
+    const g = this.options.gravity ?? 1;
+    const made: VRMSpringBoneJoint[] = [];
+    for (const chain of chains) {
+      const skirt = /skirt|スカート|cloth|coat|cape|cloak|dress|robe/i.test(chain[0]!.name);
       for (let i = 0; i < chain.length; i++) {
-        const bone = chain[i]!;
-        const child = chain[i + 1] ?? null;
-        const k = this.options.stiffness ?? 1;
-        const g = this.options.gravity ?? 1;
-        const joint = new VRMSpringBoneJoint(bone, child, { hitRadius: 0.012 * h, stiffness: (skirt ? 1.2 : 0.7) * k, gravityPower: (skirt ? 0.4 : 0.15) * g, gravityDir: new THREE.Vector3(0, -1, 0), dragForce: skirt ? 0.5 : 0.4 }, [group]);
+        const joint = new VRMSpringBoneJoint(chain[i]!, chain[i + 1] ?? null, { hitRadius: 0.012 * h, stiffness: (skirt ? 1.2 : 0.7) * k, gravityPower: (skirt ? 0.4 : 0.15) * g, gravityDir: new THREE.Vector3(0, -1, 0), dragForce: skirt ? 0.5 : 0.4 }, [group]);
         mgr.addJoint(joint);
+        made.push(joint);
       }
     }
     mgr.setInitState();
     this.springs = mgr;
+    return made;
+  }
+
+  removeSpringJoints(joints: VRMSpringBoneJoint[]) {
+    for (const j of joints) this.springs?.deleteJoint(j);
   }
 
   dispose() {
+    this.wardrobe?.dispose();
+    this.garments?.dispose();
     this.group.removeFromParent();
     this.model.scene.traverse((o) => {
       const m = o as THREE.Mesh;

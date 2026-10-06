@@ -263,7 +263,8 @@ export async function inspectModel(bytes: Buffer, glb?: Glb): Promise<ModelInfo>
     convention: auto.convention,
     expressionMap: ex.map,
     faceRig: ex.rig,
-    meshNames: (json.meshes ?? []).map((m, i) => m.name || `Mesh ${i + 1}`),
+    // The names three.js gives the objects: the node's name (or its mesh's when the node has none).
+    meshNames: [...new Set(nodes.flatMap((n) => (n.mesh !== undefined ? [n.name || json.meshes?.[n.mesh]?.name || ''] : [])).filter(Boolean))],
     materialNames: (json.materials ?? []).map((m, i) => m.name || `Material ${i + 1}`),
     warnings,
   };

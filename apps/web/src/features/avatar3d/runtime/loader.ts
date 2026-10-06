@@ -59,7 +59,7 @@ function withFileWorker(loader: KTX2Loader): KTX2Loader {
     }));
   return loader;
 }
-function loaderFor(renderer: THREE.WebGLRenderer | null): GLTFLoader {
+export function loaderFor(renderer: THREE.WebGLRenderer | null): GLTFLoader {
   const l = new GLTFLoader();
   l.setMeshoptDecoder(MeshoptDecoder);
   if (renderer) {

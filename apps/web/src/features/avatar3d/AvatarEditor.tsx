@@ -18,6 +18,7 @@ import { DetailsStep } from './editor/DetailsStep';
 import { FaceStep } from './editor/FaceStep';
 import { FitStep } from './editor/FitStep';
 import { OptimizeStep } from './editor/OptimizeStep';
+import { WardrobeStep } from './editor/WardrobeStep';
 import Preview3D, { type PreviewHandle } from './Preview3D';
 import type { Framing } from './runtime/stage';
 
@@ -26,6 +27,7 @@ const STEPS = [
   { value: 'bones', label: 'Bones' },
   { value: 'face', label: 'Face' },
   { value: 'fit', label: 'Fit' },
+  { value: 'wardrobe', label: 'Wardrobe' },
   { value: 'optimize', label: 'Optimize' },
   { value: 'details', label: 'Details' },
 ];
@@ -42,6 +44,7 @@ export default function AvatarEditor() {
   const [framing, setFraming] = useState<Framing>('full');
   const [handle, setHandle] = useState<PreviewHandle | null>(null);
   const [saving, setSaving] = useState(false);
+  const [tryOn, setTryOn] = useState<string | null>(null);
   const loadedFor = useRef<string | null>(null);
 
   // Start the draft from what's saved (and again after processing finishes).
@@ -115,7 +118,7 @@ export default function AvatarEditor() {
   }
 
   const preview = (
-    <Preview3D src={a.model} config={draft} framing={framing} inspect className={desktop ? 'h-[calc(100dvh-140px)]' : 'h-[36dvh]'} onLoaded={setHandle}>
+    <Preview3D src={a.model} config={draft} tryOn={{ outfit: tryOn }} framing={framing} inspect className={desktop ? 'h-[calc(100dvh-140px)]' : 'h-[36dvh]'} onLoaded={setHandle}>
       <div className="absolute inset-x-2 top-2 flex justify-center">
         <Segmented size="sm" label="Framing" value={framing} onChange={(v) => setFraming(v)} options={[{ value: 'portrait', label: 'Face' }, { value: 'half', label: 'Half' }, { value: 'full', label: 'Full' }]} className="bg-surface/80 backdrop-blur" />
       </div>
@@ -155,6 +158,9 @@ export default function AvatarEditor() {
             </TabPanel>
             <TabPanel value="fit">
               <FitStep config={draft} set={set} handle={handle} />
+            </TabPanel>
+            <TabPanel value="wardrobe">
+              <WardrobeStep avatar={a} config={draft} set={set} tryOn={tryOn} setTryOn={setTryOn} />
             </TabPanel>
             <TabPanel value="optimize">
               <OptimizeStep avatar={a} />

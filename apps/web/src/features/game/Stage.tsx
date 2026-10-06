@@ -116,6 +116,12 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const avatarsOn = useFeatureOn('avatars3d');
   const stageWide = useDesktop();
   const [inspect3d, setInspect3d] = useState(false);
+  /** Names of what a character has equipped (as a party member), for item-linked outfits. */
+  const equippedNames = (c: CharacterDTO): string[] => {
+    const st = campaign?.state;
+    const m = st ? Object.values(st.party).find((p) => p.characterId === c.id) : undefined;
+    return m ? Object.values(m.equipment).flatMap((id) => (id && st!.inventory[id] ? [st!.inventory[id]!.name] : [])) : [];
+  };
   const cueNo = (cue: string) => Number(cue.replace(/\D+/g, '')) || 0;
   const battle = campaign?.state?.battle ?? null;
   /**
@@ -197,7 +203,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
                 // "everyone" (a group dance): the whole cast, unless someone has a pose of their own.
                 const all = avs?.everyone;
                 const av = own ? { ...own, pose: own.pose ?? all?.pose ?? null, emote: [own.emote, all?.emote].filter(Boolean).sort((a, b) => cueNo(b!.cue) - cueNo(a!.cue))[0] ?? null } : all;
-                return [{ id: c.id, avatarId: c.game!.avatar3d!, slot: layer?.position, emotion: layer?.expression ?? (active ? emotion : 'neutral'), speaking: speakingId === c.id, emote: av?.emote ?? null, auto: autoEmote(c), pose: av?.pose ?? (battle?.status === 'active' ? 'ready' : null) }];
+                return [{ id: c.id, avatarId: c.game!.avatar3d!, slot: layer?.position, emotion: layer?.expression ?? (active ? emotion : 'neutral'), speaking: speakingId === c.id, emote: av?.emote ?? null, auto: autoEmote(c), pose: av?.pose ?? (battle?.status === 'active' ? 'ready' : null), outfit: own?.outfit ?? all?.outfit ?? null, equipped: equippedNames(c) }];
               })}
             />
           </Suspense>

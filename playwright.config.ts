@@ -15,13 +15,10 @@ const viewports = {
   'desktop-1280': { viewport: { width: 1280, height: 800 } },
 } as const;
 
-// Software WebGL, so the 3D screens render in headless runs.
-const GL = ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'];
-
 const projects = Object.entries(viewports).flatMap(([name, vp]) =>
   (['dark', 'light'] as const).map((theme) => ({
     name: `${name}-${theme}`,
-    use: { ...devices['Desktop Chrome'], ...vp, colorScheme: theme, storageState: 'tests/e2e/.artifacts/auth.json', launchOptions: { args: GL } },
+    use: { ...devices['Desktop Chrome'], ...vp, colorScheme: theme, storageState: 'tests/e2e/.artifacts/auth.json' },
     dependencies: ['setup'],
   })),
 );

@@ -3,6 +3,9 @@ import path from 'node:path';
 import type { Page } from '@playwright/test';
 import { api, expect, test } from './fixtures';
 
+// Software WebGL so the 3D screens render headless (only here: it slows the whole browser down).
+test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } });
+
 const MODEL = path.resolve('tests/fixtures/avatars/models/mannequin-m.glb');
 
 /** Every request for 3D code or 3D files. */
@@ -53,6 +56,8 @@ test.describe('3D characters', () => {
     const pic = page.getByRole('button', { name: 'Take picture' });
     await pic.evaluate((e) => e.scrollIntoView({ block: 'center' }));
     await pic.click();
+    // The picture is uploaded and shown before leaving.
+    await expect(page.getByRole('tabpanel').locator('img[src^="/media/"]')).toBeVisible({ timeout: 15_000 });
     await page.goto('/characters/avatars');
     await expect(page.getByTestId('avatar-list').locator('img').first()).toBeVisible();
     expect(errors).toEqual([]);

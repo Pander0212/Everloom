@@ -56,3 +56,5 @@ export * from './avatar/bonemap.js';
 export * from './avatar/expressions.js';
 export * from './avatar/emotes.js';
 export * from './avatar/config.js';
+export * from './avatar/wardrobe.js';
+export * from './avatar/recipe.js';

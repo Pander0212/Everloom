@@ -2,7 +2,7 @@
  * A 3D stage for one avatar (the import wizard, the dressing room, the detail sheet). Loads the
  * model with its saved settings and reloads when settings that change the model itself change.
  */
-import type { AvatarConfig } from '@everloom/engine';
+import { AvatarConfigSchema, resolveWardrobe, type AvatarConfig } from '@everloom/engine';
 import { useEffect, useRef, useState } from 'react';
 import { usePrefs3D } from '@/features/avatars/prefs';
 import { cx } from '@/lib/format';
@@ -12,6 +12,7 @@ import { PRESETS, type LightingPreset } from './runtime/lighting';
 import { loadModel, type LoadedModel } from './runtime/loader';
 import { autoLook } from './runtime/materials';
 import { canRender3D, Stage3D, type Framing } from './runtime/stage';
+import { dress } from './runtime/wardrobe';
 
 export interface PreviewHandle {
   stage: Stage3D;
@@ -29,6 +30,8 @@ export interface Preview3DProps {
   onLoaded?: (h: PreviewHandle | null) => void;
   /** Rendered over the canvas (buttons, overlays). */
   children?: React.ReactNode;
+  /** Dress the preview: an outfit to try on (id), and equipped item names. */
+  tryOn?: { outfit?: string | null; equipped?: string[] };
 }
 
 /** The parts of the settings that require loading the model again. */
@@ -38,7 +41,11 @@ export function lookFor(config: Partial<AvatarConfig> | undefined, model: Loaded
   return !config?.look || config.look === 'auto' ? autoLook(model.scene, !!model.vrm) : config.look;
 }
 
-export default function Preview3D({ src, config, framing = 'full', inspect = false, lighting = 'studio', className, onLoaded, children }: Preview3DProps) {
+export default function Preview3D({ src: baseSrc, config, framing = 'full', inspect = false, lighting = 'studio', className, onLoaded, children, tryOn }: Preview3DProps) {
+  // A whole-outfit model replaces the base model while that outfit is on.
+  const fullCfg = config ? AvatarConfigSchema.safeParse(config) : null;
+  const wardrobe = fullCfg?.success ? resolveWardrobe(fullCfg.data, { story: tryOn?.outfit ?? null, equipped: tryOn?.equipped }) : null;
+  const src = wardrobe?.outfit?.model ? `/media/${wardrobe.outfit.model}` : baseSrc;
   const canvas = useRef<HTMLCanvasElement>(null);
   const stage = useRef<Stage3D | null>(null);
   const handle = useRef<PreviewHandle | null>(null);
@@ -84,6 +91,7 @@ export default function Preview3D({ src, config, framing = 'full', inspect = fal
         avatar.options.gravity = config?.physics?.gravity;
         s.snapCamera();
         handle.current = { stage: s, avatar, model };
+        if (wardrobeRef.current && fullCfg?.success) dress(avatar, fullCfg.data, s.renderer, wardrobeRef.current);
         setState('ready');
         loadedCb.current?.(handle.current);
       })
@@ -99,6 +107,24 @@ export default function Preview3D({ src, config, framing = 'full', inspect = fal
     // Reload only for the model and settings that change it.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [src, key]);
+
+  // Parts, regions and accessories follow the settings and the outfit being tried on.
+  const wardrobeRef = useRef(wardrobe);
+  wardrobeRef.current = wardrobe;
+  const wardrobeKey = JSON.stringify([wardrobe, config?.parts, config?.body]);
+  useEffect(() => {
+    const h = handle.current;
+    if (!h || state !== 'ready' || !wardrobe || !fullCfg?.success) return;
+    // The body list decides region data, made once per wardrobe: start over when it changes.
+    if (h.avatar.wardrobe && JSON.stringify(config?.body) !== bodyKey.current) {
+      h.avatar.wardrobe.dispose();
+      h.avatar.wardrobe = null;
+    }
+    bodyKey.current = JSON.stringify(config?.body);
+    dress(h.avatar, fullCfg.data, h.stage.renderer, wardrobe);
+    h.stage.kick();
+  }, [wardrobeKey, state]); // eslint-disable-line react-hooks/exhaustive-deps
+  const bodyKey = useRef<string>('');
 
   // Look and outlines switch in place.
   useEffect(() => {

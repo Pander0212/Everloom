@@ -4,7 +4,7 @@
  * the weather and the kind of place. A character whose model can't load is reported so the stage
  * shows its picture instead.
  */
-import type { Emotion } from '@everloom/engine';
+import { resolveWardrobe, type Emotion } from '@everloom/engine';
 import { useQueries } from '@tanstack/react-query';
 import { useEffect, useRef } from 'react';
 import { avatarKeys, type AvatarDetail } from '@/features/avatars/api';
@@ -15,6 +15,7 @@ import { get } from '@/lib/api';
 import { lookFor } from './Preview3D';
 import { lightingFor } from './runtime/lighting';
 import { loadModel } from './runtime/loader';
+import { dress } from './runtime/wardrobe';
 import { Stage3D, type Slot } from './runtime/stage';
 
 export interface CastMember {
@@ -27,6 +28,9 @@ export interface CastMember {
   /** An emote the stage chose (a change of mood, a won battle); the story's own emote wins. */
   auto?: { id: string; cue: string } | null;
   pose?: string | null;
+  /** The outfit the story put them in, and the names of what they have equipped. */
+  outfit?: string | null;
+  equipped?: string[];
 }
 
 export interface StageLayerProps {
@@ -87,7 +91,11 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
   }, [prefs.quality, prefs.fpsCap, prefs.physics, prefs.outlines]);
 
   // Load, reload (settings changed) and remove characters.
-  const castKey = cast.map((c) => `${c.id}:${c.avatarId}:${byId.get(c.avatarId)?.updatedAt ?? ''}`).join('|');
+  // What each character wears decides which model file loads (a whole-outfit model) and its parts.
+  const dressed = new Map(cast.map((c) => [c.id, byId.get(c.avatarId) ? resolveWardrobe(byId.get(c.avatarId)!.config, { story: c.outfit, equipped: c.equipped }) : null]));
+  const dressedRef = useRef(dressed);
+  dressedRef.current = dressed;
+  const castKey = cast.map((c) => `${c.id}:${c.avatarId}:${byId.get(c.avatarId)?.updatedAt ?? ''}:${dressed.get(c.id)?.outfit?.model ?? ''}`).join('|');
   useEffect(() => {
     const s = stage.current;
     if (!s) return;
@@ -97,7 +105,9 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
     for (const c of cast) {
       const d = byId.get(c.avatarId);
       if (!d) continue;
-      const stamp = `${d.id}:${d.updatedAt}:${low}`;
+      const w = dressed.get(c.id);
+      const outfitModel = w?.outfit?.model ? `/media/${(low && w.outfit.modelLow) || w.outfit.model}` : null;
+      const stamp = `${d.id}:${d.updatedAt}:${low}:${outfitModel ?? ''}`;
       if (loaded.current.get(c.id) === stamp) continue;
       if (d.status !== 'ready' || !d.model) {
         if (d.status === 'failed') failRef.current(c.id, 'failed');
@@ -105,12 +115,14 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
       }
       loaded.current.set(c.id, stamp);
       const cfg = d.config;
-      loadModel((low && d.low) || d.model, s.renderer, { boneMap: cfg.boneMap, expressionMap: cfg.expressionMap, scale: cfg.scale, facing: cfg.facing, floor: cfg.floor })
+      loadModel(outfitModel ?? ((low && d.low) || d.model), s.renderer, { boneMap: cfg.boneMap, expressionMap: cfg.expressionMap, scale: cfg.scale, facing: cfg.facing, floor: cfg.floor })
         .then((model) => {
           if (stage.current !== s || loaded.current.get(c.id) !== stamp) return;
           const a = s.add(c.id, model, { look: lookFor(cfg, model), outlines: cfg.outlines, physics: cfg.physics.enabled });
           a.options.stiffness = cfg.physics.stiffness;
           a.options.gravity = cfg.physics.gravity;
+          const now = dressedRef.current.get(c.id);
+          if (now) dress(a, cfg, s.renderer, now);
           s.snapCamera();
         })
         .catch((e: Error) => {
@@ -142,6 +154,13 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
         played.current!.set(`${c.id}:auto`, c.auto.cue);
         void a.emote(c.auto.id);
       }
+    }
+    // Outfit changes that keep the same model file: parts, regions, accessories.
+    for (const c of cast) {
+      const a = s.get(c.id);
+      const d = byId.get(c.avatarId);
+      const w = dressed.get(c.id);
+      if (a && d && w) dress(a, d.config, s.renderer, w);
     }
     s.setSlots(slots, speakerId);
     s.setFraming(cast.length > 2 ? 'full' : 'half');
