@@ -168,6 +168,36 @@ The **dressing room** (Wardrobe step) edits outfits (tap one to try it on), part
 regions covered, items), the skin meshes, and accessories (upload a GLB, pick a bone, move, turn,
 size).
 
+## Code-made characters
+
+A character can also be **made from a recipe** instead of a file: a small JSON description
+(`AvatarRecipeSchema`, `packages/engine/src/avatar/recipe.ts`) of the body (age stage, height,
+build, frame, chest, skin), face (eye colour and size, blush), hair (10 styles, colour, length),
+top, bottom, shoes, hat and extras (cape, scarf, belt, glasses, earrings, apron). The browser builds
+the model in a worker:
+
+- the body is a set of rounded shapes (one per bone) blended into one smooth surface and meshed
+  with surface nets; proportions follow the age stage (a child is about 4.8 heads tall);
+- clothes are the same body surface grown a little and cut by planes (sleeves, hems, necklines),
+  so they always fit; skin under them is removed and they bend with the same weights as the skin;
+- skirts, robes, capes and long hair get their own shapes, and hair and capes get bone chains that
+  swing;
+- the face is drawn on the head: eyes, lashes, brows, mouth and blush, with morph targets for
+  blinking, the mouth shapes and every feeling (a laugh closes the eyes into arcs);
+- about 45,000 triangles (15,000 on phones), no file to download, built once per look and cached.
+
+**All-ages bodies:** bodies are smooth mannequins with no anatomical detail, everyone wears at least
+plain underwear, and child bodies never get a chest shape whatever the recipe says.
+
+**Making one:** Characters › 3D avatars › Make (then edit with live preview), or on a character,
+**Make a code-made look**: the utility model fills a recipe in from the description (anything it
+returns is checked field by field; what doesn't fit the schema is replaced), and without a model the
+description's own words are used (hair, colours, clothes, "old", "little girl"…).
+
+**NPCs:** a character with no picture, Live2D or avatar appears on the stage as a code-made figure
+from its description (stable: the same name always gets the same choices). Settings › 3D
+characters › *Code-made figures for characters without a picture* turns this off on a device.
+
 ## Rendering
 
 - One WebGL canvas for all 3D characters on a stage; sprites and Live2D stay around it.
@@ -197,10 +227,11 @@ The file being converted is decrypted into that folder for the run.
 
 | | |
 |---|---|
-| `packages/engine/src/avatar/` | skeleton, bone and expression mapping, emotes, config, wardrobe |
+| `packages/engine/src/avatar/` | skeleton, bone and expression mapping, emotes, config, wardrobe, recipes |
 | `apps/server/src/services/avatars/` | GLB reader, inspection, optimization, storage and processing |
 | `apps/server/src/blender/worker.py` | the Blender worker script |
 | `apps/web/src/features/avatar3d/runtime/` | loading, retargeting, clips, avatar, stage, materials, lighting, wardrobe, import |
+| `apps/web/src/features/avatar3d/runtime/codemade/` | code-made characters: shapes, mesher, body, clothes, face, worker |
 | `apps/web/src/features/avatar3d/` | the wizard, preview, stage layer, motion importer |
 | `apps/web/public/avatar/clips/` | the built-in clips |
 | `tools/avatars/` | building the bundled and authored clips |

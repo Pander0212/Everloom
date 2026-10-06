@@ -111,6 +111,37 @@ test.describe('3D characters', () => {
     expect(errors).toEqual([]);
   });
 
+  test('code-made: make one, edit it, and pictureless characters appear as code-made figures', async ({ page, errors }) => {
+    await page.goto('/characters/avatars');
+    await page.getByTestId('avatar-new-code').click();
+    await expect(page).toHaveURL(/\/characters\/avatars\/av_/);
+    await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 45_000 });
+    await page.getByRole('tab', { name: 'Face & hair' }).click();
+    await page.getByLabel('Hairstyle').selectOption('bun');
+    await page.getByRole('tab', { name: 'Clothes' }).click();
+    await page.getByLabel('Top', { exact: true }).selectOption('robe');
+    await page.getByTestId('avatar-save').click();
+    await expect(page.getByTestId('avatar-save')).toBeDisabled({ timeout: 15_000 });
+    const id = page.url().split('/').pop()!;
+    const saved = await api(page, 'GET', `/api/avatars/${id}`);
+    expect(saved.config.recipe).toMatchObject({ hair: { style: 'bun' }, top: { kind: 'robe' } });
+
+    // A character with no picture at all: a figure made from the description.
+    const ch = await api(page, 'POST', '/api/characters', { card: { name: 'Old Tam', description: 'An elderly fisherman with a white beard, a grey beanie and boots.', first_mes: 'Tam squints at the sea.' } });
+    const chat = await api(page, 'POST', '/api/chats', { characterId: ch.id });
+    await page.goto(`/chat/${chat.id}`);
+    await page.getByRole('button', { name: 'Switch to stage mode' }).click();
+    await expect(page.getByTestId('stage-3d')).toBeVisible({ timeout: 20_000 });
+    await expect(page.getByTestId('stage-sprite')).toHaveCount(0);
+    // Turned off on this device: back to the (empty) picture slot.
+    await page.evaluate(() => localStorage.setItem('everloom:3d', JSON.stringify({ codeNpcs: false })));
+    await page.reload();
+    await expect(page.getByTestId('stage-sprite')).toHaveCount(1);
+    await expect(page.getByTestId('stage-3d')).toHaveCount(0);
+    await page.evaluate(() => localStorage.removeItem('everloom:3d'));
+    expect(errors).toEqual([]);
+  });
+
   test('nothing 3D downloads on screens without 3D', async ({ page, errors }) => {
     const hits = watch3d(page);
     for (const url of ['/', '/characters', '/settings', '/personas', '/lore']) {
