@@ -33,7 +33,9 @@ images were comparisons only.
 Text or lettering, logos or brand marks (including look-alikes: rejected the energy-drink claw
 and the fries "M"), watermarks or signatures, real people, franchise characters, protected
 emblems (the Red Cross: the first-aid kit is green with a white plus), anything not all-ages,
-broken anatomy (extra fingers, merged limbs).
+broken anatomy (extra fingers, merged limbs), blood or wounds. Qwen Image added blood to every
+foe, even when told not to (naming it seems to invite it); the stains were removed with one
+Step Image Edit 2 call each, which is cheaper and more reliable than rerolling.
 
 ## Processing
 

@@ -547,6 +547,11 @@ for this model but didn't pass it on (four edits drew a stranger at 1024×1024 b
 caught). Edits now go through the edits endpoint, which refuses a request without a picture, and
 the tool flags any edit whose size differs from its input.
 
+**All-ages, checked by eye.** Every picture was looked at before it was kept. Rejected: a
+signature (Chroma), brand-like marks on two icons, blood on four enemy portraits (twice, despite
+the prompt; removed with an edit instead), a muddled drone, and expressions that didn't match
+their label (Mira's "curious" face ships as *nervousness*, which it shows). About 2 MB in all.
+
 ## Part 2 — Character sources
 
 **What was actually broken.** Checked live on 2026-10-05 before changing anything:

@@ -221,6 +221,347 @@
    "w": 512,
    "h": 256,
    "avif": true
+  },
+  {
+   "raw": "mira-base.png",
+   "out": "starter/mira/avatar",
+   "w": 512,
+   "h": 0,
+   "manifest": {
+    "name": "Mira Vale",
+    "type": "sprite",
+    "tags": [],
+    "pack": "avatar"
+   }
+  },
+  {
+   "raw": "mira-base.png",
+   "out": "starter/mira/neutral",
+   "w": 600,
+   "h": 0,
+   "cutout": true,
+   "manifest": {
+    "name": "Mira Vale \u00b7 neutral",
+    "type": "sprite",
+    "tags": [
+     "demo"
+    ],
+    "set": "Mira Vale",
+    "expression": "neutral",
+    "pack": "demo"
+   }
+  },
+  {
+   "raw": "045-nano-step-image-edit-2-mira-joy.png",
+   "out": "starter/mira/joy",
+   "w": 600,
+   "h": 0,
+   "cutout": true,
+   "manifest": {
+    "name": "Mira Vale \u00b7 joy",
+    "type": "sprite",
+    "tags": [
+     "demo"
+    ],
+    "set": "Mira Vale",
+    "expression": "joy",
+    "pack": "demo"
+   }
+  },
+  {
+   "raw": "046-nano-step-image-edit-2-mira-amusement.png",
+   "out": "starter/mira/amusement",
+   "w": 600,
+   "h": 0,
+   "cutout": true,
+   "manifest": {
+    "name": "Mira Vale \u00b7 amusement",
+    "type": "sprite",
+    "tags": [
+     "demo"
+    ],
+    "set": "Mira Vale",
+    "expression": "amusement",
+    "pack": "demo"
+   }
+  },
+  {
+   "raw": "047-nano-step-image-edit-2-mira-surprise.png",
+   "out": "starter/mira/surprise",
+   "w": 600,
+   "h": 0,
+   "cutout": true,
+   "manifest": {
+    "name": "Mira Vale \u00b7 surprise",
+    "type": "sprite",
+    "tags": [
+     "demo"
+    ],
+    "set": "Mira Vale",
+    "expression": "surprise",
+    "pack": "demo"
+   }
+  },
+  {
+   "raw": "048-nano-step-image-edit-2-mira-sadness.png",
+   "out": "starter/mira/sadness",
+   "w": 600,
+   "h": 0,
+   "cutout": true,
+   "manifest": {
+    "name": "Mira Vale \u00b7 sadness",
+    "type": "sprite",
+    "tags": [
+     "demo"
+    ],
+    "set": "Mira Vale",
+    "expression": "sadness",
+    "pack": "demo"
+   }
+  },
+  {
+   "raw": "049-nano-step-image-edit-2-mira-anger.png",
+   "out": "starter/mira/anger",
+   "w": 600,
+   "h": 0,
+   "cutout": true,
+   "manifest": {
+    "name": "Mira Vale \u00b7 anger",
+    "type": "sprite",
+    "tags": [
+     "demo"
+    ],
+    "set": "Mira Vale",
+    "expression": "anger",
+    "pack": "demo"
+   }
+  },
+  {
+   "raw": "050-nano-step-image-edit-2-mira-embarrassment.png",
+   "out": "starter/mira/embarrassment",
+   "w": 600,
+   "h": 0,
+   "cutout": true,
+   "manifest": {
+    "name": "Mira Vale \u00b7 embarrassment",
+    "type": "sprite",
+    "tags": [
+     "demo"
+    ],
+    "set": "Mira Vale",
+    "expression": "embarrassment",
+    "pack": "demo"
+   }
+  },
+  {
+   "raw": "051-nano-step-image-edit-2-mira-curiosity.png",
+   "out": "starter/mira/nervousness",
+   "w": 600,
+   "h": 0,
+   "cutout": true,
+   "manifest": {
+    "name": "Mira Vale \u00b7 nervousness",
+    "type": "sprite",
+    "tags": [
+     "demo"
+    ],
+    "set": "Mira Vale",
+    "expression": "nervousness",
+    "pack": "demo"
+   }
+  },
+  {
+   "raw": "052-nano-qwen-image-avatar-scholar.jpg",
+   "out": "starter/portraits/scholar",
+   "w": 512,
+   "h": 512,
+   "manifest": {
+    "name": "Portrait \u00b7 Scholar",
+    "type": "sprite",
+    "tags": [
+     "portrait"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "053-nano-qwen-image-avatar-elder.jpg",
+   "out": "starter/portraits/elder",
+   "w": 512,
+   "h": 512,
+   "manifest": {
+    "name": "Portrait \u00b7 Elder",
+    "type": "sprite",
+    "tags": [
+     "portrait"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "054-nano-qwen-image-avatar-mechanic.jpg",
+   "out": "starter/portraits/mechanic",
+   "w": 512,
+   "h": 512,
+   "manifest": {
+    "name": "Portrait \u00b7 Mechanic",
+    "type": "sprite",
+    "tags": [
+     "portrait"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "055-nano-qwen-image-avatar-ranger.jpg",
+   "out": "starter/portraits/ranger",
+   "w": 512,
+   "h": 512,
+   "manifest": {
+    "name": "Portrait \u00b7 Ranger",
+    "type": "sprite",
+    "tags": [
+     "portrait"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "056-nano-qwen-image-avatar-pilot.jpg",
+   "out": "starter/portraits/pilot",
+   "w": 512,
+   "h": 512,
+   "manifest": {
+    "name": "Portrait \u00b7 Pilot",
+    "type": "sprite",
+    "tags": [
+     "portrait"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "057-nano-qwen-image-avatar-office.jpg",
+   "out": "starter/portraits/office",
+   "w": 512,
+   "h": 512,
+   "manifest": {
+    "name": "Portrait \u00b7 Office worker",
+    "type": "sprite",
+    "tags": [
+     "portrait"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "058-nano-qwen-image-empty-characters.jpg",
+   "out": "empty/characters",
+   "w": 320,
+   "h": 320,
+   "cutout": true
+  },
+  {
+   "raw": "059-nano-qwen-image-empty-chats.jpg",
+   "out": "empty/chats",
+   "w": 320,
+   "h": 320,
+   "cutout": true,
+   "tile": true
+  },
+  {
+   "raw": "060-nano-qwen-image-empty-search.jpg",
+   "out": "empty/search",
+   "w": 320,
+   "h": 320,
+   "cutout": true
+  },
+  {
+   "raw": "061-nano-qwen-image-empty-bag.jpg",
+   "out": "empty/bag",
+   "w": 320,
+   "h": 320,
+   "cutout": true
+  },
+  {
+   "raw": "062-nano-qwen-image-empty-shop.jpg",
+   "out": "empty/shop",
+   "w": 320,
+   "h": 320,
+   "cutout": true,
+   "tile": true
+  },
+  {
+   "raw": "063-nano-qwen-image-empty-quests.jpg",
+   "out": "empty/quests",
+   "w": 320,
+   "h": 320,
+   "cutout": true,
+   "tile": true
+  },
+  {
+   "raw": "064-nano-qwen-image-pip-wave.jpg",
+   "out": "helper/pip-wave",
+   "w": 192,
+   "h": 192,
+   "cutout": true
+  },
+  {
+   "raw": "065-nano-step-image-edit-2-pip-idle.png",
+   "out": "helper/pip-idle",
+   "w": 192,
+   "h": 192,
+   "cutout": true
+  },
+  {
+   "raw": "066-nano-step-image-edit-2-pip-thinking.png",
+   "out": "helper/pip-thinking",
+   "w": 192,
+   "h": 192,
+   "cutout": true
+  },
+  {
+   "raw": "078-nano-step-image-edit-2-enemy-wolf-clean.png",
+   "out": "enemies/wolf",
+   "w": 144,
+   "h": 144,
+   "cutout": true
+  },
+  {
+   "raw": "079-nano-step-image-edit-2-enemy-bandit-clean.png",
+   "out": "enemies/bandit",
+   "w": 144,
+   "h": 144,
+   "cutout": true,
+   "croptop": 0.07
+  },
+  {
+   "raw": "080-nano-step-image-edit-2-enemy-slime-clean.png",
+   "out": "enemies/slime",
+   "w": 144,
+   "h": 144,
+   "cutout": true
+  },
+  {
+   "raw": "082-nano-z-image-turbo-enemy-drone.jpg",
+   "out": "enemies/drone",
+   "w": 144,
+   "h": 144,
+   "cutout": true
+  },
+  {
+   "raw": "071-nano-qwen-image-enemy-robot.jpg",
+   "out": "enemies/robot",
+   "w": 144,
+   "h": 144,
+   "cutout": true
+  },
+  {
+   "raw": "081-nano-step-image-edit-2-enemy-wyvern-clean.png",
+   "out": "enemies/wyvern",
+   "w": 144,
+   "h": 144,
+   "cutout": true
   }
  ]
 }

@@ -1640,14 +1640,15 @@
    "ok": true,
    "counted": true,
    "costUsd": 0,
-   "kept": null,
+   "kept": false,
    "meter": {
     "usedBefore": 0,
     "usedAfter": 1,
     "usdBefore": 0.01190711,
     "usdAfter": 0.01190711
    },
-   "file": "073-nano-qwen-image-enemy-wolf.jpg"
+   "file": "073-nano-qwen-image-enemy-wolf.jpg",
+   "note": "blood again; cleaned with an edit"
   },
   {
    "n": 74,
@@ -1662,14 +1663,15 @@
    "ok": true,
    "counted": true,
    "costUsd": 0,
-   "kept": null,
+   "kept": false,
    "meter": {
     "usedBefore": 1,
     "usedAfter": 2,
     "usdBefore": 0.01190711,
     "usdAfter": 0.01190711
    },
-   "file": "074-nano-qwen-image-enemy-bandit.jpg"
+   "file": "074-nano-qwen-image-enemy-bandit.jpg",
+   "note": "blood again; cleaned with an edit"
   },
   {
    "n": 75,
@@ -1684,14 +1686,176 @@
    "ok": true,
    "counted": true,
    "costUsd": 0,
-   "kept": null,
+   "kept": false,
    "meter": {
     "usedBefore": 2,
     "usedAfter": 3,
     "usdBefore": 0.01190711,
     "usdAfter": 0.01190711
    },
-   "file": "075-nano-qwen-image-enemy-slime.jpg"
+   "file": "075-nano-qwen-image-enemy-slime.jpg",
+   "note": "blood again; cleaned with an edit"
+  },
+  {
+   "n": 76,
+   "date": "2026-10-06",
+   "at": "2026-10-06T06:37:22.863Z",
+   "service": "nano",
+   "model": "qwen-image",
+   "label": "enemy-wyvern",
+   "prompt": "Children's adventure game monster portrait, friendly anime cartoon style, clean line art, flat soft colours, bold readable shapes. A small green wyvern with wings spread wide, a long tail, two legs and small horns, roaring playfully. Clean and unhurt, spotless, no wounds, no stains, no red splashes, nothing scary. Full body, centred, on a plain flat white background. No text, no logo, no watermark.",
+   "res": "1024x1024",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": false,
+   "meter": {
+    "usedBefore": 3,
+    "usedAfter": 4,
+    "usdBefore": 0.01190711,
+    "usdAfter": 0.01190711
+   },
+   "file": "076-nano-qwen-image-enemy-wyvern.jpg",
+   "note": "blood again; cleaned with an edit"
+  },
+  {
+   "n": 77,
+   "date": "2026-10-06",
+   "at": "2026-10-06T06:37:49.420Z",
+   "service": "nano",
+   "model": "qwen-image",
+   "label": "enemy-drone",
+   "prompt": "Children's adventure game monster portrait, friendly anime cartoon style, clean line art, flat soft colours, bold readable shapes. A hovering white and grey security drone with four small rotors on short arms and one glowing red camera eye, no legs. Clean and unhurt, spotless, no wounds, no stains, no red splashes, nothing scary. Full body, centred, on a plain flat white background. No text, no logo, no watermark.",
+   "res": "1024x1024",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": false,
+   "meter": {
+    "usedBefore": 4,
+    "usedAfter": 5,
+    "usdBefore": 0.01190711,
+    "usdAfter": 0.01190711
+   },
+   "file": "077-nano-qwen-image-enemy-drone.jpg",
+   "note": "muddled design with stains"
+  },
+  {
+   "n": 78,
+   "date": "2026-10-06",
+   "at": "2026-10-06T06:38:38.904Z",
+   "service": "nano",
+   "model": "step-image-edit-2",
+   "label": "enemy-wolf-clean",
+   "prompt": "Remove every red stain, red mark and red puddle so the fur, clothes, body and ground are clean. Keep the same creature, pose, colours, line art and plain white background exactly the same.",
+   "res": null,
+   "input": "clean-src-wolf.png",
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": true,
+   "meter": {
+    "usedBefore": 5,
+    "usedAfter": 6,
+    "usdBefore": 0.01190711,
+    "usdAfter": 0.01190711
+   },
+   "file": "078-nano-step-image-edit-2-enemy-wolf-clean.png",
+   "note": "enemy portrait (stains removed)"
+  },
+  {
+   "n": 79,
+   "date": "2026-10-06",
+   "at": "2026-10-06T06:39:26.770Z",
+   "service": "nano",
+   "model": "step-image-edit-2",
+   "label": "enemy-bandit-clean",
+   "prompt": "Remove every red stain, red mark and red puddle so the fur, clothes, body and ground are clean. Keep the same creature, pose, colours, line art and plain white background exactly the same.",
+   "res": null,
+   "input": "clean-src-bandit.png",
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": true,
+   "meter": {
+    "usedBefore": 6,
+    "usedAfter": 7,
+    "usdBefore": 0.01190711,
+    "usdAfter": 0.01190711
+   },
+   "file": "079-nano-step-image-edit-2-enemy-bandit-clean.png",
+   "note": "enemy portrait (stains removed)"
+  },
+  {
+   "n": 80,
+   "date": "2026-10-06",
+   "at": "2026-10-06T06:39:51.663Z",
+   "service": "nano",
+   "model": "step-image-edit-2",
+   "label": "enemy-slime-clean",
+   "prompt": "Remove every red stain, red mark and red puddle so the fur, clothes, body and ground are clean. Keep the same creature, pose, colours, line art and plain white background exactly the same.",
+   "res": null,
+   "input": "clean-src-slime.png",
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": true,
+   "meter": {
+    "usedBefore": 7,
+    "usedAfter": 8,
+    "usdBefore": 0.01190711,
+    "usdAfter": 0.01190711
+   },
+   "file": "080-nano-step-image-edit-2-enemy-slime-clean.png",
+   "note": "enemy portrait (stains removed)"
+  },
+  {
+   "n": 81,
+   "date": "2026-10-06",
+   "at": "2026-10-06T06:40:14.714Z",
+   "service": "nano",
+   "model": "step-image-edit-2",
+   "label": "enemy-wyvern-clean",
+   "prompt": "Remove every red stain, red mark and red puddle so the fur, clothes, body and ground are clean. Keep the same creature, pose, colours, line art and plain white background exactly the same.",
+   "res": null,
+   "input": "clean-src-wyvern.png",
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": true,
+   "meter": {
+    "usedBefore": 8,
+    "usedAfter": 9,
+    "usdBefore": 0.01190711,
+    "usdAfter": 0.01190711
+   },
+   "file": "081-nano-step-image-edit-2-enemy-wyvern-clean.png",
+   "note": "enemy portrait (stains removed)"
+  },
+  {
+   "n": 82,
+   "date": "2026-10-06",
+   "at": "2026-10-06T06:40:38.228Z",
+   "service": "nano",
+   "model": "z-image-turbo",
+   "label": "enemy-drone",
+   "prompt": "Cute game sticker illustration, anime cartoon style, clean bold line art, flat soft colours. A hovering white and grey security drone robot: a round body, four small propellers on short arms, one big glowing red camera eye, no legs. Centred on a plain flat white background. No text, no logo, no watermark.",
+   "res": "1024*1024",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": true,
+   "meter": {
+    "usedBefore": 9,
+    "usedAfter": 10,
+    "usdBefore": 0.01190711,
+    "usdAfter": 0.01190711
+   },
+   "file": "082-nano-z-image-turbo-enemy-drone.jpg",
+   "note": "enemy portrait (drone)"
   }
  ],
  "resumed": [

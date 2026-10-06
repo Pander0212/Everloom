@@ -40,7 +40,8 @@ def cutout(img):
         if barrier.getpixel(s) == 0:
             ImageDraw.floodfill(barrier, s, 128)
     reach = barrier.point(lambda v: 255 if v == 128 else 0).filter(ImageFilter.MaxFilter(5))
-    alpha = reach.point(lambda v: 0 if v else 255).resize((w, h), Image.BILINEAR).filter(ImageFilter.GaussianBlur(1.2))
+    # Shrink the mask a little before softening it, so no light fringe of the old background stays.
+    alpha = reach.point(lambda v: 0 if v else 255).resize((w, h), Image.BILINEAR).filter(ImageFilter.MinFilter(5)).filter(ImageFilter.GaussianBlur(1.2))
     out = img.convert('RGBA')
     out.putalpha(alpha)
     return out
@@ -58,8 +59,10 @@ def main(spec_path):
             box = img.convert('L').point(lambda v: 255 if v > 200 else 0).getbbox()
             if box:
                 x0, y0, x1, y1 = box
-                m = round(min(x1 - x0, y1 - y0) * 0.07)
+                m = round(min(x1 - x0, y1 - y0) * 0.05)
                 img = img.crop((x0 + m, y0 + m, x1 - m, y1 - m))
+        if it.get('croptop'):
+            img = img.crop((0, round(img.height * it['croptop']), img.width, img.height))
         w, h = it.get('w', 0), it.get('h', 0)
         if w and h:
             img = ImageOps.fit(img, (w, h), Image.LANCZOS, centering=(0.5, 0.5))

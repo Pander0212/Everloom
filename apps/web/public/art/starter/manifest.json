@@ -118,5 +118,154 @@
   ],
   "pack": "starter",
   "file": "bg/market-deck.webp"
+ },
+ {
+  "name": "Mira Vale",
+  "type": "sprite",
+  "tags": [],
+  "pack": "avatar",
+  "file": "mira/avatar.webp"
+ },
+ {
+  "name": "Mira Vale \u00b7 neutral",
+  "type": "sprite",
+  "tags": [
+   "demo"
+  ],
+  "set": "Mira Vale",
+  "expression": "neutral",
+  "pack": "demo",
+  "file": "mira/neutral.webp"
+ },
+ {
+  "name": "Mira Vale \u00b7 joy",
+  "type": "sprite",
+  "tags": [
+   "demo"
+  ],
+  "set": "Mira Vale",
+  "expression": "joy",
+  "pack": "demo",
+  "file": "mira/joy.webp"
+ },
+ {
+  "name": "Mira Vale \u00b7 amusement",
+  "type": "sprite",
+  "tags": [
+   "demo"
+  ],
+  "set": "Mira Vale",
+  "expression": "amusement",
+  "pack": "demo",
+  "file": "mira/amusement.webp"
+ },
+ {
+  "name": "Mira Vale \u00b7 surprise",
+  "type": "sprite",
+  "tags": [
+   "demo"
+  ],
+  "set": "Mira Vale",
+  "expression": "surprise",
+  "pack": "demo",
+  "file": "mira/surprise.webp"
+ },
+ {
+  "name": "Mira Vale \u00b7 sadness",
+  "type": "sprite",
+  "tags": [
+   "demo"
+  ],
+  "set": "Mira Vale",
+  "expression": "sadness",
+  "pack": "demo",
+  "file": "mira/sadness.webp"
+ },
+ {
+  "name": "Mira Vale \u00b7 anger",
+  "type": "sprite",
+  "tags": [
+   "demo"
+  ],
+  "set": "Mira Vale",
+  "expression": "anger",
+  "pack": "demo",
+  "file": "mira/anger.webp"
+ },
+ {
+  "name": "Mira Vale \u00b7 embarrassment",
+  "type": "sprite",
+  "tags": [
+   "demo"
+  ],
+  "set": "Mira Vale",
+  "expression": "embarrassment",
+  "pack": "demo",
+  "file": "mira/embarrassment.webp"
+ },
+ {
+  "name": "Mira Vale \u00b7 nervousness",
+  "type": "sprite",
+  "tags": [
+   "demo"
+  ],
+  "set": "Mira Vale",
+  "expression": "nervousness",
+  "pack": "demo",
+  "file": "mira/nervousness.webp"
+ },
+ {
+  "name": "Portrait \u00b7 Scholar",
+  "type": "sprite",
+  "tags": [
+   "portrait"
+  ],
+  "pack": "starter",
+  "file": "portraits/scholar.webp"
+ },
+ {
+  "name": "Portrait \u00b7 Elder",
+  "type": "sprite",
+  "tags": [
+   "portrait"
+  ],
+  "pack": "starter",
+  "file": "portraits/elder.webp"
+ },
+ {
+  "name": "Portrait \u00b7 Mechanic",
+  "type": "sprite",
+  "tags": [
+   "portrait"
+  ],
+  "pack": "starter",
+  "file": "portraits/mechanic.webp"
+ },
+ {
+  "name": "Portrait \u00b7 Ranger",
+  "type": "sprite",
+  "tags": [
+   "portrait"
+  ],
+  "pack": "starter",
+  "file": "portraits/ranger.webp"
+ },
+ {
+  "name": "Portrait \u00b7 Pilot",
+  "type": "sprite",
+  "tags": [
+   "portrait"
+  ],
+  "pack": "starter",
+  "file": "portraits/pilot.webp"
+ },
+ {
+  "name": "Portrait \u00b7 Office worker",
+  "type": "sprite",
+  "tags": [
+   "portrait"
+  ],
+  "pack": "starter",
+  "file": "portraits/office.webp"
  }
 ]

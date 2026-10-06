@@ -82,13 +82,14 @@ test.describe('Everloom art', () => {
     await page.getByRole('button', { name: 'Asset library' }).click();
     const lib = page.getByRole('dialog', { name: 'Asset library' });
     await lib.getByRole('button', { name: "Add Everloom's art" }).click();
-    await expect(page.getByText(/Added \d+ of Everloom's pictures/)).toBeVisible();
+    // (Other viewports share the server's data, so the pack may already be there.)
+    await expect(page.getByText(/Added \d+ of Everloom's pictures|Everloom's pictures are already here/).first()).toBeVisible();
     await lib.getByRole('radiogroup', { name: 'Type' }).getByRole('radio', { name: 'Backgrounds' }).click();
     await expect(lib.getByRole('button', { name: 'Tavern, background' })).toBeVisible();
     const count = (await api(page, 'GET', '/api/assets?tag=everloom')).assets.length;
     expect(count).toBeGreaterThanOrEqual(12);
     await lib.getByRole('button', { name: "Add Everloom's art" }).click();
-    await expect(page.getByText("Everloom's pictures are already here")).toBeVisible();
+    await expect(page.getByText("Everloom's pictures are already here").first()).toBeVisible();
     expect((await api(page, 'GET', '/api/assets?tag=everloom')).assets.length).toBe(count);
 
     const mira = await api(page, 'POST', '/api/characters/demo', {});
