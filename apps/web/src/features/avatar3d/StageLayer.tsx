@@ -10,6 +10,7 @@ import { useEffect, useRef } from 'react';
 import { avatarKeys, type AvatarDetail } from '@/features/avatars/api';
 import { usePrefs3D, wantsLowDetail } from '@/features/avatars/prefs';
 import { speechVisemes } from '@/features/story/tts';
+import { danceRate, musicBeat, onMusicBeat } from '@/lib/tempo';
 import { get } from '@/lib/api';
 import { lookFor } from './Preview3D';
 import { lightingFor } from './runtime/lighting';
@@ -149,6 +150,26 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
   useEffect(() => {
     stage.current?.setSafeArea(safeBottom);
   }, [safeBottom]);
+
+  // Dances follow the music's tempo while it plays.
+  useEffect(() => {
+    const apply = (b: { bpm: number } | null) => {
+      const s = stage.current;
+      if (!s) return;
+      for (const id of s.ids()) {
+        const a = s.get(id)!;
+        const own = a.danceBpm;
+        a.setDanceRate(b && own ? danceRate(own, b.bpm) : 1);
+      }
+    };
+    apply(musicBeat());
+    const t = setInterval(() => apply(musicBeat()), 2000);
+    const off = onMusicBeat(apply);
+    return () => {
+      clearInterval(t);
+      off();
+    };
+  }, []);
 
   // Look around: drag to orbit, pinch to zoom; off returns to the directed camera.
   useEffect(() => {

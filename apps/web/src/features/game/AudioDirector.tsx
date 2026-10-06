@@ -9,6 +9,7 @@ import { useEffect, useRef } from 'react';
 import { useSettings } from '@/lib/queries';
 import { useFeatureOn } from '@/lib/features';
 import { useGame } from './context';
+import { setMusicBeat, trackTempo } from '@/lib/tempo';
 
 export function autoAmbient(s: CampaignState): Exclude<AmbientKind, 'auto'> {
   const w = s.weather.kind;
@@ -261,6 +262,8 @@ export function AudioDirector() {
   const a = settings.data?.audio ? { ...settings.data.audio, music: settings.data.audio.music && musicOn, ambient: settings.data.audio.ambient && ambienceOn } : undefined;
   const live = useRef(0);
   const current = useRef<{ key: string; tracks: string[]; i: number } | null>(null);
+  const tempoWanted = useRef(false);
+  tempoWanted.current = useFeatureOn('avatars3d');
   const amb = useRef<{ kind: string; synth?: Synth; el?: HTMLAudioElement } | null>(null);
 
   // Music: which playlist, then play its tracks in turn with a crossfade.
@@ -273,6 +276,7 @@ export function AudioDirector() {
     const start = () => {
       if (!playlist) {
         current.current = null;
+        setMusicBeat(null);
         ramp(d0, 0, fade);
         ramp(d1, 0, fade);
         return;
@@ -297,6 +301,9 @@ export function AudioDirector() {
         playTrack();
       };
       void inn.play().catch(() => undefined);
+      // 3D dances follow the music's tempo (worked out once per track, only with 3D on).
+      const url = inn.src;
+      if (tempoWanted.current) void trackTempo(url, getAudioCtx()).then((bpm) => current.current === c && inn.src === url && setMusicBeat(bpm ? { bpm, url } : null));
       ramp(inn, vol, fade);
       ramp(out, 0, fade);
     };

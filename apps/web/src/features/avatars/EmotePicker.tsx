@@ -13,7 +13,8 @@ export function EmotePicker({ cast, className }: { cast: Array<{ id: string; nam
   const { apply } = useGame();
   const clips = useAvatarClips();
   const [who, setWho] = useState<string | null>(null);
-  const target = cast.find((c) => c.id === who) ?? cast[0];
+  // In a group, "Everyone" makes the whole cast do it (a group dance stays in step).
+  const target = who === '*' ? { id: '*', name: 'everyone' } : (cast.find((c) => c.id === who) ?? cast[0]);
   const emotes = installedEmotes((clips.data ?? []).map((c) => ({ id: c.id, label: c.label, category: c.category })));
   if (!target) return null;
   const play = (id: string) => {
@@ -26,7 +27,7 @@ export function EmotePicker({ cast, className }: { cast: Array<{ id: string; nam
       <div className="flex max-h-[60dvh] w-72 flex-col gap-2 overflow-y-auto p-1" data-testid="emote-picker">
         {cast.length > 1 ? (
           <div className="flex flex-wrap gap-1" role="radiogroup" aria-label="Who">
-            {cast.map((c) => (
+            {[...cast, { id: '*', name: 'Everyone' }].map((c) => (
               <button key={c.id} role="radio" aria-checked={c.id === target.id} onClick={() => setWho(c.id)} className={cx('pressable rounded-full px-3 py-1 text-xs', c.id === target.id ? 'bg-accent text-accent-fg' : 'bg-surface-2')}>
                 {c.name}
               </button>

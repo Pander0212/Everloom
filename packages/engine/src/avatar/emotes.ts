@@ -107,7 +107,7 @@ export const EMOTE_FOR: Record<string, string> = {
 export function emoteOpReference(installed: readonly EmoteInfo[]): string {
   const one = installed.filter((x) => !isPoseEmote(x)).map((x) => x.id);
   const pose = installed.filter(isPoseEmote).map((x) => x.id);
-  return `- {"type":"avatar.emote","who":"Mara Quill","emote":"wave"}  a 3D character does something visible once; emote is one of: ${one.join(', ')}\n- {"type":"avatar.pose","who":"Mara Quill","pose":"sit"}  a held pose until changed ("pose":null to stand); pose is one of: ${pose.join(', ')}`;
+  return `- {"type":"avatar.emote","who":"Mara Quill","emote":"wave"}  a 3D character does something visible once; emote is one of: ${one.join(', ')}\n- {"type":"avatar.pose","who":"Mara Quill","pose":"sit"}  a held pose until changed ("pose":null to stand); pose is one of: ${pose.join(', ')}. "who":"everyone" for the whole scene (a group dance)`;
 }
 
 /** Built-in emotes plus the owner's imported clips (by id, label and category). */

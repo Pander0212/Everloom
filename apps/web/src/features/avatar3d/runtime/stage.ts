@@ -335,10 +335,23 @@ export class Stage3D {
       e.avatar.lookAt = speakerEntry && this.speaker !== id ? speakerEntry.avatar.rig.bones.head?.getWorldPosition(new THREE.Vector3()) ?? null : null;
       e.avatar.update(dt, this.camera);
     }
+    this.syncDances();
     this.updateCamera(dt);
     const size = Math.max(1, ...list.map(([, e]) => e.avatar.height));
     applyLighting(this.lights, this.preset, this.camTarget.clone().setY(0), size, 1 - Math.exp(-2 * dt));
     this.renderer.toneMappingExposure += (this.preset.exposure - this.renderer.toneMappingExposure) * (1 - Math.exp(-2 * dt));
+  }
+
+  /** Characters doing the same dance stay on the same step (the first one leads). */
+  private syncDances() {
+    const lead = new Map<string, Avatar>();
+    for (const e of this.entries.values()) {
+      const a = e.avatar;
+      if (!a.dancing) continue;
+      const l = lead.get(a.basePoseId);
+      if (!l) lead.set(a.basePoseId, a);
+      else if (Math.abs(a.baseTime - l.baseTime) > 0.04) a.baseTime = l.baseTime;
+    }
   }
 
   private updateCamera(dt: number) {

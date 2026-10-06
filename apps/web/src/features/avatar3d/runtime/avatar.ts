@@ -99,6 +99,26 @@ export class Avatar {
   private faceOf(id: string): Emotion | null {
     return Avatar.faces[id] ?? BUILTIN_EMOTES.find((e) => e.id === id)?.emotion ?? null;
   }
+  /** Playback rate for dances, so they follow the music's tempo. */
+  danceRate = 1;
+  get dancing() {
+    return BUILTIN_EMOTES.find((e) => e.id === this.basePoseId)?.category === 'dance' || /^dance/.test(this.basePoseId);
+  }
+  /** The dance's own tempo (for fitting it to music), when known. */
+  get danceBpm(): number | null {
+    return BUILTIN_EMOTES.find((e) => e.id === this.basePoseId)?.bpm ?? null;
+  }
+  setDanceRate(r: number) {
+    this.danceRate = r;
+    if (this.base && this.dancing) (this.base as Layer & { rate?: number }).rate = r;
+  }
+  /** Where the held pose's clip is (group dances keep everyone on the same step). */
+  get baseTime() {
+    return this.base?.time ?? 0;
+  }
+  set baseTime(t: number) {
+    if (this.base) this.base.time = t;
+  }
   /** A fixed pose instead of the animation layers (the import wizard's checks). */
   override: CanonicalPose | null = null;
   /** Fixed morph weights instead of the expression system (the wizard's face preview). */
@@ -180,7 +200,7 @@ export class Avatar {
     }
     this.base = { clip, time: HOLD.has(emoteId) ? clip.duration : 0, weight: this.fading.length ? 0 : 1, target: 1, speed: (1 / Math.max(0.05, fade)) * 1, hold: HOLD.has(emoteId) };
     this.base.time = 0;
-    (this.base as Layer & { rate?: number }).rate = speed;
+    (this.base as Layer & { rate?: number }).rate = speed * (this.dancing ? this.danceRate : 1);
   }
 
   /** Plays a one-shot emote over the base pose. Loops (dances, sitting) become the base instead. */

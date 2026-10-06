@@ -116,6 +116,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const avatarsOn = useFeatureOn('avatars3d');
   const stageWide = useDesktop();
   const [inspect3d, setInspect3d] = useState(false);
+  const cueNo = (cue: string) => Number(cue.replace(/\D+/g, '')) || 0;
   const battle = campaign?.state?.battle ?? null;
   /**
    * Emotes the stage adds on its own: a fresh line whose mood changed (a laugh, a sigh), and the end
@@ -191,7 +192,11 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
                 const layer = layerFor(c);
                 if (directed && (!layer || layer.position === 'off')) return [];
                 const active = speaker?.id === c.id || chars.length === 1;
-                const av = campaign?.state?.stage?.avatars?.[normalizeName(c.name)];
+                const avs = campaign?.state?.stage?.avatars;
+                const own = avs?.[normalizeName(c.name)];
+                // "everyone" (a group dance): the whole cast, unless someone has a pose of their own.
+                const all = avs?.everyone;
+                const av = own ? { ...own, pose: own.pose ?? all?.pose ?? null, emote: [own.emote, all?.emote].filter(Boolean).sort((a, b) => cueNo(b!.cue) - cueNo(a!.cue))[0] ?? null } : all;
                 return [{ id: c.id, avatarId: c.game!.avatar3d!, slot: layer?.position, emotion: layer?.expression ?? (active ? emotion : 'neutral'), speaking: speakingId === c.id, emote: av?.emote ?? null, auto: autoEmote(c), pose: av?.pose ?? (battle?.status === 'active' ? 'ready' : null) }];
               })}
             />
