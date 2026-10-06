@@ -294,6 +294,14 @@
         return rpc('state.propose', { ops: Array.isArray(ops) ? ops : [ops] });
       },
     },
+    avatar: {
+      emote: function (who, emote) {
+        return rpc('avatar.emote', { who: String(who), emote: String(emote) });
+      },
+      pose: function (who, pose) {
+        return rpc('avatar.pose', { who: String(who), pose: pose == null ? null : String(pose) });
+      },
+    },
     ui: {
       toast: function (message, opts) {
         return rpc('ui.toast', Object.assign({ message: String(message) }, opts || {}));

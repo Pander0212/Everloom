@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import { AvatarConfigSchema, type AvatarConfig, type AvatarKind } from '@everloom/engine';
+import { AvatarConfigSchema, installedEmotes, type AvatarConfig, type AvatarKind } from '@everloom/engine';
 import { HttpError, type AppContext } from '../../context.js';
 import { newId } from '../../security/crypto.js';
 import { deleteMedia, mediaUrl, readMedia, saveImage, saveModelFile } from '../media.js';
@@ -298,4 +298,20 @@ export async function addOutfitModel(ctx: AppContext, owner: string, id: string,
   const main = saveModelFile(ctx, owner, r.main, { kind: 'model', ext, meta: { avatar: id, outfit: filename.slice(0, 120) } });
   const low = saveModelFile(ctx, owner, r.low, { kind: 'model-low', ext, meta: { avatar: id } });
   return { model: main.id, modelLow: low.id, url: mediaUrl(main.id), triangles: info.triangles, warnings: info.warnings };
+}
+
+/** The emotes the story may use: built-in plus the owner's imported clips. */
+export function emotesFor(ctx: AppContext, owner: string) {
+  const rows = ctx.db.prepare('SELECT emote AS id, label, category, data FROM avatar_clips WHERE owner_id = ?').all(owner) as Array<{ id: string; label: string; category: string; data: string }>;
+  return installedEmotes(rows.map((r) => ({ id: r.id, label: r.label, category: r.category, loop: safeJson<{ loop?: boolean }>(r.data, {}).loop })));
+}
+
+/**
+ * Emotes to offer in a chat's prompts: only when one of its characters has a 3D avatar (otherwise
+ * the avatar ops aren't described at all, which keeps the prompt shorter).
+ */
+export function emotesForChat(ctx: AppContext, owner: string, characterIds: string[]) {
+  if (!characterIds.length) return [];
+  const has = ctx.db.prepare(`SELECT 1 FROM characters WHERE owner_id = ? AND id IN (${characterIds.map(() => '?').join(',')}) AND json_extract(game, '$.avatar3d') IS NOT NULL LIMIT 1`).get(owner, ...characterIds);
+  return has ? emotesFor(ctx, owner) : [];
 }

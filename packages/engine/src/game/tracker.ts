@@ -3,6 +3,7 @@ import { extractJson } from '../util/json-extract.js';
 import { truncate } from '../util/text.js';
 import { buildGameStateBlock } from './injection.js';
 import { AI_OP_TYPES, OP_REFERENCE, opReferenceFor, validateOps, type OpType, type ValidatedOps } from './ops.js';
+import type { EmoteInfo } from '../avatar/emotes.js';
 import type { CampaignState } from './state.js';
 
 import { INLINE_TAG_RE } from './inline-tags.js';
@@ -33,8 +34,8 @@ export const INLINE_INSTRUCTION = `After your reply, append the game-state chang
 ${OP_REFERENCE}`;
 
 /** The inline instruction limited to some op types (feature switches). */
-export const inlineInstruction = (allowed?: readonly string[]) =>
-  allowed ? `After your reply, append the game-state changes that happened in it as <everloom>{"ops":[...]}</everloom>. Use only these ops; omit the tag if nothing changed.\n${opReferenceFor(allowed)}` : INLINE_INSTRUCTION;
+export const inlineInstruction = (allowed?: readonly string[], emotes?: readonly EmoteInfo[]) =>
+  allowed ? `After your reply, append the game-state changes that happened in it as <everloom>{"ops":[...]}</everloom>. Use only these ops; omit the tag if nothing changed.\n${opReferenceFor(allowed, { emotes })}` : INLINE_INSTRUCTION;
 
 export interface TrackerMessage {
   name: string;
@@ -48,10 +49,10 @@ export const MEMORY_CONTRACT = `Also record what is worth remembering from the l
 - "facts": standing truths the turn establishes or CHANGES about a person, place or the world (rank, job, home, allegiance, relationship status, a lasting injury). Fields: "about" (a name, or "world"), "key" (a short slot like "rank"), "value", "text" (one sentence), "changed" (true only if the turn shows it changing, e.g. "was knighted").
 Leave both empty when nothing notable happened.`;
 
-export function buildTrackerPrompt(state: CampaignState, messages: TrackerMessage[], opts: { characterNames?: string[]; memory?: boolean; allowed?: readonly string[] } = {}) {
+export function buildTrackerPrompt(state: CampaignState, messages: TrackerMessage[], opts: { characterNames?: string[]; memory?: boolean; allowed?: readonly string[]; emotes?: readonly EmoteInfo[] } = {}) {
   const memory = opts.memory !== false;
   // Only the enabled modules' ops are described (a shorter, cheaper prompt).
-  const reference = opts.allowed ? opReferenceFor(opts.allowed) : OP_REFERENCE;
+  const reference = opts.allowed ? opReferenceFor(opts.allowed, { emotes: opts.emotes }) : OP_REFERENCE;
   const timeRule = !opts.allowed || opts.allowed.includes('time.advance') ? '\n- Include a "time.advance" op with the minutes the scene plausibly took (0 if unclear).' : '';
   const system = `You are the bookkeeper for a roleplay game. Read the latest story turn and output ONLY the state changes it caused, as JSON: {"ops":[...]${memory ? ',"memories":[...],"facts":[...]' : ''}}.
 Rules:

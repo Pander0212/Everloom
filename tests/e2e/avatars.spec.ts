@@ -73,6 +73,19 @@ test.describe('3D characters', () => {
     const s = (await api(page, 'GET', `/api/campaigns/${chat.campaignId}`)).state;
     expect(s.stage.avatars['rook ashby']).toMatchObject({ pose: 'sit', emote: { id: 'nod' } });
     await page.waitForTimeout(1500);
+    // The emote picker and /emote record emotes like any story change.
+    await page.getByRole('button', { name: 'Emotes' }).click();
+    await page.getByTestId('emote-picker').getByRole('button', { name: 'Wave', exact: true }).click();
+    await expect.poll(async () => (await api(page, 'GET', `/api/campaigns/${chat.campaignId}`)).state.stage.avatars['rook ashby'].emote.id).toBe('wave');
+    await page.keyboard.press('Escape');
+    const composer = page.getByLabel('Message', { exact: true });
+    await composer.fill('/emote shakes head');
+    await composer.press('Control+Enter');
+    await expect.poll(async () => (await api(page, 'GET', `/api/campaigns/${chat.campaignId}`)).state.stage.avatars['rook ashby'].emote.id).toBe('shake_head');
+    await composer.fill('/pose stand');
+    await composer.press('Control+Enter');
+    await expect.poll(async () => (await api(page, 'GET', `/api/campaigns/${chat.campaignId}`)).state.stage.avatars['rook ashby'].pose).toBeNull();
+
     // Look around: drag to orbit, then back to the directed camera.
     await page.getByRole('button', { name: 'Look around' }).click();
     const box = (await page.getByTestId('stage-3d').boundingBox())!;

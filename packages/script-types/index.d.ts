@@ -14,6 +14,7 @@ export type Permission =
   | 'lorebook.write'
   | 'state.read'
   | 'state.ops'
+  | 'avatar'
   | 'generate'
   | 'ui.panel'
   | 'audio'
@@ -160,6 +161,12 @@ export interface Everloom {
     get(): Promise<any>;
     /** state.ops: checked like the AI's changes and tied to the newest message (they roll back with it). */
     propose(ops: object | object[]): Promise<{ applied: number; summary?: string[]; errors: string[] }>;
+  };
+  /** avatar: 3D characters (installed emotes only; recorded like any story change). */
+  avatar: {
+    emote(who: string, emote: string): Promise<{ applied: number; errors: string[] }>;
+    /** A held pose (sit, sleep, a dance…); null to stand. */
+    pose(who: string, pose: string | null): Promise<{ applied: number; errors: string[] }>;
   };
   ui: {
     toast(message: string, opts?: { tone?: 'neutral' | 'success' | 'danger' }): Promise<true>;

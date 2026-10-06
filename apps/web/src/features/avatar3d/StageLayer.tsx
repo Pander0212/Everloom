@@ -23,6 +23,8 @@ export interface CastMember {
   emotion: string;
   speaking: boolean;
   emote?: { id: string; cue: string } | null;
+  /** An emote the stage chose (a change of mood, a won battle); the story's own emote wins. */
+  auto?: { id: string; cue: string } | null;
   pose?: string | null;
 }
 
@@ -40,7 +42,7 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
   const loaded = useRef(new Map<string, string>());
   // Emotes already in the story when the stage opened aren't replayed.
   const played = useRef<Map<string, string> | null>(null);
-  played.current ??= new Map(cast.flatMap((c) => (c.emote ? [[c.id, c.emote.cue] as const] : [])));
+  played.current ??= new Map(cast.flatMap((c) => [...(c.emote ? [[c.id, c.emote.cue] as const] : []), ...(c.auto && c.auto.cue.startsWith('battle:') ? [[`${c.id}:auto`, c.auto.cue] as const] : [])]));
   const failRef = useRef(onFail);
   failRef.current = onFail;
   const speakingRef = useRef<string | null>(null);
@@ -133,7 +135,11 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
       if (a.basePoseId !== base) void a.setBase(base);
       if (c.emote && played.current!.get(c.id) !== c.emote.cue) {
         played.current!.set(c.id, c.emote.cue);
+        if (c.auto) played.current!.set(`${c.id}:auto`, c.auto.cue);
         void a.emote(c.emote.id);
+      } else if (c.auto && played.current!.get(`${c.id}:auto`) !== c.auto.cue) {
+        played.current!.set(`${c.id}:auto`, c.auto.cue);
+        void a.emote(c.auto.id);
       }
     }
     s.setSlots(slots, speakerId);

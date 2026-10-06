@@ -11,6 +11,7 @@ import type { AppContext } from '../context.js';
 import { characterRow, getCharacter } from './characters.js';
 import { getChat, getGroup, listMessages } from './chats.js';
 import { getState } from './campaigns.js';
+import { emotesForChat } from './avatars/service.js';
 import { booksForChat } from './lorebooks.js';
 import { defaultPersona, getPersona } from './personas.js';
 import { activePreset } from './presets.js';
@@ -252,7 +253,7 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
 
   const extraRules: string[] = [];
   if (character.game.chatRules?.trim()) extraRules.push(character.game.chatRules.trim());
-  if (state && features.on.trackers && settings.tracker.mode === 'inline' && opts.type !== 'impersonate') extraRules.push(inlineInstruction(allowedOpTypes(AI_OP_TYPES, features)));
+  if (state && features.on.trackers && settings.tracker.mode === 'inline' && opts.type !== 'impersonate') extraRules.push(inlineInstruction(allowedOpTypes(AI_OP_TYPES, features), features.on.avatars3d ? emotesForChat(ctx, owner, chat.groupId ? (getGroup(ctx, owner, chat.groupId).members.map((m) => m.characterId)) : [character.id]) : []));
   if (opts.finalInstruction) extraRules.push(opts.finalInstruction);
 
   // Regex rules: prompt-only ones change history as sent (by depth); world info runs through all rules

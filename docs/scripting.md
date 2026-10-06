@@ -107,6 +107,7 @@ entries of its own lorebook. Scripts are exported and imported as JSON.
 | `lorebook.read` / `lorebook.write` | Lorebooks and their entries |
 | `state.read` | The game state |
 | `state.ops` | Propose game changes (checked like the AI's, rolled back with their message) |
+| `avatar` | Make 3D characters play an installed emote or hold a pose (rolled back with their message) |
 | `generate` | Model calls on your connection (costs money; rate-limited; logged) |
 | `ui.panel` | Notices, panels, dialogs, buttons |
 | `audio` | Play `data:` audio or Everloom media |
@@ -129,6 +130,8 @@ await everloom.generate({ userInput: 'What happens next?', onToken: (piece, full
 await everloom.vars.set('hp', 9, { scope: 'message' })   // chat (default), character, global, message, script
 await everloom.lore.entries('World of Ash')
 await everloom.state.propose({ type: 'item.add', name: 'Rope', qty: 1 })
+await everloom.avatar.emote('Mira', 'wave')              // installed emotes only, by id, name or alias
+await everloom.avatar.pose('Mira', 'sit')                // null to stand
 await everloom.ui.toast('Saved')
 const r = await everloom.ui.modal({ title: 'Pick', fields: [{ id: 'n', label: 'Name' }], buttons: [{ id: 'ok', label: 'OK', tone: 'primary' }] })
 await everloom.ui.panel({ title: 'Map', html: '<div class="ev-card">…</div>' })

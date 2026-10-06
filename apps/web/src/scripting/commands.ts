@@ -174,6 +174,18 @@ export function installBuiltins() {
   def('take', 'Remove an item (game)', '/take Rope', 'state.ops', (c, ctx) => ops(ctx, [{ type: 'item.remove', name: c.text.trim(), qty: Number(c.args.qty ?? 1) || 1 }]));
   def('money', 'Change your money (game)', '/money -5', 'state.ops', (c, ctx) => ops(ctx, [{ type: 'currency.delta', amount: Number(c.text) || 0 }]));
   def('wait', 'Let time pass (game)', '/wait 30', 'state.ops', (c, ctx) => ops(ctx, [{ type: 'time.advance', minutes: Math.max(1, Number(c.text) || 10) }]));
+  // 3D characters: who= defaults to the chat's character; emotes by id, name or alias.
+  const whoOf = async (c: SlashCall, ctx: SlashCtx) => {
+    if (c.args.who) return c.args.who;
+    const chat = await get(`/api/chats/${chatOf(ctx)}`);
+    if (!chat.characterId) throw new Error('say who: /emote who=Name wave');
+    return (await get(`/api/characters/${chat.characterId}`)).name as string;
+  };
+  def('emote', 'A 3D character does something (wave, bow, laugh…)', '/emote wave  or  /emote who=Mira bow', 'avatar', async (c, ctx) => ops(ctx, [{ type: 'avatar.emote', who: await whoOf(c, ctx), emote: c.text.trim().toLowerCase().replace(/[\s-]+/g, '_') }]));
+  def('pose', 'A 3D character holds a pose (sit, sleep, dance…; "stand" to stop)', '/pose sit', 'avatar', async (c, ctx) => {
+    const p = c.text.trim();
+    return ops(ctx, [{ type: 'avatar.pose', who: await whoOf(c, ctx), pose: !p || /^(stand|none|idle)$/i.test(p) ? null : p.toLowerCase().replace(/[\s-]+/g, '_') }]);
+  });
   def('qr', 'Use a quick reply by its label', '/qr Look around', 'chat.write', async (c, ctx) => {
     const q = quickReplies.find((x) => x.label.toLowerCase() === c.text.trim().toLowerCase());
     if (!q) throw new Error(`no quick reply called “${c.text}”`);

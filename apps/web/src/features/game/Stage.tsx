@@ -15,7 +15,8 @@ import type { MessageActions } from '@/features/story/Message';
 import { Atmosphere } from './Atmosphere';
 import { useGame } from './context';
 import { hasWebGL2, usePrefs3D } from '@/features/avatars/prefs';
-import { normalizeName } from '@everloom/engine';
+import { EmotePicker } from '@/features/avatars/EmotePicker';
+import { EMOTE_FOR, normalizeName } from '@everloom/engine';
 import { FX_LIST, useSceneMotion } from './StageFx';
 
 const Live2DSprite = lazy(() => import('./Live2DSprite'));
@@ -115,6 +116,19 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const avatarsOn = useFeatureOn('avatars3d');
   const stageWide = useDesktop();
   const [inspect3d, setInspect3d] = useState(false);
+  const battle = campaign?.state?.battle ?? null;
+  /**
+   * Emotes the stage adds on its own: a fresh line whose mood changed (a laugh, a sigh), and the end
+   * of a battle (victory or defeat). Only for lines just written, never when paging back.
+   */
+  const autoEmote = (c: CharacterDTO): { id: string; cue: string } | null => {
+    if (battle && battle.status !== 'active' && battle.status !== 'fled') return { id: battle.status === 'won' ? 'victory' : 'defeat', cue: `battle:${battle.status}:${battle.log.length}` };
+    if (!m || m.role !== 'assistant' || m.characterId !== c.id || !isLast || Date.now() - m.updatedAt > 20_000) return null;
+    const prev = [...visible].reverse().find((x) => x.role === 'assistant' && x.characterId === c.id && x.id !== m.id);
+    const before = (prev?.extra?.emotion as string) || 'neutral';
+    const id = EMOTE_FOR[emotion];
+    return id && emotion !== 'neutral' && emotion !== before ? { id, cue: `mood:${m.id}:${m.swipeId}` } : null;
+  };
   const spritesOnly = usePrefs3D((p) => p.spritesOnly);
   const [failed3d, setFailed3d] = useState<Record<string, string>>({});
   const uses3d = (c: CharacterDTO) => avatarsOn && !spritesOnly && !!c.game?.avatar3d && (c.game.display ?? 'auto') !== 'sprite' && (c.game.display ?? 'auto') !== 'live2d' && !failed3d[c.id] && hasWebGL2();
@@ -178,7 +192,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
                 if (directed && (!layer || layer.position === 'off')) return [];
                 const active = speaker?.id === c.id || chars.length === 1;
                 const av = campaign?.state?.stage?.avatars?.[normalizeName(c.name)];
-                return [{ id: c.id, avatarId: c.game!.avatar3d!, slot: layer?.position, emotion: layer?.expression ?? (active ? emotion : 'neutral'), speaking: speakingId === c.id, emote: av?.emote ?? null, pose: av?.pose ?? null }];
+                return [{ id: c.id, avatarId: c.game!.avatar3d!, slot: layer?.position, emotion: layer?.expression ?? (active ? emotion : 'neutral'), speaking: speakingId === c.id, emote: av?.emote ?? null, auto: autoEmote(c), pose: av?.pose ?? (battle?.status === 'active' ? 'ready' : null) }];
               })}
             />
           </Suspense>
@@ -235,6 +249,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
             ))}
           </div>
         </Popover>
+        {chars.some(uses3d) ? <EmotePicker cast={chars.filter(uses3d).map((c) => ({ id: c.id, name: c.name }))} /> : null}
         {chars.some(uses3d) ? <IconButton icon={Rotate3d} label={inspect3d ? 'Stop looking around' : 'Look around'} active={inspect3d} className="!bg-surface/90 shadow-1" onClick={() => setInspect3d((v) => !v)} /> : null}
       </div>
       <div className="relative z-10 mt-auto">

@@ -109,3 +109,36 @@ export function emoteOpReference(installed: readonly EmoteInfo[]): string {
   const pose = installed.filter(isPoseEmote).map((x) => x.id);
   return `- {"type":"avatar.emote","who":"Mara Quill","emote":"wave"}  a 3D character does something visible once; emote is one of: ${one.join(', ')}\n- {"type":"avatar.pose","who":"Mara Quill","pose":"sit"}  a held pose until changed ("pose":null to stand); pose is one of: ${pose.join(', ')}`;
 }
+
+/** Built-in emotes plus the owner's imported clips (by id, label and category). */
+export function installedEmotes(custom: ReadonlyArray<{ id: string; label: string; category: string; loop?: boolean }> = []): EmoteInfo[] {
+  const extra = custom
+    .filter((c) => EMOTE_ID.test(c.id) && !BUILTIN_EMOTES.some((b) => b.id === c.id))
+    .map((c): EmoteInfo => ({ id: c.id, label: c.label, category: (EMOTE_CATEGORIES as readonly string[]).includes(c.category) ? (c.category as EmoteCategory) : 'social', loop: c.loop ?? ['idle', 'dance', 'state'].includes(c.category), source: 'imported' }));
+  return [...BUILTIN_EMOTES, ...extra];
+}
+
+/**
+ * Avatar ops from the story, checked against what is installed: names become ids, poses must be
+ * pose emotes, and anything unknown is dropped (never guessed).
+ */
+export function normalizeAvatarOps<T extends { type: string }>(ops: T[], installed: readonly EmoteInfo[]): { ok: T[]; rejected: Array<{ op: T; reason: string }> } {
+  const ok: T[] = [];
+  const rejected: Array<{ op: T; reason: string }> = [];
+  for (const op of ops) {
+    if (op.type === 'avatar.emote') {
+      const e = resolveEmote(installed, (op as unknown as { emote: string }).emote);
+      if (!e) rejected.push({ op, reason: `No emote called "${(op as unknown as { emote: string }).emote}"` });
+      else ok.push({ ...op, emote: e.id });
+    } else if (op.type === 'avatar.pose') {
+      const name = (op as unknown as { pose: string | null }).pose;
+      if (name === null) ok.push(op);
+      else {
+        const e = resolveEmote(installed.filter(isPoseEmote), name);
+        if (!e) rejected.push({ op, reason: `No pose called "${name}"` });
+        else ok.push({ ...op, pose: e.id });
+      }
+    } else ok.push(op);
+  }
+  return { ok, rejected };
+}

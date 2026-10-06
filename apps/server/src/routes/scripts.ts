@@ -7,6 +7,7 @@
 import {
   AI_OP_TYPES,
   allowedOpTypes,
+  normalizeAvatarOps,
   regexFingerprint,
   SCRIPT_PERMISSIONS,
   scriptFingerprint,
@@ -25,6 +26,7 @@ import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
 import { completeChat, streamChat } from '../llm/providers.js';
 import { appendOps } from '../services/campaigns.js';
+import { emotesFor } from '../services/avatars/service.js';
 import { logged, promptTokens, recordCall } from '../services/calls.js';
 import { getChat, getMessage, writeSwipes } from '../services/chats.js';
 import { connectionForRole } from '../services/connections.js';
@@ -307,6 +309,23 @@ export function registerScripts(app: FastifyInstance, ctx: AppContext) {
     scripts.requireScript(ctx, owner(req), b.key, 'storage');
     scripts.storageSet(ctx, owner(req), b.key, b.k, b.value);
     return { ok: true };
+  });
+
+  /** A 3D character's emote or pose from a script (permission "avatar"; installed emotes only). */
+  app.post('/api/scripts/run/avatar', async (req) => {
+    const b = parse(keyed.extend({ chatId: z.string(), op: z.object({ type: z.enum(['avatar.emote', 'avatar.pose']) }).passthrough() }), req.body);
+    const o = owner(req);
+    scripts.requireScript(ctx, o, b.key, 'avatar');
+    const chat = getChat(ctx, o, b.chatId);
+    if (!chat.campaignId) throw new HttpError(400, 'This chat has no game');
+    const { features } = settingsFor(ctx, o, chat);
+    if (!features.on.avatars3d) return { applied: 0, errors: ['3D characters are turned off'] };
+    const v = validateOps([b.op], ['avatar.emote', 'avatar.pose'] as typeof AI_OP_TYPES);
+    const n = normalizeAvatarOps(v.ok, emotesFor(ctx, o));
+    if (!n.ok.length) return { applied: 0, errors: [...v.rejected.map((r) => r.error), ...n.rejected.map((r) => r.reason)] };
+    const last = ctx.db.prepare('SELECT id, swipe_id FROM messages WHERE chat_id = ? ORDER BY seq DESC LIMIT 1').get(b.chatId) as { id: string; swipe_id: number } | undefined;
+    const r = appendOps(ctx, o, chat.campaignId, { chatId: b.chatId, messageId: last?.id ?? null, swipeId: last?.swipe_id ?? null, source: 'script', ops: n.ok, origin: req.clientId });
+    return { applied: n.ok.length - r.errors.length, errors: r.errors.map((e) => e.error) };
   });
 
   /** Game changes from a script: the same checks as the AI's, anchored to the newest message (so they roll back with it). */
