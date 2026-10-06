@@ -1,11 +1,11 @@
 /** The 3D avatar library: import models, see what's being prepared, open one to edit. */
 import { AvatarRecipeSchema } from '@everloom/engine';
-import { ArrowLeft, Box, Shapes, Upload } from 'lucide-react';
+import { ArrowLeft, Box, Shapes, Shirt, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Page } from '@/app/Shell';
 import { toastError } from '@/lib/store';
-import { Badge, Button, EmptyState, FileButton, Icon, IconButton, Spinner } from '@/ui';
+import { Badge, Button, EmptyState, FileButton, Icon, IconButton, Menu, Spinner } from '@/ui';
 import { createCodeAvatar, fmtBytes, uploadAvatar, useAvatars, useBlender } from './api';
 
 export const MODEL_ACCEPT = '.glb,.vrm,.fbx,.pmx,.pmd,.obj,.dae';
@@ -44,9 +44,17 @@ export default function AvatarsPage() {
       back={<IconButton icon={ArrowLeft} label="Characters" onClick={() => navigate('/characters')} />}
       actions={
         <>
-          <Button variant="secondary" icon={Shapes} onClick={newCode} disabled={busy} data-testid="avatar-new-code">
-            Make
-          </Button>
+          <Menu
+            trigger={
+              <Button variant="secondary" icon={Shapes} disabled={busy} data-testid="avatar-make">
+                Make
+              </Button>
+            }
+            items={[
+              { label: 'From parts (pick hair, clothes…)', icon: Shirt, onSelect: () => navigate('/characters/maker') },
+              { label: 'Code-made (simple, no files)', icon: Shapes, onSelect: () => void newCode() },
+            ]}
+          />
           <FileButton accept={MODEL_ACCEPT} onFiles={importFile} loading={busy} icon={Upload} data-testid="avatar-import">
             Import
           </FileButton>
@@ -74,7 +82,7 @@ export default function AvatarsPage() {
                 <div className="flex flex-col gap-1 p-2">
                   <span className="truncate text-sm font-medium">{a.name}</span>
                   <span className="flex flex-wrap items-center gap-1 text-xs text-fg-2">
-                    {a.kind === 'code' ? <Badge>Code-made</Badge> : a.status === 'processing' ? <Badge>Preparing</Badge> : a.status === 'failed' ? <Badge tone="danger">Failed</Badge> : <>{a.triangles ? `${Math.round(a.triangles / 1000)}k tris · ` : ''}{fmtBytes(a.size)}</>}
+                    {a.kind === 'code' ? <Badge>Code-made</Badge> : a.kind === 'parts' ? <Badge>Parts</Badge> : a.status === 'processing' ? <Badge>Preparing</Badge> : a.status === 'failed' ? <Badge tone="danger">Failed</Badge> : <>{a.triangles ? `${Math.round(a.triangles / 1000)}k tris · ` : ''}{fmtBytes(a.size)}</>}
                     {a.warnings && a.status === 'ready' ? <Badge tone="warning">{a.warnings} {a.warnings === 1 ? 'note' : 'notes'}</Badge> : null}
                   </span>
                 </div>

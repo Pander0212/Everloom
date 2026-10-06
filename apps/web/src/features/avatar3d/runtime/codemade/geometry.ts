@@ -56,7 +56,7 @@ export interface CodeGeometry {
 }
 
 /** Skin weights: each vertex follows the bones whose shapes are nearest (softly), up to four. */
-function skin(m: Mesh, shapes: Shape[], boneIndex: Map<string, number>, sigma: number, inset = 0): SkinnedMesh {
+export function skin(m: Mesh, shapes: Shape[], boneIndex: Map<string, number>, sigma: number, inset = 0): SkinnedMesh {
   const n = m.positions.length / 3;
   const skinIndex = new Uint16Array(n * 4);
   const skinWeight = new Float32Array(n * 4);
@@ -88,7 +88,7 @@ function skin(m: Mesh, shapes: Shape[], boneIndex: Map<string, number>, sigma: n
 }
 
 /** Drops triangles that lie well inside any covering field (skin under clothes). */
-function cull(m: Mesh, covers: Field[], margin: number): Mesh {
+export function cull(m: Mesh, covers: Field[], margin: number): Mesh {
   if (!covers.length) return m;
   const n = m.positions.length / 3;
   const hidden = new Uint8Array(n);

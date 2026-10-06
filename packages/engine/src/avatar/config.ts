@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { CANONICAL_EXPRESSIONS } from './expressions.js';
 import { BODY_REGIONS, HUMANOID_BONES } from './skeleton.js';
 import { AvatarRecipeSchema } from './recipe.js';
+import { MakerSelectionSchema } from './packs.js';
 
 const id = z.string().regex(/^[a-z0-9_-]{1,40}$/);
 const label = z.string().trim().min(1).max(60);
@@ -31,8 +32,11 @@ export const AvatarPartSchema = z.object({
 });
 
 /** Where a garment goes; one garment per slot and layer is worn at a time. */
-export const GARMENT_SLOTS = ['hair', 'head', 'top', 'bottom', 'full', 'outer', 'hands', 'feet', 'socks', 'underwear'] as const;
-export type GarmentSlot = (typeof GARMENT_SLOTS)[number];
+import { GARMENT_SLOTS } from './slots.js';
+export { GARMENT_SLOTS, type GarmentSlot } from './slots.js';
+
+import { modelRef } from './slots.js';
+export { modelRef, modelUrl } from './slots.js';
 
 /**
  * Wardrobe level 3: a garment is its own model file rigged to the same body family's skeleton; it is
@@ -42,11 +46,14 @@ export type GarmentSlot = (typeof GARMENT_SLOTS)[number];
 export const GarmentSchema = z.object({
   id,
   name: label,
-  model: z.string().max(64),
-  modelLow: z.string().max(64).nullable().default(null),
+  /** A media id, or a file of a built-in part pack (`/avatar/packs/…`). */
+  model: modelRef,
+  modelLow: modelRef.nullable().default(null),
   slot: z.enum(GARMENT_SLOTS),
   layer: z.number().int().min(0).max(3).default(1),
   hides: z.array(z.enum(BODY_REGIONS as unknown as [string, ...string[]])).max(BODY_REGIONS.length).default([]),
+  /** Other garment slots this one hides while worn (a hood or helmet hides the hair). */
+  hidesSlots: z.array(z.enum(GARMENT_SLOTS)).max(GARMENT_SLOTS.length).default([]),
   variants: z.array(z.object({ id, name: label, tint: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().default(null), texture: z.string().max(64).nullable().default(null) })).max(16).default([]),
   variant: id.nullable().default(null),
   /** Bone chains in the garment (a skirt, a cape) swing with physics. */
@@ -113,8 +120,12 @@ export const AvatarConfigSchema = z.object({
   family: z.string().max(40).nullable().default(null),
   /** The meshes that are the body's skin (regions of these hide under clothes). */
   body: z.array(nodeName).max(16).default([]),
+  /** Colours set on meshes by name (the parts maker's skin colour). */
+  tints: z.record(z.string().max(80), z.string().regex(/^#[0-9a-fA-F]{6}$/)).default({}),
   /** Code-made avatars: the recipe the model is built from (no model file). */
   recipe: AvatarRecipeSchema.optional(),
+  /** Parts-made avatars: the pack and the parts chosen in the maker (stays editable). */
+  maker: MakerSelectionSchema.optional(),
 });
 export type AvatarConfig = z.infer<typeof AvatarConfigSchema>;
 export type AvatarPart = z.infer<typeof AvatarPartSchema>;

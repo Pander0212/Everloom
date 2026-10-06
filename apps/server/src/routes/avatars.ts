@@ -6,7 +6,8 @@ import { ClipSchema, EMOTE_CATEGORIES, EMOTE_ID } from '@everloom/engine';
 import { HttpError, owner, type AppContext } from '../context.js';
 import { findBlender, runBlenderJob, setBlenderPath } from '../services/blender.js';
 import { addOutfitModel, avatarDetail, garmentLibrary, createAvatar, deleteAvatar, getAvatarRow, listAvatars, reprocessAvatar, setAvatarThumbnail, updateAvatar } from '../services/avatars/service.js';
-import { createCodeAvatar, fillRecipe, garmentForItem } from '../services/avatars/recipes.js';
+import { createCodeAvatar, createPartsAvatar, fillRecipe, garmentForItem } from '../services/avatars/recipes.js';
+import { deletePack, importPack, listPacks, setPackEnabled } from '../services/avatars/packs.js';
 import { getCharacter } from '../services/characters.js';
 import { parse } from '../util/validate.js';
 
@@ -27,6 +28,12 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
   app.post('/api/avatars/code', async (req) => {
     const b = parse(z.object({ name: z.string().max(80).optional(), recipe: z.unknown() }), req.body ?? {});
     return createCodeAvatar(ctx, owner(req), b);
+  });
+
+  /** A character from the parts maker (the body and parts stay in the pack; the choices are saved). */
+  app.post('/api/avatars/parts', async (req) => {
+    const b = parse(z.object({ name: z.string().max(80).optional(), config: z.unknown() }), req.body ?? {});
+    return createPartsAvatar(ctx, owner(req), b);
   });
 
   /** A recipe from a character's description (the utility model when available, else the text alone). */
@@ -50,6 +57,21 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     for (const it of b.items) out.push({ name: it.name, ...(await garmentForItem(ctx, owner(req), it)) });
     return out;
   });
+
+  // ---- Part packs (the parts maker) -------------------------------------------------------------
+  app.get('/api/avatar-packs', async (req) => listPacks(ctx, owner(req)));
+  /** A zip in the CharacterStudio pack layout as the request body. */
+  app.post('/api/avatar-packs', { bodyLimit: 300 * 1024 * 1024 }, async (req) => {
+    const body = req.body as Buffer;
+    if (!Buffer.isBuffer(body)) throw new HttpError(400, 'Send the pack (a zip) as the request body');
+    const q = parse(z.object({ name: z.string().max(80).optional() }), req.query ?? {});
+    return importPack(ctx, owner(req), body, q);
+  });
+  app.patch('/api/avatar-packs/:id', async (req) => {
+    const b = parse(z.object({ enabled: z.boolean() }), req.body ?? {});
+    return setPackEnabled(ctx, owner(req), (req.params as { id: string }).id, b.enabled);
+  });
+  app.delete('/api/avatar-packs/:id', async (req) => deletePack(ctx, owner(req), (req.params as { id: string }).id));
 
   /** Garments that fit a body family, from all the owner's avatars. */
   app.get('/api/avatar-garments', async (req) => {

@@ -113,7 +113,8 @@ test.describe('3D characters', () => {
 
   test('code-made: make one, edit it, and pictureless characters appear as code-made figures', async ({ page, errors }) => {
     await page.goto('/characters/avatars');
-    await page.getByTestId('avatar-new-code').click();
+    await page.getByTestId('avatar-make').click();
+    await page.getByRole('menuitem', { name: /Code-made/ }).click();
     await expect(page).toHaveURL(/\/characters\/avatars\/av_/);
     await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 45_000 });
     await page.getByRole('tab', { name: 'Face & hair' }).click();
@@ -142,6 +143,48 @@ test.describe('3D characters', () => {
     expect(errors).toEqual([]);
   });
 
+  test('parts maker on a phone: build, save, use on the stage, and an equipped item swaps a part', async ({ page, errors }) => {
+    await page.goto('/characters/avatars');
+    await page.getByTestId('avatar-make').click();
+    await page.getByRole('menuitem', { name: /From parts/ }).click();
+    await expect(page).toHaveURL(/\/characters\/maker/);
+    await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 45_000 });
+    const who = `Wren ${test.info().project.name.replace(/-/g, ' ')}`;
+    await page.getByLabel('Character name').fill(who);
+    await page.getByRole('tab', { name: 'Hair' }).click();
+    await page.getByRole('option', { name: 'Bun', exact: true }).click();
+    await page.getByRole('button', { name: 'Auburn' }).click();
+    await page.getByRole('tab', { name: 'Tops' }).click();
+    await page.getByRole('option', { name: 'Jacket', exact: true }).click();
+    await page.getByRole('button', { name: 'Undo' }).click();
+    await expect(page.getByRole('option', { name: 'Shirt', exact: true })).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('option', { name: 'Sweater', exact: true }).click();
+    await page.getByTestId('maker-save').click();
+    await expect(page).toHaveURL(/\/characters\/avatars\/av_/, { timeout: 20_000 });
+    const id = page.url().split('/').pop()!;
+    const saved = await api(page, 'GET', `/api/avatars/${id}`);
+    expect(saved).toMatchObject({ kind: 'parts', name: who, model: '/avatar/packs/basics/traits/body/soft.glb' });
+    expect(saved.config.maker.parts).toMatchObject({ HAIR: 'bun', TOP: 'sweater' });
+    expect(saved.config.garments.map((g: any) => g.id)).toEqual(expect.arrayContaining(['hair-bun', 'top-sweater']));
+    // Reopening shows the maker with the saved parts.
+    await page.reload();
+    await expect(page.getByLabel('Character name')).toHaveValue(who);
+
+    // On the stage, with a helmet equipped: the helmet part goes on and hides the hair.
+    const ch = await api(page, 'POST', '/api/characters', { card: { name: who, first_mes: 'Wren adjusts her sweater.' } });
+    await api(page, 'PATCH', `/api/characters/${ch.id}`, { game: { avatar3d: id, display: 'auto' } });
+    const chat = await api(page, 'POST', '/api/chats', { characterId: ch.id });
+    const r = await api(page, 'POST', `/api/campaigns/${chat.campaignId}/ops`, { chatId: chat.id, ops: [{ type: 'party.add', name: who }, { type: 'item.add', name: 'Iron Helmet', category: 'armor', slot: 'head' }, { type: 'party.update', name: who, equip: { slot: 'head', item: 'Iron Helmet' } }] });
+    expect(r.errors).toEqual([]);
+    await page.goto(`/chat/${chat.id}`);
+    await page.getByRole('button', { name: 'Switch to stage mode' }).click();
+    const stage = page.getByTestId('stage-3d');
+    await expect(stage).toBeVisible({ timeout: 20_000 });
+    await expect(stage).toHaveAttribute('data-worn', /item-hat-helmet/);
+    await expect(stage).not.toHaveAttribute('data-worn', /hair-bun/);
+    expect(errors).toEqual([]);
+  });
+
   test('nothing 3D downloads on screens without 3D', async ({ page, errors }) => {
     const hits = watch3d(page);
     for (const url of ['/', '/characters', '/settings', '/personas', '/lore']) {
@@ -160,7 +203,7 @@ test.describe('3D characters', () => {
 test.describe('3D motions', () => {
   test('import a BVH motion as an emote; it joins the picker', async ({ page, errors }) => {
     await page.goto('/settings/3d');
-    await page.getByRole('button', { name: 'Import', exact: true }).click();
+    await page.getByTestId('clip-import').click();
     const chooser = page.waitForEvent('filechooser');
     await page.getByRole('button', { name: 'Choose a motion file' }).click();
     await (await chooser).setFiles(path.resolve('tests/fixtures/avatars/motions/greet.bvh'));

@@ -1,0 +1,528 @@
+{
+  "traitsDirectory": "traits",
+  "thumbnailsDirectory": "thumbnails",
+  "displayScale": 1,
+  "initialTraits": {
+    "BODY": "soft",
+    "HAIR": "short",
+    "TOP": "shirt",
+    "BOTTOM": "pants",
+    "SHOES": "shoes"
+  },
+  "requiredTraits": [
+    "BODY"
+  ],
+  "randomTraits": [
+    "HAIR",
+    "TOP",
+    "BOTTOM",
+    "SHOES"
+  ],
+  "defaultCullingLayer": -1,
+  "traits": [
+    {
+      "trait": "BODY",
+      "name": "Body",
+      "cameraTarget": {
+        "distance": 3,
+        "height": 0.9
+      },
+      "collection": [
+        {
+          "id": "soft",
+          "name": "Soft",
+          "directory": "body/soft.glb",
+          "thumbnail": "body/soft.png",
+          "colorCollection": "SKIN_COLORS"
+        },
+        {
+          "id": "straight",
+          "name": "Straight",
+          "directory": "body/straight.glb",
+          "thumbnail": "body/straight.png",
+          "colorCollection": "SKIN_COLORS"
+        }
+      ]
+    },
+    {
+      "trait": "HAIR",
+      "name": "Hair",
+      "collection": [
+        {
+          "id": "short",
+          "name": "Short",
+          "directory": "hair/short.glb",
+          "thumbnail": "hair/short.png",
+          "colorCollection": "HAIR_COLORS"
+        },
+        {
+          "id": "buzz",
+          "name": "Buzz",
+          "directory": "hair/buzz.glb",
+          "thumbnail": "hair/buzz.png",
+          "colorCollection": "HAIR_COLORS"
+        },
+        {
+          "id": "bob",
+          "name": "Bob",
+          "directory": "hair/bob.glb",
+          "thumbnail": "hair/bob.png",
+          "colorCollection": "HAIR_COLORS"
+        },
+        {
+          "id": "long",
+          "name": "Long",
+          "directory": "hair/long.glb",
+          "thumbnail": "hair/long.png",
+          "colorCollection": "HAIR_COLORS"
+        },
+        {
+          "id": "ponytail",
+          "name": "Ponytail",
+          "directory": "hair/ponytail.glb",
+          "thumbnail": "hair/ponytail.png",
+          "colorCollection": "HAIR_COLORS"
+        },
+        {
+          "id": "bun",
+          "name": "Bun",
+          "directory": "hair/bun.glb",
+          "thumbnail": "hair/bun.png",
+          "colorCollection": "HAIR_COLORS"
+        },
+        {
+          "id": "twintails",
+          "name": "Twintails",
+          "directory": "hair/twintails.glb",
+          "thumbnail": "hair/twintails.png",
+          "colorCollection": "HAIR_COLORS"
+        },
+        {
+          "id": "spiky",
+          "name": "Spiky",
+          "directory": "hair/spiky.glb",
+          "thumbnail": "hair/spiky.png",
+          "colorCollection": "HAIR_COLORS"
+        },
+        {
+          "id": "curly",
+          "name": "Curly",
+          "directory": "hair/curly.glb",
+          "thumbnail": "hair/curly.png",
+          "colorCollection": "HAIR_COLORS"
+        }
+      ]
+    },
+    {
+      "trait": "TOP",
+      "name": "Tops",
+      "collection": [
+        {
+          "id": "tshirt",
+          "name": "T-shirt",
+          "directory": "top/tshirt.glb",
+          "thumbnail": "top/tshirt.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "shirt",
+          "name": "Shirt",
+          "directory": "top/shirt.glb",
+          "thumbnail": "top/shirt.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "tank",
+          "name": "Tank top",
+          "directory": "top/tank.glb",
+          "thumbnail": "top/tank.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "sweater",
+          "name": "Sweater",
+          "directory": "top/sweater.glb",
+          "thumbnail": "top/sweater.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "jacket",
+          "name": "Jacket",
+          "directory": "top/jacket.glb",
+          "thumbnail": "top/jacket.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "robe",
+          "name": "Robe",
+          "directory": "top/robe.glb",
+          "thumbnail": "top/robe.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "armor",
+          "name": "Armour",
+          "directory": "top/armor.glb",
+          "thumbnail": "top/armor.png",
+          "colorCollection": "CLOTH_COLORS",
+          "type": [
+            "armor"
+          ]
+        }
+      ]
+    },
+    {
+      "trait": "BOTTOM",
+      "name": "Bottoms",
+      "collection": [
+        {
+          "id": "pants",
+          "name": "Trousers",
+          "directory": "bottom/pants.glb",
+          "thumbnail": "bottom/pants.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "shorts",
+          "name": "Shorts",
+          "directory": "bottom/shorts.glb",
+          "thumbnail": "bottom/shorts.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "skirt",
+          "name": "Skirt",
+          "directory": "bottom/skirt.glb",
+          "thumbnail": "bottom/skirt.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "long_skirt",
+          "name": "Long skirt",
+          "directory": "bottom/long_skirt.glb",
+          "thumbnail": "bottom/long_skirt.png",
+          "colorCollection": "CLOTH_COLORS"
+        }
+      ]
+    },
+    {
+      "trait": "SHOES",
+      "name": "Shoes",
+      "collection": [
+        {
+          "id": "shoes",
+          "name": "Shoes",
+          "directory": "shoes/shoes.glb",
+          "thumbnail": "shoes/shoes.png",
+          "colorCollection": "LEATHER_COLORS"
+        },
+        {
+          "id": "boots",
+          "name": "Boots",
+          "directory": "shoes/boots.glb",
+          "thumbnail": "shoes/boots.png",
+          "colorCollection": "LEATHER_COLORS"
+        },
+        {
+          "id": "sandals",
+          "name": "Sandals",
+          "directory": "shoes/sandals.glb",
+          "thumbnail": "shoes/sandals.png",
+          "colorCollection": "LEATHER_COLORS"
+        }
+      ]
+    },
+    {
+      "trait": "HAT",
+      "name": "Hats",
+      "collection": [
+        {
+          "id": "cap",
+          "name": "Cap",
+          "directory": "hat/cap.glb",
+          "thumbnail": "hat/cap.png",
+          "colorCollection": "CLOTH_COLORS",
+          "type": [
+            "hides-hair"
+          ]
+        },
+        {
+          "id": "beanie",
+          "name": "Beanie",
+          "directory": "hat/beanie.glb",
+          "thumbnail": "hat/beanie.png",
+          "colorCollection": "CLOTH_COLORS",
+          "type": [
+            "hides-hair"
+          ]
+        },
+        {
+          "id": "wizard",
+          "name": "Wizard",
+          "directory": "hat/wizard.glb",
+          "thumbnail": "hat/wizard.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "hood",
+          "name": "Hood",
+          "directory": "hat/hood.glb",
+          "thumbnail": "hat/hood.png",
+          "colorCollection": "CLOTH_COLORS",
+          "type": [
+            "hides-hair"
+          ]
+        },
+        {
+          "id": "crown",
+          "name": "Crown",
+          "directory": "hat/crown.glb",
+          "thumbnail": "hat/crown.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "headband",
+          "name": "Headband",
+          "directory": "hat/headband.glb",
+          "thumbnail": "hat/headband.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "helmet",
+          "name": "Helmet",
+          "directory": "hat/helmet.glb",
+          "thumbnail": "hat/helmet.png",
+          "colorCollection": "CLOTH_COLORS",
+          "type": [
+            "hides-hair"
+          ]
+        }
+      ]
+    },
+    {
+      "trait": "EXTRA",
+      "name": "Extras",
+      "collection": [
+        {
+          "id": "cape",
+          "name": "Cape",
+          "directory": "extra/cape.glb",
+          "thumbnail": "extra/cape.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "scarf",
+          "name": "Scarf",
+          "directory": "extra/scarf.glb",
+          "thumbnail": "extra/scarf.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "glasses",
+          "name": "Glasses",
+          "directory": "extra/glasses.glb",
+          "thumbnail": "extra/glasses.png",
+          "colorCollection": "CLOTH_COLORS"
+        },
+        {
+          "id": "apron",
+          "name": "Apron",
+          "directory": "extra/apron.glb",
+          "thumbnail": "extra/apron.png",
+          "colorCollection": "CLOTH_COLORS"
+        }
+      ]
+    }
+  ],
+  "colorCollections": [
+    {
+      "trait": "SKIN_COLORS",
+      "collection": [
+        {
+          "id": "skin1",
+          "name": "Skin 1",
+          "value": "#f6d7c3"
+        },
+        {
+          "id": "skin2",
+          "name": "Skin 2",
+          "value": "#eec1a1"
+        },
+        {
+          "id": "skin3",
+          "name": "Skin 3",
+          "value": "#e0ac8a"
+        },
+        {
+          "id": "skin4",
+          "name": "Skin 4",
+          "value": "#c98e6b"
+        },
+        {
+          "id": "skin5",
+          "name": "Skin 5",
+          "value": "#a8704f"
+        },
+        {
+          "id": "skin6",
+          "name": "Skin 6",
+          "value": "#8a5a3c"
+        },
+        {
+          "id": "skin7",
+          "name": "Skin 7",
+          "value": "#6b4329"
+        },
+        {
+          "id": "skin8",
+          "name": "Skin 8",
+          "value": "#4d2f1d"
+        }
+      ]
+    },
+    {
+      "trait": "HAIR_COLORS",
+      "collection": [
+        {
+          "id": "black",
+          "name": "Black",
+          "value": "#1d1a19"
+        },
+        {
+          "id": "brown",
+          "name": "Brown",
+          "value": "#4a3021"
+        },
+        {
+          "id": "auburn",
+          "name": "Auburn",
+          "value": "#8a3b22"
+        },
+        {
+          "id": "red",
+          "name": "Red",
+          "value": "#a8371f"
+        },
+        {
+          "id": "blonde",
+          "name": "Blonde",
+          "value": "#d9b56c"
+        },
+        {
+          "id": "white",
+          "name": "White",
+          "value": "#ece9e2"
+        },
+        {
+          "id": "blue",
+          "name": "Blue",
+          "value": "#3b5ba8"
+        },
+        {
+          "id": "pink",
+          "name": "Pink",
+          "value": "#d37aa0"
+        }
+      ]
+    },
+    {
+      "trait": "CLOTH_COLORS",
+      "collection": [
+        {
+          "id": "cream",
+          "name": "Cream",
+          "value": "#d8d2c4"
+        },
+        {
+          "id": "navy",
+          "name": "Navy",
+          "value": "#2a3a5a"
+        },
+        {
+          "id": "sky",
+          "name": "Sky",
+          "value": "#5b7fa6"
+        },
+        {
+          "id": "forest",
+          "name": "Forest",
+          "value": "#2f4a3a"
+        },
+        {
+          "id": "moss",
+          "name": "Moss",
+          "value": "#5ba67a"
+        },
+        {
+          "id": "wine",
+          "name": "Wine",
+          "value": "#8a2a2a"
+        },
+        {
+          "id": "rose",
+          "name": "Rose",
+          "value": "#a65b5b"
+        },
+        {
+          "id": "ochre",
+          "name": "Ochre",
+          "value": "#a6935b"
+        },
+        {
+          "id": "violet",
+          "name": "Violet",
+          "value": "#7a5ba6"
+        },
+        {
+          "id": "charcoal",
+          "name": "Charcoal",
+          "value": "#3d3a4a"
+        },
+        {
+          "id": "steel",
+          "name": "Steel",
+          "value": "#8a8f99"
+        }
+      ]
+    },
+    {
+      "trait": "LEATHER_COLORS",
+      "collection": [
+        {
+          "id": "brown",
+          "name": "Brown",
+          "value": "#5a4030"
+        },
+        {
+          "id": "dark",
+          "name": "Dark",
+          "value": "#2a2220"
+        },
+        {
+          "id": "tan",
+          "name": "Tan",
+          "value": "#a07850"
+        },
+        {
+          "id": "black",
+          "name": "Black",
+          "value": "#1e1c1c"
+        }
+      ]
+    }
+  ],
+  "everloom": {
+    "name": "Everloom Basics",
+    "license": "CC0 1.0",
+    "credits": "Made by Everloom’s code-made character generator (tools/avatars/build-starter-pack.ts).",
+    "bodyGroup": "BODY",
+    "slots": {
+      "HAIR": "hair",
+      "TOP": "top",
+      "BOTTOM": "bottom",
+      "SHOES": "feet",
+      "HAT": "head",
+      "EXTRA": "outer"
+    }
+  }
+}

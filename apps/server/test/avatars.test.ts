@@ -188,6 +188,69 @@ describe('garments for items on code-made characters', () => {
   });
 });
 
+describe('part packs and parts-made avatars', () => {
+  const BASICS = path.resolve(__dirname, '../../web/public/avatar/packs/basics');
+  /** A small pack zip in the CharacterStudio layout, from two of the built-in parts. */
+  async function packZip(mut?: (m: any) => void): Promise<Buffer> {
+    const { zipSync } = await import('fflate');
+    const m = { traitsDirectory: 'traits', initialTraits: { BODY: 'soft' }, traits: [{ trait: 'BODY', name: 'Body', collection: [{ id: 'soft', name: 'Soft', directory: 'body/soft.glb', thumbnail: 'body/soft.png' }] }, { trait: 'HAIR', name: 'Hair', collection: [{ id: 'bob', name: 'Bob', directory: 'hair/bob.glb' }] }], everloom: { name: 'Test pack', license: 'CC0 1.0' } };
+    mut?.(m);
+    return Buffer.from(
+      zipSync({
+        'mypack/manifest.json': new TextEncoder().encode(JSON.stringify(m)),
+        'mypack/traits/body/soft.glb': readFileSync(path.join(BASICS, 'traits/body/soft.glb')),
+        'mypack/traits/body/soft.png': readFileSync(path.join(BASICS, 'thumbnails/body/soft.png')),
+        'mypack/traits/hair/bob.glb': readFileSync(path.join(BASICS, 'traits/hair/bob.glb')),
+      }),
+    );
+  }
+  const zipType = { 'content-type': 'application/zip' };
+
+  it('imports a pack (files into media), rejects broken ones with reasons, and keeps characters working', async () => {
+    c = await createClient();
+    let list = (await c.req('GET', '/api/avatar-packs')).json;
+    expect(list).toEqual([expect.objectContaining({ id: 'basics', builtin: true, enabled: true, license: 'CC0 1.0' })]);
+
+    expect((await c.req('POST', '/api/avatar-packs', Buffer.from('not a zip'), zipType)).json.error).toMatch(/not a zip/);
+    const missing = await c.req('POST', '/api/avatar-packs', await packZip((m) => m.traits[1].collection.push({ id: 'gone', directory: 'hair/gone.glb' })), zipType);
+    expect(missing.status).toBe(400);
+    expect(missing.json.error).toMatch(/HAIR\/gone: "traits\/hair\/gone.glb" is missing/);
+    const noBody = await c.req('POST', '/api/avatar-packs', await packZip((m) => (m.traits[0].trait = 'SKINNY')), zipType);
+    expect(noBody.json.error).toMatch(/No body group/);
+
+    const ok = await c.req('POST', '/api/avatar-packs', await packZip(), zipType);
+    expect(ok.status).toBe(200);
+    expect(ok.json).toMatchObject({ name: 'Test pack', license: 'CC0 1.0', parts: 2, enabled: true });
+    const bodyUrl = ok.json.files['traits/body/soft.glb'];
+    expect(bodyUrl).toMatch(/^\/media\//);
+    expect(ok.json.files['traits/body/soft.png']).toMatch(/^\/media\//);
+    // Pack files stay out of the picture gallery.
+    expect((await c.req('GET', '/api/media')).json).toEqual([]);
+
+    // A character made from it.
+    const body = bodyUrl.replace('/media/', '');
+    const hair = ok.json.files['traits/hair/bob.glb'].replace('/media/', '');
+    const made = await c.req('POST', '/api/avatars/parts', { name: 'Pip', config: { maker: { pack: ok.json.id, body, parts: { BODY: 'soft', HAIR: 'bob' } }, garments: [{ id: 'hair-bob', name: 'Bob', model: hair, slot: 'hair' }], tints: { Body: '#a8704f' } } });
+    expect(made.json).toMatchObject({ kind: 'parts', status: 'ready', model: bodyUrl });
+    const builtin = await c.req('POST', '/api/avatars/parts', { name: 'Sam', config: { maker: { pack: 'basics', body: '/avatar/packs/basics/traits/body/straight.glb', parts: { BODY: 'straight' } } } });
+    expect(builtin.json.model).toBe('/avatar/packs/basics/traits/body/straight.glb');
+    expect((await c.req('POST', '/api/avatars/parts', { config: { maker: { pack: 'x', body: '/etc/passwd', parts: {} } } })).status).toBe(400);
+    expect((await c.req('POST', '/api/avatars/parts', { config: { garments: [{ id: 'g', name: 'G', model: 'https://evil.example/x.glb', slot: 'top' }], maker: { pack: 'basics', body: '/avatar/packs/basics/traits/body/soft.glb', parts: {} } } })).status).toBe(400);
+
+    // Turning the built-in pack off; deleting the imported one keeps the files Pip uses.
+    expect((await c.req('PATCH', '/api/avatar-packs/basics', { enabled: false })).json.enabled).toBe(false);
+    list = (await c.req('GET', '/api/avatar-packs')).json;
+    expect(list.find((p: any) => p.id === 'basics').enabled).toBe(false);
+    expect((await c.req('DELETE', '/api/avatar-packs/basics')).status).toBe(400);
+    expect((await c.req('DELETE', `/api/avatar-packs/${ok.json.id}`)).status).toBe(200);
+    expect((await c.req('GET', bodyUrl)).status).toBe(200);
+    expect((await c.req('GET', `/media/${hair}`)).status).toBe(200);
+    // Deleting the character never deletes pack files it borrowed.
+    await c.req('DELETE', `/api/avatars/${made.json.id}`);
+    expect((await c.req('GET', '/api/avatar-packs')).json).toHaveLength(1);
+  });
+});
+
 describe('avatars API', () => {
   it('imports, processes, saves settings, lists and deletes', async () => {
     c = await createClient();

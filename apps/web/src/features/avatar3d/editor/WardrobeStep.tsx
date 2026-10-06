@@ -291,7 +291,7 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
           const id = newId('g', config.garments.map((x) => x.id));
           const name = f!.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Garment';
           const slot = guessSlot(name);
-          set({ garments: [...config.garments, { id, name, model: r.model, modelLow: r.modelLow, slot, layer: slot === 'outer' ? 3 : slot === 'underwear' || slot === 'socks' ? 0 : 1, hides: [], variants: [], variant: null, springs: true, family: config.family, on: true, items: [] }] });
+          set({ garments: [...config.garments, { id, name, model: r.model, modelLow: r.modelLow, slot, layer: slot === 'outer' ? 3 : slot === 'underwear' || slot === 'socks' ? 0 : 1, hides: [], hidesSlots: [], variants: [], variant: null, springs: true, family: config.family, on: true, items: [] }] });
           setOpen(id);
         }}>
           Add a garment (GLB)

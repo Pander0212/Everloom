@@ -38,7 +38,7 @@ export interface Preview3DProps {
 }
 
 /** The parts of the settings that require loading the model again. */
-const structural = (c?: Partial<AvatarConfig>) => JSON.stringify([c?.boneMap, c?.expressionMap, c?.scale, c?.facing, c?.floor, c?.physics?.stiffness, c?.physics?.gravity]);
+const structural = (c?: Partial<AvatarConfig>) => JSON.stringify([c?.boneMap, c?.expressionMap, c?.scale, c?.facing, c?.floor, c?.physics?.stiffness, c?.physics?.gravity, c?.tints]);
 
 export function lookFor(config: Partial<AvatarConfig> | undefined, model: LoadedModel) {
   return !config?.look || config.look === 'auto' ? autoLook(model.scene, !!model.vrm) : config.look;
@@ -88,7 +88,7 @@ export default function Preview3D({ src: baseSrc, config, framing = 'full', insp
     // A recipe being edited rebuilds in place: keep showing the last one until the new one is ready.
     if (!recipe || !handle.current) setState('loading');
     setError(null);
-    (recipe ? loadCodeModel(recipe) : loadModel(src!, s.renderer, { boneMap: config?.boneMap, expressionMap: config?.expressionMap, scale: config?.scale, facing: config?.facing, floor: config?.floor }))
+    (recipe ? loadCodeModel(recipe) : loadModel(src!, s.renderer, { boneMap: config?.boneMap, expressionMap: config?.expressionMap, scale: config?.scale, facing: config?.facing, floor: config?.floor, tints: config?.tints }))
       .then((model) => {
         if (cancelled) return;
         const first = !handle.current;

@@ -5,7 +5,7 @@
  * Layers stack without flicker (outer layers draw slightly in front); variants recolour or retexture.
  */
 import * as THREE from 'three';
-import type { Garment } from '@everloom/engine';
+import { modelUrl, type Garment } from '@everloom/engine';
 import type { VRMSpringBoneJoint } from '@pixiv/three-vrm';
 import type { Avatar } from './avatar';
 import { loaderFor, nodeIndex } from './loader';
@@ -48,7 +48,7 @@ export class Garments {
   }
 
   private async load(g: Garment, variant: string | null, key: string, look: Look, outlines: boolean, low: boolean) {
-    const gltf = await loaderFor(this.renderer).loadAsync(`/media/${(low && g.modelLow) || g.model}`);
+    const gltf = await loaderFor(this.renderer).loadAsync(modelUrl((low && g.modelLow) || g.model));
     // Taken off (or changed) while loading.
     if (this.worn.has(g.id)) return;
     const { root, adopted } = bindGarment(gltf.scene, this.avatar.model.scene, g.layer);

@@ -120,7 +120,11 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const equippedItems = (c: CharacterDTO) => {
     const st = campaign?.state;
     const m = st ? Object.values(st.party).find((p) => p.characterId === c.id) : undefined;
-    return m ? Object.values(m.equipment).flatMap((id) => (id && st!.inventory[id] ? [st!.inventory[id]!] : [])) : [];
+    if (!m) return [];
+    // Equipment holds item names (the gear tab and the story both equip by name); an item the
+    // story equipped that isn't in the bag still counts, by its name.
+    const items = Object.values(st!.inventory);
+    return Object.values(m.equipment).flatMap((v) => (v ? [st!.inventory[v] ?? items.find((i) => i.name.toLowerCase() === v.toLowerCase()) ?? { name: v, desc: '', category: 'misc' as const, slot: null, tags: [] as string[] }] : []));
   };
   const equippedNames = (c: CharacterDTO): string[] => equippedItems(c).map((i) => i.name);
   const cueNo = (cue: string) => Number(cue.replace(/\D+/g, '')) || 0;

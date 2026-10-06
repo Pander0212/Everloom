@@ -17,6 +17,8 @@ import { lightingFor } from './runtime/lighting';
 import { loadModel, type LoadedModel } from './runtime/loader';
 import { loadCodeModel } from './runtime/codemade/build';
 import { dress } from './runtime/wardrobe';
+import { usePacks } from '@/features/avatars/packs';
+import { wearItems } from './parts';
 import { Stage3D, type Slot } from './runtime/stage';
 
 export interface CastMember {
@@ -114,8 +116,17 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
     const worn = (c.wearing ?? []).flatMap((i) => (garmentOf.get(i.name) ? [garmentOf.get(i.name)!] : []));
     return worn.length ? wearGarments(base, worn) : base;
   };
-  const dressed = new Map(cast.map((c) => [c.id, detailOf(c) ? resolveWardrobe(detailOf(c)!.config, { story: c.outfit, equipped: c.equipped }) : null]));
+  // Parts-made characters: equipped items put on matching parts of their pack.
+  const packs = usePacks(cast.some((c) => detailOf(c)?.kind === 'parts'));
+  const configOf = (c: CastMember) => {
+    const d = detailOf(c);
+    if (!d) return null;
+    return d.kind === 'parts' ? wearItems(d.config, packs.data?.find((p) => p.id === d.config.maker?.pack), c.wearing ?? []) : d.config;
+  };
+  const dressed = new Map(cast.map((c) => [c.id, configOf(c) ? resolveWardrobe(configOf(c)!, { story: c.outfit, equipped: c.equipped }) : null]));
   const dressedRef = useRef(dressed);
+  const configOfRef = useRef(configOf);
+  configOfRef.current = configOf;
   dressedRef.current = dressed;
   const castKey = cast.map((c) => `${c.id}:${c.avatarId ?? JSON.stringify(c.recipe)}:${detailOf(c)?.updatedAt ?? ''}:${dressed.get(c.id)?.outfit?.model ?? ''}:${(c.wearing ?? []).map((i) => (garmentOf.has(i.name) ? i.name : '')).join(',')}`).join('|');
   useEffect(() => {
@@ -139,7 +150,7 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
         continue;
       }
       loaded.current.set(c.id, stamp);
-      const load: Promise<LoadedModel> = recipe ? loadCodeModel(recipe, { low }) : loadModel(outfitModel ?? ((low && d!.low) || d!.model!), s.renderer, { boneMap: cfg.boneMap, expressionMap: cfg.expressionMap, scale: cfg.scale, facing: cfg.facing, floor: cfg.floor });
+      const load: Promise<LoadedModel> = recipe ? loadCodeModel(recipe, { low }) : loadModel(outfitModel ?? ((low && d!.low) || d!.model!), s.renderer, { boneMap: cfg.boneMap, expressionMap: cfg.expressionMap, scale: cfg.scale, facing: cfg.facing, floor: cfg.floor, tints: cfg.tints });
       load
         .then((model) => {
           if (stage.current !== s || loaded.current.get(c.id) !== stamp) return;
@@ -147,7 +158,7 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
           a.options.stiffness = cfg.physics.stiffness;
           a.options.gravity = cfg.physics.gravity;
           const now = dressedRef.current.get(c.id);
-          if (now && !recipe) dress(a, cfg, s.renderer, now);
+          if (now && !recipe) dress(a, configOfRef.current(c) ?? cfg, s.renderer, now);
           s.snapCamera();
         })
         .catch((e: Error) => {
@@ -185,7 +196,7 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
       const a = s.get(c.id);
       const d = detailOf(c);
       const w = dressed.get(c.id);
-      if (a && d && w && d.kind !== 'code') dress(a, d.config, s.renderer, w);
+      if (a && d && w && d.kind !== 'code') dress(a, configOf(c)!, s.renderer, w);
     }
     s.setSlots(slots, speakerId);
     s.setFraming(cast.length > 2 ? 'full' : 'half');
@@ -230,7 +241,7 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
   // The box sets the size; the canvas fills it (a canvas sized by top/bottom alone keeps 300×150).
   return (
     <div className={className ?? 'pointer-events-none absolute inset-0'}>
-      <canvas ref={canvas} data-testid="stage-3d" className={inspect ? 'pointer-events-auto block h-full w-full touch-none' : 'block h-full w-full'} />
+      <canvas ref={canvas} data-testid="stage-3d" data-worn={cast.map((c) => `${c.id}:${(dressed.get(c.id)?.garments ?? []).map((g) => g.garment.id).join(',')}`).join('|')} className={inspect ? 'pointer-events-auto block h-full w-full touch-none' : 'block h-full w-full'} />
     </div>
   );
 }

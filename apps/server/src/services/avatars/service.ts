@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import { AvatarConfigSchema, installedEmotes, type AvatarConfig, type AvatarKind } from '@everloom/engine';
+import { AvatarConfigSchema, installedEmotes, modelUrl, type AvatarConfig, type AvatarKind } from '@everloom/engine';
 import { HttpError, type AppContext } from '../../context.js';
 import { newId } from '../../security/crypto.js';
 import { deleteMedia, mediaUrl, readMedia, saveImage, saveModelFile } from '../media.js';
@@ -53,6 +53,8 @@ export function sniffModel(b: Buffer, filename = ''): SourceType | null {
 
 export function avatarSummary(r: AvatarRow) {
   const info = safeJson<Partial<ModelInfo> & { report?: OptimizeResult['report'] }>(r.info, {});
+  // Parts-made avatars wear their body straight from the pack (a built-in pack's file, or media).
+  const body = r.kind === 'parts' && !r.model_media ? (safeJson<{ maker?: { body?: string } }>(r.config, {}).maker?.body ?? null) : null;
   return {
     id: r.id,
     name: r.name,
@@ -60,8 +62,8 @@ export function avatarSummary(r: AvatarRow) {
     status: r.status,
     error: r.error,
     format: r.format,
-    model: mediaUrl(r.model_media),
-    low: mediaUrl(r.low_media),
+    model: body ? modelUrl(body) : mediaUrl(r.model_media),
+    low: body ? modelUrl(body) : mediaUrl(r.low_media),
     thumb: mediaUrl(r.thumb_media),
     triangles: info.triangles ?? null,
     size: info.report?.after ?? null,
@@ -277,7 +279,9 @@ export async function setAvatarThumbnail(ctx: AppContext, owner: string, id: str
 export function deleteAvatar(ctx: AppContext, owner: string, id: string) {
   const row = getAvatarRow(ctx, owner, id);
   const cfg = parseConfig(row.config);
-  const files = [row.source_media, row.model_media, row.low_media, row.thumb_media, ...cfg.outfits.flatMap((o) => [o.model, o.modelLow])].filter((x): x is string => !!x);
+  // A parts-made avatar's body belongs to its pack, not to the avatar.
+  const own = row.kind === 'parts' ? [] : [row.model_media, row.low_media];
+  const files = [row.source_media, ...own, row.thumb_media, ...cfg.outfits.flatMap((o) => [o.model, o.modelLow])].filter((x): x is string => !!x);
   ctx.db.prepare('DELETE FROM avatars WHERE id = ? AND owner_id = ?').run(id, owner);
   for (const f of files) deleteMedia(ctx, owner, f);
   const chars = ctx.db.prepare("SELECT id, game FROM characters WHERE owner_id = ? AND json_extract(game, '$.avatar3d') = ?").all(owner, id) as Array<{ id: string; game: string }>;

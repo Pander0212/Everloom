@@ -11,6 +11,7 @@ import { useNavigate, useParams } from 'react-router';
 import { Page } from '@/app/Shell';
 import { deleteAvatar, reprocessAvatar, saveAvatar, useAvatar } from '@/features/avatars/api';
 import CodeMadeEditor from './CodeMadeEditor';
+import Maker from './Maker';
 import { toast, toastError } from '@/lib/store';
 import { Badge, Button, confirm, EmptyState, IconButton, Menu, Segmented, Spinner, TabPanel, Tabs, useDesktop } from '@/ui';
 import { BonesStep } from './editor/BonesStep';
@@ -38,6 +39,7 @@ export default function AvatarEditor() {
   const { id } = useParams();
   const q = useAvatar(id);
   if (q.data?.kind === 'code') return <CodeMadeEditor key={q.data.id} avatar={q.data} />;
+  if (q.data?.kind === 'parts' && q.data.config.maker) return <Maker key={q.data.id} avatar={q.data} />;
   return <ImportedEditor />;
 }
 

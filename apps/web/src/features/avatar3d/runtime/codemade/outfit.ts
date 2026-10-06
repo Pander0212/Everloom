@@ -229,7 +229,7 @@ export function planOutfit(plan: BodyPlan, r: AvatarRecipe): Outfit {
   if (r.shoes.kind !== 'none') {
     const kind = r.shoes.kind;
     const topY = kind === 'boots' ? at.kneeY - 0.03 * H : kind === 'sandals' ? 0.011 * H : at.ankleY + 0.03 * H;
-    parts.push({ name: 'Shoes', field: { shapes: plan.shapes, blend: plan.blend, offset: (kind === 'sandals' ? 0.004 : 0.0055) * H, clips: [(_x, y) => y - topY] }, color: r.shoes.color, cell: 0.007, covers: kind !== 'sandals', roughness: 0.6 });
+    parts.push({ name: 'Shoes', field: { shapes: plan.shapes, blend: plan.blend, offset: (kind === 'sandals' ? 0.004 : kind === 'boots' ? 0.009 : 0.0055) * H, clips: [(_x, y) => y - topY] }, color: r.shoes.color, cell: 0.007, covers: kind !== 'sandals', roughness: 0.6 });
   }
 
   // ------------------------------------------------------------------ hats

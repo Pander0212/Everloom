@@ -90,6 +90,8 @@ export interface ModelOptions {
   /** Degrees to turn the model so it faces the camera. */
   facing?: number;
   floor?: number;
+  /** Mesh name → colour (replaces the material's base colour; textures keep their detail). */
+  tints?: Record<string, string>;
 }
 
 /** People are 0.4–3 m tall; outside that the units are off (centimetres, millimetres, inches). */
@@ -138,6 +140,13 @@ export async function loadModel(source: string | ArrayBuffer, renderer: THREE.We
     const m = o as THREE.Mesh;
     if (!m.isMesh) return;
     meshes.push(m);
+    // Faces drawn on the head (Everloom's code-made bodies and packs) sit a hair above the skin.
+    if (/face_overlay/i.test(m.name))
+      for (const mat of Array.isArray(m.material) ? m.material : [m.material]) {
+        mat.polygonOffset = true;
+        mat.polygonOffsetFactor = -2;
+        mat.polygonOffsetUnits = -2;
+      }
     if (m.morphTargetDictionary && Object.keys(m.morphTargetDictionary).length) {
       morphMeshes.push(m);
       for (const n of Object.keys(m.morphTargetDictionary)) names.add(n);
@@ -173,6 +182,18 @@ export async function loadModel(source: string | ArrayBuffer, renderer: THREE.We
       chains.push(chain);
     }
   }
+
+  if (opts.tints)
+    for (const m of meshes) {
+      const tint = opts.tints[m.name];
+      if (!tint) continue;
+      const mats = (Array.isArray(m.material) ? m.material : [m.material]).map((x) => {
+        const c = x.clone() as THREE.MeshStandardMaterial;
+        c.color?.set(tint);
+        return c;
+      });
+      m.material = Array.isArray(m.material) ? mats : mats[0]!;
+    }
 
   scene.updateMatrixWorld(true);
   const rawHeight = Math.max(1e-4, new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3()).y);

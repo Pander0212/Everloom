@@ -1,11 +1,12 @@
 /** Settings › 3D characters: this device's quality and effects, Blender, and the avatar library. */
-import { Box, Plus, RefreshCw, Trash2 } from 'lucide-react';
+import { Box, Plus, RefreshCw, Shirt, Trash2, Upload } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { deleteClip, refreshBlender, setBlenderPath, useAvatarClips, useAvatars, useBlender } from '@/features/avatars/api';
 import { usePrefs3D, type Quality3D } from '@/features/avatars/prefs';
+import { deletePack, importPack, setPackEnabled, usePacks } from '@/features/avatars/packs';
 import { toastError } from '@/lib/store';
-import { Button, confirm, Field, IconButton, Input, ListRow, Segmented, Sheet, Spinner, ToggleRow } from '@/ui';
+import { Button, confirm, Field, FileButton, IconButton, Input, ListRow, Segmented, Sheet, Spinner, Switch, ToggleRow } from '@/ui';
 
 const ClipImporter = lazy(() => import('@/features/avatar3d/ClipImporter'));
 import { Section } from '../common';
@@ -19,6 +20,8 @@ export default function ThreeDSection() {
   const [busy, setBusy] = useState(false);
   const clips = useAvatarClips();
   const [importing, setImporting] = useState(false);
+  const packs = usePacks();
+  const [packBusy, setPackBusy] = useState(false);
   return (
     <>
       <Section title="Avatars" description="3D models for your characters. Each character can show as 3D, Live2D or pictures (set on the character).">
@@ -28,10 +31,72 @@ export default function ThreeDSection() {
       </Section>
 
       <Section
+        title="Part packs"
+        description="Catalogs of bodies, hair and clothes for the parts maker, in the CharacterStudio pack format (a zip with manifest.json). Only import packs you have the rights to use."
+        action={
+          <FileButton
+            size="sm"
+            variant="secondary"
+            icon={Upload}
+            accept=".zip"
+            loading={packBusy}
+            data-testid="pack-import"
+            onFiles={async ([f]) => {
+              if (!f) return;
+              setPackBusy(true);
+              try {
+                await importPack(f);
+              } catch (e) {
+                toastError(e);
+              } finally {
+                setPackBusy(false);
+              }
+            }}
+          >
+            Import
+          </FileButton>
+        }
+      >
+        <div className="flex flex-col" data-testid="pack-list">
+          {(packs.data ?? []).map((pk) => (
+            <ListRow
+              key={pk.id}
+              title={pk.name}
+              subtitle={
+                <span className="flex flex-col gap-0.5">
+                  <span>
+                    {pk.parts} parts{pk.builtin ? ' · built in' : ''} · License: {pk.license}
+                  </span>
+                  {pk.credits ? <span className="line-clamp-2">{pk.credits}</span> : null}
+                </span>
+              }
+              trailing={
+                <span className="flex items-center gap-1">
+                  <Switch label={`Use ${pk.name}`} checked={pk.enabled} onChange={(v) => void setPackEnabled(pk.id, v).catch(toastError)} />
+                  {!pk.builtin ? (
+                    <IconButton
+                      icon={Trash2}
+                      label={`Delete ${pk.name}`}
+                      onClick={async () => {
+                        if (await confirm({ title: `Delete “${pk.name}”?`, description: 'Its parts leave the maker. Characters already made with them keep them.', confirmLabel: 'Delete', danger: true })) await deletePack(pk.id).catch(toastError);
+                      }}
+                    />
+                  ) : null}
+                </span>
+              }
+            />
+          ))}
+        </div>
+        <Button variant="secondary" icon={Shirt} className="mt-2 self-start" onClick={() => navigate('/characters/maker')}>
+          Open the parts maker
+        </Button>
+      </Section>
+
+      <Section
         title="Motion clips"
         description="Your own emotes, from GLB, VRMA, FBX, BVH or VMD files. They join the built-in ones everywhere: the picker, /emote, and the story."
         action={
-          <Button size="sm" variant="secondary" icon={Plus} onClick={() => setImporting(true)}>
+          <Button size="sm" variant="secondary" icon={Plus} onClick={() => setImporting(true)} data-testid="clip-import">
             Import
           </Button>
         }

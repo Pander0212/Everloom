@@ -168,6 +168,65 @@ The **dressing room** (Wardrobe step) edits outfits (tap one to try it on), part
 regions covered, items), the skin meshes, and accessories (upload a GLB, pick a bone, move, turn,
 size).
 
+## Parts maker
+
+Characters › 3D avatars › Make › **From parts**: pick a body, hair, top, bottom, shoes, a hat and
+extras from a **part pack**, with a colour for each, in a live preview (emote and expression
+buttons, drag to look around). Randomize, undo, duplicate, and download the result as one **GLB**
+or **VRM 1.0** file (body and parts merged on one skeleton, in its rest pose).
+
+A saved character keeps the pack's body and its chosen parts as **garments** of the pack's body
+family, so it stays editable and the wardrobe works on it: an **equipped item** puts on the part of
+the pack it matches (by the item's slot, then the words of its name, description and tags against
+each part's id, name and types; "Iron Helmet" finds a helmet), and that rolls back with swipes like
+every story change. Parts linked to an item by name in the dressing room take precedence.
+
+**Everloom Basics**, the built-in pack, is made by the code-made generator below
+(`tools/avatars/build-starter-pack.ts`, CC0): two bodies with faces, 9 hairstyles, 7 tops, 4
+bottoms, 3 kinds of shoes, 7 hats and 4 extras, about 2.6 MB. Settings › 3D characters › Part packs
+turns packs on and off, imports new ones and shows each pack's license and credits.
+
+### The pack format
+
+Packs use **CharacterStudio's trait manifest** (https://github.com/M3-org/CharacterStudio), so a
+pack made for it works here: a zip with `manifest.json` and the files it names.
+
+```json
+{
+  "traitsDirectory": "traits",
+  "thumbnailsDirectory": "thumbnails",
+  "initialTraits": { "BODY": "soft", "HAIR": "short" },
+  "requiredTraits": ["BODY"],
+  "randomTraits": ["HAIR", "TOP"],
+  "traits": [
+    { "trait": "BODY", "name": "Body", "collection": [{ "id": "soft", "name": "Soft", "directory": "body/soft.glb", "thumbnail": "body/soft.png", "colorCollection": "SKIN_COLORS" }] },
+    { "trait": "HAT", "name": "Hats", "collection": [{ "id": "helmet", "name": "Helmet", "directory": "hat/helmet.glb", "type": ["hides-hair"] }] }
+  ],
+  "colorCollections": [{ "trait": "SKIN_COLORS", "collection": [{ "id": "s1", "name": "Light", "value": "#f6d7c3" }] }],
+  "everloom": { "name": "My pack", "license": "CC-BY 4.0", "credits": "By …", "slots": { "HAT": "head" } }
+}
+```
+
+- Every part is a **GLB or VRM** rigged to the same skeleton as the bodies (bones are matched by
+  name; any naming Everloom maps works). Paths are `traitsDirectory` + `directory`.
+- One group is the **body** (`BODY`, `Body`, `Skin` or `Base`, or `everloom.bodyGroup`); a body's
+  mesh named `Body` takes the skin colour.
+- Each other group is a **wardrobe slot** (hair, head, top, bottom, full, outer, hands, feet, socks,
+  underwear), guessed from its name or set in `everloom.slots`.
+- `type` tags describe parts for item matching; `hides-<slot>` (e.g. `hides-hair`) hides that slot
+  while the part is worn.
+- `colorCollections` give the colour choices; any colour can also be picked freely.
+- A face that should move needs morph targets named like any model's (`blink`, `aa`, `joy`…; see
+  *Face*). A mesh named `face_overlay` is drawn just above the skin.
+- Everloom keeps CharacterStudio's other fields (restrictions, culling layers, download options,
+  VRM meta) but doesn't use them yet; skin under clothes is not culled, so parts should sit outside
+  the body.
+
+Import checks the manifest, that every part exists and really is a GLB/VRM, and refuses the pack
+with the reasons (up to eight) otherwise. Every file goes into the media store (the vault encrypts
+it). The license shown comes from `everloom.license`, a `LICENSE` file in the zip, or the VRM's own
+metadata, and otherwise says it isn't stated.
+
 ## Code-made characters
 
 A character can also be **made from a recipe** instead of a file: a small JSON description
@@ -232,6 +291,9 @@ The file being converted is decrypted into that folder for the run.
 | `apps/server/src/blender/worker.py` | the Blender worker script |
 | `apps/web/src/features/avatar3d/runtime/` | loading, retargeting, clips, avatar, stage, materials, lighting, wardrobe, import |
 | `apps/web/src/features/avatar3d/runtime/codemade/` | code-made characters: shapes, mesher, body, clothes, face, worker |
+| `apps/web/src/features/avatar3d/Maker.tsx`, `parts.ts` | the parts maker; packs as garments |
+| `apps/web/public/avatar/packs/basics/` | the built-in part pack (generated) |
+| `tools/avatars/build-starter-pack.ts`, `glb-writer.ts` | building the built-in pack |
 | `apps/web/src/features/avatar3d/` | the wizard, preview, stage layer, motion importer |
 | `apps/web/public/avatar/clips/` | the built-in clips |
 | `tools/avatars/` | building the bundled and authored clips |

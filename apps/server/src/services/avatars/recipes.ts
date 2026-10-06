@@ -110,3 +110,19 @@ export async function garmentForItem(ctx: AppContext, owner: string, item: ItemI
     return { garment: ruled.garment, source: 'slot' };
   }
 }
+
+/** A character made in the parts maker: its body part, the parts it wears, and the selection. */
+export function createPartsAvatar(ctx: AppContext, owner: string, opts: { name?: string; config: unknown }) {
+  const r = AvatarConfigSchema.safeParse(opts.config);
+  if (!r.success) throw new HttpError(400, `Invalid avatar settings: ${r.error.issues[0]?.path.join('.')} ${r.error.issues[0]?.message}`);
+  if (!r.data.maker) throw new HttpError(400, 'A parts-made character needs its parts');
+  const ref = r.data.maker.body;
+  const media = /^[\w-]{1,64}$/.test(ref) ? ref : null;
+  if (media && !ctx.db.prepare("SELECT 1 FROM media WHERE id = ? AND owner_id = ? AND kind LIKE 'model%'").get(media, owner)) throw new HttpError(400, 'The body part is missing');
+  const id = newId('av_');
+  const now = Date.now();
+  ctx.db
+    .prepare('INSERT INTO avatars (id, owner_id, name, kind, status, format, model_media, low_media, config, info, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
+    .run(id, owner, (opts.name ?? '').trim().slice(0, 80) || 'Parts-made character', 'parts', 'ready', 'glb', media, media, JSON.stringify(r.data), '{}', now, now);
+  return avatarSummary(getAvatarRow(ctx, owner, id));
+}

@@ -649,4 +649,26 @@ CREATE TABLE item_garments (
 );
 `,
   },
+  {
+    version: 11,
+    name: 'part packs',
+    sql: `
+-- Part packs for the parts maker (CharacterStudio layout). Files are media rows; this keeps the
+-- manifest, which path is which file, the license and credits. Built-in packs only get a row when
+-- turned off (manifest NULL).
+CREATE TABLE avatar_packs (
+  id TEXT NOT NULL,
+  owner_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  manifest TEXT,
+  files TEXT NOT NULL DEFAULT '{}',
+  license TEXT NOT NULL DEFAULT '',
+  credits TEXT NOT NULL DEFAULT '',
+  enabled INTEGER NOT NULL DEFAULT 1,
+  size INTEGER NOT NULL DEFAULT 0,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (owner_id, id)
+);
+`,
+  },
 ];

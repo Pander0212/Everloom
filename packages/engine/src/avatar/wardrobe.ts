@@ -65,7 +65,9 @@ export function resolveWardrobe(cfg: Pick<AvatarConfig, 'parts' | 'outfits' | 'o
   }
   else for (const g of all) if (g.on && !g.items.length) wear(g, g.variant);
   for (const g of all) if (g.items.some((i) => equipped.has(norm(i)))) wear(g, g.variant);
-  const garments = [...worn.values()].sort((a, b) => a.garment.layer - b.garment.layer);
+  // A garment can hide whole slots (a helmet hides the hair under it).
+  const hiddenSlots = new Set([...worn.values()].flatMap((w) => w.garment.hidesSlots ?? []));
+  const garments = [...worn.values()].filter((w) => !hiddenSlots.has(w.garment.slot)).sort((a, b) => a.garment.layer - b.garment.layer);
 
   const accessories = cfg.accessories.filter((a) => (a.items.length ? a.items.some((i) => equipped.has(norm(i))) : a.on));
   const hidden = new Set<BodyRegion>();

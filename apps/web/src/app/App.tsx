@@ -30,6 +30,7 @@ const ExtensionScreen = lazy(() => import('@/scripting/ExtensionScreen'));
 const Lab3D = lazy(() => import('@/features/avatar3d/Lab3D'));
 const AvatarsPage = lazy(() => import('@/features/avatars/AvatarsPage'));
 const AvatarEditor = lazy(() => import('@/features/avatar3d/AvatarEditor'));
+const PartsMaker = lazy(() => import('@/features/avatar3d/Maker').then((m) => ({ default: m.MakerRoute })));
 
 export function PageFallback() {
   return (
@@ -71,6 +72,7 @@ function AuthedApp() {
           <Route path="bridge/share" element={<BridgeShare />} />
           <Route path="characters/avatars" element={<AvatarsPage />} />
           <Route path="characters/avatars/:id" element={<AvatarEditor />} />
+          <Route path="characters/maker" element={<PartsMaker />} />
           <Route path="characters/:id" element={<CharacterEditor />} />
           <Route path="personas" element={<PersonasPage />} />
           <Route path="lore" element={<LorePage />} />
