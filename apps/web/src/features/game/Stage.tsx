@@ -2,7 +2,7 @@ import type { CampaignDTO, CharacterDTO, ChatDTO, MessageDTO, Op, StageAnim, Sta
 import { useFeatureOn } from '@/lib/features';
 import { stripInlineTags } from '@everloom/engine';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, History, RefreshCw, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, History, RefreshCw, Rotate3d, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { get } from '@/lib/api';
@@ -114,6 +114,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   // 3D characters: feature on, this device allows it, the character has an avatar and wants 3D.
   const avatarsOn = useFeatureOn('avatars3d');
   const stageWide = useDesktop();
+  const [inspect3d, setInspect3d] = useState(false);
   const spritesOnly = usePrefs3D((p) => p.spritesOnly);
   const [failed3d, setFailed3d] = useState<Record<string, string>>({});
   const uses3d = (c: CharacterDTO) => avatarsOn && !spritesOnly && !!c.game?.avatar3d && (c.game.display ?? 'auto') !== 'sprite' && (c.game.display ?? 'auto') !== 'live2d' && !failed3d[c.id] && hasWebGL2();
@@ -168,6 +169,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
             <StageLayer3D
               className="pointer-events-none absolute inset-0"
               safeBottom={stageWide ? 0.3 : 0.36}
+              inspect={inspect3d}
               speakerId={speakingId ?? speaker?.id ?? null}
               scene={campaign?.state ? { hour: ((campaign.state.time?.minutes ?? 720) / 60) % 24, weather: campaign.state.weather?.kind ?? null, locationKind: campaign.state.currentLocationId ? (campaign.state.locations[campaign.state.currentLocationId]?.kind ?? null) : null } : null}
               onFail={(id, reason) => setFailed3d((f) => (f[id] ? f : { ...f, [id]: reason }))}
@@ -223,7 +225,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
         </div>
       </motion.div>
       {/* Quick effects */}
-      <div className="absolute right-3 top-3 z-20">
+      <div className="absolute right-3 top-3 z-20 flex flex-col gap-2">
         <Popover trigger={<IconButton icon={Sparkles} label="Scene effects" className="!bg-surface/90 shadow-1" />} side="bottom" align="end">
           <div className="grid w-56 grid-cols-2 gap-1 p-1" role="group" aria-label="Scene effects">
             {FX_LIST.filter((f) => !fxOff.includes(f.id)).map((f) => (
@@ -233,6 +235,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
             ))}
           </div>
         </Popover>
+        {chars.some(uses3d) ? <IconButton icon={Rotate3d} label={inspect3d ? 'Stop looking around' : 'Look around'} active={inspect3d} className="!bg-surface/90 shadow-1" onClick={() => setInspect3d((v) => !v)} /> : null}
       </div>
       <div className="relative z-10 mt-auto">
         {/* Dialogue box */}

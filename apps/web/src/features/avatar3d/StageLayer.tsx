@@ -33,7 +33,7 @@ export interface StageLayerProps {
   onFail: (id: string, reason: string) => void;
 }
 
-export default function StageLayer({ cast, speakerId, scene, onFail, className, safeBottom = 0 }: StageLayerProps & { className?: string; safeBottom?: number }) {
+export default function StageLayer({ cast, speakerId, scene, onFail, className, safeBottom = 0, inspect = false }: StageLayerProps & { className?: string; safeBottom?: number; inspect?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const stage = useRef<Stage3D | null>(null);
   const prefs = usePrefs3D();
@@ -144,6 +144,14 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
     stage.current?.setSafeArea(safeBottom);
   }, [safeBottom]);
 
+  // Look around: drag to orbit, pinch to zoom; off returns to the directed camera.
+  useEffect(() => {
+    const s = stage.current;
+    if (!s) return;
+    s.setInspect(inspect);
+    if (!inspect) s.snapCamera();
+  }, [inspect]);
+
   useEffect(() => {
     stage.current?.setLighting(lightingFor(scene));
   }, [scene?.hour, scene?.weather, scene?.locationKind]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -151,7 +159,7 @@ export default function StageLayer({ cast, speakerId, scene, onFail, className, 
   // The box sets the size; the canvas fills it (a canvas sized by top/bottom alone keeps 300×150).
   return (
     <div className={className ?? 'pointer-events-none absolute inset-0'}>
-      <canvas ref={canvas} data-testid="stage-3d" className="block h-full w-full" />
+      <canvas ref={canvas} data-testid="stage-3d" className={inspect ? 'pointer-events-auto block h-full w-full touch-none' : 'block h-full w-full'} />
     </div>
   );
 }

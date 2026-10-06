@@ -73,6 +73,14 @@ test.describe('3D characters', () => {
     const s = (await api(page, 'GET', `/api/campaigns/${chat.campaignId}`)).state;
     expect(s.stage.avatars['rook ashby']).toMatchObject({ pose: 'sit', emote: { id: 'nod' } });
     await page.waitForTimeout(1500);
+    // Look around: drag to orbit, then back to the directed camera.
+    await page.getByRole('button', { name: 'Look around' }).click();
+    const box = (await page.getByTestId('stage-3d').boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height * 0.3);
+    await page.mouse.down();
+    await page.mouse.move(box.x + box.width / 2 + 80, box.y + box.height * 0.3, { steps: 5 });
+    await page.mouse.up();
+    await page.getByRole('button', { name: 'Stop looking around' }).click();
 
     // Pictures only on this device: the sprite comes back.
     await page.evaluate(() => localStorage.setItem('everloom:3d', JSON.stringify({ spritesOnly: true })));
