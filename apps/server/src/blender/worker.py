@@ -41,8 +41,86 @@ def enable_mmd():
     return False
 
 
+def open_blend(path):
+    """
+    Opens a .blend as the scene (never running its scripts: Blender starts with auto-run off and the
+    file is opened with use_scripts=False, so drivers and startup scripts in it stay inert), then
+    keeps what would render: meshes in the view layer that aren't hidden from render (themselves
+    or by a collection) and the armatures that move them. Subdivision is dropped (too heavy for
+    the stage); other modifiers are applied where a mesh has no shape keys.
+    """
+    bpy.ops.wm.open_mainfile(filepath=path, load_ui=False, use_scripts=False)
+    scene = bpy.context.scene
+    layer = bpy.context.view_layer
+    in_layer = {o.name for o in layer.objects}
+
+    def renders(o):
+        if o.name not in in_layer or o.hide_render:
+            return False
+        return not any(c.hide_render for c in o.users_collection)
+
+    meshes = [o for o in bpy.data.objects if o.type == "MESH" and renders(o)]
+    arms = set()
+    for o in meshes:
+        for m in o.modifiers:
+            if m.type == "ARMATURE" and m.object:
+                arms.add(m.object)
+        if o.parent and o.parent.type == "ARMATURE":
+            arms.add(o.parent)
+    keep = set(meshes) | arms
+    # Parents of what's kept stay too (an empty holding the rig), so transforms don't change.
+    for o in list(keep):
+        p = o.parent
+        while p:
+            keep.add(p)
+            p = p.parent
+    skipped = 0
+    for o in list(bpy.data.objects):
+        if o not in keep:
+            bpy.data.objects.remove(o, do_unlink=True)
+            skipped += 1
+    for sc in list(bpy.data.scenes):
+        if sc != scene:
+            bpy.data.scenes.remove(sc)
+    for o in keep:
+        if o.name not in scene.objects:
+            scene.collection.objects.link(o)
+        o.hide_viewport = False
+        try:
+            o.hide_set(False)
+        except RuntimeError:
+            pass
+    subdiv = 0
+    unapplied = 0
+    for o in meshes:
+        for m in list(o.modifiers):
+            if m.type in ("SUBSURF", "MULTIRES"):
+                o.modifiers.remove(m)
+                subdiv += 1
+        others = [m for m in o.modifiers if m.type != "ARMATURE"]
+        if not others:
+            continue
+        if o.data.shape_keys:
+            unapplied += len(others)
+            continue
+        if o.data.users > 1:
+            o.data = o.data.copy()
+        for m in others:
+            with bpy.context.temp_override(object=o, active_object=o):
+                try:
+                    bpy.ops.object.modifier_apply(modifier=m.name)
+                except RuntimeError:
+                    o.modifiers.remove(m)
+                    unapplied += 1
+    missing = sorted({i.name for i in bpy.data.images if i.source == "FILE" and not i.packed_file and i.filepath and not os.path.exists(bpy.path.abspath(i.filepath))})[:20]
+    libs = sum(1 for l in bpy.data.libraries if not os.path.exists(bpy.path.abspath(l.filepath)))
+    return {"blend": {"version": ".".join(str(v) for v in bpy.data.version), "meshes": len(meshes), "skipped": skipped, "subdivRemoved": subdiv, "modifiersNotApplied": unapplied, "missingTextures": missing, "missingLibraries": libs}}
+
+
 def import_any(path, motion=False):
     ext = os.path.splitext(path)[1].lower()
+    if ext == ".blend":
+        raise RuntimeError("Open .blend files with open_blend")
     if ext == ".fbx":
         bpy.ops.import_scene.fbx(filepath=path, use_anim=motion, ignore_leaf_bones=False, automatic_bone_orientation=False)
     elif ext in (".glb", ".gltf", ".vrm", ".vrma"):
@@ -110,15 +188,20 @@ def summary():
 
 def op_convert(job):
     clear_scene()
-    import_any(inside(job, job["input"]))
+    path = inside(job, job["input"])
+    extra = {}
+    if path.lower().endswith(".blend"):
+        extra = open_blend(path)
+    else:
+        import_any(path)
     removed = clean()
     out = inside(job, job["output"])
     export_glb(out, animations=False)
-    return {"removed": removed, **summary()}
+    return {"removed": removed, **extra, **summary()}
 
 
 def op_motion(job):
-    """An animation file (FBX, BVH, glTF) to a GLB with its skeleton and actions, for retargeting."""
+    """An animation file (FBX, BVH, glTF, VMD, .blend) to a GLB with its skeleton and actions, for retargeting."""
     clear_scene()
     path = inside(job, job["input"])
     if path.lower().endswith(".vmd"):
@@ -131,6 +214,24 @@ def op_motion(job):
         arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")
         bpy.context.view_layer.objects.active = arm
         bpy.ops.mmd_tools.import_vmd(filepath=path, scale=0.08)
+    elif path.lower().endswith(".blend"):
+        # Actions live in the file whether or not they're on the rig: put the first one on it.
+        bpy.ops.wm.open_mainfile(filepath=path, load_ui=False, use_scripts=False)
+        arm = next((o for o in bpy.context.view_layer.objects if o.type == "ARMATURE"), None) or next((o for o in bpy.data.objects if o.type == "ARMATURE"), None)
+        if not arm:
+            raise RuntimeError("The .blend has no armature to take a motion from")
+        for ob in list(bpy.data.objects):
+            if ob is not arm and ob.type != "MESH":
+                bpy.data.objects.remove(ob, do_unlink=True)
+        if bpy.context.scene and arm.name not in bpy.context.scene.objects:
+            bpy.context.scene.collection.objects.link(arm)
+        arm.animation_data_create()
+        if not arm.animation_data.action:
+            names = {b.name for b in arm.data.bones}
+            act = next((a for a in bpy.data.actions if any(fc.data_path.split('"')[1:2] and fc.data_path.split('"')[1] in names for fc in a.fcurves)), None)
+            if not act:
+                raise RuntimeError("The .blend has no animation for its armature")
+            arm.animation_data.action = act
     else:
         import_any(path, motion=True)
     for ob in list(bpy.data.objects):

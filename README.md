@@ -249,7 +249,7 @@ full spec, with a checklist for model makers, is [docs/avatars.md](docs/avatars.
   Characters and NPCs without a picture get one automatically.
 - **From parts:** pick a body, hair, top, bottoms, shoes, hat and colours in the maker. Everloom
   ships a small CC0 "Basics" pack; packs in CharacterStudio's format import as zips.
-- **Imported:** GLB or VRM (0.x and 1.0) straight away; FBX, PMX/PMD, OBJ and DAE through Blender.
+- **Imported:** GLB or VRM (0.x and 1.0) straight away; `.blend` files (with packed textures, or zipped with their texture folders), FBX, PMX/PMD, OBJ and DAE through Blender on your server.
 - **Realistic:** if Blender 4.2+ is on your server, MPFB (MakeHuman) makes realistic humans from
   sliders, with clothes you can take off (one button installs MPFB and its CC0 assets).
 
@@ -261,7 +261,7 @@ Me-style GLBs, or your own Blender work with the Everloom add-on (`tools/blender
 redistribution" terms are fine for your own server but not for sharing.
 
 **Animations from Mixamo and MMD:** in Settings › 3D characters › Import a motion, drop an FBX from
-[Mixamo](https://www.mixamo.com) (download "Without Skin"), a BVH, a GLB/VRMA, or a VMD zipped with
+[Mixamo](https://www.mixamo.com) (download "Without Skin"), a BVH, a GLB/VRMA, a `.blend` with an action, or a VMD zipped with
 the PMX it was made for (MMD needs Blender with the MMD Tools add-on). Preview it on the mannequin,
 name it, pick its kind (and whether it loops), and it becomes an emote the story can use.
 

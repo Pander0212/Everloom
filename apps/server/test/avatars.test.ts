@@ -1,8 +1,9 @@
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import sharp from 'sharp';
+import { zipSync } from 'fflate';
 import { afterEach, describe, expect, it } from 'vitest';
 import { parseGlb, replaceViews, writeGlb } from '../src/services/avatars/glb.js';
 import { inspectModel } from '../src/services/avatars/inspect.js';
@@ -452,6 +453,80 @@ describe.skipIf(!BLENDER || !existsSync(BLENDER))('Blender worker', () => {
     const g = parseGlb((await c.req('GET', `/media/${r.json.model}`)).raw);
     expect(g.json.skins?.length).toBeGreaterThan(0);
   }, 240_000);
+
+  it('imports .blend files: alone, zipped with their textures, and as motions; never runs their scripts', async () => {
+    const tmp = mkdtempSync(path.join(os.tmpdir(), 'everloom-blend-'));
+    const marker = path.join(tmp, 'script-ran');
+    try {
+      const glb = path.join(tmp, 'm.glb');
+      writeFileSync(glb, MANNEQUIN);
+      mkdirSync(path.join(tmp, 'textures'));
+      // A .blend the way people save them: an outside texture in a folder, a camera, a light, an object
+      // hidden from render, subdivision, a keyframed action, and a script set to run when it opens.
+      const py = [
+        'import bpy',
+        'bpy.ops.wm.read_factory_settings(use_empty=True)',
+        `bpy.ops.import_scene.gltf(filepath=${JSON.stringify(glb)})`,
+        'mesh = max((o for o in bpy.data.objects if o.type == "MESH"), key=lambda o: len(o.data.vertices))',
+        'if not mesh.data.uv_layers: mesh.data.uv_layers.new(name="UVMap")',
+        'arm = next(o for o in bpy.data.objects if o.type == "ARMATURE")',
+        'img = bpy.data.images.new("SkinTex", 32, 32)',
+        `img.filepath_raw = ${JSON.stringify(path.join(tmp, 'textures', 'skin.png'))}`,
+        'img.file_format = "PNG"',
+        'img.save()',
+        'mat = bpy.data.materials.new("Skin"); mat.use_nodes = True',
+        'tex = mat.node_tree.nodes.new("ShaderNodeTexImage"); tex.image = img',
+        'mat.node_tree.links.new(tex.outputs[0], mat.node_tree.nodes["Principled BSDF"].inputs[0])',
+        'mesh.data.materials.clear(); mesh.data.materials.append(mat)',
+        'bpy.ops.object.camera_add(); bpy.ops.object.light_add(type="SUN")',
+        'bpy.ops.mesh.primitive_cube_add(); bpy.context.object.hide_render = True',
+        'if not mesh.data.shape_keys: mesh.modifiers.new("Sub", "SUBSURF")',
+        'arm.animation_data_create(); act = bpy.data.actions.new("Wave"); arm.animation_data.action = act',
+        'b = arm.pose.bones[0]',
+        'b.rotation_mode = "XYZ"; b.rotation_euler = (0, 0, 0); b.keyframe_insert("rotation_euler", frame=1)',
+        'b.rotation_euler = (0.6, 0, 0); b.keyframe_insert("rotation_euler", frame=20)',
+        `t = bpy.data.texts.new("evil.py"); t.use_module = True; t.write('''open(${JSON.stringify(marker)}, "w").write("x")''')`,
+        `bpy.ops.wm.save_as_mainfile(filepath=${JSON.stringify(path.join(tmp, 'model.blend'))}, relative_remap=True)`,
+      ].join('\n');
+      execFileSync(BLENDER!, ['--background', '--factory-startup', '--python-expr', py], { stdio: 'ignore', timeout: 120_000 });
+      const blend = readFileSync(path.join(tmp, 'model.blend'));
+      c = await createClient();
+
+      // Alone: the texture is missing, and the report says so (and what was left out).
+      const a = await c.req('POST', '/api/avatars?filename=model.blend', blend, oct);
+      expect(a.status).toBe(200);
+      await avatarSettled(a.json.id);
+      const da = (await c.req('GET', `/api/avatars/${a.json.id}`)).json;
+      expect(da.error).toBeNull();
+      expect(da.status).toBe('ready');
+      expect(da.info.missingBones).toEqual([]);
+      const codes = da.info.warnings.map((w: any) => w.code);
+      expect(codes).toEqual(expect.arrayContaining(['blend_missing_textures', 'blend_skipped']));
+      expect(da.info.conversion.blend.skipped).toBeGreaterThanOrEqual(3);
+
+      // Zipped with its texture folder: found.
+      const zip = Buffer.from(zipSync({ 'My character/model.blend': new Uint8Array(blend), 'My character/textures/skin.png': new Uint8Array(readFileSync(path.join(tmp, 'textures', 'skin.png'))) }));
+      const z = await c.req('POST', '/api/avatars?filename=character.zip', zip, oct);
+      expect(z.status).toBe(200);
+      await avatarSettled(z.json.id);
+      const dz = (await c.req('GET', `/api/avatars/${z.json.id}`)).json;
+      expect(dz.status).toBe('ready');
+      expect(dz.info.warnings.map((w: any) => w.code)).not.toContain('blend_missing_textures');
+      expect(dz.info.textures.length).toBeGreaterThan(0);
+
+      // As a motion: the armature's action comes back as a GLB animation.
+      const m = await c.req('POST', '/api/avatar-clips/convert?filename=wave.blend', blend, oct);
+      expect(m.status).toBe(200);
+      expect(parseGlb(m.raw).json.animations?.length).toBeGreaterThan(0);
+
+      // A zip without a .blend isn't taken for one.
+      expect((await c.req('POST', '/api/avatars?filename=x.zip', Buffer.from(zipSync({ 'a.txt': new Uint8Array([1]) })), oct)).status).toBe(415);
+      // Nothing in the file ever ran.
+      expect(existsSync(marker)).toBe(false);
+    } finally {
+      rmSync(tmp, { recursive: true, force: true });
+    }
+  }, 400_000);
 
   it('cleans a model up to a triangle budget and renders a turntable; jobs are listed', async () => {
     c = await createClient();

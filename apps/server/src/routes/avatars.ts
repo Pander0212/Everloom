@@ -10,6 +10,7 @@ import { createCodeAvatar, createPartsAvatar, fillRecipe, garmentForItem } from 
 import { deletePack, importPack, listPacks, setPackEnabled } from '../services/avatars/packs.js';
 import { discardModel3dJob, getModel3dJob, startModel3dJob } from '../services/avatars/model3d.js';
 import { generateTexture } from '../services/avatars/textures.js';
+import { blendJobFiles, zipHasBlend } from '../services/avatars/blendfile.js';
 import { export3d, import3d, list3d, setTags3d } from '../services/avatars/library3d.js';
 import { createRealisticAvatar, installMpfb, mpfbInstalledInfo, mpfbStatus, removeMpfb } from '../services/avatars/mpfb.js';
 import { getCharacter } from '../services/characters.js';
@@ -17,7 +18,7 @@ import { readMedia, saveModelFile } from '../services/media.js';
 import { ownerForToken } from '../services/bridge.js';
 import { parse } from '../util/validate.js';
 
-const MOTION_TYPES: Record<string, string> = { fbx: 'fbx', bvh: 'bvh', vmd: 'vmd', glb: 'glb', gltf: 'glb', vrma: 'glb' };
+const MOTION_TYPES: Record<string, string> = { fbx: 'fbx', bvh: 'bvh', vmd: 'vmd', glb: 'glb', gltf: 'glb', vrma: 'glb', blend: 'blend' };
 
 export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get('/api/avatars', async (req) => listAvatars(ctx, owner(req)));
@@ -227,6 +228,12 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     const q = parse(z.object({ filename: z.string().max(200) }), req.query ?? {});
     const kind = q.filename.split('.').pop()!.toLowerCase();
     // VMD comes zipped with the PMX/PMD model it was made for (MMD motions need their model).
+    // A .blend with its armature and action (alone, or zipped with what it links to).
+    if (kind === 'blend' || (kind === 'zip' && zipHasBlend(body))) {
+      const job = blendJobFiles(body, q.filename);
+      const r = await runBlenderJob(ctx, owner(req), { op: 'motion', files: job.files, input: job.input, output: 'motion.glb', timeoutMs: 4 * 60_000 });
+      return reply.header('content-type', 'model/gltf-binary').header('cache-control', 'no-store').send(r.output);
+    }
     if (kind === 'zip') {
       let files: Record<string, Uint8Array>;
       try {
@@ -242,7 +249,7 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
       return reply.header('content-type', 'model/gltf-binary').header('cache-control', 'no-store').send(r.output);
     }
     const ext = MOTION_TYPES[kind];
-    if (!ext || ext === 'glb') throw new HttpError(415, 'Convert FBX, BVH or VMD files here; GLB and VRMA load directly');
+    if (!ext || ext === 'glb') throw new HttpError(415, 'Convert FBX, BVH, VMD or .blend files here; GLB and VRMA load directly');
     if (ext === 'vmd') throw new HttpError(400, 'A VMD motion needs its PMX model: choose both files together');
     const r = await runBlenderJob(ctx, owner(req), { op: 'motion', files: { [`input.${ext}`]: body }, input: `input.${ext}`, output: 'motion.glb', timeoutMs: 3 * 60_000 });
     return reply.header('content-type', 'model/gltf-binary').header('cache-control', 'no-store').send(r.output);

@@ -205,7 +205,7 @@ export default function ThreeDSection() {
 
       <Section
         title="Blender"
-        description="Optional. Used to import FBX, PMX/PMD, OBJ and DAE models and FBX/BVH/VMD motions. Runs in the background, one job at a time, with no network access needed."
+        description="Optional. Used to import .blend, FBX, PMX/PMD, OBJ and DAE models and .blend/FBX/BVH/VMD motions. Runs in the background, one job at a time, with no network access needed."
         action={
           <Button
             size="sm"

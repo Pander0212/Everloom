@@ -34,7 +34,7 @@ async function gltfSource(buf: ArrayBuffer): Promise<MotionSource> {
   return { scene: gltf.scene, animations: gltf.animations, humanoid };
 }
 
-/** Through Blender on the server: FBX this browser can't read, and VMD with its model. */
+/** Through Blender on the server: FBX this browser can't read, VMD with its model, and .blend files. */
 async function viaServer(files: File[]): Promise<ArrayBuffer> {
   const vmd = files.find((f) => ext(f) === 'vmd');
   let body: Blob;
@@ -53,8 +53,8 @@ async function viaServer(files: File[]): Promise<ArrayBuffer> {
 }
 
 async function load(files: File[]): Promise<Loaded> {
-  const main = files.find((f) => ['glb', 'gltf', 'vrma', 'fbx', 'bvh', 'vmd'].includes(ext(f)));
-  if (!main) throw new Error('Choose a GLB, VRMA, FBX, BVH or VMD file.');
+  const main = files.find((f) => ['glb', 'gltf', 'vrma', 'fbx', 'bvh', 'vmd', 'blend'].includes(ext(f)));
+  if (!main) throw new Error('Choose a GLB, VRMA, FBX, BVH, VMD or .blend file.');
   const kind = ext(main);
   let read: () => Promise<MotionSource>;
   if (kind === 'bvh') {
@@ -80,9 +80,9 @@ async function load(files: File[]): Promise<Loaded> {
       }
       return gltfSource(viaBlender);
     };
-  } else if (kind === 'vmd') {
+  } else if (kind === 'vmd' || kind === 'blend') {
     let glb: ArrayBuffer | null = null;
-    read = async () => gltfSource((glb ??= await viaServer(files)));
+    read = async () => gltfSource((glb ??= await viaServer(kind === 'blend' ? [main] : files)));
   } else {
     const buf = await main.arrayBuffer();
     read = () => gltfSource(buf);
@@ -176,7 +176,7 @@ export default function ClipImporter({ onDone, initial }: { onDone: () => void; 
 
   return (
     <div className="flex flex-col gap-4">
-      <FileButton accept=".glb,.gltf,.vrma,.fbx,.bvh,.vmd,.pmx,.pmd" multiple onFiles={pick} icon={Upload} variant="secondary" loading={busy && !loaded}>
+      <FileButton accept=".glb,.gltf,.vrma,.fbx,.bvh,.vmd,.pmx,.pmd,.blend" multiple onFiles={pick} icon={Upload} variant="secondary" loading={busy && !loaded}>
         Choose a motion file
       </FileButton>
       <p className="text-xs text-fg-2">GLB, VRMA, FBX and BVH are read here. A VMD needs its PMX model (choose both); VMD and some FBX files need Blender.</p>

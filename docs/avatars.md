@@ -25,7 +25,7 @@ the avatar's settings, so the file stays usable in any other tool.
 | Units | | Any: sizes that make no sense for a person are fitted, and you set the real height |
 
 **Also accepted:** VRM 0.x and 1.0 (kept as written: their expressions, spring bones and MToon
-materials are used as authored), and through Blender (optional): FBX, PMX/PMD (with the MMD Tools
+materials are used as authored), and through Blender (optional): .blend, FBX, PMX/PMD (with the MMD Tools
 add-on), OBJ and DAE.
 
 ### Budgets
@@ -360,7 +360,7 @@ What it does (Settings › 3D characters › Blender lists recent jobs with thei
 
 | Job | Where | What |
 |---|---|---|
-| Convert | Import | FBX, PMX/PMD, OBJ, DAE to GLB; VMD and stubborn FBX motions |
+| Convert | Import | .blend (alone or zipped with its textures), FBX, PMX/PMD, OBJ, DAE to GLB; .blend, VMD and stubborn FBX motions |
 | Clean up | Avatar › Optimize | Merges duplicate points, simplifies meshes over a triangle budget (faces with expressions are left alone), shrinks textures, then prepares the model again |
 | Turntable | Avatar › Optimize | Eight views rendered with Cycles on the CPU (no graphics card needed) |
 | Realistic character | Avatars › Make › Realistic | MPFB makes a human from sliders and MakeHuman assets (see below) |
@@ -369,6 +369,26 @@ What it does (Settings › 3D characters › Blender lists recent jobs with thei
 Tested here: an FBX round trip of the mannequin keeps all its bones; a plain tube fitted as a top
 covers the chest, belly and hips and bends with the body; clean-up of the mannequin to 2,000
 triangles; an 8-view turntable in about 6 seconds.
+
+
+### .blend files
+
+Blender's own files import directly (Characters › 3D avatars › Import, the motion importer, and
+*Fit a garment*), converted by the worker:
+
+- **Textures:** pack them into the file (File › External Data › Pack Resources) and upload the
+  .blend, or upload a **zip** of the .blend with its texture folders so its relative paths
+  (`//textures/skin.png`) resolve. Missing textures and linked libraries are listed in the import
+  report.
+- **What's kept:** the meshes that would render (in the view layer, not hidden from render by
+  themselves or a collection) and the armatures that move them; cameras, lights, hidden helpers and
+  other scenes are left out. Subdivision is dropped; other modifiers (mirror, solidify…) are applied
+  on meshes without shape keys, and left alone on meshes with them (the report says so).
+- **Motions:** the armature's action (or the first action made for its bones) becomes the clip.
+- **Safety:** nothing in a .blend runs. Blender starts with auto-run off and the file is opened with
+  scripts disabled, so Python drivers and scripts saved in it stay inert; a test checks that a
+  script set to run on load never does. Files saved by a much newer Blender than the server's may
+  not open.
 
 ## Realistic characters (MPFB)
 

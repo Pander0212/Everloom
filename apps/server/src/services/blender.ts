@@ -15,6 +15,7 @@ import { fileURLToPath } from 'node:url';
 import { HttpError, type AppContext } from '../context.js';
 import { newId } from '../security/crypto.js';
 import { getKv, setKv } from './settings.js';
+import { safeRelPath } from './avatars/blendfile.js';
 
 export interface BlenderInfo {
   found: boolean;
@@ -230,8 +231,12 @@ export async function runBlenderJob(ctx: AppContext, owner: string, job: Blender
     const dir = jobDir();
     try {
       for (const [name, bytes] of Object.entries(job.files)) {
-        if (!/^[\w.-]{1,80}$/.test(name)) throw new HttpError(400, 'Bad file name');
-        writeFileSync(path.join(dir, name), bytes, { mode: 0o600 });
+        // Plain names, or relative paths for a .blend's texture folders (checked: no climbing out).
+        if (!/^[\w.-]{1,80}$/.test(name) && (!name.startsWith('blend/') || safeRelPath(name) !== name)) throw new HttpError(400, 'Bad file name');
+        const file = path.join(dir, name);
+        if (!file.startsWith(dir + path.sep)) throw new HttpError(400, 'Bad file name');
+        mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
+        writeFileSync(file, bytes, { mode: 0o600 });
       }
       writeFileSync(path.join(dir, 'job.json'), JSON.stringify({ op: job.op, input: job.input, output: job.output, ...(job.extra ?? {}) }));
       const r = await run(info.path!, ['--background', '--factory-startup', '--disable-autoexec', '--python-exit-code', '3', '--python', workerScript(), '--', path.join(dir, 'job.json')], {

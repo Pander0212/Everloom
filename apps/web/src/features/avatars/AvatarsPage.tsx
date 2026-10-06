@@ -9,7 +9,7 @@ import { Badge, Button, EmptyState, FileButton, Icon, IconButton, Menu, Spinner 
 import { createCodeAvatar, fmtBytes, uploadAvatar, useAvatars, useBlender } from './api';
 import { RealisticMaker } from './Realistic';
 
-export const MODEL_ACCEPT = '.glb,.vrm,.fbx,.pmx,.pmd,.obj,.dae';
+export const MODEL_ACCEPT = '.glb,.vrm,.blend,.zip,.fbx,.pmx,.pmd,.obj,.dae';
 
 export default function AvatarsPage() {
   const navigate = useNavigate();
@@ -67,7 +67,7 @@ export default function AvatarsPage() {
     >
       <p className="mb-4 text-sm text-fg-2">
         GLB and VRM (0.x and 1.0) import directly.{' '}
-        {blender.data?.found ? `FBX, PMX, OBJ and DAE go through Blender ${blender.data.version ?? ''}.` : 'FBX, PMX, OBJ and DAE need Blender (free from blender.org); set it up in Settings → 3D characters.'}
+        {blender.data?.found ? `.blend files (or a zip of a .blend with its textures), FBX, PMX, OBJ and DAE go through Blender ${blender.data.version ?? ''}.` : '.blend, FBX, PMX, OBJ and DAE need Blender (free from blender.org); set it up in Settings → 3D characters.'}
       </p>
       {list.isLoading ? (
         <div className="grid min-h-[30vh] place-items-center">

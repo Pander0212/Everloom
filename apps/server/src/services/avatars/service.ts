@@ -12,6 +12,7 @@ import { HttpError, type AppContext } from '../../context.js';
 import { newId } from '../../security/crypto.js';
 import { deleteMedia, mediaUrl, readMedia, saveImage, saveModelFile } from '../media.js';
 import { runBlenderJob } from '../blender.js';
+import { blendJobFiles, blendNotes, isBlend, zipHasBlend } from './blendfile.js';
 import { isGlb, parseGlb } from './glb.js';
 import { inspectModel, type ModelInfo } from './inspect.js';
 import { optimizeModel, type OptimizeOptions, type OptimizeResult } from './optimize.js';
@@ -35,8 +36,8 @@ export interface AvatarRow {
   updated_at: number;
 }
 
-export type SourceType = 'glb' | 'fbx' | 'pmx' | 'pmd' | 'obj' | 'dae';
-const BLENDER_TYPES = new Set<SourceType>(['fbx', 'pmx', 'pmd', 'obj', 'dae']);
+export type SourceType = 'glb' | 'fbx' | 'pmx' | 'pmd' | 'obj' | 'dae' | 'blend' | 'zip';
+const BLENDER_TYPES = new Set<SourceType>(['fbx', 'pmx', 'pmd', 'obj', 'dae', 'blend', 'zip']);
 
 /** What kind of 3D file this is, by its bytes (the name only breaks ties for text formats). */
 export function sniffModel(b: Buffer, filename = ''): SourceType | null {
@@ -46,6 +47,9 @@ export function sniffModel(b: Buffer, filename = ''): SourceType | null {
   if (/^\s*; FBX \d/.test(head)) return 'fbx';
   if (head.startsWith('PMX ')) return 'pmx';
   if (head.startsWith('Pmd')) return 'pmd';
+  if (isBlend(b, filename)) return 'blend';
+  // A zip with a .blend and the folders its textures are in.
+  if (/\.zip$/i.test(filename) && zipHasBlend(b)) return 'zip';
   const text = b.subarray(0, 4096).toString('utf8');
   if (/<COLLADA[\s>]/.test(text)) return 'dae';
   if (/\.obj$/i.test(filename) && /^(v|vt|vn|f|o|g|mtllib|#)\s/m.test(text) && !/\u0000/.test(text)) return 'obj';
@@ -180,12 +184,18 @@ async function processAvatar(ctx: AppContext, owner: string, id: string, opts: P
     const ext = path.extname(src.row.filename).slice(1) as SourceType;
     let glb = src.bytes;
     let conversion: Record<string, unknown> | null = null;
-    if (BLENDER_TYPES.has(ext)) {
+    if (ext === 'blend' || ext === 'zip') {
+      const job = blendJobFiles(src.bytes, `model.${ext === 'zip' ? 'zip' : 'blend'}`);
+      const r = await runBlenderJob(ctx, owner, { op: 'convert', files: job.files, input: job.input, output: 'output.glb', timeoutMs: 8 * 60_000 });
+      glb = r.output;
+      conversion = r.result;
+    } else if (BLENDER_TYPES.has(ext)) {
       const r = await runBlenderJob(ctx, owner, { op: 'convert', files: { [`input.${ext}`]: src.bytes }, input: `input.${ext}`, output: 'output.glb' });
       glb = r.output;
       conversion = r.result;
     }
     const info = await inspectModel(glb);
+    if (conversion) info.warnings.push(...blendNotes(conversion));
     const result = await optimizeOffThread(glb, { format: info.format, ...opts });
     // The row may have been deleted while this ran.
     if (!ctx.db.prepare('SELECT 1 FROM avatars WHERE id = ? AND owner_id = ?').get(id, owner)) return;
@@ -223,7 +233,7 @@ async function processAvatar(ctx: AppContext, owner: string, id: string, opts: P
 export function createAvatar(ctx: AppContext, owner: string, bytes: Buffer, opts: { name?: string; filename?: string; kind?: AvatarKind; config?: Partial<AvatarConfig>; id?: string }) {
   if (bytes.length < 64) throw new HttpError(400, 'The file is empty');
   const type = sniffModel(bytes, opts.filename);
-  if (!type) throw new HttpError(415, 'Unsupported 3D file. Use GLB, VRM (0.x or 1.0), FBX, PMX/PMD, OBJ or DAE.');
+  if (!type) throw new HttpError(415, 'Unsupported 3D file. Use GLB, VRM (0.x or 1.0), .blend (or a zip with a .blend and its textures), FBX, PMX/PMD, OBJ or DAE.');
   if (type === 'glb') {
     try {
       parseGlb(bytes);
@@ -348,7 +358,7 @@ export function garmentLibrary(ctx: AppContext, owner: string, family: string) {
   return out;
 }
 
-const FIT_INPUT = /\.(glb|gltf|obj|fbx|dae)$/i;
+const FIT_INPUT = /\.(glb|gltf|obj|fbx|dae|blend)$/i;
 
 /**
  * Fits a garment mesh (from a modelling tool or an image-to-3D service) to this avatar's body with
@@ -357,11 +367,17 @@ const FIT_INPUT = /\.(glb|gltf|obj|fbx|dae)$/i;
  */
 export async function fitGarment(ctx: AppContext, owner: string, id: string, bytes: Buffer, opts: { filename: string; slot: GarmentSlot; offset?: number }) {
   const row = getAvatarRow(ctx, owner, id);
-  if (!FIT_INPUT.test(opts.filename)) throw new HttpError(415, 'Garments to fit can be GLB, OBJ, FBX or DAE files');
+  if (!FIT_INPUT.test(opts.filename)) throw new HttpError(415, 'Garments to fit can be GLB, OBJ, FBX, DAE or .blend files');
   const src = row.source_media ? readMedia(ctx, owner, row.source_media) : row.model_media ? readMedia(ctx, owner, row.model_media) : null;
   if (!src) throw new HttpError(400, 'This avatar has no model file to fit to');
   const bodyExt = (src.row.meta as { filename?: string } | null)?.filename?.match(/\.(\w+)$/)?.[1]?.toLowerCase() ?? 'glb';
   const cfg = parseConfig(row.config);
+  // A .blend garment is turned into a GLB first (the fitting job opens the body, not the .blend).
+  if (/\.blend$/i.test(opts.filename)) {
+    const job = blendJobFiles(bytes, opts.filename);
+    bytes = (await runBlenderJob(ctx, owner, { op: 'convert', files: job.files, input: job.input, output: 'garment.glb' })).output;
+    opts = { ...opts, filename: opts.filename.replace(/\.blend$/i, '.glb') };
+  }
   const garmentName = `garment.${opts.filename.split('.').pop()!.toLowerCase()}`;
   const r = await runBlenderJob(ctx, owner, {
     op: 'fit',

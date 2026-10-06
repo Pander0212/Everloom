@@ -309,7 +309,7 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
           Add a garment (GLB)
         </FileButton>
         {blender.data?.found ? (
-          <FileButton size="sm" variant="ghost" icon={Shirt} accept=".glb,.obj,.fbx,.dae" loading={uploading === 'fit'} onFiles={async ([f]) => {
+          <FileButton size="sm" variant="ghost" icon={Shirt} accept=".glb,.obj,.fbx,.dae,.blend" loading={uploading === 'fit'} onFiles={async ([f]) => {
             if (!f) return;
             setUploading('fit');
             try {
