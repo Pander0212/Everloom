@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
 import { addAsset, ASSET_TYPES, importAssetZip, listAssets, updateAsset } from '../services/assets.js';
 import { deleteMedia } from '../services/media.js';
+import { addDemoCharacter, installStarter, starterManifest } from '../services/starter-art.js';
 import { parse } from '../util/validate.js';
 
 const tagList = (s?: string) => (s ? s.split(',').map((t) => t.trim()).filter(Boolean) : []);
@@ -29,6 +30,22 @@ export function registerAssetRoutes(app: FastifyInstance, ctx: AppContext) {
     const q = parse(z.object({ name: z.string().max(120).optional() }), req.query ?? {});
     return importAssetZip(ctx, owner(req), body, q.name);
   });
+
+  /** Everloom's bundled art: what's in it, and adding it to the library (skips what's already there). */
+  app.get('/api/assets/starter', async () => {
+    try {
+      const m = starterManifest(ctx).filter((e) => e.pack === 'starter');
+      return { available: true, count: m.length, backgrounds: m.filter((e) => e.type === 'background').length };
+    } catch {
+      return { available: false, count: 0, backgrounds: 0 };
+    }
+  });
+  app.post('/api/assets/starter', async (req) => {
+    const { added, skipped } = await installStarter(ctx, owner(req), 'starter');
+    return { added, skipped };
+  });
+  /** The demo character (Mira Vale) with her expression set. */
+  app.post('/api/characters/demo', async (req) => addDemoCharacter(ctx, owner(req)));
 
   app.patch('/api/assets/:id', async (req) => {
     const b = parse(z.object({ name: z.string().max(120).optional(), type: z.enum(ASSET_TYPES).optional(), tags: z.array(z.string().max(30)).max(20).optional(), set: z.string().max(60).optional(), expression: z.string().max(30).optional() }), req.body);

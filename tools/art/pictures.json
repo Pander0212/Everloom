@@ -1,0 +1,226 @@
+{
+ "items": [
+  {
+   "raw": "011-nano-z-image-turbo-compare-bg.jpg",
+   "out": "starter/bg/tavern",
+   "w": 1280,
+   "h": 720,
+   "manifest": {
+    "name": "Tavern",
+    "type": "background",
+    "tags": [
+     "background",
+     "fantasy"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "023-nano-z-image-turbo-bg-forest-road.jpg",
+   "out": "starter/bg/forest-road",
+   "w": 1280,
+   "h": 720,
+   "manifest": {
+    "name": "Forest road",
+    "type": "background",
+    "tags": [
+     "background",
+     "fantasy"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "024-nano-z-image-turbo-bg-town-square.jpg",
+   "out": "starter/bg/town-square",
+   "w": 1280,
+   "h": 720,
+   "manifest": {
+    "name": "Town square",
+    "type": "background",
+    "tags": [
+     "background",
+     "fantasy"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "025-nano-z-image-turbo-bg-castle-hall.jpg",
+   "out": "starter/bg/castle-hall",
+   "w": 1280,
+   "h": 720,
+   "manifest": {
+    "name": "Castle hall",
+    "type": "background",
+    "tags": [
+     "background",
+     "fantasy"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "026-nano-z-image-turbo-bg-cottage.jpg",
+   "out": "starter/bg/cottage",
+   "w": 1280,
+   "h": 720,
+   "manifest": {
+    "name": "Cottage",
+    "type": "background",
+    "tags": [
+     "background",
+     "fantasy"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "027-nano-z-image-turbo-bg-cafe.jpg",
+   "out": "starter/bg/cafe",
+   "w": 1280,
+   "h": 720,
+   "manifest": {
+    "name": "Caf\u00e9",
+    "type": "background",
+    "tags": [
+     "background",
+     "modern"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "028-nano-z-image-turbo-bg-city-street.jpg",
+   "out": "starter/bg/city-street",
+   "w": 1280,
+   "h": 720,
+   "manifest": {
+    "name": "City street at dusk",
+    "type": "background",
+    "tags": [
+     "background",
+     "modern"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "029-nano-z-image-turbo-bg-apartment.jpg",
+   "out": "starter/bg/apartment",
+   "w": 1280,
+   "h": 720,
+   "manifest": {
+    "name": "Apartment",
+    "type": "background",
+    "tags": [
+     "background",
+     "modern"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "030-nano-z-image-turbo-bg-park.jpg",
+   "out": "starter/bg/park",
+   "w": 1280,
+   "h": 720,
+   "manifest": {
+    "name": "City park",
+    "type": "background",
+    "tags": [
+     "background",
+     "modern"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "031-nano-z-image-turbo-bg-station-corridor.jpg",
+   "out": "starter/bg/station-corridor",
+   "w": 1280,
+   "h": 720,
+   "manifest": {
+    "name": "Station corridor",
+    "type": "background",
+    "tags": [
+     "background",
+     "scifi"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "032-nano-z-image-turbo-bg-ship-bridge.jpg",
+   "out": "starter/bg/ship-bridge",
+   "w": 1280,
+   "h": 720,
+   "manifest": {
+    "name": "Ship bridge",
+    "type": "background",
+    "tags": [
+     "background",
+     "scifi"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "033-nano-z-image-turbo-bg-market-deck.jpg",
+   "out": "starter/bg/market-deck",
+   "w": 1280,
+   "h": 720,
+   "manifest": {
+    "name": "Market deck",
+    "type": "background",
+    "tags": [
+     "background",
+     "scifi"
+    ],
+    "pack": "starter"
+   }
+  },
+  {
+   "raw": "034-nano-z-image-turbo-genre-fantasy.jpg",
+   "out": "genre/fantasy",
+   "w": 640,
+   "h": 360,
+   "avif": true
+  },
+  {
+   "raw": "035-nano-z-image-turbo-genre-modern.jpg",
+   "out": "genre/modern",
+   "w": 640,
+   "h": 360,
+   "avif": true
+  },
+  {
+   "raw": "036-nano-z-image-turbo-genre-scifi.jpg",
+   "out": "genre/scifi",
+   "w": 640,
+   "h": 360,
+   "avif": true
+  },
+  {
+   "raw": "037-nano-z-image-turbo-map-fantasy.jpg",
+   "out": "maps/fantasy",
+   "w": 512,
+   "h": 256,
+   "avif": true
+  },
+  {
+   "raw": "038-nano-z-image-turbo-map-modern.jpg",
+   "out": "maps/modern",
+   "w": 512,
+   "h": 256,
+   "avif": true
+  },
+  {
+   "raw": "039-nano-z-image-turbo-map-scifi.jpg",
+   "out": "maps/scifi",
+   "w": 512,
+   "h": 256,
+   "avif": true
+  }
+ ]
+}

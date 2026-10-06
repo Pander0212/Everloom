@@ -44,6 +44,35 @@ Live2D support is optional and off by default. Two Live2D components are involve
 
 Live2D models belong to their creators and carry their own terms (for Live2D's sample models, the Free Material License).
 
+## Artwork
+
+Everloom's bundled pictures (item icons, backgrounds, genre cards, map thumbnails, the demo
+character Mira Vale and her expressions, portraits, empty-state illustrations, Pip, enemy
+portraits) were generated for Everloom in October 2026 through [NanoGPT](https://nano-gpt.com)
+with Z Image Turbo, Qwen Image and Step Image Edit 2 (HiDream, Chroma and two ElectronHub models
+were used only for comparisons; none of their pictures ship). Every call, prompt and keep/reject decision
+is in [docs/art/LEDGER.md](docs/art/LEDGER.md); the prompts and style rules are in
+[docs/art](docs/art/).
+
+Licensing:
+
+- **NanoGPT's Terms of Service** (read 2026-10-05): "As between you and NanoGPT … you own the
+  Output", NanoGPT assigns its rights in the output to the user, and commercial use is allowed,
+  subject to the model providers' terms.
+- **Model licenses**: Z Image Turbo (Apache-2.0) and Qwen Image (Apache-2.0);
+  Step Image Edit 2 is StepFun's hosted model, used through NanoGPT under the terms above. None
+  of these licenses claims rights in generated images.
+- **ElectronHub's Terms of Service** has content rules but no clause on who owns generated images,
+  which is why nothing generated there is shipped.
+- AI-generated images may have little or no copyright protection in some countries. Everloom
+  therefore offers them under the same terms as its code (MIT) as far as any rights exist, with
+  no claim beyond that.
+
+The pictures contain no real people, franchise characters, logos or text; two icons with
+brand-like marks were rejected and redrawn. Every picture is optional and replaceable:
+Settings › Appearance › Illustrations turns the bundled art off, items can use any picture, and
+backgrounds and Mira's expressions are ordinary assets once added to the library.
+
 ## Sound
 
 Everloom ships no music or sound files. Ambience without the owner's own loops is synthesized in the browser with the Web Audio API.

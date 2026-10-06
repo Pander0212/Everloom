@@ -39,7 +39,7 @@ export default function Shop({ arg }: { arg?: string }) {
           })}
         </div>
       ) : (
-        <EmptyState icon={Store} title="No shops yet" body="Shops appear as the story finds them. You can also ask the helper to set one up here." />
+        <EmptyState icon={Store} art="shop" title="No shops yet" body="Shops appear as the story finds them. You can also ask the helper to set one up here." />
       )}
     </ToolSheet>
   );

@@ -1,4 +1,5 @@
 import type { CampaignState, Op } from '@everloom/engine';
+import { ArtPicture } from '@/lib/art';
 import { contentStorageAllowed } from '@/lib/vaultMode';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { Cat, Check, Eraser, Send, X } from 'lucide-react';
@@ -168,8 +169,8 @@ export default function Helper() {
       <div className="flex flex-col gap-3 py-1">
         {!list.length ? (
           <div className="flex flex-col items-center gap-3 py-6 text-center">
-            <motion.span className="flex h-16 w-16 items-center justify-center rounded-full bg-accent-soft text-accent-text" animate={{ y: [0, -4, 0] }} transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}>
-              <Icon icon={Cat} size={32} />
+            <motion.span className="flex h-24 w-24 items-center justify-center overflow-hidden rounded-full bg-accent-soft text-accent-text" animate={{ y: [0, -4, 0] }} transition={{ duration: 2.4, repeat: Infinity, ease: 'easeInOut' }}>
+              <ArtPicture src="helper/pip-wave" avif={false} width={96} height={96} imgClassName="h-24 w-24 object-contain" fallback={<Icon icon={Cat} size={32} />} />
             </motion.span>
             <p className="max-w-[280px] text-sm text-fg-2">Hi, I’m {name}. Ask me about your game, or how something in Everloom works.</p>
             <div className="flex flex-wrap justify-center gap-2">
@@ -185,8 +186,8 @@ export default function Helper() {
           {list.map((m) => (
             <motion.div key={m.id} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} transition={t.base} className={cx('flex gap-2', m.role === 'user' ? 'justify-end' : 'justify-start')}>
               {m.role === 'helper' ? (
-                <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center rounded-full bg-accent-soft text-accent-text">
-                  <Icon icon={Cat} size={18} />
+                <span className="mt-0.5 flex h-8 w-8 flex-none items-center justify-center overflow-hidden rounded-full bg-accent-soft text-accent-text">
+                  <ArtPicture src="helper/pip-idle" avif={false} width={32} height={32} imgClassName="h-8 w-8 object-contain" fallback={<Icon icon={Cat} size={18} />} />
                 </span>
               ) : null}
               <div className={cx('max-w-[85%] rounded-lg px-3 py-2 text-sm', m.role === 'user' ? 'rounded-br-sm bg-accent text-accent-fg' : 'rounded-bl-sm bg-surface-2')}>
@@ -218,8 +219,8 @@ export default function Helper() {
         </AnimatePresence>
         {thinking ? (
           <div className="flex gap-2">
-            <span className="flex h-8 w-8 flex-none items-center justify-center rounded-full bg-accent-soft text-accent-text">
-              <Icon icon={Cat} size={18} />
+            <span className="flex h-8 w-8 flex-none items-center justify-center overflow-hidden rounded-full bg-accent-soft text-accent-text">
+              <ArtPicture src="helper/pip-thinking" avif={false} width={32} height={32} imgClassName="h-8 w-8 object-contain" fallback={<Icon icon={Cat} size={18} />} />
             </span>
             <span className="rounded-lg rounded-bl-sm bg-surface-2 px-3 py-2.5">
               <Typing />

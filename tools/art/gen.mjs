@@ -177,13 +177,18 @@ async function main() {
     if (before.used == null || before.degraded) throw new Error('refusing: the subscription image counter is unavailable');
     if (before.used >= NANO_DAILY_CAP) throw new Error(`refusing: ${before.used} images already used today`);
     const body = { model: a.model, prompt: a.prompt, n: 1 };
-    if (a.res) body.resolution = a.res;
+    let url = `${NANO}/v1/images`;
     if (a.input) {
       const buf = readFileSync(a.input);
       const mime = buf[0] === 0x89 ? 'image/png' : buf[0] === 0xff ? 'image/jpeg' : 'image/webp';
-      body.input_references = [`data:${mime};base64,${buf.toString('base64')}`];
-    }
-    const r = await j(`${NANO}/v1/images`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key }, body: JSON.stringify(body) });
+      const dataUrl = `data:${mime};base64,${buf.toString('base64')}`;
+      // The normalized endpoint ignored input_references for the edit model (calls #40-#43 drew
+      // a stranger at 1024x1024); the edits endpoint takes the picture as imageDataUrl and
+      // refuses a request without it.
+      url = `${NANO}/v1/images/edits`;
+      body.imageDataUrl = dataUrl;
+    } else if (a.res) body.resolution = a.res;
+    const r = await j(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key }, body: JSON.stringify(body) });
     const after = await nanoMeter(key);
     entry.meter = { usedBefore: before.used, usedAfter: after.used, usdBefore: before.usd, usdAfter: after.usd };
     const charged = Number.isFinite(before.usd) && Number.isFinite(after.usd) && after.usd < before.usd - 1e-9;
@@ -201,8 +206,15 @@ async function main() {
       const out = imageOut(r.body);
       if (!out) entry.error = `no image in the response: ${r.text}`;
       else {
-        entry.file = path.basename(await saveImage(out, fileBase));
+        const saved = await saveImage(out, fileBase);
+        entry.file = path.basename(saved);
         entry.ok = !charged;
+        if (a.input && a.model === 'step-image-edit-2') {
+          // A real edit comes back at the input's size; anything else means the input was ignored.
+          const { default: sharp } = await import('sharp');
+          const [i, o] = await Promise.all([sharp(a.input).metadata(), sharp(saved).metadata()]);
+          if (i.width !== o.width || i.height !== o.height) entry.warning = `output ${o.width}x${o.height} differs from input ${i.width}x${i.height}: the input may have been ignored`;
+        }
       }
       if (!entry.counted && !charged) L.stopped = `call #${n} returned but the subscription counter did not move; stopping to be safe`;
     }
@@ -232,7 +244,7 @@ async function main() {
 
   L.entries.push(entry);
   save(L);
-  console.log(JSON.stringify({ n, ok: entry.ok, file: entry.file ?? null, error: entry.error ?? null, nanoToday: nanoToday(L), ehTotal: ehTotal(L), stopped: L.stopped ?? null }));
+  console.log(JSON.stringify({ n, ok: entry.ok, file: entry.file ?? null, error: entry.error ?? null, warning: entry.warning ?? null, nanoToday: nanoToday(L), ehTotal: ehTotal(L), stopped: L.stopped ?? null }));
   if (!entry.ok) process.exitCode = 1;
 }
 

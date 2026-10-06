@@ -3,6 +3,7 @@ import { currentActor, iconForItem } from '@everloom/engine';
 import { ArrowLeftRight, Crown, Footprints, Plus, Shield, Sparkles, Swords, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
+import { ArtPicture } from '@/lib/art';
 import { cx } from '@/lib/format';
 import { t } from '@/lib/motion';
 import { Badge, Button, EmptyState, IconButton, Input, Select, StatBar } from '@/ui';
@@ -66,6 +67,17 @@ function Setup() {
   );
 }
 
+/** Everloom's picture for a common kind of foe, by name. */
+const ENEMY_ART: Array<[RegExp, string]> = [
+  [/\b(wolf|wolves|hound|jackal|warg|dog)\b/i, 'wolf'],
+  [/\b(bandit|thief|brigand|thug|raider|mugger|pirate|outlaw|cutpurse)\b/i, 'bandit'],
+  [/\b(slime|ooze|blob|jelly)\b/i, 'slime'],
+  [/\bdrone\b/i, 'drone'],
+  [/\b(robot|bot|android|mech|automaton|golem|sentry)\b/i, 'robot'],
+  [/\b(wyvern|dragon|drake|wyrm)\b/i, 'wyvern'],
+];
+const enemyArt = (name: string) => ENEMY_ART.find(([re]) => re.test(name))?.[1] ?? null;
+
 function Fighter({ c, b, active, selected, onSelect, leader }: { c: Combatant; b: BattleT; active: boolean; selected: boolean; onSelect?: () => void; leader?: boolean }) {
   const broken = (c.brokenTurns ?? 0) > 0;
   const weakKnown = c.side === 'enemy' && b.log.some((l) => l.text.includes(`hits ${c.name} (weak point)`));
@@ -81,6 +93,7 @@ function Fighter({ c, b, active, selected, onSelect, leader }: { c: Combatant; b
       className={cx('flex flex-col gap-1.5 rounded-md border px-3 py-2 text-left', selected ? 'border-accent bg-accent-soft' : active ? 'border-line-strong' : 'border-line', onSelect && c.alive && 'pressable hover:bg-surface-2')}
     >
       <span className="flex items-center gap-2">
+        {c.side === 'enemy' && enemyArt(c.name) ? <ArtPicture src={`enemies/${enemyArt(c.name)}`} avif={false} width={36} height={36} className="flex-none" imgClassName="h-9 w-9 rounded-sm object-contain" /> : null}
         <span className="min-w-0 flex-1 truncate text-sm font-medium">{c.name}</span>
         {leader ? <Crown size={13} className="flex-none text-accent" aria-label="Leader" /> : null}
         {c.row === 'back' ? <Badge>Back</Badge> : null}

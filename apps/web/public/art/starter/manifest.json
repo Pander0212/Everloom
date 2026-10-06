@@ -1,0 +1,122 @@
+[
+ {
+  "name": "Tavern",
+  "type": "background",
+  "tags": [
+   "background",
+   "fantasy"
+  ],
+  "pack": "starter",
+  "file": "bg/tavern.webp"
+ },
+ {
+  "name": "Forest road",
+  "type": "background",
+  "tags": [
+   "background",
+   "fantasy"
+  ],
+  "pack": "starter",
+  "file": "bg/forest-road.webp"
+ },
+ {
+  "name": "Town square",
+  "type": "background",
+  "tags": [
+   "background",
+   "fantasy"
+  ],
+  "pack": "starter",
+  "file": "bg/town-square.webp"
+ },
+ {
+  "name": "Castle hall",
+  "type": "background",
+  "tags": [
+   "background",
+   "fantasy"
+  ],
+  "pack": "starter",
+  "file": "bg/castle-hall.webp"
+ },
+ {
+  "name": "Cottage",
+  "type": "background",
+  "tags": [
+   "background",
+   "fantasy"
+  ],
+  "pack": "starter",
+  "file": "bg/cottage.webp"
+ },
+ {
+  "name": "Caf\u00e9",
+  "type": "background",
+  "tags": [
+   "background",
+   "modern"
+  ],
+  "pack": "starter",
+  "file": "bg/cafe.webp"
+ },
+ {
+  "name": "City street at dusk",
+  "type": "background",
+  "tags": [
+   "background",
+   "modern"
+  ],
+  "pack": "starter",
+  "file": "bg/city-street.webp"
+ },
+ {
+  "name": "Apartment",
+  "type": "background",
+  "tags": [
+   "background",
+   "modern"
+  ],
+  "pack": "starter",
+  "file": "bg/apartment.webp"
+ },
+ {
+  "name": "City park",
+  "type": "background",
+  "tags": [
+   "background",
+   "modern"
+  ],
+  "pack": "starter",
+  "file": "bg/park.webp"
+ },
+ {
+  "name": "Station corridor",
+  "type": "background",
+  "tags": [
+   "background",
+   "scifi"
+  ],
+  "pack": "starter",
+  "file": "bg/station-corridor.webp"
+ },
+ {
+  "name": "Ship bridge",
+  "type": "background",
+  "tags": [
+   "background",
+   "scifi"
+  ],
+  "pack": "starter",
+  "file": "bg/ship-bridge.webp"
+ },
+ {
+  "name": "Market deck",
+  "type": "background",
+  "tags": [
+   "background",
+   "scifi"
+  ],
+  "pack": "starter",
+  "file": "bg/market-deck.webp"
+ }
+]

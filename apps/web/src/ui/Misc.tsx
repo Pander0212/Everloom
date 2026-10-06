@@ -1,3 +1,4 @@
+import { ArtPicture } from '@/lib/art';
 import type { LucideIcon } from 'lucide-react';
 import { ChevronRight } from 'lucide-react';
 import type { ReactNode } from 'react';
@@ -75,10 +76,12 @@ export function ListRow({ title, subtitle, leading, trailing, onClick, chevron, 
   );
 }
 
-export function EmptyState({ icon, title, body, action, className }: { icon?: LucideIcon; title: string; body?: ReactNode; action?: ReactNode; className?: string }) {
+/** An empty screen. `art` names one of Everloom's spot illustrations (art/empty/<art>), shown instead of the icon while illustrations are on. */
+export function EmptyState({ icon, art, title, body, action, className }: { icon?: LucideIcon; art?: string; title: string; body?: ReactNode; action?: ReactNode; className?: string }) {
+  const iconEl = icon ? <Icon icon={icon} size={28} className="mb-3 text-fg-3" /> : null;
   return (
     <div className={cx('flex flex-col items-center px-6 py-12 text-center', className)}>
-      {icon ? <Icon icon={icon} size={28} className="mb-3 text-fg-3" /> : null}
+      {art ? <ArtPicture src={`empty/${art}`} avif={false} width={160} height={160} className="mb-3 block" imgClassName="h-32 w-32 object-contain" fallback={iconEl} /> : iconEl}
       <p className="text-base font-medium text-fg">{title}</p>
       {body ? <p className="mt-1 max-w-[340px] text-sm text-fg-2">{body}</p> : null}
       {action ? <div className="mt-5">{action}</div> : null}

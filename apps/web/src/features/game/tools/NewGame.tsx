@@ -3,6 +3,7 @@ import { defaultNewGame } from '@everloom/engine';
 import { ArrowLeft, ArrowRight, Plus, Sparkles, Wand2, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useMemo, useState, type ReactNode } from 'react';
+import { ArtPicture } from '@/lib/art';
 import { post } from '@/lib/api';
 import { cx } from '@/lib/format';
 import { t } from '@/lib/motion';
@@ -136,6 +137,7 @@ function StoryStep({ cfg, set, premise, setPremise, fill, filling }: { cfg: NewG
         <Input id="ng-title" value={cfg.title} onChange={(e) => set({ title: e.target.value })} maxLength={120} />
       </Field>
       <Field label="Setting">
+        <ArtPicture key={cfg.style} src={`genre/${cfg.style}`} width={640} height={360} className="mb-2 block overflow-hidden rounded-md" imgClassName="aspect-video h-auto w-full object-cover" />
         <Segmented<Style>
           label="Setting"
           className="w-full"
@@ -211,6 +213,7 @@ function WorldStep({ cfg, set }: { cfg: NewGameConfig; set: Setter }) {
   const num = (v: string, min: number, max: number) => Math.max(min, Math.min(max, Number(v.replace(/\D/g, '')) || min));
   return (
     <>
+      <ArtPicture key={cfg.style} src={`maps/${cfg.style}`} width={512} height={256} className="block overflow-hidden rounded-md" imgClassName="aspect-[2/1] h-auto w-full object-cover" />
       <Field label="World" htmlFor="ng-world">
         <Input id="ng-world" value={L.world} onChange={(e) => setL({ world: e.target.value })} maxLength={80} placeholder={cfg.style === 'scifi' ? 'The Reach' : cfg.style === 'modern' ? 'The City' : 'The Realm'} />
       </Field>

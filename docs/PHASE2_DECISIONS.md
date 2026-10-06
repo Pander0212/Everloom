@@ -488,6 +488,65 @@ start again and find the chat, silent uninstall keeping the data, and the portab
 data next to the exe. Tags (`v1.2.3`) attach both files to a release. Unsigned; the workflow has a
 commented place for a certificate.
 
+**What CI found.** The first run failed in `npm ci`: npm runs `node-gyp rebuild` for the SQLite
+driver even though the package ships a Windows N-API prebuild (its `binding.gyp` only skips the
+build after node-gyp has found Visual Studio, and node-gyp 11 doesn't recognise the runner's VS
+2026). Installing with `--ignore-scripts` and loading the module as the next step proves the
+prebuild works. The second run failed in the smoke test: the mock model's "am I the main module?"
+check compared `file://` plus a Windows path with `import.meta.url` and never matched, so it never
+listened; it now uses `pathToFileURL`. The third run was green.
+
+## Part 7 — Artwork
+
+**Research first.** `docs/art/PROMPTING.md` was written from the services' model lists and docs
+and each model's card and guides before any image was generated. It records the exact model ids
+(and the look-alikes not to use), what the API exposes (prompt, resolution and count only: no
+steps, guidance or negative prompt), and per model how to phrase prompts.
+
+**Budgets that can't be broken by accident.** `tools/art/gen.mjs` is the only way calls were made.
+It allows only the five NanoGPT models, refuses past 95 NanoGPT images per UTC day, refuses
+unless the key reports subscription-only billing, and reads the subscription counter and the cash
+balance before and after every call: a call is accepted only if the counter went up and the
+balance didn't move. A charge, a quota or payment error, or a counter that didn't move stops
+everything until a person looks. One transient outage (a 503 from NanoGPT's rate limiter) tripped
+the stop; it was checked (counter and balance unchanged), recorded, and the rule narrowed. For
+ElectronHub it allows standard (non-premium) models only, reads the price from the model list, and
+counts it before the call, so a timeout still counts. The key couldn't read the account balance
+there, so the ledger's count is the authority. Every call is in `docs/art/LEDGER.md`.
+
+**Comparison, then choices.** The same three briefs (an icon sheet, a character bust, a
+background) went to each candidate; see `docs/art/STYLE.md`. Z Image Turbo made the cleanest
+pixel-art sheets and the best-composed backgrounds; Qwen Image the cleanest anime characters;
+HiDream repeated items on the sheet and over-saturated; Chroma painted a signature. ElectronHub's
+anime SDXL fine-tune drew the best face, but ElectronHub's terms say nothing about who owns
+output, so nothing from there ships. Everything shipped comes from NanoGPT, whose terms assign
+the output to the user.
+
+**Item icons as sheets.** 9 calls made 139 icons: 4×4 sheets, cut by a gap-closing flood fill
+(the icon is grown a few pixels first so light highlights and outline gaps don't let the
+background in), put on one 32×32 grid, mapped to one 64-colour palette (octree, which keeps the
+few blues that median cut lost to the browns), and given a 1-pixel outline. Rejected and redrawn:
+two icons with brand-like marks (an energy-drink claw, a fries "M"), a "flower" that came out as
+an orb, a map that came out as a letter, a plasma cutter that came out as a second pistol.
+
+**Icons in the app.** An item shows the owner's own picture, else a bundled picture they picked,
+else one matched by its name (about 150 rules, specific before general: "Mana Draught" is a blue
+potion, "Shield Cell" a power cell, "Herbalist Primer" a book), else by the engine's icon key,
+else the line icon. Inventory, equipment, shops, crafting results and battle loot use it; the
+item sheet has a picker with the bundled pictures and the owner's icon assets.
+
+**Optional everywhere.** Settings › Appearance › Illustrations (on by default) turns all bundled
+art off; every picture component has the old icon or nothing as its fallback, also when a file is
+missing. Backgrounds and Mira's expressions aren't forced on anyone: "Add Everloom's art" in the
+asset library and "Try the demo character" in the empty library add them as ordinary assets the
+owner can rename, replace or delete; adding again skips what's already there.
+
+**Edits.** Expressions come from one neutral portrait through Step Image Edit 2, each from the
+original rather than from the previous edit. The normalized image endpoint accepted the picture
+for this model but didn't pass it on (four edits drew a stranger at 1024×1024 before this was
+caught). Edits now go through the edits endpoint, which refuses a request without a picture, and
+the tool flags any edit whose size differs from its input.
+
 ## Part 2 — Character sources
 
 **What was actually broken.** Checked live on 2026-10-05 before changing anything:

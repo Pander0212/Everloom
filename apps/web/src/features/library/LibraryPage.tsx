@@ -144,6 +144,16 @@ export default function LibraryPage() {
     await refresh();
     if (ok) toast({ title: ok === 1 ? 'Character imported' : `${ok} characters imported`, tone: 'success' });
   };
+  const addDemo = async () => {
+    try {
+      const c = await post<{ id: string }>('/api/characters/demo', {});
+      await refresh();
+      toast({ title: 'Mira Vale is in your library', lines: ['A demo character with expressions. Start a chat with her any time.'], tone: 'success' });
+      setOpenId(c.id);
+    } catch (e) {
+      toastError(e);
+    }
+  };
   const create = async () => {
     try {
       const c = await post('/api/characters', { card: { name: 'New character' } });
@@ -286,12 +296,13 @@ export default function LibraryPage() {
               render={(c) => <LibraryCard c={c} mode={view} selecting={selecting} selected={selected.has(c.id)} showInfo={settings.data?.library.cardInfo !== false} onOpen={onOpen} onToggle={onToggle} onMenu={onMenu} />}
             />
           ) : (
-            <EmptyState title="Nothing matches" body="Try fewer filters." action={<Button variant="ghost" onClick={lib.reset}>Clear filters</Button>} />
+            <EmptyState art="search" title="Nothing matches" body="Try fewer filters." action={<Button variant="ghost" onClick={lib.reset}>Clear filters</Button>} />
           )}
         </>
       ) : (
         <EmptyState
           icon={Users}
+          art="characters"
           title="No characters yet"
           body="Import SillyTavern cards (PNG, WebP or JSON), a bundle (.zip), or create one."
           action={
@@ -301,6 +312,9 @@ export default function LibraryPage() {
               </FileButton>
               <Button variant="ghost" onClick={create}>
                 Create
+              </Button>
+              <Button variant="ghost" onClick={addDemo}>
+                Try the demo character
               </Button>
             </div>
           }

@@ -52,7 +52,7 @@ export default function Journal() {
           })}
         </div>
       ) : (
-        <EmptyState icon={BookMarked} title={tab === 'active' ? 'No active quests' : 'Nothing here yet'} body={tab === 'active' ? 'Goals from the story are tracked here.' : undefined} />
+        <EmptyState icon={BookMarked} art="quests" title={tab === 'active' ? 'No active quests' : 'Nothing here yet'} body={tab === 'active' ? 'Goals from the story are tracked here.' : undefined} />
       )}
       <Sheet
         open={!!q}

@@ -24,6 +24,9 @@ export default function AtmosphereTool() {
   const settings = useSettings();
   const gen = useImageGen();
   const backgrounds = useQuery({ queryKey: ['media', 'background'], queryFn: () => get<MediaItem[]>('/api/media', { kind: 'background' }) });
+  // Backgrounds in the asset library (Everloom's own, once added there, and the owner's).
+  const libraryBgs = useQuery({ queryKey: ['assets', 'backgrounds'], queryFn: () => get<{ assets: Array<{ id: string; url: string; name: string }> }>('/api/assets', { type: 'background' }) });
+  const allBgs = [...(backgrounds.data ?? []).map((m) => ({ id: m.id, url: m.url, name: '' })), ...(libraryBgs.data?.assets ?? [])];
   const current = chat.metadata.background ?? null;
 
   const setBackground = async (id: string | null) => {
@@ -88,10 +91,10 @@ export default function AtmosphereTool() {
               </Button>
             ) : null}
           </div>
-          {backgrounds.data?.length ? (
+          {allBgs.length ? (
             <div className="mt-3 grid grid-cols-3 gap-2 sm:grid-cols-4">
-              {backgrounds.data.slice(0, 24).map((m) => (
-                <button key={m.id} onClick={() => setBackground(m.id)} aria-label="Use this background" aria-pressed={current === m.id} className={cx('pressable aspect-video overflow-hidden rounded-md border-2', current === m.id ? 'border-accent' : 'border-transparent')}>
+              {allBgs.slice(0, 48).map((m) => (
+                <button key={m.id} onClick={() => setBackground(m.id)} aria-label={m.name ? `Use the background ${m.name}` : 'Use this background'} title={m.name || undefined} aria-pressed={current === m.id} className={cx('pressable aspect-video overflow-hidden rounded-md border-2', current === m.id ? 'border-accent' : 'border-transparent')}>
                   <img src={m.url} alt="" loading="lazy" className="h-full w-full object-cover" />
                 </button>
               ))}

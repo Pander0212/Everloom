@@ -152,7 +152,7 @@ export default function Inventory() {
           </div>
         )
       ) : (
-        <EmptyState icon={Backpack} title={items.length ? 'Nothing matches' : 'Your bag is empty'} body={items.length ? undefined : 'Items you pick up in the story show up here.'} />
+        <EmptyState icon={Backpack} art={items.length ? 'search' : 'bag'} title={items.length ? 'Nothing matches' : 'Your bag is empty'} body={items.length ? undefined : 'Items you pick up in the story show up here.'} />
       )}
 
       <Sheet open={!!it} onOpenChange={(o) => !o && setOpenId(null)} title={it?.name ?? ''} description={it ? `${it.category}${it.slot ? ` · ${it.slot}` : ''}${it.qty > 1 ? ` · ×${it.qty}` : ''}` : undefined} size="md">

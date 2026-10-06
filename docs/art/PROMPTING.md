@@ -21,8 +21,8 @@ What we may call, and nothing else:
 
 ## How the NanoGPT calls are made (and kept free)
 
-- `POST https://api.nano-gpt.com/api/v1/images` with JSON `{model, prompt, n: 1, resolution}` and,
-  for edits, `input_references: ["data:image/png;base64,…"]`. Only `resolution` and `n` (plus
+- `POST https://api.nano-gpt.com/api/v1/images` with JSON `{model, prompt, n: 1, resolution}`; edits
+  go to `POST /api/v1/images/edits` with `imageDataUrl` (see Step Image Edit 2). Only `resolution` and `n` (plus
   input images on the two image-input models) are exposed. **Steps, guidance (CFG), sampler and
   negative prompt can't be set through this endpoint**, so everything below is about the prompt
   text and the resolution. Each provider runs its model's defaults (HiDream Full about 50
@@ -121,8 +121,12 @@ What we may call, and nothing else:
 
 - **What it is:** StepFun's 3.5B instruction editor. It takes **one** input image (at most
   4096×4096, png/jpeg/webp) and returns the edited image **at the input's size**.
-- **How to pass the image:** `input_references: ["data:image/png;base64,…"]`. Resolution may be
-  `auto` (follows the input) or one of 1024x1024, 768x1360, 896x1184, 1360x768, 1184x896.
+- **How to pass the image:** use the edits endpoint, `POST /api/v1/images/edits` with JSON
+  `{model, prompt, imageDataUrl: "data:image/png;base64,…"}`. *Found the hard way:* the normalized
+  `POST /api/v1/images` with `input_references` was accepted but the picture never reached this
+  model; it drew an unrelated person at 1024×1024 (ledger #40–#44, four images lost). The edits
+  endpoint refuses a request without the picture (`missing_image_input`), and a correct edit comes
+  back at the input's size, which `gen.mjs` now checks for. Resolution follows the input.
 - **Prompt limit:** 512 characters (negative prompt too, but this endpoint doesn't pass one).
 - **How to phrase edits:** one change per call, imperative, naming what stays.
   1. What to change: "Change her expression to a warm open-mouthed smile with closed eyes."

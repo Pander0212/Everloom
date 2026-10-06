@@ -49,8 +49,15 @@ export default defineConfig({
         navigateFallback: '/index.html',
         navigateFallbackDenylist: [/^\/api\//, /^\/media\//],
         globPatterns: ['**/*.{js,css,html,woff2,svg,png}'],
+        // Everloom's pictures load when a screen needs them (and are cached then), not at install.
+        globIgnores: ['art/**'],
         maximumFileSizeToCacheInBytes: 4 * 1024 * 1024,
         runtimeCaching: [
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/art/'),
+            handler: 'StaleWhileRevalidate',
+            options: { cacheName: 'art', expiration: { maxEntries: 400, maxAgeSeconds: 60 * 60 * 24 * 90 } },
+          },
           {
             urlPattern: ({ url }) => url.pathname.startsWith('/media/'),
             handler: 'CacheFirst',

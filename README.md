@@ -187,6 +187,10 @@ Switch a story to **stage mode** (the book icon in the chat header). The story p
 
 **Sprites** can be uploaded per expression, or kept in the **Asset library** (sprites, backgrounds, CGs and icons with tags and search). A zip of pictures imports in one go: folders become tags, folders called `backgrounds`, `cgs` or `icons` set the type, and pictures named after emotions (`happy.png`, `sad.png`, `neutral.png`…) become an expression set you can give to any character.
 
+### Everloom's own pictures
+
+Everloom comes with pixel-art icons for items (matched by name, in the bag, shops, crafting and loot; pick a different one from an item's **Picture** button), genre cards and maps in the new-game screens, small illustrations on empty screens, Pip in the helper and portraits for common foes in battle. In the **Asset library**, **Add Everloom's art** adds twelve backgrounds (fantasy, modern, sci-fi) and six portraits; in an empty character library, **Try the demo character** adds Mira Vale, a cartographer with an expression set. All of it was generated for Everloom (see [CREDITS](CREDITS.md) and [docs/art](docs/art/)). Turn it all off in **Settings › Appearance › Illustrations**; replace any of it like your own pictures.
+
 ### Music and ambience
 
 Nothing ships with Everloom and nothing plays until you turn it on (**Stage & sound → Sound**) and touch the page.

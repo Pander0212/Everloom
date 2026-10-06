@@ -11,6 +11,7 @@ on:
       - 'apps/**'
       - 'packages/**'
       - 'package-lock.json'
+      - 'tests/mock-llm/**'
       - '.github/workflows/windows.yml'
   workflow_dispatch:
 

@@ -4,9 +4,9 @@
  */
 import { EMOTIONS, type CharacterDTO, type ChatDTO } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { FileArchive, Image as ImageIcon, Search, Trash2, Upload } from 'lucide-react';
+import { FileArchive, Image as ImageIcon, Search, Sparkles, Trash2, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
-import { del, get, patch, upload } from '@/lib/api';
+import { del, get, patch, post, upload } from '@/lib/api';
 import { cx } from '@/lib/format';
 import { qk } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
@@ -50,6 +50,20 @@ export function AssetLibrary({ open, onOpenChange, cast, chat }: { open: boolean
   }, [text]);
   const lib = useQuery({ queryKey: [...KEY, q, type], queryFn: () => get<Library>('/api/assets', { q, ...(type !== 'all' ? { type } : {}) }), enabled: open });
   const refresh = () => qc.invalidateQueries({ queryKey: KEY });
+  const starter = useQuery({ queryKey: [...KEY, 'starter'], queryFn: () => get<{ available: boolean; count: number }>('/api/assets/starter'), enabled: open, staleTime: Infinity });
+  const [adding, setAdding] = useState(false);
+  const addStarter = async () => {
+    setAdding(true);
+    try {
+      const r = await post<{ added: number; skipped: number }>('/api/assets/starter', {});
+      toast({ title: r.added ? `Added ${r.added} of Everloom's pictures` : "Everloom's pictures are already here", lines: r.added ? ['Tagged “everloom”. Rename, replace or delete them like any other.'] : undefined, tone: 'success' });
+      await refresh();
+    } catch (e) {
+      toastError(e);
+    } finally {
+      setAdding(false);
+    }
+  };
 
   const giveSet = async (c: CharacterDTO, expressions: Record<string, string>) => {
     try {
@@ -111,6 +125,11 @@ export function AssetLibrary({ open, onOpenChange, cast, chat }: { open: boolean
           >
             Import a zip
           </FileButton>
+          {starter.data?.available ? (
+            <Button variant="ghost" icon={Sparkles} loading={adding} onClick={addStarter}>
+              Add Everloom's art
+            </Button>
+          ) : null}
         </div>
         <p className="-mt-2 text-xs text-fg-2">In a zip, folders become tags; folders named backgrounds, cgs or icons set the type, and pictures named after emotions (happy.png, sad.png…) become an expression set.</p>
 

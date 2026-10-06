@@ -161,6 +161,7 @@ export default function ChatsPage() {
       ) : (
         <EmptyState
           icon={MessagesSquare}
+          art={view.q || view.kind !== 'all' ? 'search' : 'chats'}
           title={view.q || view.kind !== 'all' ? 'No chats match' : 'No chats yet'}
           body={view.q ? (view.messages ? undefined : 'Turn on “Search inside messages” to look through what was said.') : 'Pick a character to start your first story.'}
           action={
