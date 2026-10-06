@@ -1670,6 +1670,28 @@
     "usdAfter": 0.01190711
    },
    "file": "074-nano-qwen-image-enemy-bandit.jpg"
+  },
+  {
+   "n": 75,
+   "date": "2026-10-06",
+   "at": "2026-10-06T06:36:58.647Z",
+   "service": "nano",
+   "model": "qwen-image",
+   "label": "enemy-slime",
+   "prompt": "Children's adventure game monster portrait, friendly anime cartoon style, clean line art, flat soft colours, bold readable shapes. A round glossy green jelly slime monster with grumpy angry eyes, sitting on its own small shadow. Clean and unhurt, spotless, no wounds, no stains, no red splashes, nothing scary. Full body, centred, on a plain flat white background. No text, no logo, no watermark.",
+   "res": "1024x1024",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": null,
+   "meter": {
+    "usedBefore": 2,
+    "usedAfter": 3,
+    "usdBefore": 0.01190711,
+    "usdAfter": 0.01190711
+   },
+   "file": "075-nano-qwen-image-enemy-slime.jpg"
   }
  ],
  "resumed": [
