@@ -2,7 +2,7 @@
 import { Box, Plus, RefreshCw, Shirt, Trash2, Upload } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
 import { useNavigate } from 'react-router';
-import { deleteClip, refreshBlender, setBlenderPath, useAvatarClips, useAvatars, useBlender } from '@/features/avatars/api';
+import { deleteClip, refreshBlender, setBlenderPath, useAvatarClips, useAvatars, useBlender, useBlenderJobs } from '@/features/avatars/api';
 import { usePrefs3D, type Quality3D } from '@/features/avatars/prefs';
 import { deletePack, importPack, setPackEnabled, usePacks } from '@/features/avatars/packs';
 import { toastError } from '@/lib/store';
@@ -16,6 +16,7 @@ export default function ThreeDSection() {
   const navigate = useNavigate();
   const avatars = useAvatars();
   const blender = useBlender();
+  const jobs = useBlenderJobs(!!blender.data?.found);
   const [path, setPath] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const clips = useAvatarClips();
@@ -203,6 +204,19 @@ export default function ThreeDSection() {
             </Button>
           </div>
         </Field>
+        {jobs.data?.length ? (
+          <div className="mt-2" data-testid="blender-jobs">
+            <p className="mb-1 text-sm font-medium">Recent jobs</p>
+            {jobs.data.slice(0, 8).map((j) => (
+              <details key={j.id} className="border-t border-line py-1.5 text-sm">
+                <summary className="cursor-pointer">
+                  {j.op} · {j.state === 'running' ? 'running…' : j.state === 'waiting' ? 'waiting' : j.state === 'failed' ? `failed: ${j.error}` : `done in ${((j.ms ?? 0) / 1000).toFixed(1)} s`}
+                </summary>
+                <pre className="mt-1 max-h-48 overflow-auto whitespace-pre-wrap rounded bg-surface-2 p-2 text-xs">{j.log || 'No output.'}</pre>
+              </details>
+            ))}
+          </div>
+        ) : null}
       </Section>
     </>
   );

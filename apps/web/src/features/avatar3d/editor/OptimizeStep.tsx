@@ -1,7 +1,7 @@
 /** Step 5: how hard to compress (texture size, KTX2, how simple the phone copy is), and the result. */
 import { useState } from 'react';
-import { fmtBytes, reprocessAvatar, type AvatarDetail } from '@/features/avatars/api';
-import { toastError } from '@/lib/store';
+import { cleanupAvatar, fmtBytes, renderTurntable, reprocessAvatar, useBlender, type AvatarDetail } from '@/features/avatars/api';
+import { toast, toastError } from '@/lib/store';
 import { Button, Field, SectionTitle, Select, Slider, Switch } from '@/ui';
 
 export function OptimizeStep({ avatar }: { avatar: AvatarDetail }) {
@@ -11,6 +11,10 @@ export function OptimizeStep({ avatar }: { avatar: AvatarDetail }) {
   const [lowRatio, setLowRatio] = useState(prev.lowRatio ?? 0.5);
   const [busy, setBusy] = useState(false);
   const r = avatar.info.report;
+  const blender = useBlender();
+  const [budget, setBudget] = useState(60_000);
+  const [turntable, setTurntable] = useState<string | null>(null);
+  const [bBusy, setBBusy] = useState<string | null>(null);
   return (
     <div className="flex flex-col gap-4">
       {r ? (
@@ -68,6 +72,50 @@ export function OptimizeStep({ avatar }: { avatar: AvatarDetail }) {
       >
         Optimize again
       </Button>
+      {blender.data?.found && avatar.kind === 'imported' ? (
+        <>
+          <SectionTitle>With Blender</SectionTitle>
+          <Field label={`Triangle budget (${Math.round(budget / 1000)}k)`} hint="Merges duplicate points, simplifies meshes over the budget (faces with expressions are kept as they are) and shrinks textures, then prepares the model again.">
+            <Slider label="Triangle budget" min={10_000} max={150_000} step={5_000} value={budget} onChange={setBudget} />
+          </Field>
+          <div className="flex flex-wrap gap-2">
+            <Button
+              variant="secondary"
+              loading={bBusy === 'clean'}
+              onClick={async () => {
+                setBBusy('clean');
+                try {
+                  const res = await cleanupAvatar(avatar.id, { maxTriangles: budget, maxTexture });
+                  toast({ title: 'Cleaned up', lines: [`${res.trianglesBefore.toLocaleString()} → ${res.trianglesAfter.toLocaleString()} triangles`, res.texturesResized ? `${res.texturesResized} textures made smaller` : ''].filter(Boolean), tone: 'success' });
+                } catch (e) {
+                  toastError(e);
+                } finally {
+                  setBBusy(null);
+                }
+              }}
+            >
+              Clean up
+            </Button>
+            <Button
+              variant="secondary"
+              loading={bBusy === 'turn'}
+              onClick={async () => {
+                setBBusy('turn');
+                try {
+                  setTurntable((await renderTurntable(avatar.id)).url);
+                } catch (e) {
+                  toastError(e);
+                } finally {
+                  setBBusy(null);
+                }
+              }}
+            >
+              Render a turntable
+            </Button>
+          </div>
+          {turntable ? <img src={turntable} alt="The model from eight sides" className="w-full rounded-md bg-surface-2" /> : null}
+        </>
+      ) : null}
     </div>
   );
 }

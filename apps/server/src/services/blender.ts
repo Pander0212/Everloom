@@ -179,7 +179,7 @@ export function blenderQueueLength() {
 }
 
 export interface BlenderJob {
-  op: 'convert' | 'motion';
+  op: 'convert' | 'motion' | 'optimize' | 'fit' | 'render';
   /** Input files by name (written into the job folder). */
   files: Record<string, Buffer>;
   input: string;
@@ -188,12 +188,35 @@ export interface BlenderJob {
   extra?: Record<string, unknown>;
 }
 
+/** Recent jobs, newest first (in memory): what ran, how it went, and the end of Blender's log. */
+export interface BlenderJobLog {
+  id: number;
+  owner: string;
+  op: string;
+  state: 'waiting' | 'running' | 'done' | 'failed';
+  queuedAt: number;
+  startedAt: number | null;
+  ms: number | null;
+  error: string | null;
+  log: string;
+}
+const jobLog: BlenderJobLog[] = [];
+let jobSeq = 0;
+export function blenderJobs(owner: string): Array<Omit<BlenderJobLog, 'owner'>> {
+  return jobLog.filter((j) => j.owner === owner).map(({ owner: _o, ...j }) => j);
+}
+
 export async function runBlenderJob(ctx: AppContext, owner: string, job: BlenderJob): Promise<{ output: Buffer; result: Record<string, unknown> }> {
   const info = await findBlender(ctx, owner);
   if (!info.found || !info.path) throw new HttpError(424, 'This file type needs Blender, which was not found. Install Blender (free, blender.org) or set its path in Settings → 3D.', 'blender_missing');
   waiting.n++;
+  const entry: BlenderJobLog = { id: ++jobSeq, owner, op: job.op, state: 'waiting', queuedAt: Date.now(), startedAt: null, ms: null, error: null, log: '' };
+  jobLog.unshift(entry);
+  jobLog.length = Math.min(jobLog.length, 30);
   const task = chain.then(async () => {
     waiting.n--;
+    entry.state = 'running';
+    entry.startedAt = Date.now();
     const dir = jobDir();
     try {
       for (const [name, bytes] of Object.entries(job.files)) {
@@ -202,6 +225,8 @@ export async function runBlenderJob(ctx: AppContext, owner: string, job: Blender
       }
       writeFileSync(path.join(dir, 'job.json'), JSON.stringify({ op: job.op, input: job.input, output: job.output, ...(job.extra ?? {}) }));
       const r = await run(info.path!, ['--background', '--factory-startup', '--disable-autoexec', '--python-exit-code', '3', '--python', workerScript(), '--', path.join(dir, 'job.json')], { cwd: dir, timeoutMs: job.timeoutMs ?? 5 * 60_000 });
+      // The log never holds file contents; paths are the job's own temporary folder.
+      entry.log = r.out.split(dir).join('<job>').slice(-4000);
       if (r.timedOut) throw new HttpError(504, 'Blender took too long and was stopped', 'blender_timeout');
       const res = existsSync(path.join(dir, 'result.json')) ? (JSON.parse(readFileSync(path.join(dir, 'result.json'), 'utf8')) as Record<string, unknown>) : null;
       if (!res?.ok) {
@@ -211,8 +236,14 @@ export async function runBlenderJob(ctx: AppContext, owner: string, job: Blender
       }
       const out = path.join(dir, job.output);
       if (!existsSync(out)) throw new HttpError(422, 'Blender produced no file', 'blender_failed');
+      entry.state = 'done';
       return { output: readFileSync(out), result: res };
+    } catch (e) {
+      entry.state = 'failed';
+      entry.error = (e as Error).message.slice(0, 300);
+      throw e;
     } finally {
+      entry.ms = Date.now() - (entry.startedAt ?? Date.now());
       rmSync(dir, { recursive: true, force: true });
     }
   });

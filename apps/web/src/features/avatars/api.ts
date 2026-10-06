@@ -180,3 +180,30 @@ export async function createCodeAvatar(name: string, recipe: AvatarRecipe): Prom
 
 /** A recipe from a character's description: the utility model when there is one, else the text alone. */
 export const fillRecipe = (body: { characterId?: string; name?: string; text?: string }) => post<{ recipe: AvatarRecipe; source: 'model' | 'text' }>('/api/avatars/recipe', body);
+
+/** A garment mesh fitted to the avatar's body by the Blender worker (experimental). */
+export function fitGarment(id: string, file: File, slot: string) {
+  return api<{ model: string; modelLow: string; hides: string[]; triangles: number }>(`/api/avatars/${id}/fit-garment`, { method: 'POST', raw: file, contentType: 'application/octet-stream', query: { filename: file.name, slot } });
+}
+
+export interface BlenderJobInfo {
+  id: number;
+  op: string;
+  state: 'waiting' | 'running' | 'done' | 'failed';
+  queuedAt: number;
+  startedAt: number | null;
+  ms: number | null;
+  error: string | null;
+  log: string;
+}
+export const useBlenderJobs = (enabled = true) =>
+  useQuery({ queryKey: ['blender-jobs'], queryFn: () => get<BlenderJobInfo[]>('/api/blender/jobs'), enabled, refetchInterval: (q) => ((q.state.data as BlenderJobInfo[] | undefined)?.some((j) => j.state === 'waiting' || j.state === 'running') ? 1500 : false) });
+
+/** Blender: clean the model up to a triangle budget and smaller textures, then prepare it again. */
+export async function cleanupAvatar(id: string, opts: { maxTriangles: number; maxTexture: number }) {
+  const r = await post<{ trianglesBefore: number; trianglesAfter: number; texturesResized: number }>(`/api/avatars/${id}/cleanup`, opts);
+  refresh(id);
+  void queryClient.invalidateQueries({ queryKey: ['blender-jobs'] });
+  return r;
+}
+export const renderTurntable = (id: string) => post<{ url: string; frames: number }>(`/api/avatars/${id}/turntable`, {});

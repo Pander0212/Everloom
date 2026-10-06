@@ -7,7 +7,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import { AvatarConfigSchema, installedEmotes, modelUrl, type AvatarConfig, type AvatarKind } from '@everloom/engine';
+import { AvatarConfigSchema, installedEmotes, modelUrl, regionOfBone, type AvatarConfig, type AvatarKind, type GarmentSlot, type HumanBone } from '@everloom/engine';
 import { HttpError, type AppContext } from '../../context.js';
 import { newId } from '../../security/crypto.js';
 import { deleteMedia, mediaUrl, readMedia, saveImage, saveModelFile } from '../media.js';
@@ -15,6 +15,7 @@ import { runBlenderJob } from '../blender.js';
 import { isGlb, parseGlb } from './glb.js';
 import { inspectModel, type ModelInfo } from './inspect.js';
 import { optimizeModel, type OptimizeOptions, type OptimizeResult } from './optimize.js';
+import sharp from 'sharp';
 
 export interface AvatarRow {
   id: string;
@@ -338,4 +339,75 @@ export function garmentLibrary(ctx: AppContext, owner: string, family: string) {
     }
   }
   return out;
+}
+
+const FIT_INPUT = /\.(glb|gltf|obj|fbx|dae)$/i;
+
+/**
+ * Fits a garment mesh (from a modelling tool or an image-to-3D service) to this avatar's body with
+ * the Blender worker: aligned to its slot, wrapped just outside the skin, weighted to the skeleton.
+ * Returns the garment model and the body regions it covers (for hiding skin).
+ */
+export async function fitGarment(ctx: AppContext, owner: string, id: string, bytes: Buffer, opts: { filename: string; slot: GarmentSlot; offset?: number }) {
+  const row = getAvatarRow(ctx, owner, id);
+  if (!FIT_INPUT.test(opts.filename)) throw new HttpError(415, 'Garments to fit can be GLB, OBJ, FBX or DAE files');
+  const src = row.source_media ? readMedia(ctx, owner, row.source_media) : row.model_media ? readMedia(ctx, owner, row.model_media) : null;
+  if (!src) throw new HttpError(400, 'This avatar has no model file to fit to');
+  const bodyExt = (src.row.meta as { filename?: string } | null)?.filename?.match(/\.(\w+)$/)?.[1]?.toLowerCase() ?? 'glb';
+  const cfg = parseConfig(row.config);
+  const garmentName = `garment.${opts.filename.split('.').pop()!.toLowerCase()}`;
+  const r = await runBlenderJob(ctx, owner, {
+    op: 'fit',
+    files: { [`body.${['glb', 'vrm', 'fbx', 'obj', 'dae'].includes(bodyExt) ? (bodyExt === 'vrm' ? 'glb' : bodyExt) : 'glb'}`]: src.bytes, [garmentName]: bytes },
+    input: garmentName,
+    output: 'fitted.glb',
+    extra: { body: `body.${['glb', 'vrm', 'fbx', 'obj', 'dae'].includes(bodyExt) ? (bodyExt === 'vrm' ? 'glb' : bodyExt) : 'glb'}`, slot: opts.slot, offset: opts.offset ?? 0.006, bones: cfg.boneMap, name: opts.filename.replace(/\.[^.]+$/, '').slice(0, 60) },
+    timeoutMs: 4 * 60_000,
+  });
+  // Covered regions: bones (by the file's names) whose skin is mostly under the garment.
+  const byFileName = new Map(Object.entries(cfg.boneMap).map(([canon, file]) => [file, canon as HumanBone]));
+  const coverage = (r.result.coverage ?? {}) as Record<string, number>;
+  const regions = new Set<string>();
+  for (const [bone, frac] of Object.entries(coverage)) {
+    const canon = byFileName.get(bone);
+    if (canon && frac >= 0.6) regions.add(regionOfBone(canon));
+  }
+  const saved = await addOutfitModel(ctx, owner, id, r.output, opts.filename);
+  return { ...saved, hides: [...regions], coverage, triangles: r.result.triangles as number };
+}
+
+/** Cleans up the avatar's source with Blender (merge, decimate to a budget, shrink textures) and prepares it again. */
+export async function cleanupAvatar(ctx: AppContext, owner: string, id: string, opts: { maxTriangles: number; maxTexture: number }) {
+  const row = getAvatarRow(ctx, owner, id);
+  if (!row.source_media || row.kind !== 'imported') throw new HttpError(400, 'Only imported models can be cleaned up');
+  const src = readMedia(ctx, owner, row.source_media);
+  const name = (src.row.meta as { filename?: string } | null)?.filename ?? 'model.glb';
+  const ext = (name.match(/\.(\w+)$/)?.[1] ?? 'glb').toLowerCase();
+  const input = `source.${['fbx', 'obj', 'dae', 'pmx', 'pmd'].includes(ext) ? ext : 'glb'}`;
+  const r = await runBlenderJob(ctx, owner, { op: 'optimize', files: { [input]: src.bytes }, input, output: 'clean.glb', extra: { maxTriangles: opts.maxTriangles, maxTexture: opts.maxTexture } });
+  const saved = saveModelFile(ctx, owner, r.output, { kind: 'model-source', ext: 'glb', meta: { filename: name.replace(/\.\w+$/, '.glb'), cleaned: true } });
+  setStatus(ctx, owner, id, { source_media: saved.id, format: 'glb' });
+  deleteMedia(ctx, owner, row.source_media);
+  reprocessAvatar(ctx, owner, id, {});
+  return { ...r.result, avatar: avatarSummary(getAvatarRow(ctx, owner, id)) };
+}
+
+/** A turntable (8 views in a strip) rendered by Blender, saved as a picture. */
+export async function renderTurntable(ctx: AppContext, owner: string, id: string) {
+  const row = getAvatarRow(ctx, owner, id);
+  const mediaId = row.source_media ?? row.model_media;
+  if (!mediaId) throw new HttpError(400, 'This avatar has no model file to render');
+  const src = readMedia(ctx, owner, mediaId);
+  const name = (src.row.meta as { filename?: string } | null)?.filename ?? 'model.glb';
+  const ext = (name.match(/\.(\w+)$/)?.[1] ?? 'glb').toLowerCase();
+  const input = `model.${['fbx', 'obj', 'dae'].includes(ext) ? ext : 'glb'}`;
+  const r = await runBlenderJob(ctx, owner, { op: 'render', files: { [input]: src.bytes }, input, output: 'turntable.zip', extra: { frames: 8, size: 256, samples: 12 }, timeoutMs: 6 * 60_000 });
+  const { unzipSync } = await import('fflate');
+  const frames = Object.entries(unzipSync(new Uint8Array(r.output))).sort(([a], [b]) => a.localeCompare(b)).map(([, b]) => Buffer.from(b));
+  const strip = await sharp({ create: { width: 256 * frames.length, height: 256, channels: 4, background: { r: 0, g: 0, b: 0, alpha: 0 } } })
+    .composite(frames.map((input, i) => ({ input, left: i * 256, top: 0 })))
+    .png()
+    .toBuffer();
+  const img = await saveImage(ctx, owner, strip, { kind: 'avatar-turntable', maxDim: 4096, meta: { avatar: id } });
+  return { url: mediaUrl(img.id), frames: frames.length };
 }

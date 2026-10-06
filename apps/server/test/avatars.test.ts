@@ -360,4 +360,50 @@ describe.skipIf(!BLENDER || !existsSync(BLENDER))('Blender worker', () => {
       rmSync(tmp, { recursive: true, force: true });
     }
   }, 240_000);
+  it('fits a garment mesh to the body: weights, covered regions, a garment model', async () => {
+    // A plain tube (a rough sleeveless top) as an OBJ, the kind of mesh an image-to-3D service gives.
+    const v: string[] = [];
+    const f: string[] = [];
+    const R = 24;
+    const H = 12;
+    for (let j = 0; j <= H; j++) for (let i = 0; i < R; i++) v.push(`v ${(0.3 * Math.cos((i / R) * Math.PI * 2)).toFixed(4)} ${(j / H - 0.5).toFixed(4)} ${(0.3 * Math.sin((i / R) * Math.PI * 2)).toFixed(4)}`);
+    for (let j = 0; j < H; j++) for (let i = 0; i < R; i++) {
+      const a = j * R + i + 1;
+      const b = j * R + ((i + 1) % R) + 1;
+      f.push(`f ${a} ${b} ${b + R} ${a + R}`);
+    }
+    c = await createClient();
+    const up = await c.req('POST', '/api/avatars?filename=Mannequin.glb', MANNEQUIN, oct);
+    await avatarSettled(up.json.id);
+    const r = await c.req('POST', `/api/avatars/${up.json.id}/fit-garment?filename=tube.obj&slot=top&offset=0.008`, Buffer.from([...v, ...f].join('\n')), oct);
+    expect(r.status).toBe(200);
+    expect(r.json.model).toMatch(/^m_/);
+    expect(r.json.hides).toEqual(expect.arrayContaining(['belly', 'chest']));
+    expect(r.json.hides).not.toContain('feet');
+    const g = parseGlb((await c.req('GET', `/media/${r.json.model}`)).raw);
+    expect(g.json.skins?.length).toBeGreaterThan(0);
+  }, 240_000);
+
+  it('cleans a model up to a triangle budget and renders a turntable; jobs are listed', async () => {
+    c = await createClient();
+    const up = await c.req('POST', '/api/avatars?filename=Mannequin.glb', MANNEQUIN, oct);
+    await avatarSettled(up.json.id);
+    const before = (await c.req('GET', `/api/avatars/${up.json.id}`)).json.triangles;
+    const r = await c.req('POST', `/api/avatars/${up.json.id}/cleanup`, { maxTriangles: 2000, maxTexture: 512 });
+    expect(r.status).toBe(200);
+    expect(r.json.trianglesAfter).toBeLessThan(r.json.trianglesBefore);
+    await avatarSettled(up.json.id);
+    const d = (await c.req('GET', `/api/avatars/${up.json.id}`)).json;
+    expect(d.status).toBe('ready');
+    expect(d.triangles).toBeLessThan(before);
+    const t = await c.req('POST', `/api/avatars/${up.json.id}/turntable`);
+    expect(t.status).toBe(200);
+    expect(t.json.frames).toBe(8);
+    const img = await sharp((await c.req('GET', t.json.url)).raw).metadata();
+    expect(img.width).toBe(2048);
+    const jobs = (await c.req('GET', '/api/blender/jobs')).json;
+    expect(jobs.map((j: any) => j.op)).toEqual(expect.arrayContaining(['optimize', 'render']));
+    // Job folders never show in the log (they are masked as <job>).
+    expect(jobs.every((j: any) => j.state === 'done' && !/tmp\/blender\//.test(j.log))).toBe(true);
+  }, 400_000);
 });

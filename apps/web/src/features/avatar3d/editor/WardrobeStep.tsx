@@ -8,7 +8,7 @@ import { useQuery } from '@tanstack/react-query';
 import { get } from '@/lib/api';
 import { Plus, Shirt, Trash2, Upload } from 'lucide-react';
 import { useState } from 'react';
-import { addOutfitModel, type AvatarDetail } from '@/features/avatars/api';
+import { addOutfitModel, fitGarment, useBlender, type AvatarDetail } from '@/features/avatars/api';
 import { cx } from '@/lib/format';
 import { toastError } from '@/lib/store';
 import { Badge, Button, Checkbox, Field, FileButton, IconButton, Input, SectionTitle, Select, Slider, Switch } from '@/ui';
@@ -37,6 +37,7 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
   const meshes = avatar.info.meshNames ?? [];
   const [open, setOpen] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
+  const blender = useBlender();
 
   const setPart = (id: string, p: Partial<AvatarPart>) => set({ parts: config.parts.map((x) => (x.id === id ? { ...x, ...p } : x)) });
   const setOutfit = (id: string, p: Partial<AvatarOutfit>) => set({ outfits: config.outfits.map((x) => (x.id === id ? { ...x, ...p } : x)) });
@@ -296,6 +297,26 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
         }}>
           Add a garment (GLB)
         </FileButton>
+        {blender.data?.found ? (
+          <FileButton size="sm" variant="ghost" icon={Shirt} accept=".glb,.obj,.fbx,.dae" loading={uploading === 'fit'} onFiles={async ([f]) => {
+            if (!f) return;
+            setUploading('fit');
+            try {
+              const name = f.name.replace(/\.[^.]+$/, '').slice(0, 60) || 'Garment';
+              const slot = guessSlot(name);
+              const r = await fitGarment(avatar.id, f, slot);
+              const id = newId('g', config.garments.map((x) => x.id));
+              set({ garments: [...config.garments, { id, name, model: r.model, modelLow: r.modelLow, slot, layer: slot === 'outer' ? 3 : 1, hides: r.hides as Garment['hides'], hidesSlots: [], variants: [], variant: null, springs: true, family: config.family, on: true, items: [] }] });
+              setOpen(id);
+            } catch (e) {
+              toastError(e);
+            } finally {
+              setUploading(null);
+            }
+          }}>
+            Fit a mesh to this body (experimental)
+          </FileButton>
+        ) : null}
         {library.length ? (
           <Select aria-label="Add from your other avatars" value="" onChange={(e) => {
             const pick = library.find((x) => x.garment.model === e.target.value);

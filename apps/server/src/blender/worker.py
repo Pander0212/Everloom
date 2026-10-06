@@ -143,7 +143,300 @@ def op_info(job):
     return {"version": bpy.app.version_string, "mmd": enable_mmd()}
 
 
-OPS = {"convert": op_convert, "motion": op_motion, "info": op_info}
+def tris(meshes=None):
+    meshes = meshes if meshes is not None else [o for o in bpy.data.objects if o.type == "MESH"]
+    return sum(sum(len(p.vertices) - 2 for p in o.data.polygons) for o in meshes)
+
+
+def op_optimize(job):
+    """Clean up a model: merge duplicate vertices, decimate to a triangle budget, shrink textures."""
+    import bmesh  # type: ignore
+
+    clear_scene()
+    import_any(inside(job, job["input"]))
+    removed = clean()
+    meshes = [o for o in bpy.data.objects if o.type == "MESH"]
+    before = tris(meshes)
+    merged = 0
+    for o in meshes:
+        bm = bmesh.new()
+        bm.from_mesh(o.data)
+        n = len(bm.verts)
+        bmesh.ops.remove_doubles(bm, verts=bm.verts, dist=float(job.get("mergeDistance", 0.0001)))
+        merged += n - len(bm.verts)
+        bm.to_mesh(o.data)
+        bm.free()
+    budget = int(job.get("maxTriangles", 60000))
+    current = tris(meshes)
+    if current > budget:
+        ratio = max(0.05, budget / current)
+        for o in meshes:
+            # Shape keys block decimation; those meshes (faces) are left as they are.
+            if o.data.shape_keys:
+                continue
+            m = o.modifiers.new("Decimate", "DECIMATE")
+            m.ratio = ratio
+            bpy.context.view_layer.objects.active = o
+            bpy.ops.object.modifier_apply(modifier=m.name)
+    max_tex = int(job.get("maxTexture", 2048))
+    resized = 0
+    for img in bpy.data.images:
+        w, h = img.size[0], img.size[1]
+        if max(w, h) > max_tex:
+            k = max_tex / max(w, h)
+            img.scale(max(1, int(w * k)), max(1, int(h * k)))
+            img.pack()
+            resized += 1
+    export_glb(inside(job, job["output"]))
+    return {"removed": removed, "merged": merged, "trianglesBefore": before, "trianglesAfter": tris(meshes), "texturesResized": resized}
+
+
+SLOT_SPAN = {
+    # (lower bone, upper bone, padding as a fraction of the span): where a garment of a slot sits.
+    "top": ("hips", "neck", 0.08),
+    "outer": ("hips", "neck", 0.12),
+    "full": ("leftFoot", "neck", 0.04),
+    "bottom": ("leftFoot", "hips", 0.06),
+    "head": ("head", None, 0.0),
+    "hair": ("head", None, 0.0),
+    "feet": ("leftFoot", None, 0.0),
+    "hands": ("leftHand", None, 0.0),
+}
+
+
+def op_fit(job):
+    """
+    Fits a garment mesh to a body: aligns it to where its slot sits on the body, wraps it just
+    outside the skin (only the parts that are inside), copies the skin weights from the body so it
+    moves with the skeleton, and exports the armature and the garment as one GLB.
+    """
+    import mathutils  # type: ignore
+    from mathutils.bvhtree import BVHTree  # type: ignore
+
+    clear_scene()
+    import_any(inside(job, job["body"]))
+    arm = next((o for o in bpy.data.objects if o.type == "ARMATURE"), None)
+    if not arm:
+        raise RuntimeError("The body has no skeleton")
+    # Only meshes skinned to the skeleton are the body (files carry helpers: spheres, planes).
+    body_meshes = [o for o in bpy.data.objects if o.type == "MESH" and any(m.type == "ARMATURE" for m in o.modifiers) and len(o.vertex_groups)]
+    if not body_meshes:
+        raise RuntimeError("The body has no skinned mesh")
+    for o in [o for o in bpy.data.objects if o.type == "MESH" and o not in body_meshes]:
+        bpy.data.objects.remove(o, do_unlink=True)
+    existing = set(bpy.data.objects)
+    import_any(inside(job, job["input"]))
+    new = [o for o in bpy.data.objects if o not in existing]
+    for o in new:
+        if o.type == "ARMATURE":
+            # The garment's own skeleton (if any) is replaced by the body's.
+            for c in o.children:
+                c.parent = None
+            bpy.data.objects.remove(o, do_unlink=True)
+    garment_parts = [o for o in bpy.data.objects if o not in existing and o.type == "MESH"]
+    if not garment_parts:
+        raise RuntimeError("The garment file has no mesh")
+    bpy.ops.object.select_all(action="DESELECT")
+    for o in garment_parts:
+        o.select_set(True)
+        for m in list(o.modifiers):
+            o.modifiers.remove(m)
+    bpy.context.view_layer.objects.active = garment_parts[0]
+    bpy.ops.object.transform_apply(location=True, rotation=True, scale=True)
+    if len(garment_parts) > 1:
+        bpy.ops.object.join()
+    garment = bpy.context.view_layer.objects.active
+    garment.name = job.get("name", "Garment")[:60]
+    for v in garment.vertex_groups:
+        garment.vertex_groups.remove(v)
+
+    # One mesh of the body to wrap to and take weights from (a copy, deleted at the end).
+    bpy.ops.object.select_all(action="DESELECT")
+    copies = []
+    for o in body_meshes:
+        c = o.copy()
+        c.data = o.data.copy()
+        bpy.context.collection.objects.link(c)
+        for m in list(c.modifiers):
+            if m.type != "ARMATURE":
+                c.modifiers.remove(m)
+        copies.append(c)
+    for c in copies:
+        c.select_set(True)
+    bpy.context.view_layer.objects.active = copies[0]
+    if len(copies) > 1:
+        bpy.ops.object.join()
+    target = bpy.context.view_layer.objects.active
+    target.name = "FitTarget"
+
+    # Where the slot sits, from the body's bones (names in job["bones"]: canonical -> file name).
+    bones = job.get("bones", {})
+    def bone_head(name):
+        b = arm.data.bones.get(bones.get(name, name)) if name else None
+        return (arm.matrix_world @ b.head_local) if b else None
+
+    lo_name, hi_name, pad = SLOT_SPAN.get(job.get("slot", "top"), SLOT_SPAN["top"])
+    corners = [garment.matrix_world @ mathutils.Vector(c) for c in garment.bound_box]
+    gmin = mathutils.Vector((min(c.x for c in corners), min(c.y for c in corners), min(c.z for c in corners)))
+    gmax = mathutils.Vector((max(c.x for c in corners), max(c.y for c in corners), max(c.z for c in corners)))
+    tcorners = [target.matrix_world @ mathutils.Vector(c) for c in target.bound_box]
+    body_h = max(c.z for c in tcorners) - min(c.z for c in tcorners)
+    if job.get("align", True):
+        lo = bone_head(lo_name)
+        hi = bone_head(hi_name) if hi_name else None
+        if lo is not None:
+            if hi is not None:
+                span = (hi.z - lo.z) * (1 + 2 * pad)
+                bottom = lo.z - (hi.z - lo.z) * pad
+            else:
+                # Head, hands and feet: about the size of that part of the body.
+                span = body_h * {"head": 0.17, "hair": 0.2, "feet": 0.08, "hands": 0.07}.get(job.get("slot"), 0.15)
+                bottom = lo.z - span * (0.1 if job.get("slot") in ("head", "hair") else 0.5)
+            k = span / max(1e-6, gmax.z - gmin.z)
+            garment.scale = (k, k, k)
+            bpy.context.view_layer.objects.active = garment
+            bpy.ops.object.transform_apply(scale=True)
+            corners = [garment.matrix_world @ mathutils.Vector(c) for c in garment.bound_box]
+            cx = (min(c.x for c in corners) + max(c.x for c in corners)) / 2
+            cy = (min(c.y for c in corners) + max(c.y for c in corners)) / 2
+            centre = bone_head("spine") or lo
+            garment.location = (garment.location.x + (centre.x if lo_name not in ("leftFoot", "leftHand") else lo.x) - cx, garment.location.y + centre.y - cy, garment.location.z + bottom - min(c.z for c in corners))
+            bpy.ops.object.transform_apply(location=True)
+
+    # Wrap only what is inside the skin to just outside it.
+    offset = float(job.get("offset", 0.006))
+    m = garment.modifiers.new("Wrap", "SHRINKWRAP")
+    m.target = target
+    m.wrap_method = "NEAREST_SURFACEPOINT"
+    m.wrap_mode = "OUTSIDE"
+    m.offset = offset
+    bpy.context.view_layer.objects.active = garment
+    bpy.ops.object.modifier_apply(modifier=m.name)
+
+    # Skin weights from the nearest body surface: the closest face's corners, blended by distance.
+    tm = target.matrix_world
+    tverts = [tm @ v.co for v in target.data.vertices]
+    tpolys = [list(p.vertices) for p in target.data.polygons]
+    tree_t = BVHTree.FromPolygons(tverts, tpolys)
+    names = [g.name for g in target.vertex_groups]
+    vw = [{names[ge.group]: ge.weight for ge in v.groups if ge.weight > 0} for v in target.data.vertices]
+    groups = {}
+    gm = garment.matrix_world
+    for v in garment.data.vertices:
+        co = gm @ v.co
+        loc, _n, idx, _d = tree_t.find_nearest(co)
+        if idx is None:
+            continue
+        acc = {}
+        total = 0.0
+        for vi in tpolys[idx]:
+            k = 1.0 / (max((tverts[vi] - loc).length, 1e-5))
+            total += k
+            for name, w in vw[vi].items():
+                acc[name] = acc.get(name, 0.0) + w * k
+        top = sorted(acc.items(), key=lambda x: -x[1])[:4]
+        norm = sum(w for _, w in top) or 1.0
+        for name, w in top:
+            if name not in groups:
+                groups[name] = garment.vertex_groups.new(name=name)
+            groups[name].add([v.index], w / norm, "REPLACE")
+
+    # Which bones' skin it covers (for hiding body regions): body vertices close to the garment.
+    gverts = [garment.matrix_world @ v.co for v in garment.data.vertices]
+    tree = BVHTree.FromPolygons(gverts, [list(p.vertices) for p in garment.data.polygons])
+    covered = {}
+    totals = {}
+    for v in target.data.vertices:
+        if not v.groups:
+            continue
+        g = max(v.groups, key=lambda x: x.weight)
+        name = target.vertex_groups[g.group].name
+        totals[name] = totals.get(name, 0) + 1
+        co = target.matrix_world @ v.co
+        nrm = (target.matrix_world.to_3x3() @ v.normal).normalized()
+        # Covered when the garment is right there, or straight out from the skin (loose cloth).
+        near = tree.find_nearest(co, offset * 3 + 0.01)
+        if (near and near[0] is not None) or tree.ray_cast(co + nrm * 0.001, nrm, 0.25)[0] is not None:
+            covered[name] = covered.get(name, 0) + 1
+    coverage = {k: round(covered.get(k, 0) / n, 3) for k, n in totals.items() if covered.get(k)}
+
+    # Bind to the skeleton, keeping it where it is.
+    am = garment.modifiers.new("Armature", "ARMATURE")
+    am.object = arm
+    mw = garment.matrix_world.copy()
+    garment.parent = arm
+    garment.matrix_world = mw
+
+    for o in body_meshes + [target]:
+        bpy.data.objects.remove(o, do_unlink=True)
+    export_glb(inside(job, job["output"]))
+    gc = [garment.matrix_world @ mathutils.Vector(c) for c in garment.bound_box]
+    box = [[round(min(c[i] for c in gc), 3) for i in range(3)], [round(max(c[i] for c in gc), 3) for i in range(3)]]
+    return {"triangles": tris([garment]), "coverage": coverage, "groups": len(garment.vertex_groups), "box": box, "bodyBox": [[round(min(c[i] for c in tcorners), 3) for i in range(3)], [round(max(c[i] for c in tcorners), 3) for i in range(3)]]}
+
+
+def op_render(job):
+    """Renders the model from the front (a thumbnail), or from several angles into a zip (a turntable)."""
+    import math
+    import zipfile
+    import mathutils  # type: ignore
+
+    clear_scene()
+    import_any(inside(job, job["input"]))
+    clean()
+    scene = bpy.context.scene
+    scene.render.engine = "CYCLES"
+    scene.cycles.device = "CPU"
+    scene.cycles.samples = int(job.get("samples", 16))
+    scene.render.film_transparent = True
+    size = int(job.get("size", 384))
+    scene.render.resolution_x = size
+    scene.render.resolution_y = size
+    scene.render.image_settings.file_format = "PNG"
+    scene.render.image_settings.color_mode = "RGBA"
+    world = bpy.data.worlds.new("World")
+    world.use_nodes = True
+    world.node_tree.nodes["Background"].inputs[1].default_value = 1.0
+    scene.world = world
+    meshes = [o for o in bpy.data.objects if o.type == "MESH"]
+    pts = [o.matrix_world @ mathutils.Vector(c) for o in meshes for c in o.bound_box]
+    lo = mathutils.Vector((min(p.x for p in pts), min(p.y for p in pts), min(p.z for p in pts)))
+    hi = mathutils.Vector((max(p.x for p in pts), max(p.y for p in pts), max(p.z for p in pts)))
+    centre = (lo + hi) / 2
+    radius = max((hi - lo).length / 2, 0.01)
+    cam_data = bpy.data.cameras.new("Cam")
+    cam_data.lens = 50
+    cam = bpy.data.objects.new("Cam", cam_data)
+    scene.collection.objects.link(cam)
+    scene.camera = cam
+    sun = bpy.data.objects.new("Sun", bpy.data.lights.new("Sun", "SUN"))
+    sun.data.energy = 3
+    sun.rotation_euler = (math.radians(50), 0, math.radians(30))
+    scene.collection.objects.link(sun)
+    dist = radius / math.tan(cam_data.angle / 2) * 1.1
+    angles = [0] if job.get("frames", 1) <= 1 else [i * 360 / int(job["frames"]) for i in range(int(job["frames"]))]
+    paths = []
+    for i, a in enumerate(angles):
+        # glTF models face +Y in Blender after import (glTF +Z); the camera starts in front.
+        r = math.radians(a)
+        cam.location = (centre.x + dist * math.sin(r), centre.y - dist * math.cos(r), centre.z)
+        direction = centre - cam.location
+        cam.rotation_euler = direction.to_track_quat("-Z", "Y").to_euler()
+        p = inside(job, "frame_%02d.png" % i)
+        scene.render.filepath = p
+        bpy.ops.render.render(write_still=True)
+        paths.append(p)
+    out = inside(job, job["output"])
+    if out.endswith(".zip"):
+        with zipfile.ZipFile(out, "w") as z:
+            for p in paths:
+                z.write(p, os.path.basename(p))
+    else:
+        os.replace(paths[0], out)
+    return {"frames": len(paths)}
+
+
+OPS = {"convert": op_convert, "motion": op_motion, "info": op_info, "optimize": op_optimize, "fit": op_fit, "render": op_render}
 
 
 def main():

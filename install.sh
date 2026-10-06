@@ -71,12 +71,34 @@ ENV
 fi
 
 mkdir -p data data/empty-st
+
+# 3b. Blender (optional): FBX/PMX import, garment fitting, clean-up and turntables for 3D characters.
+BLENDER_LIBS="$(grep '^EVERLOOM_BLENDER_LIBS=' .env 2>/dev/null | cut -d= -f2 || true)"
+if ! ls -d data/blender/blender-* >/dev/null 2>&1; then
+  echo
+  read -r -p "Install Blender for 3D characters (optional, about 350 MB download)? [y/N] " WANT_BLENDER || true
+  if [[ "${WANT_BLENDER:-}" =~ ^[Yy] ]]; then
+    REL="https://download.blender.org/release/Blender4.2/"
+    FILE="$(curl -fsSL "$REL" | grep -o 'blender-4\.2\.[0-9]*-linux-x64\.tar\.xz' | sort -uV | tail -1 || true)"
+    if [ -n "$FILE" ]; then
+      bold "Downloading $FILE…"
+      mkdir -p data/blender
+      curl -fL "$REL$FILE" -o "data/blender/$FILE" && tar -xJf "data/blender/$FILE" -C data/blender && rm -f "data/blender/$FILE"
+      BLENDER_LIBS=1
+      grep -q '^EVERLOOM_BLENDER_LIBS=' .env || echo "EVERLOOM_BLENDER_LIBS=1" >> .env
+      bold "Blender installed in data/blender (Everloom finds it there)."
+    else
+      warn "Could not find a Blender download; install it later (see README → 3D characters)."
+    fi
+  fi
+fi
+
 # The container runs as uid 10001.
 $SUDO chown -R 10001:10001 data 2>/dev/null || true
 
 # 4. Build and start
 bold "Building and starting (first build takes a few minutes)…"
-$DOCKER compose build --build-arg EVERLOOM_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || true)" everloom
+$DOCKER compose build --build-arg EVERLOOM_COMMIT="$(git rev-parse --short HEAD 2>/dev/null || true)" --build-arg EVERLOOM_BLENDER_LIBS="${BLENDER_LIBS:-0}" everloom
 $DOCKER compose up -d
 
 # 5. Wait for health

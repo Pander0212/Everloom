@@ -27,7 +27,7 @@ AFTER="$(git_ rev-parse --short HEAD)"
 [ "$BEFORE" = "$AFTER" ] && echo "Already on the latest version ($AFTER); rebuilding anyway." || echo "Updating $BEFORE → $AFTER"
 
 echo "Rebuilding…"
-$DOCKER compose build --build-arg EVERLOOM_COMMIT="$AFTER" everloom
+$DOCKER compose build --build-arg EVERLOOM_COMMIT="$AFTER" --build-arg EVERLOOM_BLENDER_LIBS="$(grep "^EVERLOOM_BLENDER_LIBS=" .env 2>/dev/null | cut -d= -f2 || echo 0)" everloom
 echo "Applying database migrations…"
 $DOCKER compose run --rm everloom node apps/server/dist/index.js --migrate-only
 $DOCKER compose up -d

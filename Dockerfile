@@ -24,7 +24,11 @@ ENV EVERLOOM_COMMIT=$EVERLOOM_COMMIT \
     EVERLOOM_WEB_DIR=/app/apps/web/dist \
     PORT=8787
 WORKDIR /app
-RUN apt-get update && apt-get install -y --no-install-recommends curl tini && rm -rf /var/lib/apt/lists/* \
+# Libraries a portable Blender needs (only when install.sh installed one: EVERLOOM_BLENDER_LIBS=1).
+ARG EVERLOOM_BLENDER_LIBS=0
+RUN apt-get update && apt-get install -y --no-install-recommends curl tini \
+  && if [ "$EVERLOOM_BLENDER_LIBS" = "1" ]; then apt-get install -y --no-install-recommends libx11-6 libxi6 libxxf86vm1 libxfixes3 libxrender1 libgl1 libegl1 libxkbcommon0 libsm6 libice6; fi \
+  && rm -rf /var/lib/apt/lists/* \
   && useradd --system --uid 10001 --home /app everloom && mkdir -p /data && chown everloom /data
 COPY --from=build /app/node_modules node_modules
 COPY --from=build /app/packages packages

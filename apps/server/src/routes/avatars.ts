@@ -2,10 +2,10 @@
 import type { FastifyInstance } from 'fastify';
 import { unzipSync } from 'fflate';
 import { z } from 'zod';
-import { ClipSchema, EMOTE_CATEGORIES, EMOTE_ID } from '@everloom/engine';
+import { ClipSchema, EMOTE_CATEGORIES, EMOTE_ID, GARMENT_SLOTS } from '@everloom/engine';
 import { HttpError, owner, type AppContext } from '../context.js';
-import { findBlender, runBlenderJob, setBlenderPath } from '../services/blender.js';
-import { addOutfitModel, avatarDetail, garmentLibrary, createAvatar, deleteAvatar, getAvatarRow, listAvatars, reprocessAvatar, setAvatarThumbnail, updateAvatar } from '../services/avatars/service.js';
+import { blenderJobs, findBlender, runBlenderJob, setBlenderPath } from '../services/blender.js';
+import { addOutfitModel, cleanupAvatar, fitGarment, renderTurntable, avatarDetail, garmentLibrary, createAvatar, deleteAvatar, getAvatarRow, listAvatars, reprocessAvatar, setAvatarThumbnail, updateAvatar } from '../services/avatars/service.js';
 import { createCodeAvatar, createPartsAvatar, fillRecipe, garmentForItem } from '../services/avatars/recipes.js';
 import { deletePack, importPack, listPacks, setPackEnabled } from '../services/avatars/packs.js';
 import { getCharacter } from '../services/characters.js';
@@ -99,6 +99,23 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     const body = req.body as Buffer;
     if (!Buffer.isBuffer(body)) throw new HttpError(400, 'Send the picture as the request body');
     return setAvatarThumbnail(ctx, owner(req), (req.params as { id: string }).id, body);
+  });
+
+  /** Blender: clean up the model (merge, decimate to a budget, shrink textures), then prepare it again. */
+  app.post('/api/avatars/:id/cleanup', async (req) => {
+    const b = parse(z.object({ maxTriangles: z.number().int().min(1000).max(500_000).default(60_000), maxTexture: z.union([z.literal(512), z.literal(1024), z.literal(2048), z.literal(4096)]).default(2048) }), req.body ?? {});
+    return cleanupAvatar(ctx, owner(req), (req.params as { id: string }).id, b);
+  });
+  /** Blender: a turntable picture (8 views). */
+  app.post('/api/avatars/:id/turntable', async (req) => renderTurntable(ctx, owner(req), (req.params as { id: string }).id));
+  app.get('/api/blender/jobs', async (req) => blenderJobs(owner(req)));
+
+  /** A garment mesh fitted to this avatar's body by the Blender worker (experimental). */
+  app.post('/api/avatars/:id/fit-garment', { bodyLimit: 100 * 1024 * 1024 }, async (req) => {
+    const body = req.body as Buffer;
+    if (!Buffer.isBuffer(body)) throw new HttpError(400, 'Send the garment file as the request body');
+    const q = parse(z.object({ filename: z.string().min(3).max(200), slot: z.enum(GARMENT_SLOTS), offset: z.coerce.number().min(0).max(0.05).optional() }), req.query ?? {});
+    return fitGarment(ctx, owner(req), (req.params as { id: string }).id, body, q);
   });
 
   /** A whole-model outfit with the same skeleton (wardrobe level 1). */
