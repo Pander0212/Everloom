@@ -285,13 +285,59 @@ time in a background Blender with factory settings and auto-run scripts off, in 
 folder that is deleted afterwards, with a time limit and a minimal environment (no keys or tokens).
 The file being converted is decrypted into that folder for the run.
 
+`install.sh` offers to download a portable Blender 4.2 LTS into the data folder (and builds the
+container with the few system libraries it needs); the Windows app finds an installed one.
+
+What it does (Settings › 3D characters › Blender lists recent jobs with their logs):
+
+| Job | Where | What |
+|---|---|---|
+| Convert | Import | FBX, PMX/PMD, OBJ, DAE to GLB; VMD and stubborn FBX motions |
+| Clean up | Avatar › Optimize | Merges duplicate points, simplifies meshes over a triangle budget (faces with expressions are left alone), shrinks textures, then prepares the model again |
+| Turntable | Avatar › Optimize | Eight views rendered with Cycles on the CPU (no graphics card needed) |
+| Fit a garment | Dressing room › Garments | A garment mesh (GLB, OBJ, FBX, DAE) is placed where its slot sits on the body, the parts inside the skin are wrapped just outside it, the skin weights are copied from the nearest body surface, and the body regions it covers are worked out (to hide skin). **Experimental:** close-fitting things work; loose or layered ones come out rough |
+
+Tested here: an FBX round trip of the mannequin keeps all its bones; a plain tube fitted as a top
+covers the chest, belly and hips and bends with the body; clean-up of the mannequin to 2,000
+triangles; an 8-view turntable in about 6 seconds.
+
+## AI-made props, garments and textures
+
+- **Props** (Dressing room › Accessories › *Make with AI*): from a description or a picture, through a
+  **3D models** connection (Settings › Connections): **Meshy** (text or picture; textured), or
+  **Hunyuan3D 2** or **TRELLIS** on **fal.ai** (picture only: for a description, the image connection
+  draws a reference first). The job runs in the background with progress; the model is cleaned up
+  like any import, then *Put it on* attaches it to the right hand (move, turn and size it there) or
+  *Discard* deletes it. Rigid things (hats, weapons, bags, jewelry) work well. Tripo's API documents
+  couldn't be checked, so it isn't offered.
+- **Garments** (same sheet, **experimental**): image-to-3D, then the Blender fit above. Expect rough
+  results for anything loose.
+- **Textures** (Dressing room › a garment's colours): describe a pattern or fabric; the image
+  connection draws a tile, Everloom makes it seamless (blending in a half-shifted copy towards the
+  edges, so it repeats without a visible join) and adds it as a variant that repeats 4 times across
+  the garment. With an editing model (NanoGPT's Step Image Edit 2), it changes the selected texture
+  instead. This is how a few meshes become many items.
+
+Image connections can carry a prompt style (`prompt_prefix`, `prompt_suffix`); the NanoGPT presets
+(HiDream, Chroma, Z Image Turbo, Qwen Image, Step Image Edit 2) come with the style each model needs,
+from `docs/art/PROMPTING.md`.
+
+## The Blender add-on
+
+`tools/blender-addon/` checks a model against this spec and exports it, or sends it to your
+Everloom with a device token: avatars are imported, garments join the chosen avatar's dressing room,
+animations wait in Settings › 3D characters › *From Blender*. See its README, and
+[blender-ai-workflow.md](blender-ai-workflow.md) for making assets with an AI assistant in Blender.
+
 ## Files
 
 | | |
 |---|---|
 | `packages/engine/src/avatar/` | skeleton, bone and expression mapping, emotes, config, wardrobe, recipes |
 | `apps/server/src/services/avatars/` | GLB reader, inspection, optimization, storage and processing |
-| `apps/server/src/blender/worker.py` | the Blender worker script |
+| `apps/server/src/blender/worker.py` | the Blender worker script (convert, motion, optimize, fit, render) |
+| `apps/server/src/services/avatars/model3d.ts`, `textures.ts` | image-to-3D jobs; seamless garment textures |
+| `tools/blender-addon/` | the Blender exporter add-on (GPL-3.0) |
 | `apps/web/src/features/avatar3d/runtime/` | loading, retargeting, clips, avatar, stage, materials, lighting, wardrobe, import |
 | `apps/web/src/features/avatar3d/runtime/codemade/` | code-made characters: shapes, mesher, body, clothes, face, worker |
 | `apps/web/src/features/avatar3d/Maker.tsx`, `parts.ts` | the parts maker; packs as garments |
