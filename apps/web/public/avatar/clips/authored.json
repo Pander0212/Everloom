@@ -38,7 +38,7 @@
   "id": "hug",
   "frames": 85,
   "seconds": 2.83,
-  "bytes": 46346,
+  "bytes": 46352,
   "loop": false
  },
  {
@@ -59,7 +59,7 @@
   "id": "cry",
   "frames": 97,
   "seconds": 3.23,
-  "bytes": 55570,
+  "bytes": 55556,
   "loop": false
  },
  {
@@ -73,7 +73,7 @@
   "id": "embarrassed",
   "frames": 79,
   "seconds": 2.63,
-  "bytes": 45549,
+  "bytes": 45550,
   "loop": false
  },
  {
@@ -94,7 +94,7 @@
   "id": "thinking",
   "frames": 91,
   "seconds": 3.03,
-  "bytes": 78819,
+  "bytes": 78820,
   "loop": false
  },
  {
@@ -115,7 +115,7 @@
   "id": "idle_relaxed",
   "frames": 150,
   "seconds": 5,
-  "bytes": 76996,
+  "bytes": 76976,
   "loop": true
  },
  {
@@ -129,14 +129,14 @@
   "id": "idle_tired",
   "frames": 150,
   "seconds": 5,
-  "bytes": 72418,
+  "bytes": 72414,
   "loop": true
  },
  {
   "id": "dance_sway",
   "frames": 80,
   "seconds": 2.67,
-  "bytes": 38332,
+  "bytes": 38338,
   "loop": true
  },
  {
@@ -150,14 +150,14 @@
   "id": "dance_arms",
   "frames": 131,
   "seconds": 4.37,
-  "bytes": 54335,
+  "bytes": 54359,
   "loop": true
  },
  {
   "id": "lie_down",
   "frames": 47,
   "seconds": 1.57,
-  "bytes": 66713,
+  "bytes": 66674,
   "loop": false
  },
  {

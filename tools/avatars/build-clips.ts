@@ -91,10 +91,16 @@ async function main() {
     const mixer = new THREE.AnimationMixer(scene);
     // Drop root-bone translation so clips stay in place (hips motion is kept separately).
     const action = mixer.clipAction(clip);
+    // A one-shot must not wrap: its last frame is the clip's end, not its start.
+    if (!loop) {
+      action.setLoop(THREE.LoopOnce, 1);
+      action.clampWhenFinished = true;
+    }
     action.play();
     const frames = Math.max(2, Math.round(clip.duration * FPS) + (loop ? 0 : 1));
     const poses: CanonicalPose[] = [];
     for (let i = 0; i < frames; i++) {
+      action.reset();
       mixer.setTime(i / FPS);
       scene.updateMatrixWorld(true);
       poses.push(readCanonical(rig, emptyPose()));
@@ -104,6 +110,7 @@ async function main() {
     const rig2 = prepareRig(copy.scene, copy.bones);
     let worst = 0;
     for (let i = 0; i < frames; i += 5) {
+      action.reset();
       mixer.setTime(i / FPS);
       scene.updateMatrixWorld(true);
       applyCanonical(rig2, poses[i]!);
