@@ -8,6 +8,7 @@
  *   gallery/<slug>/<file>               images, video, audio
  *   worlds/<name>.json                  linked lorebooks, SillyTavern world format
  *   everloom/<slug>.json                Everloom-only extras (nickname, favorite, collections, game data)
+ *   avatars/<slug>/…                    the 3D avatar: settings, model and garment files (avatars/bundle3d.ts)
  *
  * Import accepts an Everloom bundle or a plain zip of SillyTavern files (cards, chats in a folder
  * named after the card, worlds). It is previewed first, with conflicts for the owner to resolve.
@@ -26,6 +27,7 @@ import { editCollection, listCollections, saveCollection } from './charlib.js';
 import { createLorebook, getCharacterBook, listLorebooks, updateLorebook } from './lorebooks.js';
 import { getMedia, saveImage, saveMedia, sniffAvType } from './media.js';
 import { snapshot } from './versions.js';
+import { exportAvatar3d, importAvatar3d } from './avatars/bundle3d.js';
 
 const slugify = (s: string) => s.normalize('NFKD').replace(/[^\w\s-]+/g, '').trim().replace(/\s+/g, '-').slice(0, 48) || 'character';
 
@@ -33,10 +35,12 @@ export interface BundleOptions {
   chats?: boolean;
   gallery?: boolean;
   lorebooks?: boolean;
+  /** The character's 3D avatar and its clothes. */
+  avatars3d?: boolean;
 }
 
 export async function exportBundle(ctx: AppContext, owner: string, ids: string[], opts: BundleOptions = {}): Promise<Buffer> {
-  const want = { chats: true, gallery: true, lorebooks: true, ...opts };
+  const want = { chats: true, gallery: true, lorebooks: true, avatars3d: true, ...opts };
   const files: Zippable = {};
   const manifest: { format: string; version: number; exportedAt: string; characters: unknown[] } = { format: 'everloom-bundle', version: 1, exportedAt: new Date().toISOString(), characters: [] };
   const collections = listCollections(ctx, owner);
@@ -78,6 +82,10 @@ export async function exportBundle(ctx: AppContext, owner: string, ids: string[]
         (entry.worlds as string[]).push(path);
       }
     }
+    if (want.avatars3d && c.game.avatar3d) {
+      const path = exportAvatar3d(ctx, owner, c.game.avatar3d, slug, files);
+      if (path) entry.avatar3d = path;
+    }
     files[`everloom/${slug}.json`] = strToU8(JSON.stringify({ displayName: c.displayName, fav: c.fav, collections: collections.filter((col) => col.characterIds.includes(id)).map((col) => ({ name: col.name, icon: col.icon, color: col.color })), game: c.game }, null, 2));
     manifest.characters.push(entry);
   }
@@ -98,6 +106,8 @@ interface PlannedCharacter {
   chats: Uint8Array[];
   gallery: Array<{ name: string; bytes: Uint8Array }>;
   worlds: Array<{ name: string; raw: unknown }>;
+  /** The bundle's 3D avatar description (Everloom bundles), with the files it needs. */
+  avatar3d: { path: string; files: Record<string, Uint8Array> } | null;
 }
 
 export interface BundlePreviewItem {
@@ -107,6 +117,7 @@ export interface BundlePreviewItem {
   chats: number;
   gallery: number;
   worlds: number;
+  avatar3d: boolean;
   conflict: { id: string; name: string; reason: 'identical' | 'same name' } | null;
 }
 
@@ -161,6 +172,7 @@ function plan(files: Record<string, Uint8Array>): PlannedCharacter[] {
         chats: (e.chats ?? []).map((p: string) => files[p]).filter(Boolean),
         gallery: (e.gallery ?? []).filter((p: string) => files[p]).map((p: string) => ({ name: p, bytes: files[p] })),
         worlds: (e.worlds ?? []).filter((p: string) => files[p]).map((p: string) => ({ name: base(p), raw: json(text(files[p]), null) })),
+        avatar3d: typeof e.avatar3d === 'string' && files[e.avatar3d] ? { path: e.avatar3d, files: Object.fromEntries(Object.entries(files).filter(([p]) => p.startsWith(e.avatar3d.replace(/avatar\.json$/, '')))) } : null,
       });
     }
     return out;
@@ -180,7 +192,7 @@ function plan(files: Record<string, Uint8Array>): PlannedCharacter[] {
       const gallery = Object.entries(files)
         .filter(([p, b]) => p !== path && (dir(p).toLowerCase() === key || dir(p).toLowerCase() === parsed.data.name.toLowerCase()) && (sniffImageType(b.subarray(0, 16)) || sniffAvType(b.subarray(0, 16))))
         .map(([p, b]) => ({ name: p, bytes: b }));
-      out.push({ index: out.length, name: parsed.data.name, creator: parsed.data.creator ?? '', card: parsed.data, cardBytes: bytes, topExtras: parsed.topLevelExtras, extras: null, chats, gallery, worlds: [] });
+      out.push({ index: out.length, name: parsed.data.name, creator: parsed.data.creator ?? '', card: parsed.data, cardBytes: bytes, topExtras: parsed.topLevelExtras, extras: null, chats, gallery, worlds: [], avatar3d: null });
     } catch {
       if (lower.endsWith('.json')) {
         const raw = json<any>(text(bytes), null);
@@ -209,7 +221,7 @@ export function previewBundle(ctx: AppContext, owner: string, bytes: Buffer): { 
     items: p.map((c) => {
       const same = lib.find((x) => x.name.toLowerCase() === c.name.toLowerCase());
       const identical = same && sameContent(ctx, same.id, c.card);
-      return { index: c.index, name: c.name, creator: c.creator, chats: c.chats.length, gallery: c.gallery.length, worlds: c.worlds.length, conflict: same ? { id: same.id, name: same.name, reason: identical ? 'identical' : 'same name' } : null };
+      return { index: c.index, name: c.name, creator: c.creator, chats: c.chats.length, gallery: c.gallery.length, worlds: c.worlds.length, avatar3d: !!c.avatar3d, conflict: same ? { id: same.id, name: same.name, reason: identical ? 'identical' : 'same name' } : null };
     }),
   };
 }
@@ -246,6 +258,11 @@ export async function importBundle(ctx: AppContext, owner: string, token: string
     // Media ids from another instance mean nothing here: gallery and expressions are rebuilt.
     delete game.gallery;
     delete game.expressions;
+    delete game.avatar3d;
+    if (c.avatar3d) {
+      const a = await importAvatar3d(ctx, owner, c.avatar3d.files, c.avatar3d.path);
+      if (a) game.avatar3d = a;
+    }
     let id: string;
     if (choice === 'replace' && conflict) {
       id = conflict.id;

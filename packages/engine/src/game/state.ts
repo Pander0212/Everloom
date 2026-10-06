@@ -678,6 +678,9 @@ export interface CutsceneStep {
   fx?: FxKind;
   mood?: string;
   seconds?: number;
+  /** 3D characters: the speaker plays this emote, or changes outfit (null: their own clothes). */
+  emote?: string;
+  outfit?: string | null;
 }
 export interface Cutscene {
   id: string;

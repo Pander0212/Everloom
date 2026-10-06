@@ -852,6 +852,11 @@ demand for download.
   now opaque and hair cards are `MASK`. Shape keys are baked before the hide-under-clothes masks are
   applied (Blender can't apply modifiers to meshes with shape keys), which also means no face shapes
   for now.
+- **Clothes as wardrobe garments:** MPFB fits each MakeHuman garment to the body it builds, so the
+  avatar is its own body family and each garment is exported separately on the same skeleton. Rather
+  than MPFB's masks (which delete the skin under clothes for good), the body stays whole and the
+  wardrobe hides the covered skin regions, computed per bone from MPFB's delete groups (60% or more
+  of a bone's skin under the garment). Checked by rendering: no skin through the suit or shoes.
 - **Adults only:** the age slider is clamped to 18 years and over on the server.
 - **Tested:** a gated server test (`EVERLOOM_BLENDER` and `EVERLOOM_MPFB_ZIPS`) installs from the
   real zips, makes a clothed character and imports it with every bone mapped; the installer's

@@ -11,6 +11,8 @@ import { cx } from '@/lib/format';
 import { qk } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
 import { Badge, Button, EmptyState, Field, FileButton, Icon, IconButton, Input, Segmented, Select, Sheet } from '@/ui';
+import { Assets3D } from '@/features/avatars/Assets3D';
+import { useFeatures } from '@/lib/features';
 
 type AssetType = 'sprite' | 'background' | 'cg' | 'icon';
 interface Asset {
@@ -44,6 +46,8 @@ export function AssetLibrary({ open, onOpenChange, cast, chat }: { open: boolean
   const [type, setType] = useState<AssetType | 'all'>('all');
   const [newType, setNewType] = useState<AssetType>('sprite');
   const [picked, setPicked] = useState<Asset | null>(null);
+  const features = useFeatures(null);
+  const [shelf, setShelf] = useState<'pictures' | '3d'>('pictures');
   useEffect(() => {
     const t = setTimeout(() => setQ(text.trim()), 250);
     return () => clearTimeout(t);
@@ -76,7 +80,13 @@ export function AssetLibrary({ open, onOpenChange, cast, chat }: { open: boolean
   };
 
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Asset library" description="Pictures you can use for any character or story." size="lg">
+    <Sheet open={open} onOpenChange={onOpenChange} title="Asset library" description={features.on.avatars3d ? 'Pictures and 3D you can use for any character or story.' : 'Pictures you can use for any character or story.'} size="lg">
+      {features.on.avatars3d ? (
+        <div className="mb-4">
+          <Segmented label="Shelf" value={shelf} onChange={setShelf} options={[{ value: 'pictures', label: 'Pictures' }, { value: '3d', label: '3D' }]} />
+        </div>
+      ) : null}
+      {shelf === '3d' && features.on.avatars3d ? <Assets3D /> : (
       <div className="flex flex-col gap-4">
         <div className="relative">
           <Icon icon={Search} size={18} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-fg-3" />
@@ -180,6 +190,7 @@ export function AssetLibrary({ open, onOpenChange, cast, chat }: { open: boolean
           )}
         </section>
       </div>
+      )}
       {picked ? <AssetSheet asset={picked} cast={cast} chat={chat} onClose={() => setPicked(null)} onChanged={refresh} /> : null}
     </Sheet>
   );

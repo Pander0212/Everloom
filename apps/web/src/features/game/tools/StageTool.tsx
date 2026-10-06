@@ -12,6 +12,7 @@ import { useGame } from '../context';
 import { FX_LIST } from '../StageFx';
 import { AssetLibrary } from './AssetLibrary';
 import { NoCampaign, ToolSheet } from './ToolSheet';
+import { parseSteps, type Draft } from './cutsceneScript';
 
 const MOODS = ['calm', 'tense', 'battle', 'romantic', 'sad', 'mysterious', 'joyful'];
 const AMBIENT = ['auto', 'none', 'rain', 'storm', 'wind', 'city', 'crowd', 'forest', 'sea', 'fire', 'night'] as const;
@@ -59,20 +60,6 @@ export default function StageTool({ arg }: { arg?: string }) {
 }
 
 // ------------------------------------------------------------------ cutscenes
-
-type Draft = { name: string; steps: Array<{ text: string; speaker?: string; fx?: string; mood?: string; seconds?: number }> };
-
-/** "Name: line" becomes a spoken step; other lines are narration. */
-function parseSteps(text: string) {
-  return text
-    .split('\n')
-    .map((l) => l.trim())
-    .filter(Boolean)
-    .map((l) => {
-      const m = /^([A-Z][\w .'-]{0,40}):\s+(.+)$/.exec(l);
-      return m ? { speaker: m[1]!, text: m[2]! } : { text: l };
-    });
-}
 
 function Cutscenes() {
   const { state: s, apply, chat } = useGame();
@@ -132,7 +119,7 @@ function Cutscenes() {
         open={editing}
         onOpenChange={setEditing}
         title="Write a cutscene"
-        description="One step per line. Start a line with a name and a colon for dialogue (Mara: Stay close)."
+        description="One step per line. Start a line with a name and a colon for dialogue (Mara: Stay close). End it with {wave} for an emote or {outfit: Ball gown} to change clothes."
         size="md"
         footer={
           <Button
@@ -180,6 +167,8 @@ function Cutscenes() {
               <span className="mt-1 flex flex-wrap gap-1">
                 {x.fx ? <Badge>{x.fx}</Badge> : null}
                 {x.mood ? <Badge>{x.mood}</Badge> : null}
+                {x.emote ? <Badge>{x.emote}</Badge> : null}
+                {x.outfit !== undefined ? <Badge>{x.outfit ?? 'own clothes'}</Badge> : null}
               </span>
             </li>
           ))}

@@ -1,8 +1,8 @@
 /** Step 6: name, picture, and which characters use this avatar. */
-import { Camera } from 'lucide-react';
+import { Camera, UserRound } from 'lucide-react';
 import { useState } from 'react';
 import { setAvatarThumbnail, type AvatarDetail } from '@/features/avatars/api';
-import { patch } from '@/lib/api';
+import { patch, upload } from '@/lib/api';
 import { queryClient, qk, useCharacters } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
 import { Button, Field, Input, SectionTitle, Select } from '@/ui';
@@ -56,6 +56,32 @@ export function DetailsStep({ avatar, name, setName, handle }: { avatar: AvatarD
       </Field>
       <SectionTitle>Characters</SectionTitle>
       {using.length ? <p className="text-sm">Used by {using.map((c) => c.name).join(', ')}.</p> : <p className="text-sm text-fg-2">No character uses this avatar yet.</p>}
+      {using.length && handle ? (
+        <div className="flex flex-wrap gap-2">
+          {using.map((c) => (
+            <Button
+              key={c.id}
+              size="sm"
+              variant="secondary"
+              icon={UserRound}
+              onClick={async () => {
+                // The pose and framing in the preview, as the character's portrait.
+                try {
+                  const m = await upload<{ id: string }>('/api/media', await captureThumbnail(handle.stage, 768), { kind: 'avatar', characterId: c.id });
+                  await patch(`/api/characters/${c.id}`, { avatar: m.id });
+                  void queryClient.invalidateQueries({ queryKey: qk.characters });
+                  void queryClient.invalidateQueries({ queryKey: qk.character(c.id) });
+                  toast({ title: `${c.name}'s portrait is this pose`, tone: 'success' });
+                } catch (e) {
+                  toastError(e);
+                }
+              }}
+            >
+              Use as {c.name}'s portrait
+            </Button>
+          ))}
+        </div>
+      ) : null}
       <Field label="Use for a character">
         <Select aria-label="Use for a character" value="" onChange={(e) => void link(e.target.value)}>
           <option value="">Choose…</option>

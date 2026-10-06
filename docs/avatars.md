@@ -318,15 +318,21 @@ the MakeHuman add-on for Blender, on your server. Offered only where Blender run
 - **Choices:** feminine to masculine, age (adults only: the slider starts at 18), weight, muscle,
   height; skin, hair, eyes, eyebrows, eyelashes and any of the clothes. They're saved on the avatar
   (`realistic` in its settings).
-- **The job:** MPFB builds the body with the game-engine skeleton (53 bones), puts on the assets, the
-  body's sliders are baked in, helper geometry and the skin under clothes are removed, skin and
-  clothes are opaque and hair, brows and lashes are cut-outs (glTF `MASK`) so nothing sorts wrongly.
-  The GLB (about 34,000 triangles, 20 MB with 2–4K PNG textures) then goes through the normal
-  import: bones mapped automatically, textures to KTX2, a lighter copy for phones (about 4.5 MB and
-  0.9 MB). About half a minute in Blender plus a minute of preparing on a small server.
-- **Limits:** the face doesn't move yet (MPFB's face shape keys come in separate packs, and the
-  masks that remove hidden skin can't be applied to a mesh with shape keys); clothes are part of the
-  model (add more with the wardrobe). Looks best with the PBR look.
+- **The job:** MPFB builds the body with the game-engine skeleton (53 bones) and puts on the assets;
+  the body's sliders are baked in and helper geometry is removed. Skin, eyes and clothes are opaque
+  and hair, brows and lashes are cut-outs (glTF `MASK`) so nothing sorts wrongly. About half a
+  minute in Blender, then the normal import: bones mapped automatically, textures to KTX2, a lighter
+  copy for phones (the body is about 4 MB and 1 MB).
+- **Clothes are garments.** Each piece of clothing comes out as its own garment of this body, on the
+  same skeleton: the avatar gets its own body family (`mpfb:<avatar id>`), and the dressing room
+  can take clothes off, link them to inventory items or add others. The body stays whole; the skin
+  regions a garment covers (worked out from MPFB's own "delete under this garment" groups) hide
+  while it's worn. The slot comes from the garment's name and tags (shoes → feet, suit or dress →
+  full, trousers or skirt → bottom, shirt → top, jacket → outer, hat → head), else from what it
+  covers. Deleting the avatar deletes its garments.
+- **Limits:** the face doesn't move yet (MPFB's face shape keys come in separate packs, and baking
+  the body sliders removes shape keys); MakeHuman clothes fit only the body they were made for.
+  Looks best with the PBR look.
 
 ## AI-made props, garments and textures
 
@@ -355,6 +361,23 @@ from `docs/art/PROMPTING.md`.
 Everloom with a device token: avatars are imported, garments join the chosen avatar's dressing room,
 animations wait in Settings › 3D characters › *From Blender*. See its README, and
 [blender-ai-workflow.md](blender-ai-workflow.md) for making assets with an AI assistant in Blender.
+
+## Elsewhere in Everloom
+
+- **Stage:** 3D characters share the stage with sprites and Live2D, under speech bubbles and scene
+  effects; group scenes place several. Battles play battle emotes (a won fight, a hit).
+- **Cutscenes:** a spoken line can end with `{wave}` (the speaker plays that emote) or
+  `{outfit: Ball gown}` (`{outfit: none}` for their own clothes). Steps like that let the stage show
+  through above the text, so you see it happen.
+- **Character sheet:** "Show in 3D" on a character's details loads their avatar on tap (nothing 3D
+  downloads before that).
+- **Portraits:** in the avatar editor's Details step, "Use as … portrait" turns the pose and framing
+  in the preview into the character's portrait.
+- **Asset library › 3D:** models, garments, accessories and animations with tags and search; select
+  some to export a zip, or import one (garments and accessories travel with their avatar).
+- **Character bundles** include each character's 3D avatar: its settings, the original model
+  (prepared again on import) and the files its outfits, garments and accessories use, under
+  `avatars/<name>/`. Code-made and parts-made characters carry only their recipe or choices.
 
 ## Files
 

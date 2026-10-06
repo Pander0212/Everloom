@@ -12,6 +12,7 @@ interface Item {
   chats: number;
   gallery: number;
   worlds: number;
+  avatar3d?: boolean;
   conflict: { id: string; name: string; reason: 'identical' | 'same name' } | null;
 }
 type Choice = 'new' | 'replace' | 'skip';
@@ -64,7 +65,7 @@ export function BundleImportSheet({ open, onOpenChange, file, onDone }: { open: 
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <p className="truncate font-medium">{i.name}</p>
-                  <p className="text-xs text-fg-2">{[i.creator && `by ${i.creator}`, `${i.chats} chats`, `${i.gallery} media`, i.worlds ? `${i.worlds} lorebook` : ''].filter(Boolean).join(' · ')}</p>
+                  <p className="text-xs text-fg-2">{[i.creator && `by ${i.creator}`, `${i.chats} chats`, `${i.gallery} media`, i.worlds ? `${i.worlds} lorebook` : '', i.avatar3d ? '3D model' : ''].filter(Boolean).join(' · ')}</p>
                 </div>
                 {i.conflict ? <Badge tone="warning">{i.conflict.reason === 'identical' ? 'Already here' : 'Name taken'}</Badge> : <Badge tone="success">New</Badge>}
               </div>

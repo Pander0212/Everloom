@@ -6,6 +6,7 @@
 import type { CampaignState, Cutscene, FxKind, Op } from '@everloom/engine';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { useEffect, useRef, useState } from 'react';
+import { cx } from '@/lib/format';
 import { useSettings } from '@/lib/queries';
 import { Button } from '@/ui';
 import { useGame } from './context';
@@ -190,6 +191,8 @@ export function CutscenePlayer() {
     if (!open || !cur) return;
     if (cur.fx) void apply({ type: 'fx.play', effect: cur.fx } as Op, { quiet: true });
     if (cur.mood) void apply({ type: 'music.set', mood: cur.mood } as Op, { quiet: true });
+    if (cur.speaker && cur.emote) void apply({ type: 'avatar.emote', who: cur.speaker, emote: cur.emote } as Op, { quiet: true });
+    if (cur.speaker && cur.outfit !== undefined) void apply({ type: 'avatar.outfit', who: cur.speaker, outfit: cur.outfit } as Op, { quiet: true });
     if (!cur.seconds) return;
     const t = setTimeout(() => (step < cs!.steps.length - 1 ? setStep(step + 1) : finish()), cur.seconds * 1000);
     return () => clearTimeout(t);
@@ -211,7 +214,8 @@ export function CutscenePlayer() {
           role="dialog"
           aria-modal="true"
           aria-label={`Cutscene: ${cs.name}`}
-          className="fixed inset-0 z-[60] flex flex-col bg-black text-white"
+          // A step where someone acts on the stage lets the stage show through above the text.
+          className={cx('fixed inset-0 z-[60] flex flex-col text-white', !cur.background && (cur.emote || cur.outfit !== undefined) ? 'bg-gradient-to-b from-black/10 via-black/30 to-black/90' : 'bg-black')}
           initial={{ opacity: 0 }}
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}

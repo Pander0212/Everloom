@@ -6,7 +6,7 @@ import path from 'node:path';
 import { zipSync, strToU8 } from 'fflate';
 import { afterAll, afterEach, beforeAll, describe, expect, it } from 'vitest';
 import { adultAge, ageYears, RealisticSpecSchema } from '@everloom/engine';
-import { extractZip, mpfbDir, setMpfbSources } from '../src/services/avatars/mpfb.js';
+import { extractZip, mpfbDir, mpfbSlot, setMpfbSources } from '../src/services/avatars/mpfb.js';
 import { avatarSettled } from '../src/services/avatars/service.js';
 import { createClient, waitFor, type TestClient } from './helpers.js';
 
@@ -32,6 +32,18 @@ let c: TestClient | null = null;
 afterEach(async () => {
   await c?.close();
   c = null;
+});
+
+describe('MakeHuman garment slots', () => {
+  it('goes by name and tags, then by what it covers', () => {
+    const none = new Set<never>();
+    expect(mpfbSlot('shoes01', ['makehuman', 'shoes'], none)).toBe('feet');
+    expect(mpfbSlot('female_casualsuit01', ['female', 'casual'], none)).toBe('full');
+    expect(mpfbSlot('male_worksuit01', [], none)).toBe('full');
+    expect(mpfbSlot('fedora01', [], none)).toBe('head');
+    expect(mpfbSlot('thing01', [], new Set(['chest', 'belly'] as const))).toBe('top');
+    expect(mpfbSlot('thing02', [], new Set(['thighs'] as const))).toBe('bottom');
+  });
 });
 
 describe('realistic spec', () => {
@@ -125,5 +137,18 @@ describe.skipIf(!BLENDER || !existsSync(BLENDER) || ZIPS.length !== 2)('MPFB wit
     expect(d.info.missingBones).toEqual([]);
     expect(d.config.realistic.hair).toBe('bob01');
     expect(d.config.realistic.macro.age).toBe(0.5);
+    // Clothes are garments of this body: the suit covers the trunk and legs, the shoes the feet.
+    expect(d.config.family).toBe(`mpfb:${r.json.id}`);
+    expect(d.config.body).toEqual(['Human']);
+    const bySlot = Object.fromEntries(d.config.garments.map((g: { slot: string }) => [g.slot, g]));
+    expect(bySlot.full.hides).toEqual(expect.arrayContaining(['belly', 'hips', 'thighs']));
+    // The chest isn't wholly covered (the shoulders show at the neckline), so it isn't hidden.
+    expect(bySlot.full.hides).not.toContain('chest');
+    expect(bySlot.feet.hides).toContain('feet');
+    expect(bySlot.full.family).toBe(d.config.family);
+    // Deleting the avatar removes its garment files too.
+    await c.req('DELETE', `/api/avatars/${r.json.id}`);
+    const left = c.built.ctx.db.prepare("SELECT COUNT(*) AS n FROM media WHERE kind LIKE 'model%'").get() as { n: number };
+    expect(left.n).toBe(0);
   }, 600_000);
 });

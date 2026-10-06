@@ -122,7 +122,7 @@ describe('bundles', () => {
     const other = await createClient();
     try {
       const pv = (await other.req('POST', '/api/library/bundle/preview', zip, { 'content-type': 'application/zip' })).json;
-      expect(pv.items).toEqual([{ index: 0, name: 'Iris Thorne', creator: '', chats: 1, gallery: 1, worlds: 1, conflict: null }]);
+      expect(pv.items).toEqual([{ index: 0, name: 'Iris Thorne', creator: '', chats: 1, gallery: 1, worlds: 1, avatar3d: false, conflict: null }]);
       const r = (await other.req('POST', '/api/library/bundle/import', { token: pv.token })).json;
       expect(r.created).toHaveLength(1);
       const got = (await other.req('GET', `/api/characters/${r.created[0]}`)).json;
@@ -143,6 +143,52 @@ describe('bundles', () => {
       await other.close();
     }
   });
+
+  it('carries 3D avatars in bundles: the model, its garments and code-made recipes, remapped', async () => {
+    const oct = { 'content-type': 'application/octet-stream' };
+    const glb = readFileSync(path.join(FIXTURES, 'avatars/models/mannequin-m.glb'));
+    const av = (await c.req('POST', '/api/avatars?filename=m.glb&name=Body', glb, oct)).json;
+    const { avatarSettled } = await import('../src/services/avatars/service.js');
+    await avatarSettled(av.id);
+    const g = (await c.req('POST', `/api/avatars/${av.id}/outfit-model?filename=coat.glb`, glb, oct)).json;
+    const detail = (await c.req('GET', `/api/avatars/${av.id}`)).json;
+    const garment = { id: 'coat', name: 'Coat', model: g.model, modelLow: g.modelLow, slot: 'outer', family: 'm' };
+    expect((await c.req('PATCH', `/api/avatars/${av.id}`, { config: { ...detail.config, family: 'm', garments: [garment] } })).status).toBe(200);
+    const code = (await c.req('POST', '/api/avatars/code', { name: 'Kit', recipe: { body: { height: 1.9 } } })).json;
+    const a = await make({ name: 'Ada' });
+    const b = await make({ name: 'Kit' });
+    await c.req('PATCH', `/api/characters/${a.id}`, { game: { avatar3d: av.id, display: '3d' } });
+    await c.req('PATCH', `/api/characters/${b.id}`, { game: { avatar3d: code.id, display: '3d' } });
+    const zip = (await c.req('POST', '/api/library/bundle', { ids: [a.id, b.id] })).raw;
+    const files = Object.keys(unzipSync(new Uint8Array(zip)));
+    expect(files).toEqual(expect.arrayContaining(['avatars/Ada/avatar.json', 'avatars/Kit/avatar.json']));
+    expect(files.some((f) => f.startsWith('avatars/Ada/source-'))).toBe(true);
+    // Without 3D, none of it.
+    const lean = Object.keys(unzipSync(new Uint8Array((await c.req('POST', '/api/library/bundle', { ids: [a.id], avatars3d: false })).raw)));
+    expect(lean.some((f) => f.startsWith('avatars/'))).toBe(false);
+
+    const other = await createClient();
+    try {
+      const pv = (await other.req('POST', '/api/library/bundle/preview', zip, { 'content-type': 'application/zip' })).json;
+      expect(pv.items.map((i: any) => i.avatar3d)).toEqual([true, true]);
+      const r = (await other.req('POST', '/api/library/bundle/import', { token: pv.token })).json;
+      const ada = (await other.req('GET', `/api/characters/${r.created[0]}`)).json;
+      const kit = (await other.req('GET', `/api/characters/${r.created[1]}`)).json;
+      expect(ada.game.avatar3d).toMatch(/^av_/);
+      expect(ada.game.avatar3d).not.toBe(av.id);
+      await avatarSettled(ada.game.avatar3d);
+      const got = (await other.req('GET', `/api/avatars/${ada.game.avatar3d}`)).json;
+      expect(got.status).toBe('ready');
+      expect(got.config.garments).toHaveLength(1);
+      expect(got.config.garments[0].model).not.toBe(g.model);
+      expect((await other.req('GET', `/media/${got.config.garments[0].model}`)).status).toBe(200);
+      const kitAv = (await other.req('GET', `/api/avatars/${kit.game.avatar3d}`)).json;
+      expect(kitAv).toMatchObject({ kind: 'code' });
+      expect(kitAv.config.recipe.body.height).toBe(1.9);
+    } finally {
+      await other.close();
+    }
+  }, 120_000);
 
   it('imports a plain zip of SillyTavern files: a card, its chats in a folder, a linked world', async () => {
     const png = readFileSync(path.join(FIXTURES, 'st/Seraphina.png'));

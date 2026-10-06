@@ -220,7 +220,7 @@ async function processAvatar(ctx: AppContext, owner: string, id: string, opts: P
 // Public operations
 // ---------------------------------------------------------------------------------------------
 
-export function createAvatar(ctx: AppContext, owner: string, bytes: Buffer, opts: { name?: string; filename?: string; kind?: AvatarKind; config?: Partial<AvatarConfig> }) {
+export function createAvatar(ctx: AppContext, owner: string, bytes: Buffer, opts: { name?: string; filename?: string; kind?: AvatarKind; config?: Partial<AvatarConfig>; id?: string }) {
   if (bytes.length < 64) throw new HttpError(400, 'The file is empty');
   const type = sniffModel(bytes, opts.filename);
   if (!type) throw new HttpError(415, 'Unsupported 3D file. Use GLB, VRM (0.x or 1.0), FBX, PMX/PMD, OBJ or DAE.');
@@ -233,7 +233,7 @@ export function createAvatar(ctx: AppContext, owner: string, bytes: Buffer, opts
   }
   const ext = type === 'glb' ? (/\.vrm$/i.test(opts.filename ?? '') ? 'vrm' : 'glb') : type;
   const src = saveModelFile(ctx, owner, bytes, { kind: 'model-source', ext, meta: { filename: (opts.filename ?? '').slice(0, 200) } });
-  const id = newId('av_');
+  const id = opts.id ?? newId('av_');
   const now = Date.now();
   const name = (opts.name || (opts.filename ?? '').replace(/\.[^.]+$/, '') || 'New avatar').trim().slice(0, 80);
   const config = AvatarConfigSchema.parse(opts.config ?? {});
@@ -282,7 +282,9 @@ export function deleteAvatar(ctx: AppContext, owner: string, id: string) {
   const cfg = parseConfig(row.config);
   // A parts-made avatar's body belongs to its pack, not to the avatar.
   const own = row.kind === 'parts' ? [] : [row.model_media, row.low_media];
-  const files = [row.source_media, ...own, row.thumb_media, ...cfg.outfits.flatMap((o) => [o.model, o.modelLow])].filter((x): x is string => !!x);
+  // A realistic avatar's clothes were made for its body alone.
+  const garments = row.kind === 'realistic' ? cfg.garments.filter((g) => cfg.family && g.family === cfg.family).flatMap((g) => [g.model, g.modelLow]) : [];
+  const files = [row.source_media, ...own, row.thumb_media, ...cfg.outfits.flatMap((o) => [o.model, o.modelLow]), ...garments].filter((x): x is string => !!x && !x.startsWith('/'));
   ctx.db.prepare('DELETE FROM avatars WHERE id = ? AND owner_id = ?').run(id, owner);
   for (const f of files) deleteMedia(ctx, owner, f);
   const chars = ctx.db.prepare("SELECT id, game FROM characters WHERE owner_id = ? AND json_extract(game, '$.avatar3d') = ?").all(owner, id) as Array<{ id: string; game: string }>;
@@ -297,6 +299,11 @@ export function deleteAvatar(ctx: AppContext, owner: string, id: string) {
 /** Adds a whole-model outfit (level 1): a model file with the same skeleton. */
 export async function addOutfitModel(ctx: AppContext, owner: string, id: string, bytes: Buffer, filename: string) {
   getAvatarRow(ctx, owner, id);
+  return saveOutfitFiles(ctx, owner, id, bytes, filename);
+}
+
+/** Optimizes a model that goes with an avatar (an outfit or garment) and saves it with a phone copy. */
+export async function saveOutfitFiles(ctx: AppContext, owner: string, id: string, bytes: Buffer, filename: string) {
   if (!isGlb(bytes)) throw new HttpError(415, 'Outfit models must be GLB or VRM (convert other formats by importing them as an avatar first)');
   const info = await inspectModel(bytes);
   const r = await optimizeOffThread(bytes, { format: info.format });

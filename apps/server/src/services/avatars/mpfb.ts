@@ -10,12 +10,15 @@
 import { createHash } from 'node:crypto';
 import { createReadStream, createWriteStream, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
-import { Unzip, UnzipInflate } from 'fflate';
-import { RealisticSpecSchema, adultAge, type RealisticSpec } from '@everloom/engine';
+import { Unzip, UnzipInflate, unzipSync } from 'fflate';
+import { GarmentSchema, RealisticSpecSchema, adultAge, regionOfBone, type BodyRegion, type Garment, type GarmentSlot, type HumanBone, type RealisticSpec } from '@everloom/engine';
 import { HttpError, type AppContext } from '../../context.js';
 import { safeFetch } from '../../util/fetch.js';
 import { findBlender, runBlenderJob } from '../blender.js';
-import { createAvatar } from './service.js';
+import { newId } from '../../security/crypto.js';
+import { deleteMedia } from '../media.js';
+import { inspectModel } from './inspect.js';
+import { createAvatar, saveOutfitFiles } from './service.js';
 
 export interface MpfbSource {
   url: string;
@@ -226,14 +229,88 @@ export async function createRealisticAvatar(ctx: AppContext, owner: string, inpu
   if (!has(a.skins, spec.skin) || !has(a.eyes, spec.eyes) || !has(a.eyebrows, spec.eyebrows) || !has(a.eyelashes, spec.eyelashes) || !has(a.hair, spec.hair) || !spec.clothes.every((c) => a.clothes.includes(c))) {
     throw new HttpError(400, 'One of the chosen assets is not installed');
   }
+  // Clothes come out as separate garments of this body (so the wardrobe can take them off).
+  const separate = spec.clothes.length > 0;
   const r = await runBlenderJob(ctx, owner, {
     op: 'mpfb',
     files: {},
     input: '',
-    output: 'human.glb',
+    output: separate ? 'human.zip' : 'human.glb',
     extensions: st.managed ? mpfbDir(ctx) : undefined,
     timeoutMs: 5 * 60_000,
-    extra: { macro: spec.macro, skin: spec.skin, eyes: spec.eyes, eyebrows: spec.eyebrows, eyelashes: spec.eyelashes, hair: spec.hair, clothes: spec.clothes, rig: 'game_engine' },
+    extra: { macro: spec.macro, skin: spec.skin, eyes: spec.eyes, eyebrows: spec.eyebrows, eyelashes: spec.eyelashes, hair: spec.hair, clothes: spec.clothes, rig: 'game_engine', separate },
   });
-  return createAvatar(ctx, owner, r.output, { name: input.name || 'Realistic character', filename: 'realistic.glb', kind: 'realistic', config: { realistic: spec, look: 'pbr' } });
+  const name = input.name || 'Realistic character';
+  if (!separate) return createAvatar(ctx, owner, r.output, { name, filename: 'realistic.glb', kind: 'realistic', config: { realistic: spec, look: 'pbr' } });
+
+  const files = unzipSync(new Uint8Array(r.output));
+  const body = files['body.glb'];
+  if (!body) throw new HttpError(422, 'Blender made no body', 'blender_failed');
+  const id = newId('av_');
+  const family = `mpfb:${id}`.slice(0, 40);
+  const info = await inspectModel(Buffer.from(body));
+  const canon = new Map(Object.entries(info.boneMap).map(([c, file]) => [file, c as HumanBone]));
+  const made = (Array.isArray(r.result.garments) ? r.result.garments : []) as MadeGarment[];
+  const garments: Garment[] = [];
+  const saved: string[] = [];
+  try {
+    for (const g of made) {
+      const bytes = files[g.file];
+      if (!bytes) continue;
+      const slot = mpfbSlot(g.name, g.tags ?? [], coveredRegions(g.coverage ?? {}, canon, 0.6));
+      // Hidden: only regions wholly under the garment (every bone's skin 90% covered). A hidden
+      // region whose edge peeks out above a neckline shows as a hole; the skin under clothes is
+      // recessed in Blender, so the rest stays covered anyway.
+      const regions = coveredRegions(g.coverage ?? {}, canon, 0.9);
+      const f = await saveOutfitFiles(ctx, owner, id, Buffer.from(bytes), `${g.name}.glb`);
+      saved.push(f.model, f.modelLow);
+      garments.push(GarmentSchema.parse({ id: g.name.toLowerCase().replace(/[^a-z0-9_-]/g, '_').slice(0, 40), name: prettyAsset(g.name), model: f.model, modelLow: f.modelLow, slot, layer: slot === 'outer' ? 2 : slot === 'underwear' || slot === 'socks' ? 0 : 1, hides: [...regions], family, springs: false }));
+    }
+    return createAvatar(ctx, owner, Buffer.from(body), { id, name, filename: 'realistic.glb', kind: 'realistic', config: { realistic: spec, look: 'pbr', family, garments, body: typeof r.result.body === 'string' ? [r.result.body.slice(0, 80)] : [] } });
+  } catch (e) {
+    for (const m of saved) deleteMedia(ctx, owner, m);
+    throw e;
+  }
+}
+
+/** Body regions whose every bone has at least `min` of its skin under the garment. */
+function coveredRegions(coverage: Record<string, number>, canon: Map<string, HumanBone>, min: number): Set<BodyRegion> {
+  const worst = new Map<BodyRegion, number>();
+  for (const [bone, frac] of Object.entries(coverage)) {
+    const c = canon.get(bone);
+    if (!c) continue;
+    const r = regionOfBone(c);
+    worst.set(r, Math.min(worst.get(r) ?? 1, frac));
+  }
+  return new Set([...worst].filter(([, f]) => f >= min).map(([r]) => r));
+}
+
+interface MadeGarment {
+  name: string;
+  file: string;
+  tags?: string[];
+  coverage?: Record<string, number>;
+}
+
+const prettyAsset = (s: string) => s.replace(/[_-]+/g, ' ').replace(/(\d+)/g, ' $1').replace(/\s+/g, ' ').trim().replace(/^./, (c) => c.toUpperCase()).slice(0, 60);
+
+/** Which wardrobe slot a MakeHuman garment goes in: by its name and tags, else by what it covers. */
+export function mpfbSlot(name: string, tags: string[], covers: Set<BodyRegion>): GarmentSlot {
+  const t = `${name} ${tags.join(' ')}`.toLowerCase();
+  if (/shoe|boot|sandal|sneaker|heels/.test(t)) return 'feet';
+  if (/\bhat|cap\b|helmet|hood|beanie|fedora|cowboy/.test(t)) return 'head';
+  if (/glove/.test(t)) return 'hands';
+  if (/sock|stocking/.test(t)) return 'socks';
+  if (/underwear|\bbra\b|panties|boxer|briefs|bikini/.test(t)) return 'underwear';
+  if (/jacket|coat|cardigan|cape|cloak/.test(t)) return 'outer';
+  if (/suit|dress|overall|jumpsuit|robe|gown/.test(t)) return 'full';
+  if (/pant|jean|trouser|skirt|short|legging/.test(t)) return 'bottom';
+  if (/shirt|\btop|sweater|tank|blouse|hoodie|tee\b/.test(t)) return 'top';
+  const upper = covers.has('chest') || covers.has('belly');
+  const lower = covers.has('thighs') || covers.has('hips');
+  if (upper && lower) return 'full';
+  if (upper) return 'top';
+  if (lower) return 'bottom';
+  if (covers.has('feet')) return 'feet';
+  return 'outer';
 }

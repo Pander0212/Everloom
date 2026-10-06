@@ -132,7 +132,7 @@ export function registerCharLib(app: FastifyInstance, ctx: AppContext) {
   });
 
   app.post('/api/library/bundle', async (req, reply) => {
-    const b = parse(z.object({ ids: ids.min(1), chats: z.boolean().default(true), gallery: z.boolean().default(true), lorebooks: z.boolean().default(true) }), req.body);
+    const b = parse(z.object({ ids: ids.min(1), chats: z.boolean().default(true), gallery: z.boolean().default(true), lorebooks: z.boolean().default(true), avatars3d: z.boolean().default(true) }), req.body);
     const zip = await exportBundle(ctx, owner(req), b.ids, b);
     reply.header('content-type', 'application/zip');
     reply.header('content-disposition', `attachment; filename="everloom-characters-${new Date().toISOString().slice(0, 10)}.zip"`);

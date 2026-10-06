@@ -10,6 +10,7 @@ import { createCodeAvatar, createPartsAvatar, fillRecipe, garmentForItem } from 
 import { deletePack, importPack, listPacks, setPackEnabled } from '../services/avatars/packs.js';
 import { discardModel3dJob, getModel3dJob, startModel3dJob } from '../services/avatars/model3d.js';
 import { generateTexture } from '../services/avatars/textures.js';
+import { export3d, import3d, list3d, setTags3d } from '../services/avatars/library3d.js';
 import { createRealisticAvatar, installMpfb, mpfbInstalledInfo, mpfbStatus, removeMpfb } from '../services/avatars/mpfb.js';
 import { getCharacter } from '../services/characters.js';
 import { readMedia, saveModelFile } from '../services/media.js';
@@ -254,6 +255,25 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     const b = parse(z.object({ path: z.string().max(500).nullable() }), req.body ?? {});
     setBlenderPath(ctx, owner(req), b.path);
     return findBlender(ctx, owner(req), { refresh: true });
+  });
+
+  // ---- 3D in the asset library ------------------------------------------------------------------
+
+  app.get('/api/assets3d', async (req) => list3d(ctx, owner(req), parse(z.object({ q: z.string().max(200).optional(), type: z.string().max(20).optional(), tag: z.string().max(30).optional() }), req.query ?? {})));
+  app.put('/api/assets3d/tags', async (req) => {
+    const b = parse(z.object({ key: z.string().max(160), tags: z.array(z.string().max(30)).max(12) }), req.body ?? {});
+    return setTags3d(ctx, owner(req), b.key, b.tags);
+  });
+  app.post('/api/assets3d/export', async (req, reply) => {
+    const b = parse(z.object({ keys: z.array(z.string().max(160)).min(1).max(500) }), req.body ?? {});
+    const zip = export3d(ctx, owner(req), b.keys);
+    reply.header('content-type', 'application/zip');
+    reply.header('content-disposition', `attachment; filename="everloom-3d-${new Date().toISOString().slice(0, 10)}.zip"`);
+    return reply.send(zip);
+  });
+  app.post('/api/assets3d/import', { bodyLimit: 512 * 1024 * 1024 }, async (req) => {
+    if (!Buffer.isBuffer(req.body)) throw new HttpError(400, 'Send the zip as the request body');
+    return import3d(ctx, owner(req), req.body);
   });
 
   // ---- Realistic characters (MPFB) ------------------------------------------------------------

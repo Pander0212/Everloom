@@ -83,10 +83,11 @@ def clean():
     return removed
 
 
-def export_glb(path, animations=False):
+def export_glb(path, animations=False, selection=False):
     bpy.ops.export_scene.gltf(
         filepath=path,
         export_format="GLB",
+        use_selection=selection,
         export_animations=animations,
         export_skins=True,
         export_morph=True,
@@ -481,9 +482,45 @@ def op_mpfb(job):
             hs.add_mhclo_asset(p, basemesh, asset_type={"eyes": "Eyes", "eyebrows": "Eyebrows", "eyelashes": "Eyelashes", "hair": "Hair"}[kind], subdiv_levels=0, material_type="GAMEENGINE")
     for c in job.get("clothes") or []:
         hs.add_mhclo_asset(asset("clothes", c), basemesh, asset_type="Clothes", subdiv_levels=0, material_type="GAMEENGINE")
+    clothes = {}
+    for c in job.get("clothes") or []:
+        o = next((o for o in bpy.data.objects if o.type == "MESH" and o.name.endswith("." + c)), None)
+        if o:
+            clothes[c] = o
+    separate = bool(job.get("separate")) and clothes
+    body = basemesh
+    coverage = {}
+    recessed = 0
+    if separate:
+        # What each garment covers: per bone, the share of the body's skin (by the bone that moves
+        # it most) in MPFB's "Delete.<garment>" group, the skin it would remove under that garment.
+        bone_of = {}
+        rig = next((a for a in bpy.data.objects if a.type == "ARMATURE"), None)
+        bones = {b.name for b in rig.data.bones} if rig else set()
+        groups = {g.index: g.name for g in body.vertex_groups if g.name in bones}
+        for v in body.data.vertices:
+            best = max(((groups[g.group], g.weight) for g in v.groups if g.group in groups), key=lambda t: t[1], default=(None, 0))
+            bone_of[v.index] = best[0]
+        for c in clothes:
+            dg = body.vertex_groups.get("Delete." + c)
+            if not dg:
+                continue
+            totals, hits = {}, {}
+            for v in body.data.vertices:
+                b = bone_of.get(v.index)
+                if not b:
+                    continue
+                totals[b] = totals.get(b, 0) + 1
+                if any(g.group == dg.index and g.weight > 0.5 for g in v.groups):
+                    hits[b] = hits.get(b, 0) + 1
+            coverage[c] = {b: round(hits.get(b, 0) / n, 3) for b, n in totals.items() if n >= 10}
+        # The body stays whole (clothes come off in the wardrobe): drop the delete masks.
+        for m in list(body.modifiers):
+            if m.type == "MASK" and m.name.startswith("Delete."):
+                body.modifiers.remove(m)
     # The body's shape keys are its sliders: bake the current mix into the mesh first (modifiers
     # can't be applied to a mesh with shape keys), then apply the masks that remove helper geometry
-    # and the skin under clothes.
+    # (and, unless clothes are separate, the skin under clothes).
     for o in [o for o in bpy.data.objects if o.type == "MESH"]:
         if o.data.shape_keys:
             o.shape_key_add(name="__mix", from_mix=True)
@@ -498,6 +535,80 @@ def op_mpfb(job):
                         bpy.ops.object.modifier_apply(modifier=m.name)
                     except RuntimeError:
                         o.modifiers.remove(m)
+    if separate:
+        # Skin under a garment is pulled in so there's always a gap of a few millimetres between
+        # them: the wardrobe hides whole regions only, and MPFB's delete groups don't cover the
+        # edges (shoulders under sleeves, ankles). Rays along the skin's normal find the garment
+        # above it (or just below it, where skin pokes through).
+        from mathutils.bvhtree import BVHTree  # type: ignore
+
+        gap = float(job.get("recess", 0.006))
+        deps = bpy.context.evaluated_depsgraph_get()
+        body.data.update()
+        to_world = body.matrix_world
+        moves = {}
+        for o in clothes.values():
+            tree = BVHTree.FromObject(o, deps)
+            to_local = o.matrix_world.inverted() @ to_world
+            for v in body.data.vertices:
+                co = to_local @ v.co
+                n = (to_local.to_3x3() @ v.normal).normalized()
+                hit = tree.ray_cast(co, n, 0.03)
+                if hit[0] is not None:
+                    d = hit[3]
+                    need = gap - d
+                else:
+                    back = tree.ray_cast(co, -n, 0.02)
+                    if back[0] is None:
+                        continue
+                    need = gap + back[3]
+                if need > 0:
+                    moves[v.index] = max(moves.get(v.index, 0), need)
+        for i, d in moves.items():
+            v = body.data.vertices[i]
+            v.co -= v.normal * d
+        recessed = len(moves)
+        # The browser skins with four bones per vertex, so the body and a garment that Blender bends
+        # together can part in motion. Keep the body's four strongest bones, then give every garment
+        # vertex near the skin the weights of the skin under it: they bend as one.
+        rig = next((a for a in bpy.data.objects if a.type == "ARMATURE"), None)
+        bones = {b.name for b in rig.data.bones} if rig else set()
+        bgroups = {g.index: g for g in body.vertex_groups if g.name in bones}
+        vw = []
+        for v in body.data.vertices:
+            ws = sorted(((bgroups[g.group].name, g.weight) for g in v.groups if g.group in bgroups and g.weight > 0), key=lambda t: -t[1])
+            top = ws[:4]
+            norm = sum(w for _, w in top) or 1.0
+            for name, _w in ws[4:]:
+                body.vertex_groups[name].remove([v.index])
+            for name, w in top:
+                body.vertex_groups[name].add([v.index], w / norm, "REPLACE")
+            vw.append({name: w / norm for name, w in top})
+        bm = body.matrix_world
+        bverts = [bm @ v.co for v in body.data.vertices]
+        bpolys = [list(p.vertices) for p in body.data.polygons]
+        btree = BVHTree.FromPolygons(bverts, bpolys)
+        reach = float(job.get("weightReach", 0.05))
+        for o in clothes.values():
+            gm = o.matrix_world
+            for v in o.data.vertices:
+                loc, _n, idx, dist = btree.find_nearest(gm @ v.co)
+                if idx is None or dist > reach:
+                    continue
+                acc = {}
+                for vi in bpolys[idx]:
+                    k = 1.0 / max((bverts[vi] - loc).length, 1e-5)
+                    for name, w in vw[vi].items():
+                        acc[name] = acc.get(name, 0.0) + w * k
+                top = sorted(acc.items(), key=lambda t: -t[1])[:4]
+                norm = sum(w for _, w in top) or 1.0
+                for g in list(v.groups):
+                    grp = o.vertex_groups[g.group]
+                    if grp.name in bones:
+                        grp.remove([v.index])
+                for name, w in top:
+                    grp = o.vertex_groups.get(name) or o.vertex_groups.new(name=name)
+                    grp.add([v.index], w / norm, "REPLACE")
     # glTF alpha: the exporter makes every material with a linked Alpha "BLEND", which sorts badly
     # (skin shows through clothes). Hair, brows and lashes are cards: cut them out (a ROUND node
     # before Alpha exports as MASK at 0.5); everything else is opaque.
@@ -519,9 +630,42 @@ def op_mpfb(job):
             else:
                 alpha.default_value = 1.0
     out = inside(job, job["output"])
-    export_glb(out)
     meshes = [o for o in bpy.data.objects if o.type == "MESH"]
-    return {"triangles": tris(meshes), "meshes": [o.name for o in meshes], "bones": sum(len(a.data.bones) for a in bpy.data.objects if a.type == "ARMATURE")}
+    arm = next((a for a in bpy.data.objects if a.type == "ARMATURE"), None)
+    info = {"meshes": [o.name for o in meshes], "bones": len(arm.data.bones) if arm else 0}
+    if not separate:
+        export_glb(out)
+        return {"triangles": tris(meshes), **info}
+    # A zip: the body (with hair, eyes, brows and lashes) and each garment on the same skeleton.
+    import zipfile
+
+    def export_only(objs, path):
+        bpy.ops.object.select_all(action="DESELECT")
+        for o in objs + ([arm] if arm else []):
+            o.select_set(True)
+        export_glb(path, selection=True)
+
+    worn = set(clothes.values())
+    files = []
+    body_path = inside(job, "body.glb")
+    export_only([o for o in meshes if o not in worn], body_path)
+    files.append(("body.glb", body_path))
+    garments = []
+    for c, o in clothes.items():
+        p = inside(job, "garment-%s.glb" % c)
+        export_only([o], p)
+        files.append((os.path.basename(p), p))
+        tags = []
+        try:
+            with open(os.path.join(data, "clothes", c, c + ".mhclo"), encoding="utf-8", errors="replace") as f:
+                tags = [l.split(None, 1)[1].strip().lower() for l in f if l.startswith("tag ") and len(l.split(None, 1)) > 1][:20]
+        except OSError:
+            pass
+        garments.append({"name": c, "file": os.path.basename(p), "tags": tags, "coverage": coverage.get(c, {}), "triangles": tris([o])})
+    with zipfile.ZipFile(out, "w") as z:
+        for name, p in files:
+            z.write(p, name)
+    return {"triangles": tris([o for o in meshes if o not in worn]), "garments": garments, "body": body.name, "recessed": recessed, **info}
 
 
 def op_mpfb_assets(job):

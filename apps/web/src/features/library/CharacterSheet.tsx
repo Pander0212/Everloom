@@ -6,11 +6,12 @@
  */
 import { CARD_FIELDS, diffCards, type CardData, type CharacterDTO, type CharacterSummary, type FieldDiff } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, Download, ExternalLink, History, Link2, Lock, LockOpen, MessageSquare, RefreshCw, RotateCcw, Save, Star, Trash2 } from 'lucide-react';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { Box, ChevronLeft, ChevronRight, Download, ExternalLink, History, Link2, Lock, LockOpen, MessageSquare, RefreshCw, RotateCcw, Save, Star, Trash2 } from 'lucide-react';
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { del, download, get, patch, post } from '@/lib/api';
 import { cx, relativeTime } from '@/lib/format';
+import { useFeatures } from '@/lib/features';
 import { useSettings } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
 import { NewChatSheet } from '@/features/chats/NewChatSheet';
@@ -163,6 +164,36 @@ const idLists = new Map<string, string[]>();
 /** A stable array per id, so the sheet doesn't re-run its check on every render. */
 const updateIds = (id: string) => idLists.get(id) ?? (idLists.set(id, [id]), idLists.get(id)!);
 
+// Loaded only when someone asks to see the model (nothing 3D downloads before that).
+const StageLayer3D = lazy(() => import('@/features/avatar3d/StageLayer'));
+
+/** The character's 3D avatar, on tap: the same stage as in chats (outfits, parts and garments included). */
+function Model3D({ c }: { c: CharacterDTO }) {
+  const features = useFeatures(null);
+  const [show, setShow] = useState(false);
+  const [failed, setFailed] = useState<string | null>(null);
+  const avatarId = c.game?.avatar3d;
+  if (!features.on.avatars3d || !avatarId) return null;
+  return (
+    <section>
+      <h3 className="mb-2 text-sm font-semibold text-fg-2">3D model</h3>
+      {failed ? (
+        <p className="text-sm text-fg-2">The model couldn't be shown: {failed}</p>
+      ) : show ? (
+        <div className="relative h-72 overflow-hidden rounded-lg bg-surface-2" data-testid="detail-3d">
+          <Suspense fallback={<div className="grid h-full place-items-center"><Spinner /></div>}>
+            <StageLayer3D className="absolute inset-0" cast={[{ id: c.id, avatarId, emotion: 'neutral', speaking: false }]} speakerId={null} scene={null} onFail={(_id, reason) => setFailed(reason)} />
+          </Suspense>
+        </div>
+      ) : (
+        <Button variant="secondary" icon={Box} onClick={() => setShow(true)} data-testid="detail-3d-show">
+          Show in 3D
+        </Button>
+      )}
+    </section>
+  );
+}
+
 function Details({ c, onDeleted, onFullEditor }: { c: CharacterDTO; onDeleted: () => void; onFullEditor: () => void }) {
   const [g, setG] = useState(0);
   const greetings = [c.card.first_mes, ...(c.card.alternate_greetings ?? [])].filter(Boolean);
@@ -193,6 +224,7 @@ function Details({ c, onDeleted, onFullEditor }: { c: CharacterDTO; onDeleted: (
         </p>
       ) : null}
       {c.linked ? <UpdatesSheet open={updates} onOpenChange={setUpdates} ids={updateIds(c.id)} /> : null}
+      <Model3D c={c} />
       {c.tags.length ? (
         <div className="flex flex-wrap gap-1.5">
           {c.tags.map((t) => (

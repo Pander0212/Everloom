@@ -264,6 +264,9 @@ export const OpSchemas3 = {
           fx: z.enum(['shake', 'flash', 'fade', 'blur', 'vignette', 'heartbeat', 'sparkle', 'rain', 'snow', 'glitch', 'fog', 'embers', 'lightning']).optional(),
           mood: z.string().trim().max(30).optional(),
           seconds: num.min(1).max(30).optional(),
+          /** The speaker plays this emote (3D characters), or changes outfit (null: back to their own). */
+          emote: z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_]{0,39}$/).optional(),
+          outfit: z.string().trim().max(60).nullable().optional(),
         }),
       )
       .min(1)
