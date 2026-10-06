@@ -15,7 +15,9 @@ export const BOTTOMS = ['none', 'pants', 'shorts', 'skirt', 'long_skirt'] as con
 export const SHOES = ['none', 'shoes', 'boots', 'sandals'] as const;
 export const HATS = ['none', 'cap', 'beanie', 'wizard', 'hood', 'crown', 'headband', 'helmet'] as const;
 export const EXTRAS = ['cape', 'scarf', 'belt', 'glasses', 'earrings', 'apron'] as const;
-export const PATTERNS = ['plain', 'stripes', 'checks', 'dots'] as const;
+/** Plain and simple patterns are drawn in code; the fabrics are detail maps in /avatar/fabrics. */
+export const PATTERNS = ['plain', 'stripes', 'checks', 'dots', 'denim', 'knit', 'plaid', 'floral'] as const;
+export type Pattern = (typeof PATTERNS)[number];
 
 export const AvatarRecipeSchema = z.object({
   v: z.literal(1).default(1),
@@ -156,7 +158,10 @@ export function garmentFromItem(item: { name: string; desc?: string; category?: 
   const metal = has(/\b(plate|mail|steel|iron|bronze|helm|helmet|greaves|gauntlet|cuirass|breastplate)\b/);
   const c = (fallback: string) => color || (metal ? '#8a8f99' : fallback);
   const slot = item.slot ?? null;
-  const g = (x: GarmentRecipe) => ({ garment: GarmentRecipeSchema.parse(x), sure: true });
+  // The cloth, when the item names one (tops and bottoms show it).
+  const fabric: Pattern | null = has(/\b(denim|jeans)\b/) ? 'denim' : has(/\b(plaid|tartan|flannel|kilt)\b/) ? 'plaid' : has(/\b(knit|knitted|woolen|woollen|wool|cable-knit)\b/) ? 'knit' : has(/\b(floral|flowery|flowered)\b/) ? 'floral' : has(/\b(striped|stripy|pinstripe)\b/) ? 'stripes' : has(/\b(checked|checkered|chequered|gingham)\b/) ? 'checks' : has(/\b(polka|dotted|spotted)\b/) ? 'dots' : null;
+  if (fabric === 'denim' && !color) color = '#4a6a94';
+  const g = (x: GarmentRecipe) => ({ garment: GarmentRecipeSchema.parse((x.slot === 'top' || x.slot === 'bottom') && fabric && !x.pattern ? { ...x, pattern: fabric } : x), sure: true });
   // Head.
   if (has(/\b(helm|helmet|coif)\b/)) return g({ slot: 'hat', kind: 'helmet', color: c('#8a8f99') });
   if (has(/\b(hood|cowl)\b/)) return g({ slot: 'hat', kind: 'hood', color: c('#4a4a52') });

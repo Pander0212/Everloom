@@ -82,6 +82,11 @@ describe('garments for code-made characters', async () => {
   it('knows the built-in kinds of worn items', () => {
     expect(garmentFromItem({ name: 'Iron Helmet', category: 'armor', slot: 'head' })).toMatchObject({ sure: true, garment: { slot: 'hat', kind: 'helmet' } });
     expect(garmentFromItem({ name: 'Red silk gown' })).toMatchObject({ sure: true, garment: { slot: 'top', kind: 'robe', color: '#a65b5b' } });
+    // The cloth an item names becomes the garment's fabric (denim is blue unless a colour is given).
+    expect(garmentFromItem({ name: 'Old jeans' })).toMatchObject({ garment: { slot: 'bottom', pattern: 'denim', color: '#4a6a94' } });
+    expect(garmentFromItem({ name: 'Tartan kilt' })).toMatchObject({ garment: { slot: 'bottom', kind: 'skirt', pattern: 'plaid' } });
+    expect(garmentFromItem({ name: 'Green wool sweater' })).toMatchObject({ garment: { slot: 'top', pattern: 'knit' } });
+    expect(garmentFromItem({ name: 'Wool hat' }).garment).not.toHaveProperty('pattern');
     expect(garmentFromItem({ name: 'Leather boots', slot: 'feet' }).garment).toMatchObject({ slot: 'shoes', kind: 'boots' });
     expect(garmentFromItem({ name: 'Sword', category: 'weapon', slot: 'weapon' })).toEqual({ garment: null, sure: true });
     // Worn but unknown: a plain garment for the slot, flagged for the model.

@@ -3,7 +3,7 @@
  * its skin weights. No three.js here, so it runs in a worker (meshing takes about a second on a
  * laptop, longer on a phone) and the result is sent back as transferable arrays.
  */
-import { AvatarRecipeSchema, type AvatarRecipe } from '@everloom/engine';
+import { AvatarRecipeSchema, type AvatarRecipe, type Pattern } from '@everloom/engine';
 import { planBody, type BodyPlan } from './body';
 import { planOutfit } from './outfit';
 import { buildFace, type FaceMesh } from './face';
@@ -25,7 +25,7 @@ export interface CodePart extends SkinnedMesh {
   color: string;
   roughness: number;
   metalness: number;
-  pattern: 'plain' | 'stripes' | 'checks' | 'dots';
+  pattern: Pattern;
   /** Texture coordinates for the pattern (wrapped around the body like a label). */
   uvs?: Float32Array;
 }

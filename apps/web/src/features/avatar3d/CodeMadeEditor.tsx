@@ -196,7 +196,7 @@ export default function CodeMadeEditor({ avatar }: { avatar: AvatarDetail }) {
                 {recipe.top.kind !== 'none' && recipe.top.kind !== 'armor' ? (
                   <>
                     <Field label="Top pattern">
-                      <Segmented label="Top pattern" size="sm" options={PATTERNS.map((p) => ({ value: p, label: label(p) }))} value={recipe.top.pattern} onChange={(pattern) => set('top', { pattern })} />
+                      <div className="-mx-1 overflow-x-auto px-1"><Segmented label="Top pattern" size="sm" options={PATTERNS.map((p) => ({ value: p, label: label(p) }))} value={recipe.top.pattern} onChange={(pattern) => set('top', { pattern })} /></div>
                     </Field>
                     <Field label="Fit" hint="Fitted to loose.">
                       <Slider label="Top fit" min={0} max={1} step={0.05} value={recipe.top.looseness} onChange={(looseness) => set('top', { looseness })} />
@@ -219,7 +219,7 @@ export default function CodeMadeEditor({ avatar }: { avatar: AvatarDetail }) {
                 ) : null}
                 {recipe.bottom.kind !== 'none' ? (
                   <Field label="Bottom pattern" className="sm:col-span-2">
-                    <Segmented label="Bottom pattern" size="sm" options={PATTERNS.map((p) => ({ value: p, label: label(p) }))} value={recipe.bottom.pattern} onChange={(pattern) => set('bottom', { pattern })} />
+                    <div className="-mx-1 overflow-x-auto px-1"><Segmented label="Bottom pattern" size="sm" options={PATTERNS.map((p) => ({ value: p, label: label(p) }))} value={recipe.bottom.pattern} onChange={(pattern) => set('bottom', { pattern })} /></div>
                   </Field>
                 ) : null}
                 <Field label="Shoes" htmlFor="cm-shoes">

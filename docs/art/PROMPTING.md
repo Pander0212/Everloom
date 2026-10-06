@@ -158,6 +158,56 @@ What we may call, and nothing else:
 - Neta Lumina (Lumina 2 base, Gemma encoder) takes natural language plus tags and is good for anime
   characters at 832x1216.
 
+## Textures and reference sheets (Phase 5)
+
+Written before the Phase 5 texture calls, from the model notes above and the usual guidance for
+material scans; what the calls taught is added at the end.
+
+**Seamless tiles (fabric, leather, knit, patterns):**
+
+- Model: **Z Image Turbo** first. It leans photographic, which is what a material scan should be,
+  and it's sharp at 1024. Qwen Image for printed patterns that need exact repeats (plaid, regular
+  florals), since it follows layout best.
+- Ask for the *material*, not an object: "a seamless tileable texture of dark blue denim twill
+  fabric, flat top-down scan". Never "a pair of jeans" (you get the garment, folds and all).
+- Say how it's lit and framed, positively: "evenly lit, flat diffuse light, no shadows, no
+  highlights, no perspective, orthographic, the weave fills the whole frame edge to edge, uniform
+  scale, no border, no vignette, no folds or wrinkles". Folds and light falloff are what break a
+  tile.
+- Keep the pattern small relative to the frame (several repeats across): a big motif shows as an
+  obvious repeat on a sleeve.
+- "No text, no logo, no watermark" as always.
+- Afterwards, in code (never with more image calls): offset by half and check the seam
+  (`seamScore` in `apps/server/src/services/avatars/textures.ts`); blend it (`makeSeamless`) when the
+  score is poor; scale down (256–512 px is plenty for clothing), and for code-made clothes turn it
+  into a neutral detail map (luminance only, normalised bright) so it multiplies with the garment's
+  own colour instead of replacing it. Roughness or normal maps, if wanted, come from the same image
+  in code.
+
+**What the Phase 5 calls taught (ledger 83–89):**
+
+- A photographic denim scan from Z Image Turbo was a perfect material, but its weave is far too fine
+  to read on a toon character a few hundred pixels tall. "Stylized hand-painted game texture" plus
+  an explicit scale ("about thirty diagonal ridges across the frame", "six vertical columns of
+  cables") gave weaves you can see.
+- Qwen Image doesn't count repeats exactly ("exactly four repeats" gave about two and a half), so
+  regular patterns are cropped to a whole number of repeats in code (autocorrelation finds the
+  period) instead of trusting the prompt.
+- Even with "evenly lit", Z Image Turbo adds a soft light gradient; dividing by a heavy blur removes
+  it, but not for flat colour blocks like plaid (it smears them), which have no lighting to remove.
+- Qwen sometimes leaves a thin white border on one edge: crop 3% all round before anything else.
+- "Smooth leather" came back almost featureless: ask for visible features (grain, creases, wear).
+- One transient HTTP 503 (`rate_limiter_unavailable`) on the first call; the retry went through.
+
+**Reference sheets (front, side, back) for modelling or image-to-3D:**
+
+- Qwen Image (layout): "character turnaround reference sheet, three views of the same character
+  side by side, left to right: front view, side view facing right, back view; standing straight,
+  arms slightly away from the body (A-pose), neutral expression, full body head to toe, orthographic,
+  no perspective, evenly lit, plain light grey background, same proportions and clothes in every
+  view, no text, no labels". Image-to-3D services want the front view alone, cropped, on a plain
+  background.
+
 ## Rules for every prompt (all models)
 
 - **All-ages only:** fully clothed, no suggestive poses, no gore. For Chroma and the anime fine-tunes,

@@ -4,7 +4,7 @@
  * targets and its own expression map.
  */
 import * as THREE from 'three';
-import type { AvatarRecipe, HumanBone } from '@everloom/engine';
+import type { AvatarRecipe, HumanBone, Pattern } from '@everloom/engine';
 import type { LoadedModel } from '../loader';
 import { FACE_EXPRESSIONS, FACE_MORPHS } from './face';
 import { codeGeometry, type BuildOptions, type CodeGeometry, type SkinnedMesh } from './geometry';
@@ -23,11 +23,25 @@ function geometry(m: SkinnedMesh): THREE.BufferGeometry {
   return g;
 }
 
+/** Fabrics: neutral detail maps (tools/avatars/build-fabrics.ts) and how many times each repeats per pattern tile. */
+const FABRIC_SCALE: Partial<Record<Pattern, number>> = { denim: 0.5, knit: 0.3, plaid: 0.35, floral: 0.16 };
+
 /** A small repeating pattern: white with darker marks, multiplied by the garment's colour. */
-const patterns = new Map<string, THREE.DataTexture>();
-function patternTexture(kind: 'stripes' | 'checks' | 'dots'): THREE.DataTexture {
+const patterns = new Map<string, THREE.Texture>();
+function patternTexture(kind: Exclude<Pattern, 'plain'>): THREE.Texture {
   let t = patterns.get(kind);
   if (t) return t;
+  const scale = FABRIC_SCALE[kind];
+  if (scale) {
+    // Loaded on first use (a few KB); the garment shows plain until it arrives.
+    t = new THREE.TextureLoader().load(`/avatar/fabrics/${kind}.webp`);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.repeat.set(scale, scale);
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 4;
+    patterns.set(kind, t);
+    return t;
+  }
   const N = 32;
   const data = new Uint8Array(N * N * 4);
   for (let y = 0; y < N; y++)

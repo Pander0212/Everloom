@@ -3,7 +3,7 @@
  * from the body's own shapes (grown a little, cut by planes) or from new shapes, so it fits any
  * body the recipe makes. Long hair, ponytails and capes get bone chains that swing.
  */
-import type { AvatarRecipe } from '@everloom/engine';
+import type { AvatarRecipe, Pattern } from '@everloom/engine';
 import type { BodyPlan } from './body';
 import { ellipsoid, rebone, roundBox, roundCone, scaled, torus, type Field, type Shape, type V3 } from './sdf';
 
@@ -29,7 +29,7 @@ export interface Part {
   roughness?: number;
   metalness?: number;
   /** A printed pattern (stripes, checks, dots) over the colour. */
-  pattern?: 'plain' | 'stripes' | 'checks' | 'dots';
+  pattern?: Pattern;
 }
 
 export interface Outfit {
