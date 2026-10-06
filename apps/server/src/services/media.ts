@@ -113,6 +113,27 @@ export async function saveMedia(ctx: AppContext, owner: string, bytes: Buffer, o
   return row;
 }
 
+export const MAX_MODEL_BYTES = 200 * 1024 * 1024;
+const MODEL_MIME: Record<string, string> = { glb: 'model/gltf-binary', vrm: 'model/gltf-binary', fbx: 'application/octet-stream', pmx: 'application/octet-stream', pmd: 'application/octet-stream', bvh: 'text/plain', vmd: 'application/octet-stream', vrma: 'model/gltf-binary', obj: 'text/plain', zip: 'application/zip' };
+
+/**
+ * Store a 3D file (model, motion or source file) as a media row so the vault, backups and
+ * deletion cover it. The caller has already checked what it is; `ext` only names the file.
+ */
+export function saveModelFile(ctx: AppContext, owner: string, bytes: Buffer, opts: { kind: string; ext: string; meta?: Record<string, unknown> }): MediaRow {
+  if (bytes.length > MAX_MODEL_BYTES) throw new HttpError(413, 'File is larger than 200 MB');
+  const ext = opts.ext.toLowerCase();
+  if (!MODEL_MIME[ext]) throw new HttpError(415, 'Unsupported 3D file');
+  const id = newId('m_');
+  const filename = `${id}.${ext}`;
+  writeContentFile(ctx.vault, path.join(ownerDir(ctx, owner), filename), bytes);
+  const row: MediaRow = { id, owner_id: owner, kind: opts.kind, filename, mime: MODEL_MIME[ext]!, size: bytes.length, width: null, height: null, character_id: null, meta: JSON.stringify(opts.meta ?? {}), created_at: Date.now() };
+  ctx.db
+    .prepare('INSERT INTO media (id, owner_id, kind, filename, mime, size, width, height, character_id, meta, created_at) VALUES (@id, @owner_id, @kind, @filename, @mime, @size, @width, @height, @character_id, @meta, @created_at)')
+    .run(row);
+  return row;
+}
+
 export function getMedia(ctx: AppContext, owner: string, id: string): { row: MediaRow; file: string } {
   if (!SAFE_ID.test(id)) throw new HttpError(404, 'Not found');
   const row = ctx.db.prepare('SELECT * FROM media WHERE id = ? AND owner_id = ?').get(id, owner) as MediaRow | undefined;
@@ -162,7 +183,7 @@ export function listMedia(ctx: AppContext, owner: string, filter: { kind?: strin
   if (filter.kind) {
     where.push('kind = ?');
     args.push(filter.kind);
-  }
+  } else where.push("kind NOT LIKE 'model%'"); // 3D files belong to their avatars, not the gallery
   if (filter.characterId) {
     where.push('character_id = ?');
     args.push(filter.characterId);

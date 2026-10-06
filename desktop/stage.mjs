@@ -19,7 +19,7 @@ for (const f of ['apps/server/dist/index.js', 'apps/server/dist/frame-runtime.js
 }
 cpSync(path.join(root, 'apps/web/dist'), path.join(stage, 'web'), { recursive: true });
 mkdirSync(path.join(stage, 'server'), { recursive: true });
-for (const f of ['index.js', 'frame-runtime.js']) cpSync(path.join(root, 'apps/server/dist', f), path.join(stage, 'server', f));
+for (const f of ['index.js', 'frame-runtime.js', 'avatar-worker.js', 'blender-worker.py']) cpSync(path.join(root, 'apps/server/dist', f), path.join(stage, 'server', f));
 
 // The server's runtime dependencies (the workspace engine is bundled into index.js).
 const serverPkg = JSON.parse(readFileSync(path.join(root, 'apps/server/package.json'), 'utf8'));

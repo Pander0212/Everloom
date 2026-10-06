@@ -42,6 +42,10 @@ export interface CharacterGame {
   gallery?: string[];
   /** The feature preset new chats with this character use (unset: ask, or follow the global setting). */
   chatMode?: FeaturePreset | null;
+  /** A 3D avatar (its id) shown on the stage when 3D characters are on. */
+  avatar3d?: string;
+  /** How this character appears on the stage: 3D, Live2D, sprites, or the richest available. */
+  display?: 'auto' | '3d' | 'live2d' | 'sprite';
 }
 
 export interface CharacterSummary {

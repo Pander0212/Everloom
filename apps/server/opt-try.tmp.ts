@@ -1,0 +1,12 @@
+import { readFileSync, writeFileSync } from 'node:fs';
+import { inspectModel } from './src/services/avatars/inspect.js';
+import { optimizeModel } from './src/services/avatars/optimize.js';
+const f = process.argv[2]!;
+const b = readFileSync(f);
+const info = await inspectModel(b);
+console.log(JSON.stringify({ ...info, bones: info.bones.length, morphs: info.morphs.length, boneMap: Object.keys(info.boneMap).length }, null, 0).slice(0, 1500));
+const r = await optimizeModel(b, { format: info.format, ktx2Budget: Number(process.argv[3] ?? 120) });
+console.log(r.report);
+writeFileSync(process.env.OUT + '/main.glb', r.main); writeFileSync(process.env.OUT + '/low.glb', r.low);
+const i2 = await inspectModel(r.main); console.log('main tris', i2.triangles, 'warn', i2.warnings.map(w=>w.code));
+const i3 = await inspectModel(r.low); console.log('low tris', i3.triangles, 'morphs', i3.morphs.length, 'bones', i3.bones.length);

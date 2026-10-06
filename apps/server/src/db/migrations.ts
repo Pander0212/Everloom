@@ -595,4 +595,42 @@ CREATE TABLE extensions (
 );
 `,
   },
+  {
+    version: 9,
+    name: 'phase 5 3d avatars',
+    sql: `
+-- 3D characters. The model files are media rows (kind model / model-low / model-source) so the vault
+-- and backups cover them; this row holds the settings (the Everloom avatar spec) and the report.
+CREATE TABLE avatars (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  name TEXT NOT NULL,
+  kind TEXT NOT NULL DEFAULT 'imported',
+  status TEXT NOT NULL DEFAULT 'ready',
+  error TEXT,
+  format TEXT NOT NULL DEFAULT 'glb',
+  source_media TEXT,
+  model_media TEXT,
+  low_media TEXT,
+  thumb_media TEXT,
+  config TEXT NOT NULL DEFAULT '{}',
+  info TEXT NOT NULL DEFAULT '{}',
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX avatars_owner ON avatars(owner_id, updated_at);
+-- Imported or authored motion clips (canonical skeleton), used as emotes.
+CREATE TABLE avatar_clips (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  emote TEXT NOT NULL,
+  label TEXT NOT NULL,
+  category TEXT NOT NULL,
+  data TEXT NOT NULL,
+  source TEXT NOT NULL DEFAULT '',
+  created_at INTEGER NOT NULL
+);
+CREATE UNIQUE INDEX avatar_clips_emote ON avatar_clips(owner_id, emote);
+`,
+  },
 ];

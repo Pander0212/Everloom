@@ -55,3 +55,4 @@ export * from './avatar/skeleton.js';
 export * from './avatar/bonemap.js';
 export * from './avatar/expressions.js';
 export * from './avatar/emotes.js';
+export * from './avatar/config.js';
