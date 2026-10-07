@@ -137,13 +137,23 @@ Run it as your normal user; it uses `sudo` for Docker by itself when needed (run
 **Backups:**
 
 - The app makes a nightly backup (database + images) into `data/backups/`, keeping the newest 14 by default. Change this in **Settings → Backups & import**, where you can also make a backup right now and download it.
-- `bash backup.sh` writes a consistent copy to `./backups/` on the host (the installer schedules it nightly). Copy these off the server now and then.
+- `bash backup.sh` writes a consistent copy to `./backups/` on the host (the installer schedules it nightly). Copy these off the server now and then. While Everloom runs, the server makes the backup itself (the same `.zip` as the app's, encrypted when the Vault is on, even while it's locked); if it's stopped, or an older version is running, the script copies the data folder instead (`.tar.gz`), stopping Everloom for a moment if needed.
 - Also keep `.env` somewhere safe: without `EVERLOOM_SECRET_KEY` the stored API keys can't be decrypted (you'd just re-enter them).
 
 **Restore:**
 
 - In the app: **Settings → Backups & import → Restore**, choose a backup `.zip`. Everloom checks it, restarts and comes back with that data.
-- From the host, with a `backup.sh` archive:
+- From the host, with a `backup.sh` `.zip`: put it where Everloom applies restores when it starts.
+
+  ```bash
+  docker compose down
+  mkdir -p data/restore-pending
+  python3 -m zipfile -e backups/everloom-YYYYMMDD-HHMMSS.zip data/restore-pending/
+  sudo chown -R 10001:10001 data
+  docker compose up -d
+  ```
+
+- With a `.tar.gz` (older backups, or ones made while Everloom was stopped):
 
   ```bash
   docker compose down

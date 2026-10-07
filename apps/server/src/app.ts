@@ -17,6 +17,7 @@ import { registerVault } from './routes/vault.js';
 import { FRAME_CSP, registerScripts } from './routes/scripts.js';
 import { registerExtensions } from './routes/extensions.js';
 import { registerDesktop } from './routes/desktop.js';
+import { registerLocal } from './routes/local.js';
 import { loadAllExtensions, stopAllDevWatches } from './services/extensions.js';
 import { registerChats } from './routes/chats.js';
 import { registerEvents } from './routes/events.js';
@@ -189,6 +190,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerScripts(app, ctx);
   registerExtensions(app, ctx);
   registerDesktop(app, ctx);
+  registerLocal(app, ctx);
   // Custom game ops from installed extensions (needs the content database: after unlocking when the vault is on).
   if (!ctx.vault.locked) loadAllExtensions(ctx);
   app.addHook('onClose', async () => stopAllDevWatches());

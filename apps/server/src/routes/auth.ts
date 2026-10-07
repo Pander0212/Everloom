@@ -75,6 +75,8 @@ export function registerAuth(app: FastifyInstance, ctx: AppContext) {
     if (PUBLIC.has(url) && !url.startsWith('/api/bridge/') && !url.startsWith('/api/addon/')) return;
     // The Windows app's control routes check their own token (see routes/desktop.ts).
     if (url.startsWith('/api/desktop/')) return;
+    // Host scripts (backup.sh) check their own token on the loopback interface (see routes/local.ts).
+    if (url.startsWith('/api/local/')) return;
     // Vault locked: nothing with content answers until it is unlocked (accounts and the vault itself do).
     if (ctx.vault.locked && !VAULT_OPEN.some((p) => url === p || url.startsWith(p + '/'))) throw new HttpError(423, 'The vault is locked. Unlock it to continue.', 'locked');
     if (PUBLIC.has(url)) return;

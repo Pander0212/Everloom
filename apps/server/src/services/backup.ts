@@ -3,7 +3,7 @@
  * Restore is staged and applied on the next start, before the database is opened.
  */
 import { logSafeError } from './diagnostics.js';
-import { createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs';
+import { copyFileSync, createWriteStream, existsSync, mkdirSync, readdirSync, renameSync, rmSync, statSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { pipeline } from 'node:stream/promises';
 import yauzl from 'yauzl';
@@ -31,8 +31,16 @@ function walk(dir: string, base = dir, out: string[] = []): string[] {
 
 export async function createBackup(ctx: AppContext, label = ''): Promise<{ name: string; size: number }> {
   const tmpDb = path.join(ctx.cfg.backupDir, `.tmp-${Date.now()}.db`);
-  // VACUUM INTO: a consistent copy, encrypted with the same key when the vault is on.
-  ctx.db.prepare('VACUUM INTO ?').run(tmpDb);
+  if (ctx.vault.enabled && ctx.vault.locked) {
+    // Locked: the database is closed (nothing writes to it), so the encrypted file is copied as it
+    // is; it opens with the passphrase like any encrypted backup.
+    const wal = ctx.cfg.dbPath + '-wal';
+    if (existsSync(wal) && statSync(wal).size > 0) throw new HttpError(423, 'Unlock the vault once so the database can be closed cleanly, then back up', 'locked');
+    copyFileSync(ctx.cfg.dbPath, tmpDb);
+  } else {
+    // VACUUM INTO: a consistent copy, encrypted with the same key when the vault is on.
+    ctx.db.prepare('VACUUM INTO ?').run(tmpDb);
+  }
   let name = `everloom-${stamp()}${label ? `-${label}` : ''}.zip`;
   if (existsSync(path.join(ctx.cfg.backupDir, name))) name = name.replace('.zip', `-${Date.now() % 1000}.zip`).replace(/-(\d+)\.zip$/, '.zip');
   const out = path.join(ctx.cfg.backupDir, name);
