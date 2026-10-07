@@ -38,6 +38,9 @@ a character, creation tools and integration. Spec: [docs/avatars.md](docs/avatar
   fal.ai); seamless textures from the owner's image connection; the NanoGPT image presets; the
   Blender add-on (checks against the spec, export, send with a device token);
   `docs/blender-ai-workflow.md`.
+- **.blend files**: models (alone with packed textures, or zipped with their texture folders),
+  motions and garments to fit import directly through the Blender worker, which opens them with
+  scripts off and keeps what would render; the import report names missing textures and libraries.
 - **Per-character picker**: automatic, imported, parts-made, realistic, code-made, Live2D or
   pictures, one line each.
 - **Integration**: the stage layers with sprites and Live2D side by side; cutscene lines with
@@ -67,7 +70,7 @@ a character, creation tools and integration. Spec: [docs/avatars.md](docs/avatar
 - **Motion review** was done with frame sheets and screenshots, not video.
 
 ### Phase 5 tests
-- **Unit and integration (Vitest): 79 files, 516 passed, 4 skipped at the last full run** (plus the newer timeout and fabric tests), including bone and expression mapping on fixture
+- **Unit and integration (Vitest): 82 files, 521 passed, 5 skipped** (the skips are the Blender-gated ones; with `EVERLOOM_BLENDER` set they pass too), including bone and expression mapping on fixture
   skeletons, retargeting at odd proportions, garment layering and region hiding, item-to-garment
   matching, installed-only emotes, rollback of outfit and emote ops, pack manifests (bad packs
   rejected with a reason), code-made garments fitting at every slider extreme, model-written
@@ -81,6 +84,11 @@ a character, creation tools and integration. Spec: [docs/avatars.md](docs/avatar
   equipped helmet swapping a part; code-made NPC figures from descriptions; pictures on a device set
   to pictures only; nothing 3D downloaded when 3D is off; motion import; the character sheet's 3D
   and the asset library's 3D shelf.
+- **Bugs the full run found and fixed**: story names linked to the wrong library character
+  (the first 90% match instead of the best, so "Wren Ashdown" could become "Wren"); a slash command
+  an extension provides failed if typed before the extension finished loading, and a message sent
+  as a chat opened could fire lorebook-script events before the script listened (both now wait,
+  briefly, for scripts that are still starting); DAE sources could not be stored.
 - **Rendering**: fixture models, every bundled emote, outfits, code-made and MPFB characters were
   rendered in headless Chromium and looked at; problems found that way (white eyes, skin through
   clothes, z-fighting boots, see-through MPFB skin, a hole at a neckline) were fixed.
