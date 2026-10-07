@@ -8,7 +8,7 @@ import { get, patch, post } from '@/lib/api';
 import { qk, queryClient, upsertMessage } from '@/lib/queries';
 import { toast } from '@/lib/store';
 import { scriptBus } from './bus';
-import { slashRegistry, type SlashCtx } from './registry';
+import { slashRegistry, whenStarted, type SlashCtx } from './registry';
 
 /** What the story view lends to commands (sending runs the normal reply flow). */
 export interface ChatActions {
@@ -204,6 +204,9 @@ export function installBuiltins() {
 /** Run a line of commands. Errors come back as a notice (owner) or an exception (scripts). */
 export async function runSlashLine(line: string, ctx: SlashCtx): Promise<string> {
   installBuiltins();
+  // A command an extension or script provides may not be registered yet if the chat just opened.
+  const name = /^\/([\w-]+)/.exec(line.trim())?.[1];
+  if (name && !slashRegistry.get(name)) await whenStarted();
   const chat = ctx.chatId ? queryClient.getQueryData<any>(qk.chat(ctx.chatId)) : null;
   const vars = { ...(chat?.metadata?.vars ?? {}) };
   const r = await runSlash(line, slashRegistry, ctx, { expand: (t) => expandMacros(t, { vars, user: undefined, char: undefined }) });

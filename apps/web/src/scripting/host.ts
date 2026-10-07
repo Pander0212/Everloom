@@ -18,7 +18,7 @@ import { scriptBus, type ScriptEvent } from './bus';
 import { logTo, markRunning, useScriptUi, type ConsoleEntry, type ModalField } from './ui-store';
 
 export { logTo, useScriptUi };
-import { slashRegistry } from './registry';
+import { noteStarting, slashRegistry } from './registry';
 
 export { slashRegistry };
 
@@ -155,6 +155,7 @@ export function attach(iframe: HTMLIFrameElement, spec: FrameSpec, opts: { onHei
   iframe.setAttribute('allow', '');
   iframe.src = '/api/sandbox/frame';
   frames.set(f.id, f);
+  noteStarting(`frame:${f.id}`, true);
   markRunning(spec, 1);
   ensureListening();
   return {
@@ -168,6 +169,7 @@ export function attach(iframe: HTMLIFrameElement, spec: FrameSpec, opts: { onHei
 function dispose(f: Frame, why?: string) {
   if (!frames.has(f.id)) return;
   frames.delete(f.id);
+  noteStarting(`frame:${f.id}`, false);
   for (const u of f.slash) u();
   for (const c of f.calls.values()) {
     clearTimeout(c.timer);
@@ -287,6 +289,8 @@ async function onMessage(e: MessageEvent) {
       }
       f.ready = true;
       f.lastPong = Date.now();
+      // Its code runs on "init" and registers commands within moments; count it as starting till then.
+      setTimeout(() => noteStarting(`frame:${f.id}`, false), 1200);
       const settingsCompat = f.spec.compat;
       const tv = themeVars();
       const chat = f.spec.chatId ? (queryClient.getQueryData<any>(qk.chat(f.spec.chatId)) ?? null) : null;

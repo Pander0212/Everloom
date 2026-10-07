@@ -9,6 +9,7 @@ import { get } from '@/lib/api';
 import { scriptBus } from './bus';
 import { setChatBridge, type FrameSpec } from './host';
 import { logTo, useScriptUi } from './ui-store';
+import { noteStarting } from './registry';
 import { ScriptFrame } from './ScriptFrame';
 import type { ActiveScript, ExtensionUi } from './types';
 
@@ -42,6 +43,11 @@ export function useEntry(ext: { id: string; updatedAt: number } | null, file: st
 
 function ExtensionBackground({ ext, chatId, characterId, settings }: { ext: ExtensionUi; chatId: string | null; characterId: string | null; settings: ScriptSettings }) {
   const doc = useEntry(ext, ext.background);
+  // Starting until its file is here (then the frame takes over).
+  useEffect(() => {
+    noteStarting(`entry:${ext.key}`, !doc);
+    return () => noteStarting(`entry:${ext.key}`, false);
+  }, [ext.key, doc]);
   if (!doc) return null;
   const spec: FrameSpec = { kind: 'script', key: ext.key, name: ext.name, permissions: ext.permissions, chatId, characterId, extId: ext.id, scriptId: 'main', budgetMs: settings.timeBudgetMs, ...(doc.type === 'js' ? { code: doc.text } : { html: doc.text }) };
   return <ScriptFrame spec={spec} hidden />;

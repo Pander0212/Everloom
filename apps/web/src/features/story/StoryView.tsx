@@ -24,6 +24,7 @@ import type { Command } from '@/features/game/CommandMenu';
 import { SavesSheet, ViewSheet } from './SavesSheet';
 import { scriptBus } from '@/scripting/bus';
 import { isCommand, runSlashLine, setChatActions } from '@/scripting/commands';
+import { whenStarted } from '@/scripting/registry';
 import { ScriptViewContext, type ScriptView } from '@/scripting/context';
 import { QuickBar } from '@/scripting/QuickBar';
 import { ReviewSheet } from '@/scripting/ReviewSheet';
@@ -283,7 +284,8 @@ export default function StoryView() {
         // "/command …" runs a command; "//text" sends text starting with a slash.
         if (isCommand(text)) return void runSlashLine(text.trim(), { perms: 'owner', chatId: id, from: 'You' });
         const t = text.trim().startsWith('//') ? text.trim().slice(1) : text.trim();
-        void run('normal', t || undefined);
+        // Scripts that are still starting (the chat just opened) get to hear this message's events.
+        void whenStarted(3000).then(() => run('normal', t || undefined));
       }}
       onStop={() => void stop(id)}
       onMenu={() => setMenuOpen(true)}
