@@ -115,9 +115,23 @@ function ensureOrg(s: CampaignState, name: string, changes: Change[]): Org {
   return s.orgs[id];
 }
 
+/** The library character a story name means: the best match (an exact name beats a shared first name), if close enough. */
+function bestCharacter(ctx: ApplyContext, name: string): { id: string; name: string } | undefined {
+  let best: { id: string; name: string } | undefined;
+  let score = 0.9;
+  for (const c of ctx.characters ?? []) {
+    const sc = c.name.trim().toLowerCase() === name.trim().toLowerCase() ? 2 : nameMatchScore(c.name, name);
+    if (sc > score || (sc >= score && !best)) {
+      best = c;
+      score = sc;
+    }
+  }
+  return best;
+}
+
 function newNpc(s: CampaignState, name: string, ctx: ApplyContext): Npc {
   const id = uniqueId(s.npcs, 'npc', name);
-  const card = ctx.characters?.find((c) => nameMatchScore(c.name, name) >= 0.9);
+  const card = bestCharacter(ctx, name);
   s.npcs[id] = {
     id,
     name,
@@ -154,7 +168,7 @@ function relationshipFor(s: CampaignState, name: string, ctx: ApplyContext): Rel
   const key = npc ? npc.id : `rel_${slugify(name)}`;
   const existing = s.relationships[key] ?? Object.values(s.relationships).find((r) => nameMatchScore(r.name, name) >= 0.9);
   if (existing) return existing;
-  const card = ctx.characters?.find((c) => nameMatchScore(c.name, name) >= 0.9);
+  const card = bestCharacter(ctx, name);
   s.relationships[key] = {
     id: key,
     name: npc?.name ?? card?.name ?? name,
