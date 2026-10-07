@@ -77,7 +77,7 @@ a character, creation tools and integration. Spec: [docs/avatars.md](docs/avatar
   recipes refused when they fail the schema, the Blender worker (gated on `EVERLOOM_BLENDER`:
   conversion, fitting, clean-up, turntables, a time-limited stuck job) and MPFB (gated on
   `EVERLOOM_MPFB_ZIPS` too: install, make, garments, delete), 3D bundles and the 3D shelf.
-- **End to end (Playwright): the full 8-project run is in progress; results will be filled in here** on 390×844, 360×800, 844×390 and 1280×800 in light and
+- **End to end (Playwright): 446 passed, 6 skipped, 0 failed** across all 8 projects (390×844 111, 360×800 111, 844×390 111, 1280×800 113; each count is dark and light together; the skips are desktop-only or phone-only tests) on 390×844, 360×800, 844×390 and 1280×800 in light and
   dark, zero console errors: import through the wizard; a 3D character on the stage with emotes
   from the picker, `/emote` and the story; a dance keeping time with the music; the story changing
   an outfit and a swipe taking it back; the dressing room; the parts maker on a phone with an
