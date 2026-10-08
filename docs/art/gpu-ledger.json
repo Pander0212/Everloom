@@ -50,14 +50,29 @@
    "gpu": "RTX 3090 Ti",
    "pricePerHr": 0.27,
    "start": "2026-10-08T22:24:53.200Z",
+   "stop": "2026-10-08T23:07:27.000Z",
+   "seconds": 2553,
+   "costUsd": 0.191,
+   "balanceBefore": 4.8241180834,
+   "balanceAfter": 4.632,
+   "images": [],
+   "result": "failed: setup hung at \"installing Python packages\" for 27 min on this host; stopped by hand, pod terminated, nothing left",
+   "note": "4 generated characters: nude A-pose bases + 9 outfits each"
+  },
+  {
+   "date": "2026-10-08",
+   "provider": "RunPod",
+   "gpu": "RTX 3090",
+   "pricePerHr": 0.5,
+   "start": "2026-10-08T23:07:57.319Z",
    "stop": null,
    "seconds": null,
    "costUsd": null,
-   "balanceBefore": 4.8241180834,
+   "balanceBefore": 4.6321440088,
    "balanceAfter": null,
    "images": [],
    "result": "started",
-   "note": "4 generated characters: nude A-pose bases + 9 outfits each"
+   "note": "4 generated characters: nude A-pose bases + 9 outfits each (second try)"
   }
  ]
 }

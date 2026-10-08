@@ -102,6 +102,10 @@ async function run(images) {
   saveLedger(L);
   let pod = null;
   const t0 = Date.now();
+  // Stopped from outside (Ctrl-C, kill): still give the pod back before exiting.
+  const onSignal = async () => { if (pod?.id) { try { await terminate(pod.id); console.log(`terminated ${pod.id} on a stop signal`); } catch { /* the pod's own watchdog ends it */ } } entry.result = 'stopped by a signal'; entry.stop = new Date().toISOString(); saveLedger(L); process.exit(130); };
+  process.once('SIGINT', onSignal);
+  process.once('SIGTERM', onSignal);
   try {
     // Community first (cheaper), then secure; as small a machine as See-through needs.
     for (const [cloud, gpu] of [...gpuOrder.map((g) => ['COMMUNITY', g]), ...gpuOrder.map((g) => ['SECURE', g])]) {
@@ -131,14 +135,16 @@ async function run(images) {
     const api = async (p, init = {}) => fetch(base + p, { ...init, headers: { 'x-token': token, ...(init.headers ?? {}) }, signal: AbortSignal.timeout(90_000) });
     const deadline = t0 + limitMinutes * 60_000;
     let health = null, lastStage = '';
-    while (Date.now() < deadline) {
+    // A host that isn't ready in this long is stuck (a slow mirror, a broken image): give it back.
+    const setupDeadline = Math.min(deadline, Date.now() + 35 * 60_000);
+    while (Date.now() < setupDeadline) {
       await sleep(15_000);
       try {
         const r = await api('/health');
-        if (r.ok) { health = await r.json(); if (health.stage !== lastStage) { console.log(`[${Math.round((Date.now() - t0) / 1000)} s] ${health.stage}`); lastStage = health.stage; } if (health.ready) break; }
+        if (r.ok) { health = await r.json(); if (/failed/.test(health.stage)) throw new Error(`setup failed: ${health.stage}`); if (health.stage !== lastStage) { console.log(`[${Math.round((Date.now() - t0) / 1000)} s] ${health.stage}`); lastStage = health.stage; } if (health.ready) break; }
       } catch { /* the proxy answers once the pod is up */ }
     }
-    if (!health?.ready) throw new Error('the worker did not finish setting up in time');
+    if (!health?.ready) throw new Error(`the worker did not finish setting up in time (last stage: ${health?.stage ?? 'no answer'})`);
     if (a['wait-dir']) {
       const want = Number(a.expect ?? 1), until = Math.min(deadline, Date.now() + 45 * 60_000);
       const list = () => readdirSync(a['wait-dir']).filter((f) => f.endsWith('.png')).map((f) => path.join(a['wait-dir'], f));

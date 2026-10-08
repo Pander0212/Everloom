@@ -8,4 +8,5 @@ on RunPod, no paid storage kept, every pod terminated (checked through the API a
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-10-08 | RunPod | — | — | — | 19:09:27 | 0 min | — | $5.00 → $5.00 | f-hip.png, f-master.png, f-raise.png, f-underwear.png, m-hip.png, m-master.png, m-raise.png, m-underwear.png | failed: no 24 GB GPU was available |
 | 2026-10-08 | RunPod | RTX 3090 | $0.220 | 20:31:10 | 21:17:26 | 46 min | $0.170 | $5.00 → $4.83 | u-belt.png, u-lace.png, u-tank.png, u-nude.png | 4/4 layered; 70 MB |
-| 2026-10-08 | RunPod | RTX 3090 Ti | $0.270 | 22:24:53 | — | — | — | $4.82 → ? |  | started |
+| 2026-10-08 | RunPod | RTX 3090 Ti | $0.270 | 22:24:53 | 23:07:27 | 43 min | $0.191 | $4.82 → $4.63 |  | failed: setup hung at "installing Python packages" for 27 min on this host; stopped by hand, pod terminated, nothing left |
+| 2026-10-08 | RunPod | RTX 3090 | $0.500 | 23:07:57 | — | — | — | $4.63 → ? |  | started |

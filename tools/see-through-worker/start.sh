@@ -20,7 +20,11 @@ if [ ! -f "$WORK/READY" ]; then
   # Everything inference needs from requirements.txt; not torch (the image has 2.8/cu128), not the
   # Qt UI, notebooks, tests or the training-only losses.
   grep -vE '^(PyQt6|PyQt6-Qt6|qtpy|ipykernel|pytest|lpips|convnext_perceptual_loss|grad-cam)' requirements.txt > /tmp/req.txt
-  pip install --no-cache-dir -q -r /tmp/req.txt >> "$WORK/setup.log" 2>&1 || stage "pip install failed"
+  # Progress shows in /health (the last line pip printed), and a dead mirror fails after a minute
+  # instead of hanging the pod.
+  ( while [ ! -f "$WORK/PIP_DONE" ]; do sleep 30; l=$(tail -c 300 "$WORK/setup.log" | tr '\r' '\n' | grep -v '^\s*$' | tail -1 | cut -c1-120); echo "installing Python packages: $l" > "$WORK/STAGE"; done ) &
+  pip install --no-cache-dir --progress-bar off --timeout 60 --retries 3 -r /tmp/req.txt >> "$WORK/setup.log" 2>&1 || stage "pip install failed"
+  touch "$WORK/PIP_DONE"
   stage "downloading the model weights"
   python -c "
 from huggingface_hub import snapshot_download
