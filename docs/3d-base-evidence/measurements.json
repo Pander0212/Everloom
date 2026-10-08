@@ -1,0 +1,297 @@
+{
+ "fitting 20k (phone)": {
+  "garmentVertices": 20000,
+  "bodyVertices": 14549,
+  "bodyTriangles": 26800,
+  "bodyMorphs": 31,
+  "workerMsNothingRendering": [
+   501,
+   466,
+   416
+  ],
+  "workerMsMedian": 466,
+  "nodeTransferMs": [
+   451,
+   341,
+   381,
+   273,
+   316
+  ],
+  "nodeTransferMsMedian": 341,
+  "nodeBvhMsMedian": 31.4,
+  "cpuThrottle": 1
+ },
+ "frame rates (phone)": [
+  {
+   "profile": "phone",
+   "quality": "low",
+   "characters": 1,
+   "fps": 12.7,
+   "cpuMsMean": 7.7,
+   "cpuMsP95": 14.2,
+   "frames": 102,
+   "drawCalls": 8,
+   "triangles": 20357,
+   "level": 0,
+   "heapMB": 28
+  },
+  {
+   "profile": "phone",
+   "quality": "medium",
+   "characters": 1,
+   "fps": 7,
+   "cpuMsMean": 12.9,
+   "cpuMsP95": 21.6,
+   "frames": 54,
+   "drawCalls": 13,
+   "triangles": 37491,
+   "level": 1,
+   "heapMB": 28
+  },
+  {
+   "profile": "phone",
+   "quality": "high",
+   "characters": 1,
+   "fps": 2.4,
+   "cpuMsMean": 22.8,
+   "cpuMsP95": 48.5,
+   "frames": 19,
+   "drawCalls": 26,
+   "triangles": 143108,
+   "level": 3,
+   "heapMB": 28
+  },
+  {
+   "profile": "phone",
+   "quality": "low",
+   "characters": 2,
+   "fps": 10.1,
+   "cpuMsMean": 12,
+   "cpuMsP95": 22.4,
+   "frames": 80,
+   "drawCalls": 16,
+   "triangles": 40714,
+   "level": 0,
+   "heapMB": 28
+  },
+  {
+   "profile": "phone",
+   "quality": "medium",
+   "characters": 2,
+   "fps": 5.8,
+   "cpuMsMean": 16.5,
+   "cpuMsP95": 29.8,
+   "frames": 45,
+   "drawCalls": 26,
+   "triangles": 74982,
+   "level": 1,
+   "heapMB": 28
+  },
+  {
+   "profile": "phone",
+   "quality": "high",
+   "characters": 2,
+   "fps": 2.1,
+   "cpuMsMean": 35.4,
+   "cpuMsP95": 66.1,
+   "frames": 16,
+   "drawCalls": 51,
+   "triangles": 286214,
+   "level": 3,
+   "heapMB": 28
+  },
+  {
+   "profile": "phone",
+   "quality": "low",
+   "characters": 3,
+   "fps": 7.3,
+   "cpuMsMean": 15.2,
+   "cpuMsP95": 25.1,
+   "frames": 58,
+   "drawCalls": 24,
+   "triangles": 61071,
+   "level": 0,
+   "heapMB": 28
+  },
+  {
+   "profile": "phone",
+   "quality": "medium",
+   "characters": 3,
+   "fps": 4.2,
+   "cpuMsMean": 24.1,
+   "cpuMsP95": 47.3,
+   "frames": 34,
+   "drawCalls": 39,
+   "triangles": 112473,
+   "level": 1,
+   "heapMB": 28
+  },
+  {
+   "profile": "phone",
+   "quality": "high",
+   "characters": 3,
+   "fps": 1.5,
+   "cpuMsMean": 53.5,
+   "cpuMsP95": 114.8,
+   "frames": 12,
+   "drawCalls": 76,
+   "triangles": 429320,
+   "level": 3,
+   "heapMB": 28
+  }
+ ],
+ "fitting 20k": {
+  "garmentVertices": 20000,
+  "bodyVertices": 14549,
+  "bodyTriangles": 26800,
+  "bodyMorphs": 31,
+  "workerMsNothingRendering": [
+   536,
+   621,
+   520
+  ],
+  "workerMsMedian": 536,
+  "nodeTransferMs": [
+   524,
+   431,
+   411,
+   435,
+   446
+  ],
+  "nodeTransferMsMedian": 435,
+  "nodeBvhMsMedian": 33.7,
+  "cpuThrottle": 1
+ },
+ "frame rates": [
+  {
+   "profile": "desktop",
+   "quality": "low",
+   "characters": 1,
+   "fps": 12.3,
+   "cpuMsMean": 1.7,
+   "cpuMsP95": 5.2,
+   "frames": 98,
+   "drawCalls": 8,
+   "triangles": 20357,
+   "level": 0,
+   "heapMB": 28
+  },
+  {
+   "profile": "desktop",
+   "quality": "medium",
+   "characters": 1,
+   "fps": 6.1,
+   "cpuMsMean": 2.6,
+   "cpuMsP95": 5.1,
+   "frames": 49,
+   "drawCalls": 13,
+   "triangles": 71554,
+   "level": 1,
+   "heapMB": 28
+  },
+  {
+   "profile": "desktop",
+   "quality": "high",
+   "characters": 1,
+   "fps": 4.1,
+   "cpuMsMean": 4.8,
+   "cpuMsP95": 9.6,
+   "frames": 33,
+   "drawCalls": 26,
+   "triangles": 143108,
+   "level": 3,
+   "heapMB": 28
+  },
+  {
+   "profile": "desktop",
+   "quality": "low",
+   "characters": 2,
+   "fps": 7.8,
+   "cpuMsMean": 2.5,
+   "cpuMsP95": 4.9,
+   "frames": 63,
+   "drawCalls": 16,
+   "triangles": 40714,
+   "level": 0,
+   "heapMB": 28
+  },
+  {
+   "profile": "desktop",
+   "quality": "medium",
+   "characters": 2,
+   "fps": 3.5,
+   "cpuMsMean": 5.2,
+   "cpuMsP95": 9.8,
+   "frames": 28,
+   "drawCalls": 26,
+   "triangles": 143108,
+   "level": 1,
+   "heapMB": 28
+  },
+  {
+   "profile": "desktop",
+   "quality": "high",
+   "characters": 2,
+   "fps": 2.4,
+   "cpuMsMean": 8.7,
+   "cpuMsP95": 12.8,
+   "frames": 19,
+   "drawCalls": 51,
+   "triangles": 286214,
+   "level": 3,
+   "heapMB": 28
+  },
+  {
+   "profile": "desktop",
+   "quality": "low",
+   "characters": 3,
+   "fps": 7.2,
+   "cpuMsMean": 3.4,
+   "cpuMsP95": 7,
+   "frames": 58,
+   "drawCalls": 24,
+   "triangles": 61071,
+   "level": 0,
+   "heapMB": 28
+  },
+  {
+   "profile": "desktop",
+   "quality": "medium",
+   "characters": 3,
+   "fps": 2.8,
+   "cpuMsMean": 6.1,
+   "cpuMsP95": 8.6,
+   "frames": 23,
+   "drawCalls": 39,
+   "triangles": 214662,
+   "level": 1,
+   "heapMB": 28
+  },
+  {
+   "profile": "desktop",
+   "quality": "high",
+   "characters": 3,
+   "fps": 2,
+   "cpuMsMean": 11.3,
+   "cpuMsP95": 20.1,
+   "frames": 16,
+   "drawCalls": 76,
+   "triangles": 429320,
+   "level": 3,
+   "heapMB": 28
+  }
+ ],
+ "physics": {
+  "legs": {
+   "skirtJoints": 40,
+   "samples": 4640,
+   "inside": 0,
+   "deepestMm": 0
+  },
+  "chest": {
+   "chestBones": 2,
+   "maxTurnDegOn": 2.1,
+   "maxTurnDegOff": 0
+  }
+ }
+}

@@ -8,119 +8,14 @@
  * screenshots and timings go to docs/3d-base-evidence/ (all bodies and clothes here are CC0 and
  * made for Everloom).
  */
-import { mkdirSync, readFileSync, writeFileSync, existsSync } from 'node:fs';
+import { writeFileSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
-import type { Locator, Page } from '@playwright/test';
 import { api, expect, mockControl, test } from './fixtures';
+import { ev, F, fit, garment, open, preview, record, saveAvatar, settle, SWIFTSHADER, tubeObj, upload } from './avatar-helpers';
 
-test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } });
+test.use(SWIFTSHADER);
 test.beforeEach(({}, info) => test.skip(!/^(desktop-1280|phone-390)-light$/.test(info.project.name), 'heavy 3D checks run on two projects'));
-
-const F = path.resolve('tests/fixtures/avatars');
-const EVIDENCE = process.env.EVIDENCE ? path.resolve('docs/3d-base-evidence') : null;
-const phone = () => test.info().project.name.startsWith('phone');
-
-async function ev(page: Page, name: string, target?: Locator) {
-  const file = EVIDENCE ? path.join(EVIDENCE, `${name}${phone() ? '-phone' : ''}.png`) : test.info().outputPath(`${name}.png`);
-  mkdirSync(path.dirname(file), { recursive: true });
-  await (target ?? page).screenshot({ path: file });
-}
-
-/** Timings for the status page (merged into docs/3d-base-evidence/timings.json). */
-function record(key: string, value: unknown) {
-  if (!EVIDENCE) return;
-  const file = path.join(EVIDENCE, 'timings.json');
-  const all = existsSync(file) ? JSON.parse(readFileSync(file, 'utf8')) : {};
-  all[`${key}${phone() ? ' (phone)' : ''}`] = value;
-  writeFileSync(file, JSON.stringify(all, null, 1));
-}
-
-async function upload(page: Page, file: string, name: string): Promise<string> {
-  if (!page.url().startsWith('http')) await page.goto('/');
-  const id = await page.evaluate(async ([b64, name]) => {
-    const status = await (await fetch('/api/auth/status')).json();
-    const bytes = Uint8Array.from(atob(b64 as string), (c) => c.charCodeAt(0));
-    const r = await fetch(`/api/avatars?filename=${encodeURIComponent(`${name}.glb`)}`, { method: 'POST', headers: { 'content-type': 'application/octet-stream', 'x-csrf-token': status.csrf }, body: bytes });
-    return (await r.json()).id as string;
-  }, [readFileSync(file).toString('base64'), name] as const);
-  await expect.poll(async () => (await api(page, 'GET', `/api/avatars/${id}`)).status, { timeout: 60_000 }).toBe('ready');
-  return id;
-}
-
-async function open(page: Page, id: string, tab: string) {
-  await page.goto(`/characters/avatars/${id}`);
-  await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 90_000 });
-  await page.getByRole('tab', { name: tab, exact: true }).click();
-}
-
-/** Saves the editor (autosave may already have): done when it says "Saved". */
-async function saveAvatar(page: Page) {
-  const button = page.getByTestId('avatar-save');
-  // Autosave may get there first (the button turns disabled under the click).
-  if (await button.isEnabled()) await button.click({ timeout: 5_000 }).catch(() => undefined);
-  await expect(button).toBeDisabled({ timeout: 60_000 });
-  await expect(page.getByText('Saved', { exact: true }).first()).toBeVisible({ timeout: 60_000 });
-}
-
-const preview = (page: Page) => page.getByTestId('avatar-preview');
-const settle = (page: Page, ms = 2500) => page.waitForTimeout(ms);
-
-/** Fits one garment from the fixtures (or a file path) and saves it; returns the fitting stats. */
-async function fit(page: Page, files: string[], opts: { swing?: 'Skirt or coat' | 'Long hair'; shots?: string } = {}) {
-  const fitter = page.getByTestId('garment-fitter');
-  await fitter.scrollIntoViewIfNeeded();
-  const chooser = page.waitForEvent('filechooser');
-  await fitter.getByTestId('fit-open').click();
-  await (await chooser).setFiles(files);
-  await expect(fitter.getByTestId('fit-confirm')).toBeVisible({ timeout: 60_000 });
-  if (opts.swing) await fitter.getByRole('radio', { name: opts.swing }).click();
-  if (opts.shots) { await settle(page); await ev(page, `${opts.shots}-1-place`, preview(page)); }
-  // Long tasks on the page while the worker rigs (the UI must stay responsive).
-  await page.evaluate(() => {
-    const w = window as unknown as { __long: number[] };
-    w.__long = [];
-    new PerformanceObserver((l) => { for (const e of l.getEntries()) w.__long.push(e.duration); }).observe({ type: 'longtask', buffered: false });
-  });
-  const t0 = Date.now();
-  await fitter.getByTestId('fit-confirm').click();
-  // While the worker copies weights, the page keeps answering: the slowest 50 ms timer.
-  const responsiveMs = await page.evaluate(async () => {
-    let worst = 0;
-    const busy = () => /Copying weights/.test(document.querySelector('[data-testid=fit-progress]')?.textContent ?? '');
-    for (let i = 0; i < 4000 && (busy() || i < 10); i++) {
-      const t = performance.now();
-      await new Promise((r) => setTimeout(r, 50));
-      if (busy()) worst = Math.max(worst, performance.now() - t - 50);
-    }
-    return Math.round(worst);
-  });
-  await expect(fitter.getByTestId('fit-review')).toBeVisible({ timeout: 180_000 });
-  const wall = Date.now() - t0;
-  const stats = await page.evaluate(() => {
-    const s = (window as unknown as { __everloomFit: { result: { stats: Record<string, number>; bones: unknown[] }; coveredTriangles: number } }).__everloomFit;
-    return { ...s.result.stats, workerPhaseLatencyMs: 0, swingBones: s.result.bones.length, hiddenTriangles: s.coveredTriangles, longestTaskMs: Math.max(0, ...(window as unknown as { __long: number[] }).__long) };
-  });
-  if (opts.shots) {
-    await settle(page);
-    await ev(page, `${opts.shots}-2-rigged`, preview(page));
-    for (const [pose, name] of [['Squat', 'squat'], ['Arms up', 'arms-up']] as const) {
-      await fitter.getByRole('button', { name: pose, exact: true }).click();
-      await settle(page);
-      await ev(page, `${opts.shots}-3-${name}`, preview(page));
-    }
-    await fitter.getByRole('button', { name: 'Idle', exact: true }).click();
-    await fitter.getByRole('radio', { name: 'All highest' }).click();
-    await settle(page);
-    await ev(page, `${opts.shots}-4-sliders-max`, preview(page));
-    await fitter.getByRole('radio', { name: 'As set' }).click();
-  }
-  const s0 = Date.now();
-  await fitter.getByTestId('fit-save').click();
-  // Saving uploads the rigged GLB and the server optimizes it (and makes the phone copy).
-  await expect(fitter.getByTestId('fit-open')).toBeVisible({ timeout: 300_000 });
-  return { ...stats, workerPhaseLatencyMs: responsiveMs, wallMs: wall, saveMs: Date.now() - s0 };
-}
 
 test.describe('custom base models', () => {
   test.describe.configure({ timeout: 900_000 });
@@ -165,7 +60,7 @@ test.describe('custom base models', () => {
   test('fitting unrigged clothes by hand: shirt, trousers, skirt, shoes, long hair; a 20,000-vertex garment', async ({ page, errors }) => {
     const id = await upload(page, path.join(F, 'models/morph-base.glb'), 'Fitting base');
     await open(page, id, 'Wardrobe');
-    const g = (n: string) => ['obj', 'mtl', 'png'].map((x) => path.join(F, `garments/${n}/${n}.${x}`)).filter(existsSync);
+    const g = garment;
     const results: Record<string, unknown> = {};
     results.shirt = await fit(page, g('shirt'), { shots: '3-shirt' });
     results.trousers = await fit(page, g('trousers'), { shots: '3-trousers' });
@@ -244,7 +139,7 @@ test.describe('custom base models', () => {
   test('the story: a fitted shirt goes on when equipped and a swipe takes it off; a handshake between different heights', async ({ page, errors }) => {
     const id = await upload(page, path.join(F, 'models/morph-base.glb'), 'Story base');
     await open(page, id, 'Wardrobe');
-    await fit(page, ['obj', 'mtl', 'png'].map((x) => path.join(F, `garments/shirt/shirt.${x}`)));
+    await fit(page, garment('shirt'));
     await saveAvatar(page);
     // The fitted shirt is put on by an item.
     const detail = await api(page, 'GET', `/api/avatars/${id}`);
@@ -289,20 +184,3 @@ test.describe('custom base models', () => {
     expect(errors).toEqual([]);
   });
 });
-
-/** An open tube (rings × segments vertices) around the chest, as a 20,000-vertex test garment. */
-function tubeObj(rings: number, segments: number) {
-  const lines: string[] = ['o tube_top'];
-  for (let r = 0; r < rings; r++) {
-    const y = 0.95 + (r / (rings - 1)) * 0.5;
-    for (let s = 0; s < segments; s++) {
-      const a = (s / segments) * Math.PI * 2;
-      lines.push(`v ${(Math.cos(a) * 0.19).toFixed(5)} ${y.toFixed(5)} ${(Math.sin(a) * 0.13).toFixed(5)}`);
-    }
-  }
-  for (let r = 0; r < rings - 1; r++) for (let s = 0; s < segments; s++) {
-    const i = r * segments + s + 1, j = r * segments + ((s + 1) % segments) + 1;
-    lines.push(`f ${i} ${j} ${j + segments} ${i + segments}`);
-  }
-  return lines.join('\n');
-}

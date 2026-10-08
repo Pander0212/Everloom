@@ -101,6 +101,11 @@ describe('base model report', () => {
     expect(r.lines.some((l) => l.tone === 'off')).toBe(true);
   });
 
+  it('turns chest motion off for a base whose chest has no breast bones (no helper bones are made)', () => {
+    const r = baseReport(facts({ extraBones: [] }));
+    expect(r.features.chestPhysics).toMatchObject({ on: false, why: 'No breast bones in the file' });
+  });
+
   it('flags explicit shapes as adults only', () => {
     const r = baseReport(facts({ morphs: ['Breast large', 'Pussy flat'] }));
     expect(r.lines.find((l) => l.title.includes('adults only'))?.detail).toContain('Pussy flat');

@@ -8,6 +8,8 @@ vi.mock('node:worker_threads', async () => { const { EventEmitter } = await impo
   postMessage() {}
   terminate() { return Promise.resolve(0); }
 } }; });
+// The service only uses a worker when the built worker file exists; pretend it does, so this runs without a build.
+vi.mock('node:fs', async (original) => { const fs = await original<typeof import('node:fs')>(); return { ...fs, existsSync: (f: import('node:fs').PathLike) => String(f).endsWith('avatar-worker.js') || fs.existsSync(f) }; });
 import { createClient, waitFor, type TestClient } from './helpers.js';
 import { avatarSettled } from '../src/services/avatars/service.js';
 let client: TestClient | null = null;

@@ -25,6 +25,8 @@ import { wearItems } from './parts';
 import { Stage3D, type Slot } from './runtime/stage';
 import { getPaired, PairedDirector } from './runtime/paired';
 
+const debug3d = () => { try { return localStorage.getItem('everloom:debug3d') === '1'; } catch { return false; } };
+
 export interface CastMember {
   id: string;
   /** A saved avatar; or none, with a recipe made from the character's description (code-made). */
@@ -89,8 +91,9 @@ export default function StageLayer({ cast, speakerId, scene, onFail, paired = nu
     stage.current = s;
     director.current = new PairedDirector(s);
     director.current.onEnd = (id) => { if (canvas.current) canvas.current.dataset.paired = `done:${id}`; };
-    // Development checks hold the clip at a moment to look at it.
-    if (import.meta.env.DEV) Object.assign(window, { __everloomPaired: director.current, __everloomStage: s });
+    // Development checks hold the clip at a moment to look at it; measuring runs (frame rates on a
+    // production build) set `everloom:debug3d` in this browser to read the stage's stats.
+    if (import.meta.env.DEV || debug3d()) Object.assign(window, { __everloomPaired: director.current, __everloomStage: s });
     s.onError = reason => { for (const id of s.ids()) failRef.current(id, reason); };
     s.setFraming('half');
     // Lip-sync: the speaker's mouth follows the voice (or a natural cycle while text types out).

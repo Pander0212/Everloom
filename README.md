@@ -301,8 +301,10 @@ made or bought) and it becomes a base that characters and clothes are made from:
   and long hair on swinging bone chains, and hides the skin it covers. Check it in poses and with
   every slider at its ends, then save. Every character on that base can wear it.
 - *What the automatic steps can't do:* there's no cloth simulation (a gown swings on chains but
-  doesn't drape or fold), a garment can still clip at the very ends of a slider's range, and loose
-  or layered clothes rig better by hand in Blender. The check flags the spots worth a look.
+  doesn't drape or fold; in a deep squat or a wide step the thighs can come through a skirt), a
+  garment can still clip at the very ends of a slider's range, clothes don't collide with each other
+  (long hair can let the back of a top show through), and loose or layered clothes rig better by
+  hand in Blender. The check flags the spots worth a look.
 - *Also:* skin tone, eye and hair colours change at once; underwear, stockings, makeup and tattoos
   are painted onto the skin (tap the body to place a tattoo); hair, skirts and the chest swing and
   collide with the body; and two to four characters can shake hands, hug or dance together, in
@@ -314,7 +316,8 @@ fitted with Blender (close-fitting clothes are fine, loose or layered ones come 
 image connection can make seamless fabric textures. None of this makes a whole good character; for
 that, use VRoid, the parts maker, or a model made by a person.
 
-**On phones:** keep to two 3D characters at once, leave quality on *Automatic* (it lowers
+**On phones:** keep to two 3D characters at once (dressed ones with swinging hair and skirts: medium
+quality or lower), leave quality on *Automatic* (it lowers
 resolution, shadows and physics when frames run long), use the 30 fps cap, and prefer models under
 60,000 triangles (Everloom makes a lighter copy of each for phones and compresses textures).
 "Show pictures instead of 3D" in Settings › 3D characters turns 3D off on one device.

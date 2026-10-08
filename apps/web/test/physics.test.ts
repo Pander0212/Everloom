@@ -106,6 +106,31 @@ describe('spring solver', () => {
     expect(THREE.MathUtils.radToDeg(bones[0]!.quaternion.angleTo(new THREE.Quaternion()))).toBeLessThan(15.5);
   });
 
+  it('keeps contact a chain starts in (hair on the shoulders) instead of flinging it out, and stops it going deeper', () => {
+    // A strand hanging straight down whose middle rests 2 cm inside a shoulder capsule.
+    const root = new THREE.Bone(); const scene = new THREE.Group(); scene.add(root);
+    const bones: THREE.Bone[] = [];
+    let parent: THREE.Object3D = root;
+    for (let i = 0; i < 4; i++) { const b = new THREE.Bone(); b.position.set(0, i === 0 ? 0 : -0.1, 0); parent.add(b); bones.push(b); parent = b; }
+    const shoulder = makeCollider(root, 0.05, new THREE.Vector3(0.04, -0.1, -0.2), new THREE.Vector3(0.04, -0.1, 0.2));
+    scene.updateMatrixWorld(true);
+    const s = new SpringSolver();
+    s.addChain(bones, { stiffness: 1, gravity: 0.15, drag: 0.4, radius: 0.01 }, [shoulder]);
+    const restDeep = 0.05 + 0.01 - 0.04;
+    for (let i = 0; i < 240; i++) {
+      s.update(1 / 60);
+      for (const t of s.tails()) expect(t.distanceTo(closestOnSegment(t, shoulder.worldA, shoulder.worldB, new THREE.Vector3()))).toBeGreaterThan(0.05 + 0.01 - restDeep - 1e-3);
+    }
+    // It hangs as it was made: no bone has turned away from the shoulder.
+    for (const b of bones) expect(THREE.MathUtils.radToDeg(b.quaternion.angleTo(new THREE.Quaternion()))).toBeLessThan(2);
+    // A strand that starts clear is still pushed out fully when something moves into it.
+    const free = chain(3);
+    const ball = makeCollider(free.root, 0.08, new THREE.Vector3(0.15, -0.1, 0));
+    const s2 = new SpringSolver();
+    s2.addChain(free.bones, { stiffness: 0, gravity: 3, drag: 0.3, radius: 0.01 }, [ball]);
+    for (let i = 0; i < 200; i++) { s2.update(1 / 60); for (const t of s2.tails()) expect(t.distanceTo(ball.worldA)).toBeGreaterThan(0.09 - 1e-4); }
+  });
+
   it('pushes a point out of a capsule along the shortest way', () => {
     const root = new THREE.Bone();
     const c = makeCollider(root, 0.1, new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, 1, 0));

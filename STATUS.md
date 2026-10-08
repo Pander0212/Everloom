@@ -319,25 +319,52 @@ clothes): `docs/3d-base-evidence/`.
   placement by height, IK contacts (hands meet, hugs wrap round), step-closer for short arms; four
   built-in CC0 clips; an importer; adult gating.
 
+- **Fixed in the follow-up**: long hair flung out like a cape (chains made touching the shoulders
+  and back were pushed fully out of the colliders; contact at rest is now kept), the buttocks
+  pushing through the back of a skirt while dancing (skin under the mostly pinned part now hides),
+  hair drawn under tops (hair is now the outermost layer), the base check promising chest helper
+  bones that aren't made, and a unit test that only passed with the server built.
+
 ### Checklist (prompt §6)
 | # | Check | Result |
 |---|---|---|
 | 1 | Base with morphs: report, sliders (breast, hips, butt) | ✅ `1-base-check`, `1-sliders-max/min` |
 | 2 | Base without morphs: report and fallback | ✅ `2-no-morphs-fallback` |
-| 3 | Shirt, trousers, skirt, shoes (and long hair) fitted by hand, poses, sliders | ✅ `3-*` (see notes) |
-| 4 | 20,000-vertex garment in a worker | ✅ see timings |
-| 5 | Skirt swings and collides; hair; chest motion on/off | ✅ with notes |
+| 3 | Shirt, trousers, skirt, shoes (and long hair) fitted by hand, poses, sliders | ✅ `3-*` (jeans: a small gap inside the lower leg at slider max) |
+| 4 | 20,000-vertex garment in a worker | ✅ 0.47–0.54 s worker time, page responsive (timer ≤ 7 ms late); Node 0.34–0.44 s |
+| 5 | Skirt swings and collides; hair; chest motion on/off | ✅ `5-skirt-dance-*`, `5-hair-back-*`; 0 of 4,800 skirt-point checks inside a leg; chest 2.1° on, 0° off (weak spots below) |
 | 6 | Underwear layer, tapped tattoo bending with poses and sliders, colours | ✅ `6-*` |
 | 7 | Paired animation, different heights, hands meeting | ✅ `paired-*` |
 | 8 | Story equips a fitted garment on a custom base; a swipe takes it off | ✅ `8-equipped` |
-| 9 | Frame rates, 1–3 dressed characters, phone and desktop, per quality | ⏳ not measured yet |
-| 10 | 390×844 flow; existing suite | ✅ base-models.spec passes at 390×844 except the 20k responsiveness check (being fixed); unit suite 584 passed; full e2e suite not re-run |
+| 9 | Frame rates, 1–3 dressed characters, phone and desktop, per quality | ✅ table in [docs/avatars.md › Rendering](docs/avatars.md#rendering); `9-three-dancing` |
+| 10 | 390×844 flow; existing suite | ✅ base-models.spec passes at 390×844 and 1280×800; unit 594 passed, 5 skipped; full e2e suite re-run in progress |
 
-Timings so far (headless Chromium with software WebGL, CPU shared with the renderer, so slow):
-the hand-made test garments (600–3,300 vertices) rig in 0.9–8 s and save in 27–52 s; a
-20,000-vertex garment rigs in 1.5 s of worker time when the page is idle (up to 22 s while
-software rendering competes for the CPU) and saves in about 35 s. Node, same code: 20,000 vertices
-in 0.3 s. Raw numbers: `docs/3d-base-evidence/timings.json`.
+**Timings** (`docs/3d-base-evidence/timings.json` from one clean run of base-models.spec,
+`measurements.json` from `tests/e2e/measure-3d.spec.ts`; headless Chromium with software WebGL):
+the test garments (600–3,300 vertices) rig in 20–180 ms of worker time, about 1 s from *Fit* to the
+review, and save in 1–3 s. A 20,000-vertex garment on the CC0 base (14,549 vertices, 31 morphs)
+rigs in 0.47–0.54 s of worker time with the preview not rendering, and in 0.34–0.44 s in Node on
+the same input. (The earlier figures of up to 22 s came from runs where software rendering competed
+with the worker for the CPU.)
+
+**Frame rates** (dressed: shirt, skirt and long hair on chains, shoes; dancing, physics on; CPU
+time per frame, mean): desktop 1.7–11.3 ms at every quality with one to three characters; phone
+profile (4× slower CPU) 7.7–24.1 ms on low and medium, 22.8 ms (one), 35.4 ms (two) and 53.5 ms
+(three) on high. The software rasteriser holds the frame rate itself at 1.5–13 fps here, so only
+the CPU times carry over to real devices.
+
+### Partial or not built
+- **Chest helper bones** for bases without breast bones: not built; such a base has no chest motion
+  and the base check says so.
+- **Projected decals across UV seams**: not built; a tattoo crossing a seam is cut there.
+- **Baking a garment into a skin layer**: not built (paint-on clothes are image layers).
+- **Collision between characters** beyond spacing and the paired-clip contacts: not built.
+- **Collision between garments**: none; hair fitted on the bare body lets a top's back show through
+  it in lively poses, and a skirt fitted over trousers doesn't push out of them.
+- **Skirts**: chains hang from the hips, so in a deep squat the thighs come over the front, and a leg
+  swung far out can show a strip of thigh through the cloth between two chains near the hem.
+- **Jeans at slider max**: a small gap on the inside of the lower leg.
+- **Physics budget on medium**: 48 points; a skirt takes 40, so long hair worn with it barely swings.
 
 ## Browser 3D repair — in progress
 

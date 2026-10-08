@@ -12,6 +12,9 @@ import { applyLook, type Look } from './materials';
 import { coverInWorker } from './fit/client';
 import { applyHairColour } from './skin';
 
+/** Garment corners at most this much on swing chains count as staying on the body (and hide skin). */
+const PINNED = 0.6;
+
 interface Worn {
   key: string;
   root: THREE.Object3D;
@@ -39,8 +42,9 @@ const indexOf = (g: THREE.BufferGeometry) => (g.index ? Uint32Array.from(g.index
 
 /**
  * The triangles of a garment that stay on the body: ones whose corners are moved mostly by the
- * body's bones, not by swing chains. Skin under hair or a skirt's hem must not hide, or it would
- * show holes when the cloth swings away.
+ * body's bones, not by swing chains. Skin under a skirt's hem must not hide, or it would show holes
+ * when the cloth swings away; the upper part, still mostly pinned, does hide what it covers (the
+ * buttocks and the tops of the thighs follow the legs and would push through the cloth there).
  */
 export function pinnedTriangles(mesh: THREE.SkinnedMesh, swinging: ReadonlySet<THREE.Object3D>): Uint32Array {
   const idx = indexOf(mesh.geometry);
@@ -49,7 +53,7 @@ export function pinnedTriangles(mesh: THREE.SkinnedMesh, swinging: ReadonlySet<T
   if (!si || !sw) return idx;
   const chainShare = (v: number) => { let s = 0; for (let k = 0; k < 4; k++) if (swinging.has(mesh.skeleton.bones[si.getComponent(v, k)]!)) s += sw.getComponent(v, k); return s; };
   const out: number[] = [];
-  for (let t = 0; t < idx.length; t += 3) if (chainShare(idx[t]!) < 0.25 && chainShare(idx[t + 1]!) < 0.25 && chainShare(idx[t + 2]!) < 0.25) out.push(idx[t]!, idx[t + 1]!, idx[t + 2]!);
+  for (let t = 0; t < idx.length; t += 3) if (chainShare(idx[t]!) < PINNED && chainShare(idx[t + 1]!) < PINNED && chainShare(idx[t + 2]!) < PINNED) out.push(idx[t]!, idx[t + 1]!, idx[t + 2]!);
   return Uint32Array.from(out);
 }
 
@@ -100,7 +104,8 @@ export class Garments {
     // Taken off (or changed) while loading.
     const desired = this.desired.get(g.id);
     if (this.disposed || !desired || keyOf(desired.garment, low) !== key || this.worn.has(g.id)) { disposeScene(gltf.scene); return; }
-    const { root, adopted } = bindGarment(gltf.scene, this.avatar.model.scene, g.layer);
+    // Hair lies over whatever the back and shoulders wear: it's the outermost layer.
+    const { root, adopted } = bindGarment(gltf.scene, this.avatar.model.scene, g.slot === 'hair' || g.physics?.mode === 'hair' ? 3 : g.layer);
     root.name = `garment:${g.id}`;
     const chains: THREE.Object3D[][] = [];
     // Chains that start at an adopted bone (skirt, cape) swing.

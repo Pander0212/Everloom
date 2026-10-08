@@ -217,6 +217,8 @@ Playing one (`runtime/paired.ts`):
    side with the elbow pointing out. If the arms are too short for the spacing (a short character
    with a tall one), the pair steps closer, never nearer than a chest's depth.
 4. Springs keep running (hair and skirts swing as usual).
+5. There's no collision between characters beyond the spacing: arms in a hug go round the other's
+   back by the contacts, but a swinging skirt or a hand can pass into the other character.
 
 Triggers: the story (`{"type":"avatar.paired","clip":"handshake","who":["Mira","Theo"]}`; `clip:
 null` stops a loop; rolls back with swipes; offered to the model only when installed and when the chat
@@ -305,7 +307,21 @@ textures) and makes it a garment of this base, in the browser:
 
 What it can't do: it doesn't simulate cloth, so a long coat or a gown is a skirt on chains (it swings
 and collides but doesn't drape); garments that need different topology at slider extremes still
-clip at the ends of the range; hand-made weights are better for very loose or layered clothes.
+clip at the ends of the range (the test jeans open a small gap on the inside of the lower leg with
+every slider at its highest); garments don't collide with each other (each is fitted to the bare
+body, so long hair can let the back of a top show through it in lively poses, and a skirt fitted
+over trousers doesn't push out of them); hand-made weights are better for very loose or layered
+clothes.
+
+**How long it takes** (October 2026, the CC0 test base: 14,549 vertices, 26,800 triangles, 31 morph
+targets; `tests/e2e/measure-3d.spec.ts`, numbers in `docs/3d-base-evidence/measurements.json`): a
+20,000-vertex garment rigs in **0.47–0.54 s of worker time** with nothing rendering (median of three,
+phone and desktop viewports on the same machine), and the same input through the same code in Node
+takes 0.34–0.44 s (the body's BVH: 33 ms). While it rigs the page keeps answering (the slowest 50 ms
+timer fired at most 7 ms late). The test garments (600–3,300 vertices) rig in 20–180 ms; with the page's own
+work around it (reading the body, building the result) a fit takes about 1 s from *Fit* to the
+review, and saving (upload, optimizing, the phone copy) 1–3 s. Headless Chromium with software
+WebGL; a real phone's worker is slower than this machine's, so expect a few seconds for 20,000.
 
 ## Physics
 
@@ -315,13 +331,28 @@ direction, hit radius), bone lengths held, and **colliders**: spheres and capsul
 neck, chest, hips, arms and legs measured from the body in its rest pose (editable, and shown in the
 Fit step). VRM files keep their own springs and colliders, run by the same solver.
 
-- **Chest motion** uses the file's breast bones (none: no chest motion), with a strength slider and
-  an off switch.
+- **Chest motion** uses the file's breast bones, with a strength slider and an off switch. A base
+  without breast bones has no chest motion: helper bones aren't generated (they would need the
+  chest's skin weights split between new bones), and the base model check says so.
 - **Settings**: damping, wind, chest; presets per kind (hair, cloth, chest, tail, accessory); chains
   picked by hand for bones the file doesn't mark.
+- **Contact at rest**: a chain that was made touching the body (long hair lying on the shoulders and
+  back, a skirt over the hips) keeps that contact: each point may sit as deep inside a collider as it
+  did in the rest pose, and no deeper. Pushing it fully out would turn the top bone and swing the
+  whole chain away from the body like a cape.
 - **Cost**: the quality level caps the points each character simulates and the solver rate (low: off;
   medium: 48 points at 30 Hz; automatic's middle step: 96 at 60 Hz; high: 160 at 60 Hz); characters
-  out of the shot don't simulate.
+  out of the shot don't simulate. Chains are added until the cap is reached and a chain that doesn't
+  fit is cut: its upper bones swing and the rest follows them. A skirt (40 points) and long hair (50)
+  together fit on high; on medium the hair is mostly still.
+- **Measured** (the CC0 base in a fitted skirt on chains, long hair on chains, a shirt and shoes,
+  dancing for 6 s on high): no skirt point went more than 5 mm into a leg capsule in 4,800 checks;
+  the breast bones turned up to 2.1° from the animated pose with chest motion on and 0° with it off.
+  Screenshots: `5-skirt-dance-*`, `5-hair-back-*` in `docs/3d-base-evidence/`.
+- **Weak spots**: chains hang from the hips, so in a deep squat the thighs come out over the front of
+  a skirt, and when a leg swings far out a strip of thigh can show through the cloth between two
+  chains near the hem (the chains themselves stay outside the legs). Skin under the upper, mostly
+  pinned part of a skirt is hidden while it's worn, so the buttocks don't push through it.
 
 ## Skin layers
 
@@ -332,6 +363,9 @@ colour wash, or an image placed by **tapping the body** (tattoos, scars, makeup)
 opacity; drag to move. A placed image keeps its shape whatever the UV layout (the skin's frame at the
 spot is measured when you tap). Underwear, swimwear and stockings act as clothing: outfits and
 equipped items put them on.
+
+Not built: a decal is cut where it crosses a UV seam (it isn't projected onto the mesh), and a
+garment can't be baked into a skin layer (a painted-on top is made as an image layer).
 
 Colours change at once: skin tone (a multiplied wash, so the skin's detail stays), eyes, hair (base,
 tips gradient, highlight). Uploaded images go through the usual upload checks; adult-rated layers
@@ -469,6 +503,40 @@ characters › *Code-made figures for characters without a picture* turns this o
 | desktop | high | 1 | 1 | 9 | 54,978 | 20 MB |
 | desktop | high | 2 | 3.3 | 19 | 109,958 | 19 MB |
 | desktop | high | 4 | 2.5 | 37 | 219,914 | 31 MB |
+
+- **Dressed characters on a custom base** (October 2026, `tests/e2e/measure-3d.spec.ts`; numbers in
+  `docs/3d-base-evidence/measurements.json`): one to three characters made from the CC0 test base,
+  each wearing a fitted shirt, a skirt on chains, long hair on chains and shoes, dancing with physics
+  on, sampled for 8 s. Same caveat as above: headless Chromium draws with SwiftShader (software
+  WebGL), so its frame rate is the software rasteriser's and doesn't say what a GPU would do; the
+  CPU time per frame (animation, physics, skinning upload and draw submission) is the number that
+  carries over. "phone" is 390×844 at 2× with the CPU slowed 4× (it loads the lighter copy on medium
+  and low). Triangles count every pass (shadows and outlines draw the scene again).
+
+| Profile | Quality | Characters | CPU ms / frame (mean, p95) | Frames / s (software) | Draw calls | Triangles drawn |
+|---|---|---|---|---|---|---|
+| phone | low | 1 | 7.7, 14.2 | 12.7 | 8 | 20,357 |
+| phone | medium | 1 | 12.9, 21.6 | 7 | 13 | 37,491 |
+| phone | high | 1 | 22.8, 48.5 | 2.4 | 26 | 143,108 |
+| phone | low | 2 | 12, 22.4 | 10.1 | 16 | 40,714 |
+| phone | medium | 2 | 16.5, 29.8 | 5.8 | 26 | 74,982 |
+| phone | high | 2 | 35.4, 66.1 | 2.1 | 51 | 286,214 |
+| phone | low | 3 | 15.2, 25.1 | 7.3 | 24 | 61,071 |
+| phone | medium | 3 | 24.1, 47.3 | 4.2 | 39 | 112,473 |
+| phone | high | 3 | 53.5, 114.8 | 1.5 | 76 | 429,320 |
+| desktop | low | 1 | 1.7, 5.2 | 12.3 | 8 | 20,357 |
+| desktop | medium | 1 | 2.6, 5.1 | 6.1 | 13 | 71,554 |
+| desktop | high | 1 | 4.8, 9.6 | 4.1 | 26 | 143,108 |
+| desktop | low | 2 | 2.5, 4.9 | 7.8 | 16 | 40,714 |
+| desktop | medium | 2 | 5.2, 9.8 | 3.5 | 26 | 143,108 |
+| desktop | high | 2 | 8.7, 12.8 | 2.4 | 51 | 286,214 |
+| desktop | low | 3 | 3.4, 7 | 7.2 | 24 | 61,071 |
+| desktop | medium | 3 | 6.1, 8.6 | 2.8 | 39 | 214,662 |
+| desktop | high | 3 | 11.3, 20.1 | 2 | 76 | 429,320 |
+
+  On a phone, keep to medium or *Automatic* with more than one dressed character: high with two or
+  three goes past the 33 ms a 30 fps frame has, on the CPU alone. Desktop stays under 12 ms on
+  average at every setting.
 
 - **Fallbacks**: no WebGL 2, a model that fails to load, a lost GPU context or pictures-only on the
   device: the character shows as its sprite (or Live2D).

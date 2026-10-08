@@ -1058,6 +1058,29 @@ source-preservation tests; real-browser wardrobe and clipping checks remain requ
   pole for hugs, and a step-closer rule (never closer than a chest's depth) for short arms. There is
   no inter-character mesh collision; spacing and contacts keep obvious overlaps away. Built-in clips
   are keyframed for Everloom (CC0); no third-party paired clips were bundled.
+- **Contact a chain is made with is kept, not pushed out** (follow-up, 2026-10-08). Measuring the
+  dressed base from behind showed long hair flung out like a cape: the generated hair chains lie on
+  the shoulders and back, their first points started inside the spine and shoulder capsules, and the
+  solver pushed them fully out, turning the top bones 30–54° and everything below with them. Each
+  joint now records, per collider, how deep it sits at rest (measured with the body in its rest pose
+  when the chain is added) and is only kept from going deeper. The alternative, shrinking the
+  colliders, would have let every other chain into the body.
+- **Skin under the mostly pinned part of a skirt hides.** The buttocks and the tops of the thighs are
+  skinned to the legs while the skirt's upper part follows the hips, so dancing pushed them through
+  the back of the skirt. A garment triangle now counts as staying on the body (and hides the skin it
+  covers) while its corners are at most 60% on swing chains (was 25%); the hem still hides nothing.
+  A wider collision margin for skirt chains was tried and dropped: it made no visible difference,
+  since the chains were already outside the legs and it's the cloth between them that cuts corners.
+- **Hair is the outermost layer.** It draws over tops where they meet. Garments still don't collide
+  with each other: hair fitted on the bare body lets a shirt's back through in lively poses.
+- **No chest helper bones.** Generating breast bones for a base without them means splitting the
+  chest's skin weights between new bones, a fitting problem of its own; the base check now says a
+  base without breast bones has no chest motion instead of promising helper bones.
+- **Measuring is a separate spec.** `tests/e2e/measure-3d.spec.ts` (skipped unless `MEASURE_3D=1`)
+  times the 20,000-vertex fit with the preview hidden (and the same input in Node), samples frame
+  rates for one to three dressed characters per quality, and checks the skirt against the legs and
+  the chest on and off. Production builds expose the stage's stats when `everloom:debug3d` is set
+  in the browser, so the numbers come from the build that ships.
 - **Paid test models stay out of the repository.** The owner's paid base and underwear were used for
   testing from a git-ignored `.private/` folder; screenshots of them are in a git-ignored
   `docs/3d-base-evidence/private/`, taken dressed. Committed evidence uses Everloom-made CC0 bodies

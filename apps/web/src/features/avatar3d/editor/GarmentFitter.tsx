@@ -199,7 +199,7 @@ export function GarmentFitter({ avatar, config, set, handle }: { avatar: AvatarD
       const taken = new Set(config.garments.map((g) => g.id));
       let n = 1; while (taken.has(`fit${n}`)) n++;
       const entry: Garment = {
-        id: `fit${n}`, name: name.trim().slice(0, 60) || 'Garment', model: r.model, modelLow: r.modelLow, slot, layer: slot === 'outer' ? 3 : slot === 'underwear' || slot === 'socks' ? 0 : slot === 'full' ? 2 : 1,
+        id: `fit${n}`, name: name.trim().slice(0, 60) || 'Garment', model: r.model, modelLow: r.modelLow, slot, layer: slot === 'outer' || slot === 'hair' ? 3 : slot === 'underwear' || slot === 'socks' ? 0 : slot === 'full' ? 2 : 1,
         hides: [], hidesSlots: [], variants: [], variant: null, springs: physics.mode !== 'none', physics, family: config.family, on: true, items: [],
         fit: { base: config.morphs?.base ?? null, morphs: s.result.meshes[0]?.morphs.length ?? 0, flagged, vertices: stats.vertices, ms: Math.round(stats.ms) },
       };

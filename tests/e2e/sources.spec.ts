@@ -39,7 +39,10 @@ test.describe('online sources', () => {
 
     // Adult content only after turning it on in Settings.
     await page.goto('/settings/sources');
-    await page.getByRole('switch', { name: 'Show adult content' }).click({ force: true });
+    await page.getByRole('switch', { name: 'Adult content (18+)' }).click({ force: true });
+    // The first time on this server it asks for an 18+ confirmation (remembered after that).
+    const adult = page.getByRole('button', { name: 'I am 18 or older' });
+    if (await adult.waitFor({ timeout: 3_000 }).then(() => true, () => false)) await adult.click();
     await expect.poll(async () => (await api(page, 'GET', '/api/settings')).library.nsfw).toBe(true);
     await page.goto('/characters/browse');
     await page.getByLabel('Adult').check();

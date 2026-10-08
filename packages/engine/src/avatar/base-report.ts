@@ -90,7 +90,8 @@ export function baseReport(f: BaseFacts): BaseReport {
     expressions: { on: expressionMorphs.length > 0, why: expressionMorphs.length ? `${expressionMorphs.length} expression shapes` : 'No blink, viseme or emotion shapes' },
     fitting: { on: f.skinnedMeshes > 0, why: f.skinnedMeshes ? 'Skin weights can be copied to clothes' : 'No skin weights to copy to clothes' },
     skinLayers: { on: f.hasUv, why: f.hasUv ? 'The body has texture coordinates' : 'No texture coordinates' },
-    chestPhysics: { on: chestBones.length > 0 || !!f.mapped.chest || !!f.mapped.upperChest, why: chestBones.length ? 'Chest bones in the file' : f.mapped.upperChest || f.mapped.chest ? 'Helper bones are made on the chest' : 'No chest bone' },
+    // Chest motion needs breast bones in the file (helper bones aren't generated for bases without them).
+    chestPhysics: { on: chestBones.length > 0, why: chestBones.length ? 'Chest bones in the file' : 'No breast bones in the file' },
     fingers: { on: fingers === FINGERS.length, why: fingers === FINGERS.length ? 'Finger bones mapped' : 'No finger bones' },
   };
   return { lines, features, bodyKinds: kinds, missingBodyKinds: missingKinds };

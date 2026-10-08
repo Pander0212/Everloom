@@ -19,7 +19,7 @@ import type { SkinPainter } from './skin';
 import { applyCanonical, emptyPose, prepareRig, type CanonicalPose, type RigInfo } from './canonical';
 import { blendPose, copyPose, sampleClip, UPPER_BODY, type Clip } from './clip';
 import { clipIdFor, getClip } from './clips';
-import { applyRestPose, type LoadedModel } from './loader';
+import { applyRestPose, withRestPose, type LoadedModel } from './loader';
 import { applyLook, type Look, type LookOptions } from './materials';
 import { MorphController } from './morphs';
 import { generateColliders } from './physics/colliders';
@@ -576,8 +576,11 @@ export class Avatar {
       const finite = (value: unknown, fallback: number, max: number) => (typeof value === 'number' && Number.isFinite(value) ? THREE.MathUtils.clamp(value, 0, max) : fallback);
       const direction = Array.isArray(saved.gravityDir) && saved.gravityDir.length === 3 && saved.gravityDir.every((n: unknown) => typeof n === 'number' && Number.isFinite(n)) ? new THREE.Vector3().fromArray(saved.gravityDir).normalize() : new THREE.Vector3(0, -1, 0);
       const fromFile: Partial<JointSettings> = { radius: finite(saved.hitRadius, 0.012 * h, h * 0.2), stiffness: finite(saved.stiffness, skirt ? 1.2 : 0.7, 20) * k, gravity: finite(saved.gravityPower, skirt ? 0.4 : 0.15, 20) * g, gravityDir: direction, drag: finite(saved.dragForce, this.options.settings?.damping ?? (skirt ? 0.5 : 0.4), 1) };
-      made.push(this.physics.addChain(chain, { ...fromFile, ...settings }, colliders));
+      // Added in the rest pose, so contact the garment was made with (hair on the shoulders) is
+      // measured as it was authored; then the chain starts from the pose the body is in now.
+      made.push(withRestPose(this.model, () => this.physics.addChain(chain, { ...fromFile, ...settings }, colliders)));
     }
+    for (const id of made) this.physics.reset(id);
     return made;
   }
 

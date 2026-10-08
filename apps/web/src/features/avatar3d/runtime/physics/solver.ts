@@ -50,6 +50,12 @@ interface Joint {
   curr: THREE.Vector3;
   settings: JointSettings;
   colliders: Collider[];
+  /**
+   * Per collider: how far the tail already sits inside it at rest (metres, 0 when clear). Hair
+   * lying on the shoulders or a skirt over the hips starts in contact; pushing it fully out would
+   * fling the whole chain away from the body, so it's only kept from going deeper than that.
+   */
+  slack: number[];
   /** Which chain it belongs to (for removing). */
   chain: number;
   phase: number;
@@ -68,9 +74,18 @@ export function closestOnSegment(p: THREE.Vector3, a: THREE.Vector3, b: THREE.Ve
   return out.set(a.x + abx * t, a.y + aby * t, a.z + abz * t);
 }
 
+/** How far p is inside a sphere or capsule (radius + extra), with the collider where its bone is now. */
+export function restDepth(p: THREE.Vector3, c: Collider, extra: number): number {
+  c.bone.updateWorldMatrix(true, false);
+  const a = _v1.copy(c.offset).applyMatrix4(c.bone.matrixWorld);
+  const q = c.tail ? closestOnSegment(p, a, _v2.copy(c.tail).applyMatrix4(c.bone.matrixWorld), _v3) : a;
+  return Math.max(0, c.radius + extra - p.distanceTo(q));
+}
+
 /** Pushes p out of a sphere or capsule (radius + extra); returns true if it moved. */
 export function pushOut(p: THREE.Vector3, c: Collider, extra: number): boolean {
   const r = c.radius + extra;
+  if (r <= 0) return false;
   const q = c.tail ? closestOnSegment(p, c.worldA, c.worldB, _v3) : _v3.copy(c.worldA);
   const dx = p.x - q.x, dy = p.y - q.y, dz = p.z - q.z;
   const d2 = dx * dx + dy * dy + dz * dz;
@@ -121,7 +136,7 @@ export class SpringSolver {
       bone.updateWorldMatrix(true, false);
       const curr = tailLocal.clone().applyMatrix4(bone.matrixWorld);
       const head = _head.setFromMatrixPosition(bone.matrixWorld);
-      this.joints.push({ bone, tailLocal, boneAxis: tailLocal.clone().normalize(), length: curr.distanceTo(head), rest: bone.quaternion.clone(), prev: curr.clone(), curr, settings: s, colliders, chain, phase: Math.random() * Math.PI * 2 });
+      this.joints.push({ bone, tailLocal, boneAxis: tailLocal.clone().normalize(), length: curr.distanceTo(head), rest: bone.quaternion.clone(), prev: curr.clone(), curr, settings: s, colliders, slack: colliders.map((c) => restDepth(curr, c, s.radius)), chain, phase: Math.random() * Math.PI * 2 });
     }
     return chain;
   }
@@ -141,9 +156,10 @@ export class SpringSolver {
     for (const j of this.joints) if (j.chain === chain) Object.assign(j.settings, settings);
   }
 
-  /** Starts over from the current pose (after a teleport or a reset). */
-  reset() {
+  /** Starts over from the current pose (after a teleport or a reset), every chain or one. */
+  reset(chain?: number) {
     for (const j of this.joints) {
+      if (chain !== undefined && j.chain !== chain) continue;
       j.bone.updateWorldMatrix(true, false);
       j.curr.copy(j.tailLocal).applyMatrix4(j.bone.matrixWorld);
       j.prev.copy(j.curr);
@@ -204,7 +220,7 @@ export class SpringSolver {
       next.sub(head).normalize().multiplyScalar(j.length).add(head);
       for (let it = 0; it < 4; it++) {
         let moved = false;
-        for (const c of j.colliders) if (c.on && pushOut(next, c, s.radius)) moved = true;
+        for (let ci = 0; ci < j.colliders.length; ci++) { const c = j.colliders[ci]!; if (c.on && pushOut(next, c, s.radius - j.slack[ci]!)) moved = true; }
         if (!moved) break;
         if (it < 3) next.sub(head).normalize().multiplyScalar(j.length).add(head);
       }
