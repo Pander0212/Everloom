@@ -10,7 +10,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import sharp from 'sharp';
 import { buildTemplateRig, checkPuppet, type TemplateLandmarks } from '../../packages/engine/src/index.js';
-import { packAtlas, puppetJson, trimRgba, type PartImage } from './atlas.js';
+import { packAtlas, puppetJson, trimRgba, type PartImage } from '../../apps/server/src/services/puppets/atlas.js';
 
 const W = 600, H = 1000;
 export const PLACEHOLDER_LANDMARKS: TemplateLandmarks = {

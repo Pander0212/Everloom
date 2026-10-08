@@ -134,18 +134,45 @@ and lean.
    or two-pixel tolerance for line jitter) inside its own region.
 5. **Pack it**: atlas pages and meshes (`tools/puppets/atlas.ts`), then `buildTemplateRig`.
 
+## Making a puppet in the app
+
+Settings › Puppets (with the Puppets feature on):
+
+- **Make a puppet from a picture.** Needs a *Puppet layering* connection (Settings › Connections):
+  a See-through worker (`tools/see-through-worker`) on the owner's own GPU (16 GB or more, the
+  Dockerfile) or a rented one (a RunPod pod, `session.mjs`), with its URL and its `WORKER_TOKEN` as
+  the key. The server removes the background (`keyBackground`: a flat key, or a neighbour-following
+  fill for gradients; a transparent picture is kept), sends the picture (`/reset`, `PUT /images`,
+  `/run`, polls `/health`, `/result.zip`), maps the layers (`mapLayers`, the TypeScript twin of
+  `map.py`) and rigs them (`buildTemplateRig`), then keeps the puppet in the owner's media folder
+  (vault-aware) at `/api/puppets/<id>/puppet.json`. A few minutes on a good GPU.
+- **Import a layering result**: a zip with `<name>/layers.json` and its layer PNGs (the worker writes
+  them next to its PSD; `tools/puppets/export-layers.py` does it for older results), for layering
+  done elsewhere. No GPU needed in the app.
+- Each puppet opens in the lab; 18+ puppets are marked and move their chest more (`bounce` 1.3).
+
+What still takes AI: the layering itself (See-through, a GPU model). Drawing a character from a
+description, outfits and expressions need an image model (and an editing model that keeps the
+pose, such as Seedream 4.5, for outfits); without one, a picture the owner already has is enough
+for a moving puppet (expressions are then the built-in placeholder mouths and the drawn-in shut
+eyes).
+
+The same path from a terminal: `npx tsx tools/puppets/build-from-layers.ts <result dir> <name> <out>`.
+
 ## The layering worker (`tools/see-through-worker`)
 
 `server.py` (standard library) serves `GET /health`, `PUT /images/<name>.png`, `POST /run`,
-`GET /log`, `GET /result.zip`, all behind a per-session token; `start.sh` installs See-through at a
+`GET /log`, `GET /result.zip` (with `<name>/layers.json` and `<name>/layers/*.png`), `POST /reset`, all
+behind a per-session token; `start.sh` installs See-through at a
 pinned commit on RunPod's PyTorch 2.8 / CUDA 12.8 image and fetches the weights (about 15 GB). A
 watchdog ends the pod after 10 idle minutes or its time limit. `Dockerfile` builds the same thing
 for any GPU host (a local machine, SaladCloud).
 
 `session.mjs` runs one batch on RunPod: reads the balance (refuses unless the worst case leaves
-$0.50), picks the cheapest free 24 GB card (community, then secure up to $0.60/h) with no paid
-storage, uploads, runs, downloads, terminates in `finally`, then checks the account's pod and
-volume lists. Every session is in [art/GPU_LEDGER.md](art/GPU_LEDGER.md).
+$0.50), picks a free 24 GB card in the `--gpus` order (community, then secure up to $0.60/h; a card
+dearer than that is released at once) with no paid storage, sets the time limit from `--budget`
+and the card's price, can wait for inputs still being made (`--wait-dir`, `--expect`), uploads,
+runs, downloads, terminates in `finally`, then checks the account's pod and volume lists. Every session is in [art/GPU_LEDGER.md](art/GPU_LEDGER.md).
 
 ## Inochi2D
 

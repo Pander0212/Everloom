@@ -4,7 +4,7 @@
  * builder.
  */
 import sharp from 'sharp';
-import { autoMesh, cellFor, type PuppetMesh } from '../../packages/engine/src/index.js';
+import { autoMesh, cellFor, type PuppetMesh } from '@everloom/engine';
 
 export interface PartImage {
   id: string;

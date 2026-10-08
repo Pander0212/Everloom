@@ -14,7 +14,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import sharp from 'sharp';
 import { buildTemplateRig, checkPuppet, type TemplateLandmarks } from '../../packages/engine/src/index.js';
-import { packAtlas, puppetJson, trimRgba, type PartImage } from './atlas.js';
+import { packAtlas, puppetJson, trimRgba, type PartImage } from '../../apps/server/src/services/puppets/atlas.js';
 
 const { values: o, positionals: [src, dst] } = parseArgs({ allowPositionals: true, options: { id: { type: 'string' }, name: { type: 'string' }, template: { type: 'string', default: 'everloom-f' }, rating: { type: 'string', default: 'all-ages' }, bounce: { type: 'string' } } });
 if (!src || !dst) { console.error('usage: build-puppet.ts <parts dir> <out dir> [--id x] [--name X] [--rating 18+]'); process.exit(1); }

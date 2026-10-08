@@ -13,7 +13,7 @@ export interface ProviderPreset {
   provider: ProviderId;
   baseUrl: string;
   needsKey: boolean;
-  group: 'llm' | 'tts' | 'image' | 'model3d';
+  group: 'llm' | 'tts' | 'image' | 'model3d' | 'layers';
   hint?: string;
   params?: Record<string, unknown>;
   /** The model the preset is for (NanoGPT image models). */
@@ -52,6 +52,7 @@ export const PRESETS: ProviderPreset[] = [
   { key: '3d-meshy', label: 'Meshy', provider: '3d-meshy', baseUrl: 'https://api.meshy.ai', needsKey: true, group: 'model3d', hint: 'Text or picture to 3D, textured. Paid per model.' },
   { key: '3d-fal-hunyuan', label: 'fal.ai · Hunyuan3D 2', provider: '3d-fal', baseUrl: 'https://queue.fal.run', needsKey: true, group: 'model3d', model: 'fal-ai/hunyuan3d/v2', hint: 'Picture to 3D (text is drawn first with your image connection).' },
   { key: '3d-fal-trellis', label: 'fal.ai · TRELLIS', provider: '3d-fal', baseUrl: 'https://queue.fal.run', needsKey: true, group: 'model3d', model: 'fal-ai/trellis', hint: 'Picture to 3D, fast.' },
+  { key: 'layers-seethrough', label: 'See-through worker', provider: 'layers-seethrough', baseUrl: 'http://127.0.0.1:8000', needsKey: true, group: 'layers', hint: 'tools/see-through-worker (Docker on a 16 GB+ GPU, or a RunPod pod); the key is its WORKER_TOKEN.' },
   { key: 'img-a1111', label: 'AUTOMATIC1111 / Forge', provider: 'img-a1111', baseUrl: 'http://127.0.0.1:7860', needsKey: false, group: 'image' },
 ];
 
@@ -59,7 +60,7 @@ const isLlm = (p: string) => ['openai', 'anthropic', 'gemini', 'textgen'].includ
 
 type Draft = { name: string; provider: ProviderId; baseUrl: string; model: string; apiKey: string | undefined; params: Record<string, any> };
 
-export function ConnectionSheet({ open, onOpenChange, connection, group }: { open: boolean; onOpenChange: (o: boolean) => void; connection: ConnectionDTO | null; group: 'llm' | 'tts' | 'image' | 'model3d' }) {
+export function ConnectionSheet({ open, onOpenChange, connection, group }: { open: boolean; onOpenChange: (o: boolean) => void; connection: ConnectionDTO | null; group: 'llm' | 'tts' | 'image' | 'model3d' | 'layers' }) {
   const qc = useQueryClient();
   const [presetKey, setPresetKey] = useState('');
   const [d, setD] = useState<Draft | null>(null);

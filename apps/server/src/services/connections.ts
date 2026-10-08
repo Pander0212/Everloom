@@ -77,7 +77,7 @@ export function resolveConnection(ctx: AppContext, owner: string, id: string): R
   return { id: r.id, name: r.name, provider: r.provider, baseUrl: r.base_url, model: r.model, apiKey, params: json(r.params, {}) };
 }
 
-export type Role = 'main' | 'utility' | 'background' | 'embeddings' | 'tts' | 'image' | 'model3d';
+export type Role = 'main' | 'utility' | 'background' | 'embeddings' | 'tts' | 'image' | 'model3d' | 'layering';
 
 /** Resolve a role to a connection. Utility falls back to main; main falls back to the first LLM connection. */
 export function connectionForRole(ctx: AppContext, owner: string, role: Role, override?: string | null): ResolvedConnection | null {

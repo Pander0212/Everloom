@@ -7,8 +7,10 @@ Every request needs the header `x-token: $WORKER_TOKEN`.
     GET  /health               {ready, busy, stage, images, done, error, uptime}
     PUT  /images/<name>.png    store an input image
     POST /run                  layer every stored image (one See-through run over the folder)
+    POST /reset                forget earlier inputs and results (not while running)
     GET  /log                  the last lines of the setup and run logs
-    GET  /result.zip           everything See-through wrote (PSD, layer PNGs, depth, masks)
+    GET  /result.zip           everything See-through wrote (PSD, layer PNGs, depth, masks), plus
+                               <name>/layers.json and <name>/layers/*.png (the PSD's layers)
 
 A watchdog ends the pod by itself after IDLE_SECONDS without a request (and not busy) or
 MAX_SECONDS in total, through `runpodctl remove pod $RUNPOD_POD_ID` (RunPod gives each pod a key
@@ -60,6 +62,36 @@ def watchdog():
             end_pod(f'idle for {IDLE} s')
 
 
+def export_layers():
+    """
+    Next to each <name>.psd: <name>/layers/NN.png (each layer, cropped) and <name>/layers.json
+    ({width, height, layers: [{name, file, left, top, width, height}]}, back to front), so a client
+    can read the result without parsing PSD files.
+    """
+    try:
+        from psd_tools import PSDImage
+    except Exception as e:  # report, never crash the API
+        state['error'] = f'layer export unavailable: {e}'[:300]
+        return
+    for f in sorted(os.listdir(f'{WORK}/out')):
+        if not f.endswith('.psd') or f.endswith('_depth.psd'):
+            continue
+        name = f[:-4]
+        d = f'{WORK}/out/{name}/layers'
+        os.makedirs(d, exist_ok=True)
+        psd = PSDImage.open(f'{WORK}/out/{f}')
+        rows = []
+        for i, layer in enumerate(psd):
+            im = layer.topil()
+            if im is None:
+                continue
+            fn = f'{i:02d}.png'
+            im.convert('RGBA').save(f'{d}/{fn}')
+            rows.append({'name': layer.name, 'file': f'layers/{fn}', 'left': layer.left, 'top': layer.top, 'width': im.width, 'height': im.height})
+        with open(f'{WORK}/out/{name}/layers.json', 'w') as out:
+            json.dump({'width': psd.width, 'height': psd.height, 'layers': rows}, out)
+
+
 def run_batch():
     state['busy'] = True
     state['error'] = None
@@ -72,6 +104,7 @@ def run_batch():
             code = subprocess.call(['python', 'inference/scripts/inference_psd.py', '--srcp', f'{WORK}/in', '--save_dir', f'{WORK}/out', '--save_to_psd', '--disable_progressbar', *EXTRA], cwd=REPO, stdout=log, stderr=subprocess.STDOUT)
         if code != 0:
             state['error'] = f'See-through exited with {code} (see /log)'
+        export_layers()
         state['done'] = sorted(d for d in os.listdir(f'{WORK}/out') if os.path.isdir(f'{WORK}/out/{d}'))
     except Exception as e:  # report, never crash the API
         state['error'] = str(e)[:300]
@@ -139,6 +172,17 @@ class Handler(BaseHTTPRequestHandler):
     def do_POST(self):
         if not self.authed():
             return
+        if self.path == '/reset':
+            # Clears earlier inputs and results, so the next run layers only what comes next.
+            if state['busy']:
+                return self.send(409, {'error': 'busy'})
+            import shutil
+            for d in ('in', 'out'):
+                shutil.rmtree(f'{WORK}/{d}', ignore_errors=True)
+                os.makedirs(f'{WORK}/{d}', exist_ok=True)
+            state['done'] = []
+            state['error'] = None
+            return self.send(200, {'reset': True})
         if self.path == '/run':
             if not ready():
                 return self.send(409, {'error': 'still setting up'})

@@ -11,7 +11,7 @@
 // Hard limits (see docs/art/PROMPTING.md): only the five NanoGPT subscription models, at most 95
 // NanoGPT images per UTC day, each call checked against the subscription counter and the cash
 // balance; ElectronHub standard (non-premium) models only, stopping before $2.00.
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -23,6 +23,11 @@ const rawDir = process.env.ART_RAW_DIR || path.join(root, '.art-raw');
 
 const NANO_MODELS = new Set(['hidream', 'chroma', 'z-image-turbo', 'qwen-image', 'step-image-edit-2']);
 const NANO_DAILY_CAP = 95;
+// Paid NanoGPT models (the owner's balance, at most NANO_PAID_CAP_USD in total), chosen for 18+
+// work: models NanoGPT marks as allowing adult content. Each call's price is read from the model
+// list first and the balance is read before and after; an unexpected charge stops everything.
+const NANO_PAID = new Set(['wai-illustrious-sdxl', 'hidream-o1-image-dev', 'hidream-o1-image', 'seedream-v4.5', 'bytedance/seedream-v5.0-pro/edit']);
+const NANO_PAID_CAP_USD = 2.0;
 const EH_CAP_USD = 2.0;
 const NANO = 'https://api.nano-gpt.com/api';
 const EH = 'https://api.electronhub.ai/v1';
@@ -33,6 +38,8 @@ const { values: a, positionals } = parseArgs({
     service: { type: 'string' },
     model: { type: 'string' },
     prompt: { type: 'string' },
+    negative: { type: 'string' },
+    adult: { type: 'boolean' },
     res: { type: 'string' },
     input: { type: 'string' },
     label: { type: 'string', default: '' },
@@ -46,6 +53,7 @@ const { values: a, positionals } = parseArgs({
 const load = () => (existsSync(ledgerJson) ? JSON.parse(readFileSync(ledgerJson, 'utf8')) : { entries: [] });
 const today = () => new Date().toISOString().slice(0, 10);
 const nanoToday = (L) => L.entries.filter((e) => e.service === 'nano' && e.date === today() && e.counted).length;
+const nanoPaidTotal = (L) => Math.round(L.entries.filter((e) => e.service === 'nano' && e.paid).reduce((t, e) => t + (e.costUsd || 0), 0) * 10000) / 10000;
 const ehTotal = (L) => Math.round(L.entries.filter((e) => e.service === 'eh').reduce((t, e) => t + (e.costUsd || 0), 0) * 10000) / 10000;
 
 function render(L) {
@@ -61,7 +69,7 @@ function render(L) {
       ehRun += e.costUsd || 0;
       total = `$${ehRun.toFixed(3)} / $${EH_CAP_USD.toFixed(2)}`;
     }
-    const cost = e.service === 'nano' ? (e.counted ? '1 image (subscription)' : '0') : `$${(e.costUsd || 0).toFixed(3)}`;
+    const cost = e.service === 'nano' ? (e.paid ? `$${(e.costUsd || 0).toFixed(4)} (balance)` : e.counted ? '1 image (subscription)' : '0') : `$${(e.costUsd || 0).toFixed(3)}`;
     return `| ${e.n} | ${e.date} | ${e.service === 'nano' ? 'NanoGPT' : 'ElectronHub'} | \`${e.model}\` | ${esc(e.label)} | ${esc(e.prompt)}${e.input ? ` (edit of ${esc(e.input)})` : ''} | ${cost} | ${total} | ${e.ok ? (e.kept === true ? 'kept' : e.kept === false ? 'not kept' : 'pending') : `failed: ${esc(e.error)}`}${e.note ? ` — ${esc(e.note)}` : ''} |`;
   });
   const md = `# Art ledger
@@ -105,6 +113,17 @@ async function nanoMeter(key) {
   return { used: u.body?.dailyImages?.used, limit: u.body?.limits?.dailyImages, degraded: !!u.body?.dailyImages?.degraded, usd: Number(b.body?.usd_balance), mode: u.body?.routing?.billingMode };
 }
 
+async function nanoPrice(key, model, res) {
+  const m = await j(`${NANO}/v1/image-models`, { headers: { 'x-api-key': key } });
+  const row = m.body?.data?.find((x) => x.id === model);
+  if (!row) throw new Error(`NanoGPT has no image model "${model}"`);
+  if (!row.capabilities?.nsfw) throw new Error(`"${model}" is not marked as allowing adult content`);
+  const p = row.pricing?.per_image ?? {};
+  const price = (res && (p[res] ?? p[res.replace('x', '*')])) ?? p.auto ?? Math.max(...Object.values(p).filter((v) => typeof v === 'number'));
+  if (!(price > 0)) throw new Error(`"${model}" has no per-image price`);
+  return price;
+}
+
 async function ehPrice(model) {
   const m = await j(`${EH}/models`);
   const row = m.body?.data?.find((x) => x.id === model);
@@ -139,11 +158,26 @@ async function saveImage(out, file) {
   return p;
 }
 
+// One call at a time: the ledger is read, extended and written by each call, so parallel calls
+// would lose entries (and under-count spending). A lock directory serialises them.
+const lockDir = path.join(root, 'docs/art/.ledger.lock');
+async function lock() {
+  for (let i = 0; i < 600; i++) {
+    try { mkdirSync(lockDir); return; } catch { await new Promise((r) => setTimeout(r, 500)); }
+  }
+  throw new Error('the ledger is locked by another call (docs/art/.ledger.lock)');
+}
+
 async function main() {
+  await lock();
+  try { await run(); } finally { rmSync(lockDir, { recursive: true, force: true }); }
+}
+
+async function run() {
   const L = load();
   if (a.render) return render(L);
   if (a.status) {
-    console.log(JSON.stringify({ nanoToday: nanoToday(L), nanoCap: NANO_DAILY_CAP, ehTotal: ehTotal(L), ehCap: EH_CAP_USD, entries: L.entries.length }));
+    console.log(JSON.stringify({ nanoToday: nanoToday(L), nanoCap: NANO_DAILY_CAP, nanoPaid: nanoPaidTotal(L), nanoPaidCap: NANO_PAID_CAP_USD, ehTotal: ehTotal(L), ehCap: EH_CAP_USD, entries: L.entries.length }));
     return;
   }
   if (a.resume) {
@@ -164,16 +198,57 @@ async function main() {
   if (!a.service || !a.model || !a.prompt) throw new Error('need --service, --model and --prompt');
   if (L.stopped) throw new Error(`stopped earlier: ${L.stopped}`);
   const n = (L.entries.at(-1)?.n ?? 0) + 1;
-  const entry = { n, date: today(), at: new Date().toISOString(), service: a.service, model: a.model, label: a.label, prompt: a.prompt, res: a.res ?? null, input: a.input ? path.basename(a.input) : null, ok: false, counted: false, costUsd: 0, kept: null };
+  // 18+ prompts stay out of the repository: the ledger notes them, the text goes to the work folder.
+  if (a.adult) {
+    mkdirSync(path.join(root, '.puppets-work'), { recursive: true });
+    writeFileSync(path.join(root, '.puppets-work/prompts.jsonl'), `${JSON.stringify({ n, label: a.label, prompt: a.prompt, negative: a.negative ?? null })}\n`, { flag: 'a' });
+  }
+  const entry = { n, date: today(), at: new Date().toISOString(), service: a.service, model: a.model, label: a.label, prompt: a.adult ? '(18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl)' : a.prompt, ...(a.adult ? { adult: true } : {}), res: a.res ?? null, input: a.input ? path.basename(a.input) : null, ok: false, counted: false, costUsd: 0, kept: null };
   const fileBase = `${String(n).padStart(3, '0')}-${a.service}-${a.model}-${(a.label || 'x').replace(/[^a-z0-9-]+/gi, '_')}`;
 
-  if (a.service === 'nano') {
+  if (a.service === 'nano' && NANO_PAID.has(a.model)) {
+    const key = process.env.NANOGPT_API_KEY;
+    if (!key) throw new Error('NANOGPT_API_KEY is not set');
+    const price = await nanoPrice(key, a.model, a.res);
+    const spent = nanoPaidTotal(L);
+    if (spent + price > NANO_PAID_CAP_USD + 1e-9) throw new Error(`NanoGPT paid cap: $${spent} spent, this call ($${price}) would pass $${NANO_PAID_CAP_USD}`);
+    const before = await nanoMeter(key);
+    if (!Number.isFinite(before.usd)) throw new Error('refusing: the balance is unreadable');
+    entry.paid = true;
+    entry.costUsd = price; // counted before the call: a timeout after the provider ran still costs
+    const body = { model: a.model, prompt: a.prompt, n: 1, ...(a.res ? { resolution: a.res, size: a.res } : {}), ...(a.negative ? { negative_prompt: a.negative } : {}) };
+    let url = `${NANO}/v1/images`;
+    if (a.input) {
+      const buf = readFileSync(a.input);
+      const mime = buf[0] === 0x89 ? 'image/png' : buf[0] === 0xff ? 'image/jpeg' : 'image/webp';
+      url = `${NANO}/v1/images/edits`;
+      body.imageDataUrl = `data:${mime};base64,${buf.toString('base64')}`;
+    }
+    const r = await j(url, { method: 'POST', headers: { 'content-type': 'application/json', 'x-api-key': key }, body: JSON.stringify(body) });
+    const after = await nanoMeter(key);
+    const delta = Math.round((before.usd - after.usd) * 1e6) / 1e6;
+    entry.meter = { usdBefore: before.usd, usdAfter: after.usd, charged: delta };
+    // The balance can lag a call: a successful one costs at least its listed price.
+    if (Number.isFinite(delta) && delta >= 0) entry.costUsd = r.status === 200 ? Math.max(delta, price) : delta;
+    if (delta > price * 1.5 + 0.005) L.stopped = `NanoGPT charged $${delta} on call #${n}, more than the listed $${price}`;
+    if (r.status !== 200) {
+      const msg = typeof r.body?.error === 'string' ? r.body.error : r.body?.error?.message ?? r.body?.message ?? r.text;
+      entry.error = `HTTP ${r.status}: ${String(msg).slice(0, 200)}`;
+      if (r.status === 402 || /insufficient|payment|balance/i.test(String(msg))) L.stopped = `NanoGPT refused on call #${n}: ${entry.error}`;
+    } else {
+      const out = imageOut(r.body);
+      if (!out) entry.error = `no image in the response: ${r.text}`;
+      else { entry.file = path.basename(await saveImage(out, fileBase.replace(/\//g, '_'))); entry.ok = true; }
+    }
+  } else if (a.service === 'nano') {
     if (!NANO_MODELS.has(a.model)) throw new Error(`"${a.model}" is not on the allowed NanoGPT list`);
     if (nanoToday(L) >= NANO_DAILY_CAP) throw new Error(`NanoGPT daily cap (${NANO_DAILY_CAP}) reached for ${today()}`);
     const key = process.env.NANOGPT_API_KEY;
     if (!key) throw new Error('NANOGPT_API_KEY is not set');
     const before = await nanoMeter(key);
-    if (before.mode !== 'subscription_only') throw new Error(`refusing: the key's billing mode is "${before.mode}", not subscription_only`);
+    // Subscription models must come from the included quota: the cash balance is checked not to
+    // move below (with a paid balance on the account, its billing mode is "both").
+    if (before.mode !== 'subscription_only' && before.mode !== 'both') throw new Error(`refusing: the key's billing mode is "${before.mode}"`);
     if (before.used == null || before.degraded) throw new Error('refusing: the subscription image counter is unavailable');
     if (before.used >= NANO_DAILY_CAP) throw new Error(`refusing: ${before.used} images already used today`);
     const body = { model: a.model, prompt: a.prompt, n: 1 };
@@ -244,7 +319,7 @@ async function main() {
 
   L.entries.push(entry);
   save(L);
-  console.log(JSON.stringify({ n, ok: entry.ok, file: entry.file ?? null, error: entry.error ?? null, warning: entry.warning ?? null, nanoToday: nanoToday(L), ehTotal: ehTotal(L), stopped: L.stopped ?? null }));
+  console.log(JSON.stringify({ n, ok: entry.ok, file: entry.file ?? null, error: entry.error ?? null, warning: entry.warning ?? null, nanoToday: nanoToday(L), nanoPaid: nanoPaidTotal(L), ehTotal: ehTotal(L), stopped: L.stopped ?? null }));
   if (!entry.ok) process.exitCode = 1;
 }
 

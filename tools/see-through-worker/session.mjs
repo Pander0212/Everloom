@@ -12,7 +12,7 @@
 // also ends itself (idle or time limit). Every session goes in docs/art/GPU_LEDGER.md.
 // The key comes from the environment and is never printed or stored.
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -29,7 +29,13 @@ const NAME = 'everloom-see-through';
 // Secure-cloud prices per hour (October 2026), to skip the dear ones.
 const PRICES = { 'NVIDIA RTX A5000': 0.27, 'NVIDIA GeForce RTX 3090': 0.5, 'NVIDIA GeForce RTX 3090 Ti': 0.46, 'NVIDIA RTX A6000': 0.59, 'NVIDIA A40': 0.59, 'NVIDIA GeForce RTX 4090': 0.89 };
 
-const { values: a, positionals } = parseArgs({ allowPositionals: true, options: { out: { type: 'string' }, 'max-minutes': { type: 'string', default: '60' }, note: { type: 'string', default: '' } } });
+const { values: a, positionals } = parseArgs({ allowPositionals: true, options: { out: { type: 'string' }, 'max-minutes': { type: 'string', default: '60' }, note: { type: 'string', default: '' }, budget: { type: 'string' }, gpus: { type: 'string' }, 'wait-dir': { type: 'string' }, expect: { type: 'string' } } });
+// --wait-dir/--expect: the inputs are still being made; once the worker is ready, wait (at most
+// 45 minutes, with the worker kept awake) until the folder holds that many PNGs, then upload them
+// all. Lets the pod's setup overlap the image generation.
+// --budget caps what this one session may cost (USD): the pod's time limit becomes budget ÷ its
+// hourly price (and never more than --max-minutes, at most 300). --gpus orders the cards to try.
+const gpuOrder = a.gpus ? a.gpus.split(',').map((g) => g.trim()).filter(Boolean) : GPUS;
 const cmd = positionals.shift();
 const key = process.env.RUNPOD_API_KEY;
 if (!key) { console.error('RUNPOD_API_KEY is not set'); process.exit(1); }
@@ -77,15 +83,18 @@ async function status() {
 
 async function run(images) {
   if (!a.out) throw new Error('--out <dir> is required');
-  if (!images.length) throw new Error('no images given');
+  if (!images.length && !a['wait-dir']) throw new Error('no images given');
   for (const f of images) if (!existsSync(f)) throw new Error(`no such image: ${f}`);
   const L = loadLedger();
   const before = await cleanup();
   const balance = Number(before.clientBalance);
   // Worst case: the price of the dearest GPU we'd take, for the whole time limit.
-  const maxMinutes = Math.min(Number(a['max-minutes']), 120);
-  const worst = (0.6 * maxMinutes) / 60;
+  const maxMinutes = Math.min(Number(a['max-minutes']), 300);
+  const budget = a.budget ? Number(a.budget) : Infinity;
+  // Worst case: the dearest card we'd take (0.60/h) for the whole limit, or the budget if smaller.
+  const worst = Math.min((0.6 * maxMinutes) / 60, budget);
   if (!(balance - worst >= FLOOR)) throw new Error(`balance $${balance} can't cover a ${maxMinutes}-minute session and keep $${FLOOR} (worst case $${worst.toFixed(2)})`);
+  let limitMinutes = maxMinutes;
   const token = randomBytes(24).toString('hex');
   const b64 = (f) => readFileSync(path.join(here, f)).toString('base64');
   const entry = { date: new Date().toISOString().slice(0, 10), provider: 'RunPod', gpu: null, pricePerHr: null, start: null, stop: null, seconds: null, costUsd: null, balanceBefore: balance, balanceAfter: null, images: images.map((f) => path.basename(f)), result: 'started', note: a.note };
@@ -95,16 +104,18 @@ async function run(images) {
   const t0 = Date.now();
   try {
     // Community first (cheaper), then secure; as small a machine as See-through needs.
-    for (const [cloud, gpu] of [...GPUS.map((g) => ['COMMUNITY', g]), ...GPUS.map((g) => ['SECURE', g])]) {
+    for (const [cloud, gpu] of [...gpuOrder.map((g) => ['COMMUNITY', g]), ...gpuOrder.map((g) => ['SECURE', g])]) {
       if (cloud === 'SECURE' && (PRICES[gpu] ?? 1) > 0.6) continue;
       try {
         const d = await gql(`mutation($input: PodFindAndDeployOnDemandInput) { podFindAndDeployOnDemand(input: $input) { id costPerHr machine { gpuDisplayName } } }`, { input: {
           cloudType: cloud, gpuCount: 1, gpuTypeId: gpu, name: NAME, imageName: IMAGE,
           containerDiskInGb: 60, volumeInGb: 0, ports: '8000/http', minVcpuCount: 2, minMemoryInGb: 16,
           dockerArgs: `bash -c 'mkdir -p /opt/worker && echo $W_SERVER | base64 -d > /opt/worker/server.py && echo $W_START | base64 -d > /opt/worker/start.sh && bash /opt/worker/start.sh'`,
-          env: [{ key: 'WORKER_TOKEN', value: token }, { key: 'W_SERVER', value: b64('server.py') }, { key: 'W_START', value: b64('start.sh') }, { key: 'MAX_SECONDS', value: String(maxMinutes * 60) }, { key: 'IDLE_SECONDS', value: '600' }],
+          env: [{ key: 'WORKER_TOKEN', value: token }, { key: 'W_SERVER', value: b64('server.py') }, { key: 'W_START', value: b64('start.sh') }, { key: 'MAX_SECONDS', value: String(Math.floor(Math.min(maxMinutes, (budget / Math.min(0.6, cloud === 'SECURE' ? PRICES[gpu] ?? 0.6 : 0.6)) * 60) * 60)) }, { key: 'IDLE_SECONDS', value: '600' }],
         } });
         pod = d.podFindAndDeployOnDemand;
+        // Over the ceiling the time limit was set for: give it back at once and try the next card.
+        if (pod?.id && pod.costPerHr > 0.6) { console.log(`${cloud} ${gpu}: $${pod.costPerHr}/h is over $0.60, released`); await terminate(pod.id); pod = null; continue; }
         if (pod?.id) break;
       } catch (e) { console.log(`${cloud} ${gpu}: ${/no longer any instances/.test(e.message) ? 'none available' : String(e.message).slice(0, 120)}`); }
     }
@@ -113,10 +124,12 @@ async function run(images) {
     entry.pricePerHr = pod.costPerHr;
     entry.start = new Date().toISOString();
     saveLedger(L);
-    console.log(`pod ${pod.id} on ${entry.gpu} at $${pod.costPerHr}/h`);
+    // With a budget, the session's own time limit follows the price actually paid.
+    if (Number.isFinite(budget) && pod.costPerHr > 0) limitMinutes = Math.min(maxMinutes, Math.floor((budget / pod.costPerHr) * 60) - 2);
+    console.log(`pod ${pod.id} on ${entry.gpu} at $${pod.costPerHr}/h; time limit ${limitMinutes} min`);
     const base = `https://${pod.id}-8000.proxy.runpod.net`;
     const api = async (p, init = {}) => fetch(base + p, { ...init, headers: { 'x-token': token, ...(init.headers ?? {}) }, signal: AbortSignal.timeout(90_000) });
-    const deadline = t0 + maxMinutes * 60_000;
+    const deadline = t0 + limitMinutes * 60_000;
     let health = null, lastStage = '';
     while (Date.now() < deadline) {
       await sleep(15_000);
@@ -126,6 +139,15 @@ async function run(images) {
       } catch { /* the proxy answers once the pod is up */ }
     }
     if (!health?.ready) throw new Error('the worker did not finish setting up in time');
+    if (a['wait-dir']) {
+      const want = Number(a.expect ?? 1), until = Math.min(deadline, Date.now() + 45 * 60_000);
+      const list = () => readdirSync(a['wait-dir']).filter((f) => f.endsWith('.png')).map((f) => path.join(a['wait-dir'], f));
+      while (list().length < want && Date.now() < until) { await sleep(20_000); await api('/health').catch(() => null); }
+      const got = list();
+      console.log(`[${Math.round((Date.now() - t0) / 1000)} s] ${got.length} of ${want} inputs ready`);
+      for (const f of got) if (!images.includes(f)) images.push(f);
+      entry.images = images.map((f) => path.basename(f));
+    }
     for (const f of images) {
       const r = await api(`/images/${path.basename(f).replace(/[^A-Za-z0-9_.-]/g, '_')}`, { method: 'PUT', body: readFileSync(f) });
       if (!r.ok) throw new Error(`upload ${f}: ${r.status}`);
