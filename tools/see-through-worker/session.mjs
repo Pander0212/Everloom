@@ -29,7 +29,7 @@ const NAME = 'everloom-see-through';
 // Secure-cloud prices per hour (October 2026), to skip the dear ones.
 const PRICES = { 'NVIDIA RTX A5000': 0.27, 'NVIDIA GeForce RTX 3090': 0.5, 'NVIDIA GeForce RTX 3090 Ti': 0.46, 'NVIDIA RTX A6000': 0.59, 'NVIDIA A40': 0.59, 'NVIDIA GeForce RTX 4090': 0.89 };
 
-const { values: a, positionals } = parseArgs({ allowPositionals: true, options: { out: { type: 'string' }, 'max-minutes': { type: 'string', default: '60' }, note: { type: 'string', default: '' }, budget: { type: 'string' }, gpus: { type: 'string' }, 'wait-dir': { type: 'string' }, expect: { type: 'string' }, 'wait-community': { type: 'string' } } });
+const { values: a, positionals } = parseArgs({ allowPositionals: true, options: { out: { type: 'string' }, 'max-minutes': { type: 'string', default: '60' }, note: { type: 'string', default: '' }, budget: { type: 'string' }, gpus: { type: 'string' }, 'wait-dir': { type: 'string' }, expect: { type: 'string' }, 'wait-community': { type: 'string' }, 'min-download': { type: 'string' }, 'min-upload': { type: 'string' } } });
 // --wait-community N: retry the community cards every two minutes for up to N minutes before
 // taking a (dearer) secure one.
 // --wait-dir/--expect: the inputs are still being made; once the worker is ready, wait (at most
@@ -120,6 +120,9 @@ async function run(images) {
         const d = await gql(`mutation($input: PodFindAndDeployOnDemandInput) { podFindAndDeployOnDemand(input: $input) { id costPerHr machine { gpuDisplayName } } }`, { input: {
           cloudType: cloud, gpuCount: 1, gpuTypeId: gpu, name: NAME, imageName: IMAGE,
           containerDiskInGb: 60, volumeInGb: 0, ports: '8000/http', minVcpuCount: 2, minMemoryInGb: 16,
+          // Setup downloads about 20 GB (packages, weights): a slow host never finishes (two did
+          // not, October 2026), so ask for a fast line.
+          minDownload: Number(a['min-download'] ?? 800), minUpload: Number(a['min-upload'] ?? 200),
           dockerArgs: `bash -c 'mkdir -p /opt/worker && echo $W_SERVER | base64 -d > /opt/worker/server.py && echo $W_START | base64 -d > /opt/worker/start.sh && bash /opt/worker/start.sh'`,
           env: [{ key: 'WORKER_TOKEN', value: token }, { key: 'W_SERVER', value: b64('server.py') }, { key: 'W_START', value: b64('start.sh') }, { key: 'MAX_SECONDS', value: String(Math.floor(Math.min(maxMinutes, (budget / Math.min(0.6, cloud === 'SECURE' ? PRICES[gpu] ?? 0.6 : 0.6)) * 60) * 60)) }, { key: 'IDLE_SECONDS', value: '600' }],
         } });

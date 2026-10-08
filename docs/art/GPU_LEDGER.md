@@ -10,4 +10,5 @@ on RunPod, no paid storage kept, every pod terminated (checked through the API a
 | 2026-10-08 | RunPod | RTX 3090 | $0.220 | 20:31:10 | 21:17:26 | 46 min | $0.170 | $5.00 → $4.83 | u-belt.png, u-lace.png, u-tank.png, u-nude.png | 4/4 layered; 70 MB |
 | 2026-10-08 | RunPod | RTX 3090 Ti | $0.270 | 22:24:53 | 23:07:27 | 43 min | $0.191 | $4.82 → $4.63 |  | failed: setup hung at "installing Python packages" for 27 min on this host; stopped by hand, pod terminated, nothing left |
 | 2026-10-08 | RunPod | RTX 3090 | $0.500 | 23:07:57 | 23:08:38 | 1 min | $0.006 | $4.63 → $4.63 |  | stopped on purpose during setup (secure card too dear for the batch in the budget); pod terminated |
-| 2026-10-08 | RunPod | RTX 3090 Ti | $0.270 | 23:09:11 | — | — | — | $4.63 → ? |  | started |
+| 2026-10-08 | RunPod | RTX 3090 Ti | $0.270 | 23:09:11 | 23:44:21 | 35 min | $0.158 | $4.63 → $4.47 |  | failed: the worker did not finish setting up in time (last stage: installing Python packages: Downloading scikit_image-0.25.2-cp312-cp312-manylinux_2_17_x86_64.manylinu |
+| 2026-10-08 | RunPod | RTX 4090 | $0.340 | 23:45:12 | — | — | — | $4.47 → ? |  | started |

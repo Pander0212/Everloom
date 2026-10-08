@@ -80,14 +80,29 @@
    "gpu": "RTX 3090 Ti",
    "pricePerHr": 0.27,
    "start": "2026-10-08T23:09:11.143Z",
+   "stop": "2026-10-08T23:44:21.666Z",
+   "seconds": 2112,
+   "costUsd": 0.158,
+   "balanceBefore": 4.6321440088,
+   "balanceAfter": 4.4722334757,
+   "images": [],
+   "result": "failed: the worker did not finish setting up in time (last stage: installing Python packages: Downloading scikit_image-0.25.2-cp312-cp312-manylinux_2_17_x86_64.manylinu",
+   "note": "4 generated characters: nude A-pose bases + 9 outfits each (third try)"
+  },
+  {
+   "date": "2026-10-08",
+   "provider": "RunPod",
+   "gpu": "RTX 4090",
+   "pricePerHr": 0.34,
+   "start": "2026-10-08T23:45:12.755Z",
    "stop": null,
    "seconds": null,
    "costUsd": null,
-   "balanceBefore": 4.6321440088,
+   "balanceBefore": 4.4722334757,
    "balanceAfter": null,
    "images": [],
    "result": "started",
-   "note": "4 generated characters: nude A-pose bases + 9 outfits each (third try)"
+   "note": "4 generated characters: nude A-pose bases + 9 outfits each (fourth try, fast hosts only)"
   }
  ]
 }
