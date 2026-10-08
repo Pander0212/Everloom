@@ -82,6 +82,20 @@ export function detectFacing(root: THREE.Object3D, bones: Partial<Record<HumanBo
  */
 export function prepareRig(root: THREE.Object3D, bones: Partial<Record<HumanBone, THREE.Object3D>>): RigInfo {
   root.updateMatrixWorld(true);
+  // Independent control nodes occur in rigid game rigs. Attach their mapped
+  // segments to the humanoid parent while preserving the bind-pose world matrix.
+  // Existing ancestor chains (including twist/helper bones) remain in place.
+  const unique = new Set(Object.values(bones)).size === Object.values(bones).length;
+  if (unique) for (const name of HUMANOID_BONES) {
+    const bone = bones[name]; if (!bone) continue;
+    let parentName = HUMAN_PARENT[name]; while (parentName && !bones[parentName]) parentName = HUMAN_PARENT[parentName];
+    const target = parentName ? bones[parentName] : undefined; if (!target) continue;
+    let ancestor = bone.parent; while (ancestor && ancestor !== target) ancestor = ancestor.parent;
+    if (ancestor) continue;
+    let reverse = target.parent; while (reverse && reverse !== bone) reverse = reverse.parent;
+    if (!reverse) target.attach(bone);
+  }
+  root.updateMatrixWorld(true);
   const facing = detectFacing(root, bones);
   const rig: RigInfo = { root, bones, tpose: {}, tlocal: {}, hipsRest: new THREE.Vector3(), hipsHeight: 1, facing };
   const rootQ = worldQuat(root, new THREE.Quaternion());
@@ -148,10 +162,10 @@ export function readCanonical(rig: RigInfo, out: CanonicalPose = emptyPose()): C
   }
   const hips = rig.bones.hips;
   if (hips) {
-    // Hips offset from rest, in the facing frame, per unit of hips height.
-    const parentInvFrame = new THREE.Quaternion();
-    if (hips.parent) frameQuat(rig, hips.parent, parentInvFrame);
-    out.hips.copy(hips.position).sub(rig.hipsRest).applyQuaternion(parentInvFrame).multiplyScalar(1 / rig.hipsHeight);
+    // Parent transforms can contain centimetre-to-metre scales. Motion is in
+    // root units; a quaternion alone loses that scale and amplifies translations.
+    const parentToRoot = rig.root.matrixWorld.clone().invert().multiply(hips.parent?.matrixWorld ?? new THREE.Matrix4());
+    out.hips.copy(hips.position).sub(rig.hipsRest).applyMatrix3(new THREE.Matrix3().setFromMatrix4(parentToRoot)).applyQuaternion(rig.facing.clone().invert()).multiplyScalar(1 / rig.hipsHeight);
   }
   return out;
 }
@@ -187,9 +201,8 @@ export function applyCanonical(rig: RigInfo, pose: CanonicalPose, opts: { hips?:
   }
   const hips = rig.bones.hips;
   if (hips && opts.hips !== false) {
-    const parentFrame = new THREE.Quaternion();
-    if (hips.parent) frameQuat(rig, hips.parent, parentFrame);
-    hips.position.copy(pose.hips).multiplyScalar(rig.hipsHeight).applyQuaternion(parentFrame.invert()).add(rig.hipsRest);
+    const parentToRoot = rig.root.matrixWorld.clone().invert().multiply(hips.parent?.matrixWorld ?? new THREE.Matrix4());
+    hips.position.copy(pose.hips).multiplyScalar(rig.hipsHeight).applyQuaternion(rig.facing).applyMatrix3(new THREE.Matrix3().setFromMatrix4(parentToRoot).invert()).add(rig.hipsRest);
   }
   rig.root.updateMatrixWorld(true);
 }

@@ -18,6 +18,7 @@ const viewports = {
 const projects = Object.entries(viewports).flatMap(([name, vp]) =>
   (['dark', 'light'] as const).map((theme) => ({
     name: `${name}-${theme}`,
+    testIgnore: /real-models\.spec\.ts/,
     use: { ...devices['Desktop Chrome'], ...vp, colorScheme: theme, storageState: 'tests/e2e/.artifacts/auth.json' },
     dependencies: ['setup'],
   })),
@@ -40,7 +41,7 @@ export default defineConfig({
       command: `node --import tsx apps/server/src/index.ts`,
       port: PORT,
       reuseExistingServer: false,
-      env: { PORT: String(PORT), EVERLOOM_DATA_DIR: DATA, EVERLOOM_SOURCE_FIXTURES: path.resolve('tests/fixtures/sources/chub'), EVERLOOM_WEB_DIR: path.resolve('apps/web/dist'), LOG_LEVEL: 'error' },
+      env: { PORT: String(PORT), EVERLOOM_DATA_DIR: DATA, EVERLOOM_SOURCE_FIXTURES: path.resolve('tests/fixtures/sources/chub'), EVERLOOM_WEB_DIR: process.env.E2E_WEB_DIR ?? path.resolve('apps/web/dist'), LOG_LEVEL: 'error' },
     },
   ],
 });

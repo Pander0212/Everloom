@@ -58,7 +58,7 @@ export default function LibraryPage() {
   const collections = useCollections();
   const settings = useSettings();
   const { update } = useSettingsPatch();
-  const lib = useLibraryState(chars.data, collections.data);
+  const lib = useLibraryState(chars.data?.filter(c => !c.adult || settings.data?.library.nsfw === true), collections.data);
   const { state, setState, list } = lib;
   const view = settings.data?.library.view ?? 'grid';
   const qc = useQueryClient();

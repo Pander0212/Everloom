@@ -5,15 +5,23 @@
 import * as THREE from 'three';
 import { GLTFLoader, type GLTF } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { KTX2Loader } from 'three/examples/jsm/loaders/KTX2Loader.js';
+import { DRACOLoader } from 'three/examples/jsm/loaders/DRACOLoader.js';
 import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.js';
 import { VRMLoaderPlugin, type VRM } from '@pixiv/three-vrm';
-import { mapBones, mapExpressions, type ExpressionMap, type HumanBone, type MorphWeight, type RigBone } from '@everloom/engine';
+import { mapBones, mapExpressions, REQUIRED_BONES, type AvatarConfig, type ExpressionMap, type HumanBone, type MorphWeight, type RigBone } from '@everloom/engine';
+import { buildHuman } from './makehuman';
+import { createBodyMorphs, type BodyMorphWeights } from './body-shape';
 
 export interface LoadedModel {
+  bodyMorphs?: BodyMorphWeights;
+  bodyMorphError?: string;
   gltf: GLTF | null;
   scene: THREE.Object3D;
   vrm: VRM | null;
   bones: Partial<Record<HumanBone, THREE.Object3D>>;
+  /** Current editable skeleton, retaining names from the source file. */
+  rigBones?: RigBone[];
+  automaticBoneMap?: Partial<Record<HumanBone, string>>;
   missing: HumanBone[];
   /** Meshes with morph targets (expressions are applied to all of them by name). */
   morphMeshes: THREE.Mesh[];
@@ -33,9 +41,64 @@ export interface LoadedModel {
   autoFit: boolean;
   /** Metres to raise the feet above the floor (negative: lower). */
   floor: number;
+  /** Every bone's local transform as the file had it (the bind pose), for fitting and resets. */
+  restPose?: Map<THREE.Object3D, { position: THREE.Vector3; quaternion: THREE.Quaternion; scale: THREE.Vector3 }>;
+}
+
+/** Runs `fn` with the bones in the file's rest pose, then puts the current pose back. */
+export function withRestPose<T>(model: LoadedModel, fn: () => T): T {
+  if (!model.restPose) return fn();
+  const saved = [...model.restPose.keys()].map((b) => [b, b.position.clone(), b.quaternion.clone(), b.scale.clone()] as const);
+  applyRestPose(model);
+  try { return fn(); }
+  finally {
+    for (const [b, p, q, s] of saved) { b.position.copy(p); b.quaternion.copy(q); b.scale.copy(s); }
+    model.scene.updateMatrixWorld(true);
+  }
+}
+
+/** Puts every bone back where the file had it (the pose the meshes were skinned in). */
+export function applyRestPose(model: LoadedModel) {
+  if (!model.restPose) return;
+  for (const [bone, t] of model.restPose) { bone.position.copy(t.position); bone.quaternion.copy(t.quaternion); bone.scale.copy(t.scale); }
+  model.scene.updateMatrixWorld(true);
+}
+
+/** Release cancelled loads too: they never enter an Avatar's normal cleanup path. */
+export function disposeLoadedModel(model: LoadedModel) {
+  disposeScene(model.scene);
+}
+
+export function disposeScene(scene: THREE.Object3D) {
+  const textures = new Set<THREE.Texture>((scene.userData.disposables as THREE.Texture[] | undefined) ?? []);
+  const materials = new Set<THREE.Material>(), geometries = new Set<THREE.BufferGeometry>(), skeletons = new Set<THREE.Skeleton>();
+  scene.traverse(object => {
+    const mesh = object as THREE.SkinnedMesh; if (!mesh.isMesh) return;
+    geometries.add(mesh.geometry); if (mesh.skeleton) skeletons.add(mesh.skeleton);
+    for (const material of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      materials.add(material);
+      for (const value of Object.values(material)) if ((value as THREE.Texture | null)?.isTexture) textures.add(value as THREE.Texture);
+    }
+  });
+  for (const texture of textures) texture.dispose(); for (const material of materials) material.dispose();
+  for (const geometry of geometries) geometry.dispose(); for (const skeleton of skeletons) skeleton.dispose();
 }
 
 let ktx2: KTX2Loader | null = null;
+let draco: DRACOLoader | null = null;
+
+function dracoLoader() {
+  if (draco) return draco;
+  draco = new DRACOLoader().setWorkerLimit(2);
+  const internal = draco as DRACOLoader & { _initDecoder: () => Promise<void>; decoderPending: Promise<void> | null; decoderConfig: { wasmBinary?: ArrayBuffer }; workerSourceURL: string };
+  internal._initDecoder = () => (internal.decoderPending ??= (async () => {
+    const r = await fetch('/three/draco/draco_decoder.wasm', { signal: AbortSignal.timeout(15000) });
+    if (!r.ok) throw new Error(`Draco decoder download failed (HTTP ${r.status}).`);
+    internal.decoderConfig.wasmBinary = await r.arrayBuffer();
+    internal.workerSourceURL = '/three/draco/draco-worker.js';
+  })());
+  return draco;
+}
 
 /**
  * three runs the Basis transcoder in a worker built from a blob, which inherits the page's CSP;
@@ -59,8 +122,9 @@ function withFileWorker(loader: KTX2Loader): KTX2Loader {
     }));
   return loader;
 }
-export function loaderFor(renderer: THREE.WebGLRenderer | null): GLTFLoader {
-  const l = new GLTFLoader();
+export function loaderFor(renderer: THREE.WebGLRenderer | null, manager?: THREE.LoadingManager): GLTFLoader {
+  const l = new GLTFLoader(manager);
+  l.setDRACOLoader(dracoLoader());
   l.setMeshoptDecoder(MeshoptDecoder);
   if (renderer) {
     ktx2 ??= withFileWorker(new KTX2Loader().setTranscoderPath('/three/basis/').detectSupport(renderer));
@@ -83,6 +147,12 @@ export function nodeIndex(objects: THREE.Object3D[]): (fileName: string) => THRE
 
 /** Options saved with the avatar at import: bone and expression mapping fixes, scale, facing. */
 export interface ModelOptions {
+  bodyEdits?: boolean;
+  bodyShape?: AvatarConfig['bodyShape'];
+  makehuman?: AvatarConfig['makehuman'];
+  content?: AvatarConfig['content'];
+  /** Usable original if a compressed copy cannot be decoded on this device. */
+  fallbackSource?: string | null;
   boneMap?: Partial<Record<HumanBone, string>>;
   expressionMap?: ExpressionMap;
   /** Multiplier from the file's units to metres. */
@@ -100,7 +170,37 @@ const FIT_HEIGHT = 1.65;
 
 export async function loadModel(source: string | ArrayBuffer, renderer: THREE.WebGLRenderer | null, opts: ModelOptions = {}): Promise<LoadedModel> {
   const loader = loaderFor(renderer);
-  const gltf: GLTF = typeof source === 'string' ? await loader.loadAsync(source) : await new Promise((resolve, reject) => loader.parse(source, '', resolve, reject));
+  const read = async (input: string | ArrayBuffer): Promise<GLTF> => {
+    const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        (async () => {
+          let bytes = input;
+          if (typeof input === 'string') {
+            const r = await fetch(input, { credentials: 'same-origin', signal: controller.signal });
+            if (!r.ok) throw new Error(`Model download failed (HTTP ${r.status}). ${r.status === 423 ? 'Unlock the Vault first.' : r.status === 401 ? 'Sign in again.' : 'Check that the model file still exists.'}`);
+            bytes = await r.arrayBuffer();
+          }
+          return loader.parseAsync(bytes as ArrayBuffer, '');
+        })(),
+        new Promise<never>((_, reject) => { timer = setTimeout(() => { controller.abort(); reject(new Error('Loading the model timed out after 60 seconds. Check the network and try a smaller model.')); }, 60000); }),
+      ]);
+    } finally { clearTimeout(timer); }
+  };
+  let gltf: GLTF;
+  try { gltf = opts.makehuman ? { scene: await buildHuman(opts.makehuman, undefined, opts.content), animations: [], userData: {} } as unknown as GLTF : await read(source); }
+  catch (e) {
+    if (opts.makehuman) {
+      // A portable bundle remains renderable before its optional editable CC0 library is installed.
+      if ((e as Error).message === 'Install MakeHuman core and system assets first.') gltf = await read(source);
+      else throw e;
+    } else {
+    if (!opts.fallbackSource || opts.fallbackSource === source) throw e;
+    try { gltf = await read(opts.fallbackSource); }
+    catch (originalError) { throw new Error(`The prepared model and its original could not be loaded: ${(originalError as Error).message}`); }
+    }
+  }
   const vrm: VRM | null = (gltf.userData as { vrm?: VRM }).vrm ?? null;
   const scene: THREE.Object3D = vrm ? vrm.scene : gltf.scene;
 
@@ -114,7 +214,19 @@ export async function loadModel(source: string | ArrayBuffer, renderer: THREE.We
     const sk = (o as THREE.SkinnedMesh).skeleton;
     if (sk) for (const b of sk.bones) if (!allBones.includes(b)) allBones.push(b);
   });
+  scene.traverse(object => {
+    if (!(object as THREE.Mesh).isMesh && !allBones.includes(object)) return;
+    let ancestor = object.parent;
+    while (ancestor && ancestor !== scene) {
+      // A multi-material glTF mesh is a Group in three.js; it is still a mesh
+      // node, and its name must not be mistaken for a humanoid joint.
+      const association = gltf.parser?.associations.get(ancestor) as { meshes?: number } | undefined;
+      if (!(ancestor as THREE.Mesh).isMesh && association?.meshes === undefined && !allBones.includes(ancestor)) allBones.push(ancestor);
+      ancestor = ancestor.parent;
+    }
+  });
   const set = new Set(allBones);
+  const restPose = new Map(allBones.map((b) => [b, { position: b.position.clone(), quaternion: b.quaternion.clone(), scale: b.scale.clone() }]));
   const rigBones: RigBone[] = allBones.map((b) => ({ name: b.name, parent: b.parent && set.has(b.parent) ? b.parent.name : null }));
   let vrmMap: Record<string, string> | null = null;
   if (vrm) {
@@ -125,12 +237,29 @@ export async function loadModel(source: string | ArrayBuffer, renderer: THREE.We
   const auto = mapBones(rigBones, vrmMap);
   const map = { ...auto.map, ...(opts.boneMap ?? {}) };
   const bones: Partial<Record<HumanBone, THREE.Object3D>> = {};
-  const byName = nodeIndex(allBones);
+  const runtimeName = nodeIndex(allBones), originalNames = new Map<string, THREE.Object3D>();
+  for (const bone of allBones) {
+    const association = gltf.parser?.associations.get(bone) as { nodes?: number } | undefined;
+    const original = association?.nodes === undefined ? undefined : gltf.parser?.json.nodes?.[association.nodes]?.name;
+    if (original && !originalNames.has(original)) originalNames.set(original, bone);
+  }
+  const byName = (name: string) => originalNames.get(name) ?? runtimeName(name);
+  const sourceNames = new Map([...originalNames].map(([name, object]) => [object, name]));
+  const editableBones = allBones.map(bone => ({ name: sourceNames.get(bone) ?? bone.name, parent: bone.parent && set.has(bone.parent) ? sourceNames.get(bone.parent) ?? bone.parent.name : null }));
+  const automaticBoneMap = Object.fromEntries(Object.entries(auto.map).map(([key, name]) => {
+    const object = name ? runtimeName(name) : undefined;
+    return [key, object ? sourceNames.get(object) ?? object.name : name];
+  }));
   for (const [k, n] of Object.entries(map)) {
     const o = n ? byName(n) : undefined;
     if (o) bones[k as HumanBone] = o;
   }
-  const missing = auto.missing.filter((b) => !bones[b]);
+  const missing = REQUIRED_BONES.filter(bone => !bones[bone]);
+  let bodyMorphs: BodyMorphWeights | undefined, bodyMorphError: string | undefined;
+  if (!opts.makehuman && (opts.bodyEdits || opts.bodyShape)) {
+    try { bodyMorphs = createBodyMorphs(scene, bones, opts.bodyShape); }
+    catch (e) { bodyMorphError = (e as Error).message; }
+  }
 
   // Morph targets.
   const morphMeshes: THREE.Mesh[] = [];
@@ -207,5 +336,5 @@ export async function loadModel(source: string | ArrayBuffer, renderer: THREE.We
   scene.rotation.y += ((opts.facing ?? 0) * Math.PI) / 180;
   scene.updateMatrixWorld(true);
   const height = Math.max(0.01, new THREE.Box3().setFromObject(scene).getSize(new THREE.Vector3()).y);
-  return { gltf, scene, vrm, bones, missing, morphMeshes, morphNames: [...names], expressions, faceRig: ex.rig, secondaryChains: chains, meshes, height, rawHeight, scale, autoFit, floor: opts.floor ?? 0 };
+  return { bodyMorphs, bodyMorphError, gltf, scene, vrm, bones, rigBones: editableBones, automaticBoneMap, missing, morphMeshes, morphNames: [...names], expressions, faceRig: ex.rig, secondaryChains: chains, meshes, height, rawHeight, scale, autoFit, floor: opts.floor ?? 0, restPose };
 }

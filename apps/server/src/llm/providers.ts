@@ -15,6 +15,8 @@ export interface ConnectionParams {
   prompt_suffix?: string;
   /** Image connections: an editing model (takes a picture and changes it). */
   edit?: boolean;
+  /** Owner verified that this image provider permits adult content. */
+  allowAdult?: boolean;
   temperature?: number;
   top_p?: number;
   top_k?: number;

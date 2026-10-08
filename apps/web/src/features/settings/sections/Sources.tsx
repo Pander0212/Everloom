@@ -10,6 +10,7 @@ import { toast, toastError } from '@/lib/store';
 import { Badge, Button, Checkbox, confirm, EmptyState, Field, IconButton, Input, Select, Spinner, ToggleRow } from '@/ui';
 import type { ProviderInfo, Providers } from '../../sources/BrowsePage';
 import { Section, useSettingsPatch } from '../common';
+import AdultToggle from '../AdultToggle';
 
 export default function SourcesSection() {
   const { settings, update } = useSettingsPatch();
@@ -20,16 +21,7 @@ export default function SourcesSection() {
   return (
     <>
       <Section title="Online sources" description="Browse and import characters from public sites. Everything is fetched by your Everloom server, only when you ask.">
-        <ToggleRow
-          label="Show adult content"
-          description="Off by default. When off, adult characters are hidden from browsing and can't be imported."
-          checked={settings.library.nsfw}
-          onChange={async (v) => {
-            await update({ library: { nsfw: v } });
-            await refresh();
-            await qc.invalidateQueries({ queryKey: ['source-search'] });
-          }}
-        />
+        <AdultToggle />
       </Section>
       <section id="accounts">
         <Section title="Accounts" description="Some sites show more to members. Your sign-in is stored encrypted on your server and is never sent back to this page.">

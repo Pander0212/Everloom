@@ -889,3 +889,176 @@ demand for download.
 - **Tested:** a gated server test (`EVERLOOM_BLENDER` and `EVERLOOM_MPFB_ZIPS`) installs from the
   real zips, makes a clothed character and imports it with every bone mapped; the installer's
   checksum refusal and zip-path checks run in every test run.
+
+## Browser 3D repair (2026-10-07, verification in progress)
+
+The owner's correction matters: their GLB imported, and their phone's file explorer would not let
+them select the VRM. Extension-only `accept` filters are inconsistent across mobile file providers.
+Model pickers now let the owner select files and validate them in the application. The owner's actual
+VRoid VRM 0 export was independently imported and rendered locally; private evidence is excluded
+from Git. Their `.vroid` is a project ZIP containing binary project data, metadata and a thumbnail,
+not a reliable directory of clothing textures. The UI explains exporting VRM or PNG from VRoid Studio.
+
+The real-file matrix also found an import-blocking optimization design: a valid VRM stayed on the
+processing screen while KTX2 encoding ran, and the same queue delayed later models. Inspection now
+publishes a usable original immediately. Optional encoders run separately, with a bounded backlog;
+failure keeps the original. Worker exits without a result are reported. Prepared-model decoder
+failures fall back to the original. File-served Draco and Basis workers have their own CSP;
+the page keeps its strict policy. These changes need the remaining cross-browser matrix checks.
+
+Numbered Cesium/Blender sample joints needed a hierarchy-based mapper; left-arm suffixes run in
+reverse in one fixture. Both actual fixtures now map all required bones in regression tests. The
+editor also accidentally filtered out authored emotes such as Wave; it now offers the full list.
+
+### Native data and licenses
+
+The native creator reads the original MakeHuman base OBJ, sparse targets, rig JSON, weights,
+MHClO bindings and materials using independently written TypeScript. No GPL Blender add-on code
+is included. MPFB's mesh data and the official system assets explicitly grant CC0 1.0; the program
+code has a separate GPL license. The core pack is reproducibly prepared from pinned, checked data
+and excludes explicit anatomy targets before distribution. Merely filtering an upstream ZIP after
+download would still download adult assets with adult mode off. Assets enter the normal media store
+and encrypted settings manifest. Owner packs are validated, tagged and catalogued there too.
+
+| Candidate | Finding and decision |
+| --- | --- |
+| MakeHuman / MPFB | CC0 data, full macro and local shape targets, clothes bound to the original topology. Added native readers and proxy fitting; Blender remains optional. |
+| Anny | Apache 2.0 program code, CC0 MakeHuman data and Mika Suominen's CC0 Face Units 01. Python/PyTorch is unsuitable as a browser dependency. Added 16 licensed facial actions directly to the shared MakeHuman topology and proxy bindings; no Anny program code. Its optional noncommercial SMPL-X assets are excluded. |
+| makehuman-js | Historical AGPL implementation, tied to older rendering code. Examined as a format reference; no code reused. |
+| MB-Lab | AGPL project with a distinct base/morph pipeline. No code or unverified asset license was copied. It is not currently an installed base. |
+| CharMorph | GPL tools with separately licensed bases, including CC-BY meshes. No Blender dependency was introduced; distinct topology/clothing compatibility still needs evaluation before adding a base. |
+| VRoid samples | Some official sample terms prohibit use in character-creator services. Not bundled as defaults. Owner exports and separately licensed VRM fixtures are used for testing. |
+
+The first native render had no facial morphs. The licensed Face Units addition now exports 16
+actions and maps blinks, emotions and visemes through Everloom's existing expression system.
+Physical skin/cloth/eye/hair materials, ACES tone mapping, image-based RoomEnvironment lighting,
+and texture limits improve the preview. The inspected bob still looks helmet-like; modern visual
+quality is not yet accepted. No NanoGPT or ElectronHub key was available, and no image calls or
+budget spending were made.
+
+### Baseline and current verification limits
+
+The untouched archive, with its own engine dependency, finished the original 449-case Chromium
+matrix: 398 passed, 45 failed, six skipped. See `3d-fix-evidence/baseline.md`. The first overlapping
+run is not treated as a clean baseline. The initial unit run had 513 passes, ten failures and five
+skips, including Windows path/cleanup and hook-timeout failures. Portable outside-root fixtures and
+secondary database cleanup address those test-environment issues; a full post-change run remains.
+
+Native creation/rendering was verified in Chromium and Firefox before facial targets were added.
+The newer facial model saved and rendered in Chromium; Firefox's latest editor wait failed and
+remains under investigation. Three licensed GLBs passed picker/drop/editor/stage-emote flows on
+phone Chromium. Nine focused data/server tests passed. Donor parts, generic fitting, complete rig
+swapping, body extremes, native wardrobe rollback, modern portraits and the remaining acceptance
+matrix must still be verified. This section records progress, not a completed checklist.
+## Browser 3D repair: additional verification checkpoint (2026-10-07)
+
+The owner's final clarification was that the phone picker would not select `.vrm`, rather than
+that the uploaded GLB failed. Extension-only accept filters were removed; format validation
+still happens after selection. The owner's VRoid export was reproduced locally without
+redistributing it. A `.vroid` project is still explained as a project requiring a VRM/texture export.
+
+Further confirmed defects:
+
+- Zod's optional schema JIT attempted code generation under strict CSP in Firefox. Browser
+  startup now configures `jitless`; the CSP remains strict.
+- mmd-parser ignored PMX's UTF-8 flag. The vendored MIT parser now supports UTF-8 and UTF-16.
+  A real CC0 RobotExpressive conversion exercises PMX 2.0, 7,214 vertices and 74 bones.
+- Rigid game models can use animated transform ancestors outside their skin-joint lists.
+  Inspection and loading now include those ancestors; explicit limb names beat independent
+  foot-control ancestry. Multi-material mesh groups are excluded as joint candidates.
+- Hip motion lost the armature's scale because its conversion used only a quaternion.
+  Parent-to-root matrices now convert translation in both directions. This fixes metre-scale
+  displacement from centimetre armatures. Existing retargeting/conversion tests and real robot
+  wave checks pass; screenshots were inspected after the correction.
+- Orbit controls prevented editor framing buttons from moving the camera. Framing now snaps
+  the directed camera and the orbit target together. Stage framing also accounts for head
+  geometry above the head joint and unusually wide heads.
+- Optional garment optimization could still prevent outfit upload. It now retains the validated
+  original when the encoder fails or its queue is full.
+
+The focused VRM 0.x/PMX/FBX phone matrix passed 11 tests in Chromium and Firefox, through picker
+or drop as applicable, editor and stage emote. A later robot retargeting checkpoint passed seven
+browser checks. Earlier ready-state screenshots showed broken animation; those were explicitly
+rejected as visual acceptance evidence, and the retargeter was corrected. Camera and additional
+editor work still require the final acceptance run.
+
+The full unit checkpoint passed **93 files, 542 tests, 5 skipped**, versus the original baseline
+with 10 failures. This checkpoint precedes the newest native material/visual work; it is not a
+claim that the complete 18-item acceptance checklist has passed.
+
+Both installed native data packs are bundled sanitized CC0 derivatives. The body pack is
+38,637,876 bytes; the system pack is 92,380,784 bytes, SHA-256
+`2da052728c2900d2170862cebad797b4daa2d8b9334d7db66275bf45b00ac583`. System skins keep head UV
+detail over a plain body texture, with neutral normal maps elsewhere; explicit targets are
+excluded. The actual sanitized skin was visually inspected. Installation does not fetch the
+upstream full-body skin archive while adult mode is off. Shipped textures are limited to 1024px.
+
+Native rendering experiments add independently authored tiled micro-normal/roughness maps,
+subtle wrapped warm diffuse lighting, cloth sheen, corneal clearcoat and hair anisotropy. These
+are browser approximations, not offline skin scattering. Research references:
+[three.js physical materials](https://threejs.org/docs/pages/MeshPhysicalMaterial.html) and
+[its scattering example](https://threejs.org/examples/webgl_materials_subsurface_scattering.html).
+No example shader code was copied. Long native hair gains a short weighted secondary chain;
+copied donor parts carry secondary bones and spring settings. Visual quality is still under
+review with three native profiles, close-ups, smiles and slider extremes.
+
+The unified imported/native editor now has undo/redo, delayed autosave and reusable presets.
+Character and rig/physics presets use the normal authenticated export/import flow, including
+password-protected `.evlt` files. Focused tests cover encrypted round trips and adult/family
+rejection. Browser garment fitting and material-level donor rebinding have focused pose and
+source-preservation tests; real-browser wardrobe and clipping checks remain required.
+
+## Custom bases, fitting, physics, skin layers, paired animations (2026-10-08)
+
+- **A base is any rigged GLB, not a new avatar kind.** The base model check reads facts from the
+  loaded model (bones, skinned meshes, morphs, UVs, textures, chest bones) and the engine turns them
+  into plain-word lines and feature switches (`base-report.ts`), so the check is testable without a
+  browser. A base is identified by a fingerprint of its morph names, bone names and vertex count;
+  slider mappings and presets are keyed by it, which is how presets carry across characters made
+  from the same file.
+- **Sliders come from names, with the owner's edits kept.** Classification is by name patterns
+  (body kinds, face/expression names, side markers); the last direction word wins (`fat-decr` is a
+  decrease). Re-reading a file merges new morphs into the saved mapping rather than replacing it.
+  Explicitly named shapes are flagged adult and filtered both in the UI and on the server.
+- **Generated adjusters stay** for regions without morphs, but only where the file has no morph of
+  that kind, and labelled as generated.
+- **Fitting runs in the browser, in a worker, not in Blender.** The server's Blender fitting needs
+  Blender installed and a round trip; the browser has the body as loaded (morphs, sliders, the real
+  bind pose) and can show the result immediately. The worker gets plain arrays (body surface in the
+  rest pose, garment vertices, bone list) and returns weights, morph deltas, swing chains and
+  covered triangles, so it is unit-tested in Node.
+- **Weight transfer is closest-point with a normal check, not a heat or voxel method.** A BVH
+  closest point that only accepts body surface facing the same way (within about 70°, 6 cm; then a
+  pass three times as far for vertices with no match) fixes the classic failure (a sleeve's inside picking the chest);
+  unmatched vertices get geodesic fill from matched cloth, then edge smoothing and a 4-bone limit.
+  Voxel/heat methods were rejected as slower in a phone's worker and worse on thin, open garments.
+- **Quantized skinned positions are read through skinning.** Optimized files store skinned
+  positions quantized with the dequantization folded into the inverse bind matrices; every place
+  that needs the body in metres (fitting, colliders, generated adjusters) now uses the skinning path
+  (`restMatrices`), which also fixed the generated adjusters on optimized models.
+- **Skirts and long hair swing on generated bone chains, not per-vertex cloth.** Chains cost a few
+  dozen solver points, collide with the same capsules as hair, survive saving as a GLB and work in
+  every runtime; per-vertex cloth would cost thousands of points and a custom skinning path. The
+  trade-off (no draping or folding) is stated in the docs. Leg bones are never chain anchors (a
+  skirt pinned to one thigh splits), so chains hang from the hips.
+- **Hidden skin is computed when a garment is worn, from the garment itself**, not from regions:
+  a few rays cast outward from each body triangle (and inward, for cups and tight parts) that hit
+  the garment within a short distance mark it covered, and it is hidden while the garment is on. Hair hides nothing; swinging parts hide only what their pinned part covers.
+- **One spring solver for everything.** three-vrm's spring manager was replaced by our own
+  fixed-step Verlet solver following VRMC_springBone semantics (stiffness, drag, gravity, hit radius),
+  so VRM springs, chains from files, generated chains and the chest share colliders, budgets and the
+  off-screen pause. Collider resolution is iterated (4 passes) because a single pass let chains
+  re-enter the body.
+- **Skin layers are baked into the skin texture**, not drawn as overlay meshes: they cost nothing
+  per frame and deform with everything by construction. Decals store the skin's frame at the tap
+  point (cm → UV), so they aren't skewed by the UV layout. Projected decal geometry for seams is
+  not built; a tattoo across a UV seam is cut at the seam.
+- **Paired animations are role clips plus placement and contacts**, played on one shared clock by
+  the stage. Contacts use two-bone IK, meeting points constrained to what both arms can reach, a
+  pole for hugs, and a step-closer rule (never closer than a chest's depth) for short arms. There is
+  no inter-character mesh collision; spacing and contacts keep obvious overlaps away. Built-in clips
+  are keyframed for Everloom (CC0); no third-party paired clips were bundled.
+- **Paid test models stay out of the repository.** The owner's paid base and underwear were used for
+  testing from a git-ignored `.private/` folder; screenshots of them are in a git-ignored
+  `docs/3d-base-evidence/private/`, taken dressed. Committed evidence uses Everloom-made CC0 bodies
+  and garments (`tools/avatars/build-test-base.ts`, `build-test-garments.ts`).

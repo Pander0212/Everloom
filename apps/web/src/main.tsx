@@ -1,3 +1,4 @@
+import './lib/validation';
 import { QueryClientProvider } from '@tanstack/react-query';
 import { MotionConfig } from 'motion/react';
 import { StrictMode } from 'react';

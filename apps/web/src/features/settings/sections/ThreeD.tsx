@@ -4,7 +4,7 @@ import { useQuery } from '@tanstack/react-query';
 import { lazy, Suspense, useState } from 'react';
 import { del, get } from '@/lib/api';
 import { useNavigate } from 'react-router';
-import { deleteClip, refreshBlender, setBlenderPath, useAvatarClips, useAvatars, useBlender, useBlenderJobs, useMpfb } from '@/features/avatars/api';
+import { deleteClip, refreshBlender, setBlenderPath, useAvatarClips, useAvatarPaired, useAvatars, useBlender, useBlenderJobs, useMpfb } from '@/features/avatars/api';
 import { MpfbSetup } from '@/features/avatars/Realistic';
 import { usePrefs3D, type Quality3D } from '@/features/avatars/prefs';
 import { deletePack, importPack, setPackEnabled, usePacks } from '@/features/avatars/packs';
@@ -12,6 +12,8 @@ import { toastError } from '@/lib/store';
 import { Button, confirm, Field, FileButton, IconButton, Input, ListRow, Segmented, Sheet, Spinner, Switch, ToggleRow } from '@/ui';
 
 const ClipImporter = lazy(() => import('@/features/avatar3d/ClipImporter'));
+const PairedImporter = lazy(() => import('@/features/avatar3d/PairedImporter'));
+const ImportDiagnostics = lazy(() => import('@/features/avatar3d/ImportDiagnostics'));
 import { Section } from '../common';
 
 export default function ThreeDSection() {
@@ -28,12 +30,19 @@ export default function ThreeDSection() {
   const inbox = useQuery({ queryKey: ['motion-inbox'], queryFn: () => get<Array<{ id: string; name: string; url: string }>>('/api/avatar-motions/inbox') });
   const packs = usePacks();
   const [packBusy, setPackBusy] = useState(false);
+  const [diagnostics, setDiagnostics] = useState(false);
+  const paired = useAvatarPaired();
+  const [importingPaired, setImportingPaired] = useState(false);
   return (
     <>
       <Section title="Avatars" description="3D models for your characters. Each character can show as 3D, Live2D or pictures (set on the character).">
         <Button variant="secondary" icon={Box} onClick={() => navigate('/characters/avatars')}>
           Open the avatar library{avatars.data ? ` (${avatars.data.length})` : ''}
         </Button>
+      </Section>
+
+      <Section title="Diagnostics" description="Check importing on this server and device.">
+        {diagnostics ? <Suspense fallback={<Spinner />}><ImportDiagnostics /></Suspense> : <Button variant="secondary" onClick={() => setDiagnostics(true)}>Open import diagnostics</Button>}
       </Section>
 
       <Section
@@ -130,6 +139,43 @@ export default function ThreeDSection() {
           <p className="text-sm text-fg-2">No imported motions yet.</p>
         )}
       </Section>
+      <Section
+        title="Paired animations"
+        description="Two to four characters doing something together: a handshake, a hug, a dance for two. Played in sync, placed for their heights, hands meeting."
+        action={
+          <Button size="sm" variant="secondary" icon={Plus} onClick={() => setImportingPaired(true)} data-testid="paired-import">
+            Import
+          </Button>
+        }
+      >
+        <div className="flex flex-col" data-testid="paired-list">
+          {(paired.data ?? []).map((p) => (
+            <ListRow
+              key={p.id}
+              title={p.label}
+              subtitle={`${p.id} · ${p.participants} characters${p.loop ? ' · loops' : ''}${p.adult ? ' · adults only' : ''} · ${p.source === 'authored' ? 'built in' : 'imported'}`}
+              trailing={
+                p.source === 'imported' ? (
+                  <IconButton
+                    icon={Trash2}
+                    label={`Delete ${p.label}`}
+                    onClick={async () => {
+                      if (await confirm({ title: `Delete “${p.label}”?`, description: 'The story can no longer pick it.', confirmLabel: 'Delete', danger: true })) await del(`/api/avatar-paired/${p.id}`).then(() => paired.refetch()).catch(toastError);
+                    }}
+                  />
+                ) : null
+              }
+            />
+          ))}
+        </div>
+      </Section>
+      <Sheet open={importingPaired} onOpenChange={setImportingPaired} title="Import a paired animation" size="lg">
+        {importingPaired ? (
+          <Suspense fallback={<Spinner />}>
+            <PairedImporter onDone={() => { setImportingPaired(false); void paired.refetch(); }} />
+          </Suspense>
+        ) : null}
+      </Sheet>
       {inbox.data?.length ? (
         <Section title="From Blender" description="Animations the Blender add-on sent. Import each one to name it and choose how it plays.">
           <div className="flex flex-col" data-testid="motion-inbox">
@@ -174,7 +220,8 @@ export default function ThreeDSection() {
 
       <Section title="On this device" description="Saved in this browser only, so a phone and a computer can differ.">
         <ToggleRow label="Show pictures instead of 3D" description="For slow or battery-tight devices. Nothing 3D is downloaded while this is on." checked={p.spritesOnly} onChange={(v) => p.set({ spritesOnly: v })} />
-        <ToggleRow label="Code-made figures for characters without a picture" description="Built from their description, with no file to download. Characters with a picture or Live2D keep it." checked={p.codeNpcs} onChange={(v) => p.set({ codeNpcs: v })} />
+        <ToggleRow label="Experimental procedural characters" description="Enable the older code-made creator. Off by default; characters without a saved avatar keep their pictures." checked={p.experimentalProcedural} onChange={(v) => p.set({ experimentalProcedural: v })} />
+        {p.experimentalProcedural ? <ToggleRow label="Code-made figures for characters without a picture" description="Experimental fallback generated from their description." checked={p.codeNpcs} onChange={(v) => p.set({ codeNpcs: v })} /> : null}
         <Field label="Quality" hint="Automatic lowers resolution, shadows, outlines and physics when frames run slow, and raises them when there's room.">
           <Segmented<Quality3D>
             label="3D quality"

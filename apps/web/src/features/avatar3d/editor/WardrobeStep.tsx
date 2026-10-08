@@ -15,6 +15,9 @@ import { TextureMaker } from './TextureMaker';
 import { cx } from '@/lib/format';
 import { toastError } from '@/lib/store';
 import { Badge, Button, Checkbox, Field, FileButton, IconButton, Input, SectionTitle, Select, Slider, Switch } from '@/ui';
+import { GarmentFitter } from './GarmentFitter';
+import { DonorParts } from './DonorParts';
+import type { PreviewHandle } from '../Preview3D';
 
 const newId = (prefix: string, taken: string[]) => {
   for (let i = 1; ; i++) if (!taken.includes(`${prefix}${i}`)) return `${prefix}${i}`;
@@ -36,7 +39,7 @@ function guessSlot(name: string): GarmentSlot {
 const list = (s: string) => s.split(',').map((x) => x.trim()).filter(Boolean).slice(0, 16);
 const REGION_LABEL: Record<string, string> = { head: 'Head', neck: 'Neck', chest: 'Chest', belly: 'Belly', hips: 'Hips', upperArms: 'Upper arms', forearms: 'Forearms', hands: 'Hands', thighs: 'Thighs', knees: 'Knees', calves: 'Calves', feet: 'Feet' };
 
-export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar: AvatarDetail; config: AvatarConfig; set: (p: Partial<AvatarConfig>) => void; tryOn: string | null; setTryOn: (id: string | null) => void }) {
+export function WardrobeStep({ avatar, config, set, tryOn, setTryOn, handle }: { avatar: AvatarDetail; config: AvatarConfig; set: (p: Partial<AvatarConfig>) => void; tryOn: string | null; setTryOn: (id: string | null) => void; handle?: PreviewHandle | null }) {
   const meshes = avatar.info.meshNames ?? [];
   const [open, setOpen] = useState<string | null>(null);
   const [uploading, setUploading] = useState<string | null>(null);
@@ -63,8 +66,11 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
 
   return (
     <div className="flex flex-col gap-2" data-testid="wardrobe">
+      <GarmentFitter avatar={avatar} config={config} set={set} handle={handle ?? null} />
+      <DonorParts avatar={avatar} config={config} set={set} handle={handle ?? null} />
       <SectionTitle>Outfits</SectionTitle>
       <p className="text-sm text-fg-2">Tap one to try it on. The story can change outfits (it rolls back with swipes), and equipped items can pick one.</p>
+      {config.makehuman ? <Button variant="secondary" onClick={() => { const id = newId('outfit', config.outfits.map(outfit => outfit.id)); set({ outfits: [...config.outfits, { id, name: 'MakeHuman outfit', model: null, modelLow: null, parts: [], garments: [], items: [], makehumanProxies: [...config.makehuman!.proxies] }] }); setOpen(id); }}>Save native clothes as an outfit</Button> : null}
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant={tryOn === null ? 'primary' : 'secondary'} onClick={() => setTryOn(null)}>
           As set
@@ -125,7 +131,6 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
                   size="sm"
                   variant="secondary"
                   icon={Upload}
-                  accept=".glb,.vrm"
                   loading={uploading === o.id}
                   onFiles={async ([f]) => {
                     const r = f && (await upload(o.id, f));
@@ -277,6 +282,8 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
               </div>
             </Field>
             <TextureMaker
+              avatarId={avatar.id}
+              adultCharacter={config.content.adult}
               onMade={(tex, name) => {
                 const id = newId('t', g.variants.map((v) => v.id));
                 setGarment(g.id, { variants: [...g.variants, { id, name, tint: null, texture: tex, repeat: 4 }].slice(0, 16), variant: id });
@@ -287,6 +294,16 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
               <span>Swinging parts (skirt, cape) move with physics</span>
               <Switch checked={g.springs} onChange={(v) => setGarment(g.id, { springs: v })} label="Garment physics" />
             </label>
+            {g.springs && g.physics && g.physics.mode !== 'none' ? (
+              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2" data-testid="garment-physics">
+                {([['stiffness', 'Stiffness', 0, 4, 0.1], ['damping', 'Motion dies down', 0, 1, 0.05], ['gravity', 'Weight', 0, 3, 0.1], ['wind', 'Wind', 0, 2, 0.1]] as const).map(([key, label, min, max, step]) => (
+                  <Field key={key} label={`${label} (${g.physics!.settings[key].toFixed(2)})`}>
+                    <Slider label={`${g.name} ${label.toLowerCase()}`} min={min} max={max} step={step} value={g.physics!.settings[key]} onChange={(v) => setGarment(g.id, { physics: { ...g.physics!, settings: { ...g.physics!.settings, [key]: v } } })} />
+                  </Field>
+                ))}
+              </div>
+            ) : null}
+            {g.fit ? <p className="text-xs text-fg-2">Fitted in this browser: {g.fit.vertices.toLocaleString()} vertices in {(g.fit.ms / 1000).toFixed(1)} s, {g.fit.morphs} body shapes carried over{g.fit.flagged ? `, ${g.fit.flagged.toLocaleString()} vertices flagged for a look` : ''}.</p> : null}
             <Field label="Put on by these items">
               <Input aria-label="Garment items" defaultValue={g.items.join(', ')} onBlur={(e) => setGarment(g.id, { items: list(e.target.value) })} />
             </Field>
@@ -297,7 +314,7 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
         </details>
       ))}
       <div className="flex flex-wrap gap-2">
-        <FileButton size="sm" variant="ghost" icon={Plus} accept=".glb,.vrm" loading={uploading === 'garment'} onFiles={async ([f]) => {
+        <FileButton size="sm" variant="ghost" icon={Plus} loading={uploading === 'garment'} onFiles={async ([f]) => {
           const r = f && (await upload('garment', f));
           if (!r) return;
           const id = newId('g', config.garments.map((x) => x.id));
@@ -309,7 +326,7 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
           Add a garment (GLB)
         </FileButton>
         {blender.data?.found ? (
-          <FileButton size="sm" variant="ghost" icon={Shirt} accept=".glb,.obj,.fbx,.dae,.blend" loading={uploading === 'fit'} onFiles={async ([f]) => {
+          <FileButton size="sm" variant="ghost" icon={Shirt} loading={uploading === 'fit'} onFiles={async ([f]) => {
             if (!f) return;
             setUploading('fit');
             try {
@@ -400,7 +417,7 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn }: { avatar:
           </div>
         </details>
       ))}
-      <FileButton size="sm" variant="ghost" icon={Plus} accept=".glb" loading={uploading === 'acc'} onFiles={async ([f]) => {
+      <FileButton size="sm" variant="ghost" icon={Plus} loading={uploading === 'acc'} onFiles={async ([f]) => {
         const r = f && (await upload('acc', f));
         if (!r) return;
         const id = newId('acc', config.accessories.map((a) => a.id));

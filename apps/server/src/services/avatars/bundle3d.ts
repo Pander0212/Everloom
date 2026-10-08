@@ -35,6 +35,7 @@ export function avatarMediaRefs(cfg: AvatarConfig): string[] {
     ...cfg.accessories.map((a) => a.model),
     cfg.maker?.body,
     ...Object.values(cfg.maker?.textures ?? {}),
+    ...[cfg.materialOverrides, ...cfg.outfits.map(o => o.materialOverrides ?? {})].flatMap(map => Object.values(map).flatMap(m => [m.texture, m.shadeTexture])),
   ];
   return [...new Set(ids.filter((x): x is string => typeof x === 'string' && !!x && !x.startsWith('/')))];
 }

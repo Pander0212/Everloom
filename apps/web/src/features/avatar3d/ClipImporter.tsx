@@ -20,7 +20,7 @@ import { forgetClip, registerClip } from './runtime/clips';
 import type { ClipJSON } from './runtime/clip';
 import { convertMotion, type MotionSource } from './runtime/convert';
 
-type Loaded = { files: File[]; names: string[]; read: () => Promise<MotionSource> };
+export type Loaded = { files: File[]; names: string[]; read: () => Promise<MotionSource> };
 
 const ext = (f: File) => f.name.split('.').pop()!.toLowerCase();
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').replace(/^(\d)/, 'm$1').slice(0, 40) || 'motion';
@@ -52,7 +52,8 @@ async function viaServer(files: File[]): Promise<ArrayBuffer> {
   return res.arrayBuffer();
 }
 
-async function load(files: File[]): Promise<Loaded> {
+/** Reads a motion file (or a VMD with its model) and lists the animations in it. */
+export async function load(files: File[]): Promise<Loaded> {
   const main = files.find((f) => ['glb', 'gltf', 'vrma', 'fbx', 'bvh', 'vmd', 'blend'].includes(ext(f)));
   if (!main) throw new Error('Choose a GLB, VRMA, FBX, BVH, VMD or .blend file.');
   const kind = ext(main);
@@ -176,7 +177,7 @@ export default function ClipImporter({ onDone, initial }: { onDone: () => void; 
 
   return (
     <div className="flex flex-col gap-4">
-      <FileButton accept=".glb,.gltf,.vrma,.fbx,.bvh,.vmd,.pmx,.pmd,.blend" multiple onFiles={pick} icon={Upload} variant="secondary" loading={busy && !loaded}>
+      <FileButton multiple onFiles={pick} icon={Upload} variant="secondary" loading={busy && !loaded}>
         Choose a motion file
       </FileButton>
       <p className="text-xs text-fg-2">GLB, VRMA, FBX and BVH are read here. A VMD needs its PMX model (choose both); VMD and some FBX files need Blender.</p>

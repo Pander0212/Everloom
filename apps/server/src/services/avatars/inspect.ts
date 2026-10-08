@@ -126,6 +126,27 @@ export async function inspectModel(bytes: Buffer, glb?: Glb): Promise<ModelInfo>
   const g = glb ?? parseGlb(bytes);
   const { json } = g;
   const nodes = json.nodes ?? [];
+  if (json.asset?.version !== '2.0') throw new Error('The model must declare glTF 2.0.');
+  if (!Array.isArray(nodes) || nodes.length > 100000) throw new Error('Invalid or excessively large node list.');
+  const parents = new Int32Array(nodes.length).fill(-1);
+  nodes.forEach((node, i) => {
+    if (!node || typeof node !== 'object' || (node.children !== undefined && !Array.isArray(node.children))) throw new Error(`Invalid node ${i}.`);
+    for (const child of node.children ?? []) {
+      if (!Number.isInteger(child) || child < 0 || child >= nodes.length) throw new Error(`Node ${i} points at a missing child.`);
+      if (parents[child] !== -1) throw new Error('A model node has more than one parent.');
+      parents[child] = i;
+    }
+  });
+  const visited = new Uint8Array(nodes.length);
+  for (let i = 0; i < nodes.length; i++) {
+    let current = i;
+    const chain: number[] = [];
+    while (current >= 0 && visited[current] !== 2) {
+      if (visited[current] === 1) throw new Error('The model skeleton contains a cycle.');
+      visited[current] = 1; chain.push(current); current = parents[current]!;
+    }
+    chain.forEach(n => { visited[n] = 2; });
+  }
   const format: ModelFormat = json.extensions?.VRMC_vrm ? 'vrm1' : json.extensions?.VRM ? 'vrm0' : 'glb';
   const warnings: ModelWarning[] = [];
   if ((json.buffers ?? []).some((b) => b.uri)) throw new Error('The model refers to outside files; export it as a single .glb');
@@ -185,6 +206,12 @@ export async function inspectModel(bytes: Buffer, glb?: Glb): Promise<ModelInfo>
   if (humanoid) for (const name of Object.values(humanoid)) {
     const i = nodes.findIndex((n) => n.name === name);
     if (i >= 0) jointSet.add(i);
+  }
+  // Rigid game characters attach meshes directly to animated transform nodes.
+  // Include their non-mesh ancestors, not just the few joints used by hand skins.
+  for (const [index, node] of nodes.entries()) if (node.mesh !== undefined || jointSet.has(index)) {
+    let ancestor = parent[index]!;
+    while (ancestor >= 0) { if (nodes[ancestor].mesh === undefined) jointSet.add(ancestor); ancestor = parent[ancestor]!; }
   }
   const named = (i: number) => nodes[i]?.name || `node_${i}`;
   const joints = [...jointSet];

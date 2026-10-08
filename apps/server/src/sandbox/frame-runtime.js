@@ -301,6 +301,9 @@
       pose: function (who, pose) {
         return rpc('avatar.pose', { who: String(who), pose: pose == null ? null : String(pose) });
       },
+      paired: function (clip, who) {
+        return rpc('avatar.paired', { clip: clip == null ? null : String(clip), who: Array.isArray(who) ? who.map(String) : [] });
+      },
     },
     ui: {
       toast: function (message, opts) {

@@ -106,4 +106,53 @@ Everloom ships no music or sound files. Ambience without the owner's own loops i
 
 ## Test fixtures
 
+### Native 3D repair (2026-10-07)
+
+- Browser FBX/OBJ/glTF conversion uses three.js (MIT). The vendored MMD loader and toon shader
+  are from three.js r171 (MIT, Three.js authors); the parser is mmd-parser (MIT, Takahiro).
+  Their complete notices are beside the files in `apps/web/src/features/avatar3d/runtime/vendor/`.
+  Everloom modifies mmd-parser to honor PMX's UTF-8 encoding flag as well as UTF-16.
+- The bundled Draco decoder is from three.js r186's distribution of Google's Draco (Apache-2.0).
+  Its license is in `apps/web/public/three/draco/LICENSE.txt`.
+- Native MakeHuman installs **data only**, from MPFB commit
+  `d0a32e57a7f915cb2f2b95410e2117648c7bbb7e` and the official CC0 system asset pack.
+  Base mesh, proxy bindings, targets, rigs, textures and their JSON mesh data are CC0 1.0,
+  explicitly distinguished from MPFB's GPL program code in
+  [MPFB's license](https://github.com/makehumancommunity/mpfb2/blob/d0a32e57a7f915cb2f2b95410e2117648c7bbb7e/LICENSE.md).
+  MakeHuman Team, Data Collection AB, Joel Palmius and Jonas Hauquier are credited for these assets.
+  The runtime readers and fitting implementation were written independently for Everloom.
+  The small native geometry fixtures in `tests/fixtures/models/makehuman` use the same CC0 data.
+  The redistributed packs are modified: explicit target paths are excluded, system textures
+  are limited to 1024 pixels, and skin maps keep only head UV detail over a plain body color
+  (neutral normals elsewhere). `tools/avatars/package-safe-system.mjs` records the checked
+  upstream hash and creates `avatar/makehuman-system.zip`; both packs include CC0 notices
+  and provenance. Small test clothing textures are reduced to 256 pixels.
+- `tests/fixtures/models/cesium-man.glb` and `rigged-figure.glb`: © 2017 Cesium,
+  [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), obtained from Khronos
+  glTF-Sample-Assets. No geometry modifications. CesiumMan contains Cesium's logo; the asset
+  license does not grant trademark rights or imply endorsement.
+- `tests/fixtures/models/robot-expressive.glb`: Quaternius / Tomás Laulhé, CC0;
+  three.js example conversion by Don McCurdy.
+  `robot-vrm0.vrm` and `robot.pmx` are modified format fixtures generated independently
+  by `tools/avatars/make-format-fixtures.ts`, retaining the original geometry and skeleton.
+- `tests/fixtures/models/seed.vrm`: Seed-san, VirtualCast; `twist-vrm1.vrm`: Twist, pixiv.
+  Official VRM samples under the [VRM Public License 1.0](https://vrm.dev/licenses/1.0/).
+  Redistribution and modification are permitted by each file's embedded metadata; creators
+  must be credited. Their embedded metadata remains intact. These are test models, not default
+  characters or a general asset license for arbitrary VRoid characters.
+
+The owner's Mura Mura model is used locally for diagnosis and is not redistributed.
+
 `tests/fixtures/st/Seraphina.png` and `tests/fixtures/st/Eldoria.json` are sample content from SillyTavern's default assets (AGPL-3.0). They are used only by the test suite to check format compatibility and are not part of the app.
+# Face Units 01 (native expressions)
+
+Mika Suominen's CC0 1.0 facial-action targets, distributed by NAVER's Anny at commit `d6fc027ced5c17b6b0775dee944096ade7a9ef80`. License personally verified in the [Anny README](https://github.com/naver/anny/blob/d6fc027ced5c17b6b0775dee944096ade7a9ef80/README.md#license) and its data CC0 license. Sixteen all-ages targets add GPU blinks, smiles and mouth movement to the native MakeHuman topology; proxies follow through their original bindings. No PyTorch or Anny program code is included. Pack creation and provenance: `tools/avatars/package-human-data.mjs`, `avatar/makehuman-core.zip` (contains CC0 text).
+
+The real FBX test fixture `tests/fixtures/models/knight.fbx` is Quaternius's LowPoly Animated Knight. The author's [OpenGameArt upload](https://opengameart.org/content/lowpoly-animated-knight) explicitly grants CC0 1.0. The FBX is extracted unchanged from the author's archive; no Blender conversion is used.
+
+The bundled studio environment `apps/web/public/avatar/env/studio_small_09_1k.hdr` is
+Sergej Majboroda's [Studio Small 09](https://polyhaven.com/a/studio_small_09), obtained
+from Poly Haven, 1K HDR, unmodified (1,615,248 bytes; SHA-256
+`e7cfda5f4e98e623db12b8bfd0184e048488e4855d9c83e2751fb44a32e80c45`).
+The [asset license](https://polyhaven.com/license) explicitly permits CC0 redistribution.
+It is served locally only when the 3D renderer is used; no CDN call is made by the app.

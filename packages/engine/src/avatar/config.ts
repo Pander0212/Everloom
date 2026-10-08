@@ -9,6 +9,9 @@ import { BODY_REGIONS, HUMANOID_BONES } from './skeleton.js';
 import { AvatarRecipeSchema } from './recipe.js';
 import { MakerSelectionSchema } from './packs.js';
 import { RealisticSpecSchema } from './realistic.js';
+import { MorphSettingsSchema } from './morphs.js';
+import { AppearanceSchema, SkinLayerSchema } from './layers.js';
+import { GarmentPhysicsSchema, PhysicsSchema } from './physics.js';
 
 const id = z.string().regex(/^[a-z0-9_-]{1,40}$/);
 const label = z.string().trim().min(1).max(60);
@@ -59,6 +62,16 @@ export const GarmentSchema = z.object({
   variant: id.nullable().default(null),
   /** Bone chains in the garment (a skirt, a cape) swing with physics. */
   springs: z.boolean().default(true),
+  /** How its loose part swings (saved with the garment, like a preset). */
+  physics: GarmentPhysicsSchema.optional(),
+  /** Made in the browser's fitting mode: for which base, and what the automatic steps found. */
+  fit: z.object({
+    base: z.string().max(80).nullable().default(null),
+    morphs: z.number().int().min(0).max(1024).default(0),
+    flagged: z.number().int().min(0).default(0),
+    vertices: z.number().int().min(0).default(0),
+    ms: z.number().min(0).default(0),
+  }).optional(),
   /** The body family it was made for (garments fit any avatar of that family). */
   family: z.string().max(40).nullable().default(null),
   on: z.boolean().default(true),
@@ -81,7 +94,16 @@ export const AvatarAccessorySchema = z.object({
 });
 
 /** Level 1 wardrobe: a named outfit; a different model file, or a set of parts switched on. */
+export const MaterialOverrideSchema = z.object({
+  texture: z.string().regex(/^[\w-]{1,64}$/).nullable().optional(),
+  shadeTexture: z.string().regex(/^[\w-]{1,64}$/).nullable().optional(),
+  color: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().optional(),
+  alpha: z.enum(['opaque', 'mask', 'blend']).optional(),
+});
+export const MaterialOverridesSchema = z.record(nodeName, MaterialOverrideSchema).refine(v => Object.keys(v).length <= 128, 'Too many material overrides');
 export const AvatarOutfitSchema = z.object({
+  /** Native proxies are rebuilt against the current body, preserving story outfit rollback. */
+  makehumanProxies: z.array(z.string().max(200)).max(32).optional(),
   id,
   name: label,
   /** A whole other model (media id) for this outfit, with the same skeleton. */
@@ -91,14 +113,20 @@ export const AvatarOutfitSchema = z.object({
   parts: z.array(id).max(64).default([]),
   /** Garments to wear (others in the same slot and layer come off), with a variant each. */
   garments: z.array(z.object({ id, variant: id.nullable().default(null) })).max(32).default([]),
+  /** Clothing skin layers to wear (underwear, swimwear, stockings); others of those kinds come off. */
+  layers: z.array(id).max(32).optional(),
   /** Inventory items (by name) that put this outfit on when equipped. */
   items: z.array(z.string().max(120)).max(16).default([]),
+  materialOverrides: MaterialOverridesSchema.optional(),
 });
 
 export const AvatarConfigSchema = z.object({
+  content: z.object({ adult: z.boolean().default(false), age: z.number().min(0).max(120).nullable().default(null), description: z.string().max(4000).default(''), confirmedAdult: z.boolean().default(false) }).default({ adult: false, age: null, description: '', confirmedAdult: false }),
   version: z.literal(1).default(1),
   boneMap: BoneMapSchema.default({}),
   expressionMap: ExpressionMapSchema.default({}),
+  materialOverrides: MaterialOverridesSchema.default({}),
+  bodyShape: z.object({ chest: z.number().min(-0.35).max(0.35).default(0), buttocks: z.number().min(-0.35).max(0.35).default(0), hips: z.number().min(-0.35).max(0.35).default(0), waist: z.number().min(-0.35).max(0.35).default(0), thighs: z.number().min(-0.35).max(0.35).default(0), shoulders: z.number().min(-0.35).max(0.35).default(0) }).optional(),
   /** 'auto': toon for VRM and anime models, PBR for realistic ones (chosen when loaded). */
   look: z.enum(['auto', 'toon', 'pbr']).default('auto'),
   outlines: z.boolean().default(true),
@@ -111,7 +139,13 @@ export const AvatarConfigSchema = z.object({
   facing: z.union([z.literal(0), z.literal(90), z.literal(180), z.literal(270)]).default(0),
   /** Fine-tuning of the camera presets: where the eyes are, as a fraction of the height. */
   eyeLine: z.number().min(0.5).max(1).optional(),
-  physics: z.object({ enabled: z.boolean().default(true), stiffness: z.number().min(0).max(4).default(1), gravity: z.number().min(0).max(4).default(1) }).default({ enabled: true, stiffness: 1, gravity: 1 }),
+  physics: PhysicsSchema.default(PhysicsSchema.parse({})),
+  /** Custom bases: sliders made from the file's morph targets, their values and saved body presets. */
+  morphs: MorphSettingsSchema.optional(),
+  /** Makeup, tattoos, tight clothing and scars baked onto the skin texture. */
+  skinLayers: z.array(SkinLayerSchema).max(32).default([]),
+  /** Skin tone, hair and eye colours. */
+  appearance: AppearanceSchema.optional(),
   parts: z.array(AvatarPartSchema).max(64).default([]),
   outfits: z.array(AvatarOutfitSchema).max(32).default([]),
   outfit: id.nullable().default(null),
@@ -129,13 +163,23 @@ export const AvatarConfigSchema = z.object({
   maker: MakerSelectionSchema.optional(),
   /** Realistic (MPFB) avatars: the sliders and assets it was made from (to make it again). */
   realistic: RealisticSpecSchema.optional(),
+  /** Native MakeHuman data recipe, applied in the browser to a professionally authored base. */
+  makehuman: z.object({
+    macro: RealisticSpecSchema.shape.macro,
+    cupsize: z.number().min(0).max(1).default(0.5),
+    firmness: z.number().min(0).max(1).default(0.5),
+    targets: z.record(z.string().max(200), z.number().min(-1).max(1)).default({}),
+    rig: z.string().max(200).default('rigs/standard/rig.game_engine.json'),
+    skin: z.string().max(200),
+    proxies: z.array(z.string().max(200)).max(32),
+  }).optional(),
 });
 export type AvatarConfig = z.infer<typeof AvatarConfigSchema>;
 export type AvatarPart = z.infer<typeof AvatarPartSchema>;
 export type AvatarOutfit = z.infer<typeof AvatarOutfitSchema>;
 export type AvatarAccessory = z.infer<typeof AvatarAccessorySchema>;
 
-export const AVATAR_KINDS = ['imported', 'parts', 'code', 'realistic'] as const;
+export const AVATAR_KINDS = ['imported', 'parts', 'code', 'realistic', 'makehuman'] as const;
 export type AvatarKind = (typeof AVATAR_KINDS)[number];
 
 /** How a character is shown on the stage. 'auto' picks the richest one available. */

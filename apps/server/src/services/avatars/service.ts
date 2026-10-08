@@ -7,7 +7,9 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
-import { AvatarConfigSchema, installedEmotes, modelUrl, regionOfBone, type AvatarConfig, type AvatarKind, type GarmentSlot, type HumanBone } from '@everloom/engine';
+import { allowedPaired, AvatarConfigSchema, BUILTIN_PAIRED, installedEmotes, modelUrl, PairedClipSchema, regionOfBone, type AvatarConfig, type AvatarKind, type GarmentSlot, type HumanBone, type PairedInfo } from '@everloom/engine';
+import { getSettings } from '../settings.js';
+import { assertAdultAvatar } from './adult.js';
 import { HttpError, type AppContext } from '../../context.js';
 import { newId } from '../../security/crypto.js';
 import { deleteMedia, mediaUrl, readMedia, saveImage, saveModelFile } from '../media.js';
@@ -57,21 +59,23 @@ export function sniffModel(b: Buffer, filename = ''): SourceType | null {
 }
 
 export function avatarSummary(r: AvatarRow) {
-  const info = safeJson<Partial<ModelInfo> & { report?: OptimizeResult['report'] }>(r.info, {});
+  const info = safeJson<Partial<ModelInfo> & { report?: OptimizeResult['report']; processingStage?: string }>(r.info, {});
   // Parts-made avatars wear their body straight from the pack (a built-in pack's file, or media).
   const body = r.kind === 'parts' && !r.model_media ? (safeJson<{ maker?: { body?: string } }>(r.config, {}).maker?.body ?? null) : null;
   return {
     id: r.id,
     name: r.name,
+    adult: parseConfig(r.config).content.adult,
     kind: r.kind,
     status: r.status,
     error: r.error,
+    processingStage: info.processingStage ?? (r.status === 'processing' ? 'Queued for preparation' : null),
     format: r.format,
     model: body ? modelUrl(body) : mediaUrl(r.model_media),
     low: body ? modelUrl(body) : mediaUrl(r.low_media),
     thumb: mediaUrl(r.thumb_media),
     triangles: info.triangles ?? null,
-    size: info.report?.after ?? null,
+    size: info.report?.after ?? info.bytes ?? null,
     warnings: (info.warnings ?? []).length,
     createdAt: r.created_at,
     updatedAt: r.updated_at,
@@ -114,13 +118,12 @@ export function listAvatars(ctx: AppContext, owner: string) {
 // ---------------------------------------------------------------------------------------------
 
 const queued = new Set<string>();
-let chain: Promise<unknown> = Promise.resolve();
 const settled = new Map<string, Promise<void>>();
 
 function enqueue(ctx: AppContext, owner: string, id: string, opts: Partial<OptimizeOptions> = {}) {
   queued.add(id);
-  const p = chain.then(() => processAvatar(ctx, owner, id, opts)).finally(() => queued.delete(id));
-  chain = p.catch(() => undefined);
+  // Inspection must not queue behind an optional encoder for another avatar.
+  const p = processAvatar(ctx, owner, id, opts).finally(() => queued.delete(id));
   settled.set(
     id,
     p.catch(() => undefined),
@@ -135,9 +138,10 @@ export async function avatarSettled(id: string) {
 let workerFile: string | null | undefined;
 function workerPath(): string | null {
   if (workerFile === undefined) {
-    // The built server has dist/avatar-worker.js beside it; from source, optimize on this thread.
-    const f = path.join(path.dirname(fileURLToPath(import.meta.url)), 'avatar-worker.js');
-    workerFile = existsSync(f) ? f : null;
+    // Source previews can use the built worker too. Encoding on the HTTP thread stalls the
+    // editor's navigation and polling even when the character itself is already valid.
+    const candidates = [path.join(path.dirname(fileURLToPath(import.meta.url)), 'avatar-worker.js'), fileURLToPath(new URL('../../../dist/avatar-worker.js', import.meta.url))];
+    workerFile = candidates.find(f => existsSync(f)) ?? null;
   }
   return workerFile;
 }
@@ -147,11 +151,13 @@ export function optimizeOffThread(bytes: Buffer, opts: OptimizeOptions): Promise
   if (!file) return optimizeModel(bytes, opts);
   return new Promise((resolve, reject) => {
     const w = new Worker(file, { stdout: true, stderr: true, resourceLimits: { maxOldGenerationSizeMb: 2048 } });
+    let received = false;
     const timer = setTimeout(() => {
       void w.terminate();
       reject(new Error('Optimizing took too long'));
     }, 10 * 60_000);
     w.once('message', (m: { ok: boolean; main?: Uint8Array; low?: Uint8Array; report?: OptimizeResult['report']; error?: string }) => {
+      received = true;
       clearTimeout(timer);
       void w.terminate();
       if (m.ok) resolve({ main: Buffer.from(m.main!), low: Buffer.from(m.low!), report: m.report! });
@@ -161,8 +167,21 @@ export function optimizeOffThread(bytes: Buffer, opts: OptimizeOptions): Promise
       clearTimeout(timer);
       reject(e);
     });
+    w.once('exit', (code) => {
+      clearTimeout(timer);
+      if (!received) reject(new Error(`The optimizer worker stopped (exit ${code}). The original model can still be used.`));
+    });
     w.postMessage({ bytes, opts });
   });
+}
+
+let optimizationChain: Promise<unknown> = Promise.resolve(), pendingOptimizations = 0;
+function optionalOptimization(bytes: Buffer, opts: OptimizeOptions) {
+  if (pendingOptimizations >= 2) return Promise.reject(new Error('The optimizer is busy. The original model is ready; optimize it later from the editor.'));
+  pendingOptimizations++;
+  const job = optimizationChain.then(() => optimizeOffThread(bytes, opts)).finally(() => pendingOptimizations--);
+  optimizationChain = job.catch(() => {});
+  return job;
 }
 
 function setStatus(ctx: AppContext, owner: string, id: string, patch: Partial<AvatarRow>) {
@@ -178,34 +197,60 @@ async function processAvatar(ctx: AppContext, owner: string, id: string, opts: P
     return; // deleted while waiting
   }
   const old = { model: row.model_media, low: row.low_media };
+  let step = 'Reading stored source';
+  const progress = (label: string) => {
+    step = label;
+    const current = getAvatarRow(ctx, owner, id);
+    setStatus(ctx, owner, id, { info: JSON.stringify({ ...safeJson<Record<string, unknown>>(current.info, {}), processingStage: label }) });
+  };
   try {
+    progress(step);
     if (!row.source_media) throw new Error('The original file is missing');
     const src = readMedia(ctx, owner, row.source_media);
     const ext = path.extname(src.row.filename).slice(1) as SourceType;
     let glb = src.bytes;
     let conversion: Record<string, unknown> | null = null;
     if (ext === 'blend' || ext === 'zip') {
+      progress('Optional Blender conversion');
       const job = blendJobFiles(src.bytes, `model.${ext === 'zip' ? 'zip' : 'blend'}`);
       const r = await runBlenderJob(ctx, owner, { op: 'convert', files: job.files, input: job.input, output: 'output.glb', timeoutMs: 8 * 60_000 });
       glb = r.output;
       conversion = r.result;
     } else if (BLENDER_TYPES.has(ext)) {
+      progress('Optional Blender conversion');
       const r = await runBlenderJob(ctx, owner, { op: 'convert', files: { [`input.${ext}`]: src.bytes }, input: `input.${ext}`, output: 'output.glb' });
       glb = r.output;
       conversion = r.result;
     }
+    progress('Inspecting meshes, bones and expressions');
     const info = await inspectModel(glb);
     if (conversion) info.warnings.push(...blendNotes(conversion));
-    const result = await optimizeOffThread(glb, { format: info.format, ...opts });
+    const basic = conversion ? saveModelFile(ctx, owner, glb, { kind: 'model', ext: 'glb', meta: { avatar: id, basic: true } }).id : src.row.id;
+    const initialConfig = parseConfig(getAvatarRow(ctx, owner, id).config);
+    const mappedConfig = { ...initialConfig, boneMap: Object.keys(initialConfig.boneMap).length ? initialConfig.boneMap : info.boneMap, expressionMap: Object.keys(initialConfig.expressionMap).length ? initialConfig.expressionMap : info.expressionMap };
+    // The validated original is usable now. Optional compression never gates the
+    // editor or stage, even when encoding takes minutes or another job is busy.
+    setStatus(ctx, owner, id, { status: 'ready', error: null, format: info.format, model_media: basic, low_media: basic, config: JSON.stringify(mappedConfig), info: JSON.stringify({ ...info, processingStage: 'Preparing optional optimized copies', conversion }) });
+    // Compression is optional. Keep a valid original even when an encoder cannot handle it.
+    let result: OptimizeResult;
+    progress('Preparing optional optimized copies');
+    try {
+      result = await optionalOptimization(glb, { format: info.format, ktx2: false, ...opts });
+    } catch (e) {
+      const reason = e instanceof Error ? e.message : 'Unknown optimizer error';
+      info.warnings.push({ code: 'optimization_skipped', message: `Imported the original model. Optimization failed: ${reason.slice(0, 240)}`, level: 'info' });
+      result = { main: glb, low: glb, report: { before: glb.length, after: glb.length, low: glb.length, textures: 'original', ktx2: 0, webp: 0, ms: 0, notes: ['Optimization skipped; the original remains usable.'] } };
+    }
     // The row may have been deleted while this ran.
     if (!ctx.db.prepare('SELECT 1 FROM avatars WHERE id = ? AND owner_id = ?').get(id, owner)) return;
+    progress('Saving prepared media');
     const main = saveModelFile(ctx, owner, result.main, { kind: 'model', ext: info.format === 'glb' ? 'glb' : 'vrm', meta: { avatar: id } });
     const low = saveModelFile(ctx, owner, result.low, { kind: 'model-low', ext: info.format === 'glb' ? 'glb' : 'vrm', meta: { avatar: id } });
-    const config = parseConfig(row.config);
-    // First run: start from the automatic mapping and the detected units.
-    const fresh = !Object.keys(config.boneMap).length;
     // Size is left at 1: the browser measures the rendered model (root scales included) and fits it.
-    const next: AvatarConfig = fresh ? { ...config, boneMap: info.boneMap, expressionMap: info.expressionMap } : config;
+    // Settings may be edited while optimization runs. Never replace those edits with the
+    // processing job's initial snapshot.
+    const currentConfig = parseConfig(getAvatarRow(ctx, owner, id).config);
+    const next: AvatarConfig = { ...currentConfig, boneMap: Object.keys(currentConfig.boneMap).length ? currentConfig.boneMap : info.boneMap, expressionMap: Object.keys(currentConfig.expressionMap).length ? currentConfig.expressionMap : info.expressionMap };
     setStatus(ctx, owner, id, {
       status: 'ready',
       error: null,
@@ -215,11 +260,16 @@ async function processAvatar(ctx: AppContext, owner: string, id: string, opts: P
       config: JSON.stringify(next),
       info: JSON.stringify({ ...info, report: result.report, conversion, optimize: opts }),
     });
-    for (const m of [old.model, old.low]) if (m) deleteMedia(ctx, owner, m);
+    for (const m of new Set([old.model, old.low, conversion ? basic : null])) if (m && m !== row.source_media) deleteMedia(ctx, owner, m);
   } catch (e) {
     const msg = e instanceof HttpError || e instanceof Error ? e.message : String(e);
     try {
-      setStatus(ctx, owner, id, { status: 'failed', error: msg.slice(0, 400) });
+      const current = getAvatarRow(ctx, owner, id);
+      if (current.status === 'ready' && current.model_media) {
+        const preserved = safeJson<Record<string, unknown>>(current.info, {});
+        delete preserved.processingStage;
+        setStatus(ctx, owner, id, { info: JSON.stringify({ ...preserved, preparationError: `${step}: ${msg}`.slice(0, 400) }) });
+      } else setStatus(ctx, owner, id, { status: 'failed', error: `${step}: ${msg}`.slice(0, 400) });
     } catch {
       /* deleted */
     }
@@ -242,11 +292,14 @@ export function createAvatar(ctx: AppContext, owner: string, bytes: Buffer, opts
     }
   }
   const ext = type === 'glb' ? (/\.vrm$/i.test(opts.filename ?? '') ? 'vrm' : 'glb') : type;
+  const config = AvatarConfigSchema.parse(opts.config ?? {});
+  if (config.makehuman && !config.family) config.family = `makehuman:${config.makehuman.rig.split('/').pop()!.replace(/^rig\.|\.json$/g, '')}`.slice(0, 40);
+  assertAdultAvatar(ctx, owner, config);
+  assertConfigMedia(ctx, owner, config);
   const src = saveModelFile(ctx, owner, bytes, { kind: 'model-source', ext, meta: { filename: (opts.filename ?? '').slice(0, 200) } });
   const id = opts.id ?? newId('av_');
   const now = Date.now();
   const name = (opts.name || (opts.filename ?? '').replace(/\.[^.]+$/, '') || 'New avatar').trim().slice(0, 80);
-  const config = AvatarConfigSchema.parse(opts.config ?? {});
   ctx.db
     .prepare('INSERT INTO avatars (id, owner_id, name, kind, status, format, source_media, config, info, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .run(id, owner, name, opts.kind ?? 'imported', 'processing', type === 'glb' ? 'glb' : type, src.id, JSON.stringify(config), '{}', now, now);
@@ -257,10 +310,40 @@ export function createAvatar(ctx: AppContext, owner: string, bytes: Buffer, opts
 export function reprocessAvatar(ctx: AppContext, owner: string, id: string, opts: Partial<OptimizeOptions>) {
   const row = getAvatarRow(ctx, owner, id);
   if (row.kind === 'code') throw new HttpError(400, 'Code-made characters have no model file to optimize');
-  if (row.status === 'processing' && queued.has(id)) throw new HttpError(409, 'This avatar is already being processed');
+  if (queued.has(id)) throw new HttpError(409, 'This avatar is already being processed');
   setStatus(ctx, owner, id, { status: 'processing', error: null });
   enqueue(ctx, owner, id, opts);
   return avatarSummary(getAvatarRow(ctx, owner, id));
+}
+
+/** Save a browser-built native body and its recipe together, so bundles carry the latest shape. */
+function assertConfigMedia(ctx: AppContext, owner: string, config: AvatarConfig) {
+  const textures = new Set<string>();
+  for (const overrides of [config.materialOverrides, ...config.outfits.map(o => o.materialOverrides ?? {})]) for (const value of Object.values(overrides)) for (const texture of [value.texture, value.shadeTexture]) if (texture) textures.add(texture);
+  for (const garment of config.garments) for (const variant of garment.variants) if (variant.texture) textures.add(variant.texture);
+  for (const texture of textures) {
+    const media = ctx.db.prepare("SELECT meta FROM media WHERE id = ? AND owner_id = ? AND mime LIKE 'image/%'").get(texture, owner) as { meta: string } | undefined;
+    if (!media) throw new HttpError(400, 'A material texture is missing or belongs to another account.');
+    if (safeJson<{ adult?: boolean }>(media.meta, {}).adult === true && !config.content.adult) throw new HttpError(403, 'Adult textures can only be applied to an eligible adult character.');
+  }
+  for (const outfit of config.outfits) for (const media of [outfit.model, outfit.modelLow]) if (media && !ctx.db.prepare("SELECT 1 FROM media WHERE id = ? AND owner_id = ? AND kind LIKE 'model%'").get(media, owner)) throw new HttpError(400, 'An outfit points at a missing model file');
+}
+
+export async function replaceNativeBody(ctx: AppContext, owner: string, id: string, bytes: Buffer) {
+  const row = getAvatarRow(ctx, owner, id);
+  if (queued.has(id)) throw new HttpError(409, 'Wait for the current model preparation to finish.');
+  const glb = parseGlb(bytes);
+  const input = (glb.json.nodes ?? []).map(node => (node as { extras?: { everloom?: { config?: unknown } } }).extras?.everloom?.config).find(Boolean);
+  const parsed = AvatarConfigSchema.safeParse(input);
+  if (!parsed.success || !parsed.data.makehuman) throw new HttpError(400, 'The native model is missing its MakeHuman recipe.');
+  assertAdultAvatar(ctx, owner, parsed.data, id);
+  assertConfigMedia(ctx, owner, parsed.data);
+  await inspectModel(bytes, glb);
+  const source = saveModelFile(ctx, owner, bytes, { kind: 'model-source', ext: 'glb', meta: { avatar: id, native: true } });
+  setStatus(ctx, owner, id, { source_media: source.id, config: JSON.stringify(parsed.data), kind: 'makehuman', status: 'processing', error: null });
+  enqueue(ctx, owner, id);
+  if (row.source_media) deleteMedia(ctx, owner, row.source_media);
+  return avatarDetail(getAvatarRow(ctx, owner, id));
 }
 
 export function updateAvatar(ctx: AppContext, owner: string, id: string, patch: { name?: string; config?: unknown }) {
@@ -270,9 +353,10 @@ export function updateAvatar(ctx: AppContext, owner: string, id: string, patch: 
   if (patch.config !== undefined) {
     const r = AvatarConfigSchema.safeParse(patch.config);
     if (!r.success) throw new HttpError(400, `Invalid avatar settings: ${r.error.issues[0]?.path.join('.')} ${r.error.issues[0]?.message}`);
-    // Outfit models must be this owner's model files.
-    for (const o of r.data.outfits) for (const m of [o.model, o.modelLow]) if (m && !ctx.db.prepare("SELECT 1 FROM media WHERE id = ? AND owner_id = ? AND kind LIKE 'model%'").get(m, owner)) throw new HttpError(400, 'An outfit points at a missing model file');
+    assertAdultAvatar(ctx, owner, r.data, id);
+    assertConfigMedia(ctx, owner, r.data);
     set.config = JSON.stringify(r.data);
+    if (r.data.makehuman) set.kind = 'makehuman';
   }
   if (Object.keys(set).length) setStatus(ctx, owner, id, set);
   return avatarDetail(getAvatarRow(ctx, owner, id));
@@ -316,7 +400,12 @@ export async function addOutfitModel(ctx: AppContext, owner: string, id: string,
 export async function saveOutfitFiles(ctx: AppContext, owner: string, id: string, bytes: Buffer, filename: string) {
   if (!isGlb(bytes)) throw new HttpError(415, 'Outfit models must be GLB or VRM (convert other formats by importing them as an avatar first)');
   const info = await inspectModel(bytes);
-  const r = await optimizeOffThread(bytes, { format: info.format });
+  let r: Pick<OptimizeResult, 'main' | 'low'>;
+  try { r = await optionalOptimization(bytes, { format: info.format, ktx2: false }); }
+  catch (error) {
+    r = { main: bytes, low: bytes };
+    info.warnings.push({ code: 'optimization_skipped', level: 'info', message: `Kept the original outfit model: ${(error as Error).message.slice(0, 240)}` });
+  }
   const ext = info.format === 'glb' ? 'glb' : 'vrm';
   const main = saveModelFile(ctx, owner, r.main, { kind: 'model', ext, meta: { avatar: id, outfit: filename.slice(0, 120) } });
   const low = saveModelFile(ctx, owner, r.low, { kind: 'model-low', ext, meta: { avatar: id } });
@@ -325,8 +414,22 @@ export async function saveOutfitFiles(ctx: AppContext, owner: string, id: string
 
 /** The emotes the story may use: built-in plus the owner's imported clips. */
 export function emotesFor(ctx: AppContext, owner: string) {
-  const rows = ctx.db.prepare('SELECT emote AS id, label, category, data FROM avatar_clips WHERE owner_id = ?').all(owner) as Array<{ id: string; label: string; category: string; data: string }>;
+  const rows = ctx.db.prepare("SELECT emote AS id, label, category, data FROM avatar_clips WHERE owner_id = ? AND category != 'paired'").all(owner) as Array<{ id: string; label: string; category: string; data: string }>;
   return installedEmotes(rows.map((r) => ({ id: r.id, label: r.label, category: r.category, loop: safeJson<{ loop?: boolean }>(r.data, {}).loop })));
+}
+
+/**
+ * Paired animations the story may use: built-in plus the owner's imported ones. Adult-rated ones only
+ * with adult content on and confirmed; the stage still plays them only for adult characters.
+ */
+export function pairedFor(ctx: AppContext, owner: string): PairedInfo[] {
+  const rows = ctx.db.prepare("SELECT emote AS id, label, data FROM avatar_clips WHERE owner_id = ? AND category = 'paired'").all(owner) as Array<{ id: string; label: string; data: string }>;
+  const imported: PairedInfo[] = rows.flatMap((r) => {
+    const p = PairedClipSchema.safeParse(safeJson(r.data, {}));
+    return p.success ? [{ id: r.id, label: r.label, participants: p.data.roles.length, loop: p.data.loop, adult: p.data.adult, aliases: p.data.aliases, source: 'imported' as const }] : [];
+  });
+  const settings = getSettings(ctx, owner);
+  return allowedPaired([...BUILTIN_PAIRED, ...imported.filter((p) => !BUILTIN_PAIRED.some((b) => b.id === p.id))], { adultMode: settings.library.nsfw === true && settings.library.adultConfirmed === true, everyoneAdult: true });
 }
 
 /**
@@ -337,6 +440,20 @@ export function emotesForChat(ctx: AppContext, owner: string, characterIds: stri
   if (!characterIds.length) return [];
   const has = ctx.db.prepare(`SELECT 1 FROM characters WHERE owner_id = ? AND id IN (${characterIds.map(() => '?').join(',')}) AND json_extract(game, '$.avatar3d') IS NOT NULL LIMIT 1`).get(owner, ...characterIds);
   return has ? emotesFor(ctx, owner) : [];
+}
+
+/** Body presets saved on any of the owner's avatars made from the same base (same morphs and bones). */
+export function morphPresetLibrary(ctx: AppContext, owner: string, base: string) {
+  const rows = ctx.db.prepare('SELECT id, name, config FROM avatars WHERE owner_id = ?').all(owner) as Array<{ id: string; name: string; config: string }>;
+  const out: Array<{ avatarId: string; avatarName: string; preset: NonNullable<AvatarConfig['morphs']>['presets'][number]; current: boolean }> = [];
+  for (const r of rows) {
+    const cfg = parseConfig(r.config);
+    if (cfg.morphs?.base !== base) continue;
+    // Each character's current shape is offered too, as if it were a preset.
+    out.push({ avatarId: r.id, avatarName: r.name, preset: { id: 'current', name: `${r.name} (as now)`, values: cfg.morphs.values }, current: true });
+    for (const p of cfg.morphs.presets) out.push({ avatarId: r.id, avatarName: r.name, preset: p, current: false });
+  }
+  return out;
 }
 
 /**

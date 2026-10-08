@@ -167,6 +167,8 @@ export interface Everloom {
     emote(who: string, emote: string): Promise<{ applied: number; errors: string[] }>;
     /** A held pose (sit, sleep, a dance…); null to stand. */
     pose(who: string, pose: string | null): Promise<{ applied: number; errors: string[] }>;
+    /** A paired or group animation (handshake, hug, dance together…) for two to four characters; null clip stops a looping one. */
+    paired(clip: string | null, who: string[]): Promise<{ applied: number; errors: string[] }>;
   };
   ui: {
     toast(message: string, opts?: { tone?: 'neutral' | 'success' | 'danger' }): Promise<true>;

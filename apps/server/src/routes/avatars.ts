@@ -2,10 +2,12 @@
 import type { FastifyInstance } from 'fastify';
 import { unzipSync } from 'fflate';
 import { z } from 'zod';
-import { ClipSchema, EMOTE_CATEGORIES, EMOTE_ID, GARMENT_SLOTS } from '@everloom/engine';
+import { AvatarConfigSchema, BoneMapSchema, BUILTIN_EMOTES, BUILTIN_PAIRED, ClipSchema, EMOTE_CATEGORIES, EMOTE_ID, GARMENT_SLOTS, PAIRED_ID, PairedClipSchema } from '@everloom/engine';
+import { getSettings } from '../services/settings.js';
+import { parseGlb } from '../services/avatars/glb.js';
 import { HttpError, owner, type AppContext } from '../context.js';
 import { blenderJobs, findBlender, runBlenderJob, setBlenderPath } from '../services/blender.js';
-import { addOutfitModel, cleanupAvatar, fitGarment, renderTurntable, avatarDetail, garmentLibrary, createAvatar, deleteAvatar, getAvatarRow, listAvatars, reprocessAvatar, setAvatarThumbnail, updateAvatar } from '../services/avatars/service.js';
+import { addOutfitModel, cleanupAvatar, fitGarment, renderTurntable, avatarDetail, garmentLibrary, morphPresetLibrary, pairedFor, createAvatar, deleteAvatar, getAvatarRow, listAvatars, reprocessAvatar, setAvatarThumbnail, updateAvatar } from '../services/avatars/service.js';
 import { createCodeAvatar, createPartsAvatar, fillRecipe, garmentForItem } from '../services/avatars/recipes.js';
 import { deletePack, importPack, listPacks, setPackEnabled } from '../services/avatars/packs.js';
 import { discardModel3dJob, getModel3dJob, startModel3dJob } from '../services/avatars/model3d.js';
@@ -17,10 +19,33 @@ import { getCharacter } from '../services/characters.js';
 import { readMedia, saveModelFile } from '../services/media.js';
 import { ownerForToken } from '../services/bridge.js';
 import { parse } from '../util/validate.js';
+import { installMakeHuman, makeHumanStatus, importHumanAssets } from '../services/avatars/makehuman.js';
+import { exportBrowserModel } from '../services/avatars/browser-export.js';
+import { replaceNativeBody } from '../services/avatars/service.js';
+import { assertAdultAvatar } from '../services/avatars/adult.js';
 
 const MOTION_TYPES: Record<string, string> = { fbx: 'fbx', bvh: 'bvh', vmd: 'vmd', glb: 'glb', gltf: 'glb', vrma: 'glb', blend: 'blend' };
 
 export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
+  app.get('/api/makehuman', async req => makeHumanStatus(ctx, owner(req)));
+  app.post('/api/makehuman/assets', { bodyLimit: 100 * 1024 * 1024 }, async req => {
+    if (!Buffer.isBuffer(req.body)) throw new HttpError(400, 'Send an asset ZIP as binary data.');
+    const options = parse(z.object({ kind: z.enum(['clothes', 'hair', 'targets', 'rigs', 'skins', 'eyes', 'eyebrows', 'eyelashes', 'teeth', 'tongue']), label: z.string().min(1).max(80), adult: z.enum(['true', 'false']).transform(v => v === 'true'), rightsConfirmed: z.enum(['true', 'false']).transform(v => v === 'true') }), req.query);
+    return importHumanAssets(ctx, owner(req), req.body, options);
+  });
+  app.post('/api/avatars/native', { bodyLimit: 200 * 1024 * 1024 }, async req => {
+    if (!Buffer.isBuffer(req.body)) throw new HttpError(400, 'Send the browser-built GLB as binary data.');
+    const glb = parseGlb(req.body);
+    const input = (glb.json.nodes ?? []).map(node => (node as { extras?: { everloom?: { config?: unknown } } }).extras?.everloom?.config).find(Boolean);
+    const config = parse(AvatarConfigSchema, input);
+    if (!config.makehuman) throw new HttpError(400, 'The native model is missing its MakeHuman recipe.');
+    const q = parse(z.object({ name: z.string().max(80).optional() }), req.query);
+    return createAvatar(ctx, owner(req), req.body, { name: q.name, filename: 'makehuman.glb', kind: 'makehuman', config });
+  });
+  app.post('/api/makehuman/install', async req => {
+    const b = parse(z.object({ pack: z.enum(['core', 'system']) }), req.body ?? {});
+    return installMakeHuman(ctx, owner(req), b.pack);
+  });
   app.get('/api/avatars', async (req) => listAvatars(ctx, owner(req)));
 
   /** The model file as the request body; name and file name in the query. */
@@ -78,7 +103,7 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
 
   /** A seamless garment texture from the image connection (or a variant of one with an editing model). */
   app.post('/api/avatars/texture', async (req) => {
-    const b = parse(z.object({ prompt: z.string().trim().min(2).max(400), base: z.string().regex(/^[\w-]{1,64}$/).nullable().optional() }), req.body ?? {});
+    const b = parse(z.object({ prompt: z.string().trim().min(2).max(400), base: z.string().regex(/^[\w-]{1,64}$/).nullable().optional(), adult: z.boolean().optional(), avatarId: z.string().regex(/^[\w-]{1,64}$/).optional() }), req.body ?? {});
     return generateTexture(ctx, owner(req), b);
   });
 
@@ -134,12 +159,49 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
   app.delete('/api/avatar-packs/:id', async (req) => deletePack(ctx, owner(req), (req.params as { id: string }).id));
 
   /** Garments that fit a body family, from all the owner's avatars. */
+  app.get('/api/avatar-morph-presets', async (req) => {
+    const q = parse(z.object({ base: z.string().min(1).max(80) }), req.query ?? {});
+    return morphPresetLibrary(ctx, owner(req), q.base);
+  });
+
   app.get('/api/avatar-garments', async (req) => {
     const q = parse(z.object({ family: z.string().min(1).max(40) }), req.query ?? {});
     return garmentLibrary(ctx, owner(req), q.family);
   });
 
   app.get('/api/avatars/:id', async (req) => avatarDetail(getAvatarRow(ctx, owner(req), (req.params as { id: string }).id)));
+  app.post('/api/avatars/:id/preset-export', async (req, reply) => {
+    const who = owner(req), id = (req.params as { id: string }).id;
+    getAvatarRow(ctx, who, id);
+    const input = parse(z.object({ kind: z.enum(['character', 'rig']), config: AvatarConfigSchema }), req.body);
+    assertAdultAvatar(ctx, who, input.config, id);
+    const data = input.kind === 'rig' ? { format: 'everloom-rig-map', version: 1, boneMap: input.config.boneMap, physics: input.config.physics } : { format: 'everloom-character-preset', version: 1, family: input.config.family, config: input.config };
+    return reply.type('application/json').header('content-disposition', `attachment; filename="${input.kind}-preset.json"`).send(Buffer.from(JSON.stringify(data, null, 2)));
+  });
+  app.post('/api/avatars/:id/preset-import', { bodyLimit: 1024 * 1024 }, async req => {
+    const who = owner(req), id = (req.params as { id: string }).id, avatar = avatarDetail(getAvatarRow(ctx, who, id));
+    let value: unknown = req.body;
+    if (Buffer.isBuffer(value)) { try { value = JSON.parse(value.toString('utf8')); } catch { throw new HttpError(400, 'The preset is not valid JSON.'); } }
+    const preset = parse(z.discriminatedUnion('format', [
+      z.object({ format: z.literal('everloom-rig-map'), version: z.literal(1), boneMap: BoneMapSchema, physics: AvatarConfigSchema.shape.physics.optional() }),
+      z.object({ format: z.literal('everloom-character-preset'), version: z.literal(1), family: z.string().max(40).nullable(), config: AvatarConfigSchema }),
+    ]), value);
+    if (preset.format === 'everloom-character-preset') {
+      if (preset.family !== avatar.config.family || !!preset.config.makehuman !== !!avatar.config.makehuman) throw new HttpError(400, 'Choose a preset for the same character kind and body family.');
+      assertAdultAvatar(ctx, who, preset.config, id);
+    }
+    return preset;
+  });
+  app.put('/api/avatars/:id/native-model', { bodyLimit: 200 * 1024 * 1024 }, async req => {
+    if (!Buffer.isBuffer(req.body)) throw new HttpError(400, 'Send the native model as binary GLB data.');
+    return replaceNativeBody(ctx, owner(req), (req.params as { id: string }).id, req.body);
+  });
+  app.post('/api/avatars/:id/browser-export', { bodyLimit: 200 * 1024 * 1024 }, async (req, reply) => {
+    const q = parse(z.object({ format: z.enum(['glb', 'vrm']) }), req.query);
+    if (!Buffer.isBuffer(req.body)) throw new HttpError(400, 'Send the browser-built GLB as binary data.');
+    const bytes = await exportBrowserModel(ctx, owner(req), (req.params as { id: string }).id, req.body, q.format);
+    return reply.type('model/gltf-binary').header('content-disposition', `attachment; filename="character.${q.format}"`).send(bytes);
+  });
 
   app.patch('/api/avatars/:id', async (req) => {
     const b = parse(z.object({ name: z.string().max(80).optional(), config: z.unknown().optional() }), req.body ?? {});
@@ -195,7 +257,7 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
   // ---- Motion clips -------------------------------------------------------------------------
 
   app.get('/api/avatar-clips', async (req) => {
-    const rows = ctx.db.prepare('SELECT emote, label, category, source, created_at FROM avatar_clips WHERE owner_id = ? ORDER BY label').all(owner(req)) as Array<{ emote: string; label: string; category: string; source: string; created_at: number }>;
+    const rows = ctx.db.prepare("SELECT emote, label, category, source, created_at FROM avatar_clips WHERE owner_id = ? AND category != 'paired' ORDER BY label").all(owner(req)) as Array<{ emote: string; label: string; category: string; source: string; created_at: number }>;
     return rows.map((r) => ({ id: r.emote, label: r.label, category: r.category, source: r.source, createdAt: r.created_at }));
   });
 
@@ -214,6 +276,34 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
       .prepare('INSERT INTO avatar_clips (id, owner_id, emote, label, category, data, source, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?) ON CONFLICT(owner_id, emote) DO UPDATE SET label = excluded.label, category = excluded.category, data = excluded.data, source = excluded.source')
       .run(`${owner(req)}:${emote}`, owner(req), emote, b.label, b.category, data, b.source, Date.now());
     return { id: emote, label: b.label, category: b.category };
+  });
+
+  // Paired and group animations (one clip per participant), in the same table under their own category.
+  app.get('/api/avatar-paired', async (req) => pairedFor(ctx, owner(req)));
+  app.get('/api/avatar-paired/:id', async (req, reply) => {
+    const r = ctx.db.prepare("SELECT data FROM avatar_clips WHERE owner_id = ? AND emote = ? AND category = 'paired'").get(owner(req), (req.params as { id: string }).id) as { data: string } | undefined;
+    if (!r) throw new HttpError(404, 'No such paired animation');
+    return reply.header('content-type', 'application/json').header('cache-control', 'no-store').send(r.data);
+  });
+  app.put('/api/avatar-paired/:id', { bodyLimit: 16 * 1024 * 1024 }, async (req) => {
+    const id = (req.params as { id: string }).id;
+    if (!PAIRED_ID.test(id)) throw new HttpError(400, 'Names use lowercase letters, digits and _');
+    if (BUILTIN_PAIRED.some((p) => p.id === id) || BUILTIN_EMOTES.some((e) => e.id === id)) throw new HttpError(409, 'That name is already a built-in animation');
+    const clip = parse(PairedClipSchema, { ...(req.body as object), id });
+    if (clip.adult) {
+      const s = getSettings(ctx, owner(req));
+      if (s.library.nsfw !== true || s.library.adultConfirmed !== true) throw new HttpError(403, 'Enable Adult content (18+) and confirm you are an adult in Settings › Features first.');
+    }
+    const existing = ctx.db.prepare('SELECT category FROM avatar_clips WHERE owner_id = ? AND emote = ?').get(owner(req), id) as { category: string } | undefined;
+    if (existing && existing.category !== 'paired') throw new HttpError(409, 'An emote already has that name');
+    ctx.db
+      .prepare("INSERT INTO avatar_clips (id, owner_id, emote, label, category, data, source, created_at) VALUES (?, ?, ?, ?, 'paired', ?, ?, ?) ON CONFLICT(owner_id, emote) DO UPDATE SET label = excluded.label, data = excluded.data, source = excluded.source")
+      .run(`${owner(req)}:${id}`, owner(req), id, clip.label, JSON.stringify(clip), clip.source, Date.now());
+    return { id, label: clip.label, participants: clip.roles.length };
+  });
+  app.delete('/api/avatar-paired/:id', async (req) => {
+    ctx.db.prepare("DELETE FROM avatar_clips WHERE owner_id = ? AND emote = ? AND category = 'paired'").run(owner(req), (req.params as { id: string }).id);
+    return { ok: true };
   });
 
   app.delete('/api/avatar-clips/:emote', async (req) => {

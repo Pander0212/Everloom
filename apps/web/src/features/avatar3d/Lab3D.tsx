@@ -64,7 +64,7 @@ export default function Lab3D() {
   return (
     <div className="flex h-dvh flex-col bg-bg text-fg">
       <div className="flex flex-wrap items-center gap-2 border-b border-line p-2">
-        <FileButton accept=".glb,.gltf,.vrm" onFiles={async ([f]) => f && window.__lab?.load(await f.arrayBuffer())}>
+        <FileButton onFiles={async ([f]) => f && window.__lab?.load(await f.arrayBuffer())}>
           Load model
         </FileButton>
         <Select aria-label="Emote" defaultValue="" onChange={(e) => all((id) => void stage.current?.get(id)?.emote(e.target.value))} className="w-auto">

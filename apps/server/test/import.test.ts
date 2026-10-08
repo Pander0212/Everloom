@@ -84,7 +84,7 @@ describe('SillyTavern migration', () => {
   it('rejects paths outside the allowed roots and missing folders', async () => {
     c = await createClient();
     c.built.ctx.cfg.importRoots = [os.tmpdir()];
-    expect((await c.req('POST', '/api/import/sillytavern/scan', { path: '/etc' })).status).toBe(403);
+    expect((await c.req('POST', '/api/import/sillytavern/scan', { path: path.resolve(import.meta.dirname, '..') })).status).toBe(403);
     expect((await c.req('POST', '/api/import/sillytavern/scan', { path: '/definitely/not/here' })).status).toBe(404);
   });
 

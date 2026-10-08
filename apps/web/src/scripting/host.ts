@@ -392,6 +392,7 @@ const NEEDS: Record<string, ScriptPermission | null> = {
   'state.propose': 'state.ops',
   'avatar.emote': 'avatar',
   'avatar.pose': 'avatar',
+  'avatar.paired': 'avatar',
   'ui.toast': 'ui.panel',
   'ui.panel': 'ui.panel',
   'ui.closePanel': 'ui.panel',
@@ -648,8 +649,9 @@ async function dispatch(f: Frame, method: string, a: Record<string, any>): Promi
       return r;
     }
     case 'avatar.emote':
-    case 'avatar.pose': {
-      const op = method === 'avatar.emote' ? { type: 'avatar.emote', who: String(a.who ?? ''), emote: String(a.emote ?? '') } : { type: 'avatar.pose', who: String(a.who ?? ''), pose: a.pose == null ? null : String(a.pose) };
+    case 'avatar.pose':
+    case 'avatar.paired': {
+      const op = method === 'avatar.emote' ? { type: 'avatar.emote', who: String(a.who ?? ''), emote: String(a.emote ?? '') } : method === 'avatar.pose' ? { type: 'avatar.pose', who: String(a.who ?? ''), pose: a.pose == null ? null : String(a.pose) } : { type: 'avatar.paired', clip: a.clip == null ? null : String(a.clip), who: Array.isArray(a.who) ? (a.who as unknown[]).map(String).slice(0, 4) : [] };
       const r = await post<{ applied: number; errors: string[] }>('/api/scripts/run/avatar', { key: f.spec.key, chatId: needChat(f), op });
       const c = queryClient.getQueryData<any>(qk.chat(needChat(f)));
       if (c?.campaignId) void queryClient.invalidateQueries({ queryKey: qk.campaign(c.campaignId) });

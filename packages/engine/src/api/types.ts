@@ -32,6 +32,8 @@ export interface MediaRef {
 }
 
 export interface CharacterGame {
+  /** Recorded age, also checked before linking an adult 3D avatar. */
+  age?: number | null;
   /** emotion -> media id */
   expressions?: Record<string, string>;
   /** A preset voice, or one of the owner's reference voices (kept separate, with consent on file). */
@@ -50,6 +52,7 @@ export interface CharacterGame {
 }
 
 export interface CharacterSummary {
+  adult?: boolean;
   id: string;
   name: string;
   avatar: string | null;
@@ -305,6 +308,8 @@ export interface LibrarySettings {
   cardInfo: boolean;
   /** Online sources: show adult content. Off by default. */
   nsfw: boolean;
+  /** One-time owner confirmation shared by sources and the 3D editor. */
+  adultConfirmed?: boolean;
 }
 
 export type WorldProfile = 'cheap' | 'balanced' | 'max' | 'custom';

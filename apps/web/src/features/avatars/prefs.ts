@@ -15,10 +15,11 @@ export interface Prefs3D {
   spritesOnly: boolean;
   /** Characters with no picture (most NPCs) appear as code-made 3D figures. */
   codeNpcs: boolean;
+  experimentalProcedural: boolean;
 }
 const KEY = 'everloom:3d';
 const isPhone = () => typeof window !== 'undefined' && Math.min(window.innerWidth, window.innerHeight) < 600;
-export const DEFAULT_PREFS_3D = (): Prefs3D => ({ quality: 'auto', fpsCap: isPhone() ? 30 : 60, physics: true, outlines: true, spritesOnly: false, codeNpcs: true });
+export const DEFAULT_PREFS_3D = (): Prefs3D => ({ quality: 'auto', fpsCap: isPhone() ? 30 : 60, physics: true, outlines: true, spritesOnly: false, codeNpcs: false, experimentalProcedural: false });
 
 function load(): Prefs3D {
   try {

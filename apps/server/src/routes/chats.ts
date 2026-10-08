@@ -1,5 +1,5 @@
 import { applyRegexScripts, extOpRetired, OpSchemas, RegexPlacement, normalizeAvatarOps, validateOps, type GenerateEvent, type OpType, type ValidatedOps } from '@everloom/engine';
-import { emotesFor } from '../services/avatars/service.js';
+import { emotesFor, pairedFor } from '../services/avatars/service.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
@@ -186,7 +186,7 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
     const b = parse(z.object({ chatId: z.string(), ops: z.array(z.any()).min(1).max(64), messageId: z.string().nullable().optional() }), req.body);
     const v0 = withoutRetired(validateOps(b.ops, USER_OP_TYPES));
     // Emotes by name ("waves" → wave); unknown ones are refused like any invalid op.
-    const n = v0.ok.some((o) => o.type === 'avatar.emote' || o.type === 'avatar.pose') ? normalizeAvatarOps(v0.ok, emotesFor(ctx, owner(req))) : { ok: v0.ok, rejected: [] };
+    const n = v0.ok.some((o) => o.type === 'avatar.emote' || o.type === 'avatar.pose' || o.type === 'avatar.paired') ? normalizeAvatarOps(v0.ok, emotesFor(ctx, owner(req)), pairedFor(ctx, owner(req))) : { ok: v0.ok, rejected: [] };
     const v = { ok: n.ok, rejected: [...v0.rejected, ...n.rejected.map((r) => ({ error: r.reason }))] };
     if (!v.ok.length) throw new HttpError(400, v.rejected.map((r) => r.error).join('; ') || 'No valid ops');
     const chat = chats.getChat(ctx, owner(req), b.chatId);

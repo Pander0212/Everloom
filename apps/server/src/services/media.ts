@@ -115,6 +115,7 @@ export async function saveMedia(ctx: AppContext, owner: string, bytes: Buffer, o
 
 export const MAX_MODEL_BYTES = 200 * 1024 * 1024;
 const MODEL_MIME: Record<string, string> = { glb: 'model/gltf-binary', vrm: 'model/gltf-binary', fbx: 'application/octet-stream', pmx: 'application/octet-stream', pmd: 'application/octet-stream', bvh: 'text/plain', vmd: 'application/octet-stream', vrma: 'model/gltf-binary', obj: 'text/plain', zip: 'application/zip', blend: 'application/x-blender', dae: 'model/vnd.collada+xml' };
+Object.assign(MODEL_MIME, { json: 'application/json', gz: 'application/gzip', target: 'text/plain', mhclo: 'text/plain', mhmat: 'text/plain', mhskel: 'application/json', mhw: 'application/json', png: 'image/png', jpg: 'image/jpeg', jpeg: 'image/jpeg', webp: 'image/webp' });
 
 /**
  * Store a 3D file (model, motion or source file) as a media row so the vault, backups and

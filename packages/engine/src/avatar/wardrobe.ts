@@ -5,6 +5,7 @@
  * each other; the body regions covered by what is on are hidden so skin never pokes through.
  */
 import type { AvatarAccessory, AvatarConfig, AvatarOutfit, Garment } from './config.js';
+import { CLOTHING_LAYER_KINDS, type SkinLayer } from './layers.js';
 import { BODY_REGIONS, type BodyRegion } from './skeleton.js';
 
 export interface WardrobeState {
@@ -14,6 +15,8 @@ export interface WardrobeState {
   accessories: AvatarAccessory[];
   /** Garments worn, with the variant chosen for each. */
   garments: Array<{ garment: Garment; variant: string | null }>;
+  /** Skin layers painted on (tattoos and makeup as set; clothing layers by outfit and items). */
+  layers: SkinLayer[];
   hidden: BodyRegion[];
   /** Why this outfit (for the dressing room and the detail sheet). */
   reason: 'story' | 'items' | 'default' | 'none';
@@ -21,7 +24,7 @@ export interface WardrobeState {
 
 const norm = (s: string) => s.trim().toLowerCase();
 
-export function resolveWardrobe(cfg: Pick<AvatarConfig, 'parts' | 'outfits' | 'outfit' | 'accessories'> & Partial<Pick<AvatarConfig, 'garments'>>, opts: { story?: string | null; equipped?: readonly string[] } = {}): WardrobeState {
+export function resolveWardrobe(cfg: Pick<AvatarConfig, 'parts' | 'outfits' | 'outfit' | 'accessories'> & Partial<Pick<AvatarConfig, 'garments' | 'skinLayers'>>, opts: { story?: string | null; equipped?: readonly string[] } = {}): WardrobeState {
   const equipped = new Set((opts.equipped ?? []).map(norm));
   const byName = (x: string) => cfg.outfits.find((o) => o.id === x || norm(o.name) === norm(x));
   let outfit: AvatarOutfit | null = null;
@@ -70,10 +73,20 @@ export function resolveWardrobe(cfg: Pick<AvatarConfig, 'parts' | 'outfits' | 'o
   const garments = [...worn.values()].filter((w) => !hiddenSlots.has(w.garment.slot)).sort((a, b) => a.garment.layer - b.garment.layer);
 
   const accessories = cfg.accessories.filter((a) => (a.items.length ? a.items.some((i) => equipped.has(norm(i))) : a.on));
+  // Skin layers: decoration (tattoos, makeup, scars) follows its own switch; clothing layers are
+  // wardrobe items: an outfit that lists layers decides them, else their switch; items put theirs on.
+  const allLayers = cfg.skinLayers ?? [];
+  const clothing = (l: SkinLayer) => CLOTHING_LAYER_KINDS.includes(l.kind);
+  const outfitLayers = outfit?.layers?.length ? new Set(outfit.layers) : null;
+  const layers = allLayers.filter((l) => {
+    if (l.items.some((i) => equipped.has(norm(i)))) return true;
+    if (clothing(l) && outfitLayers) return outfitLayers.has(l.id);
+    return l.on && !l.items.length;
+  });
   const hidden = new Set<BodyRegion>();
   for (const p of cfg.parts) if (parts[p.id]) for (const r of p.hides) hidden.add(r as BodyRegion);
   for (const { garment } of garments) for (const r of garment.hides) hidden.add(r as BodyRegion);
-  return { outfit, parts, accessories, garments, hidden: BODY_REGIONS.filter((r) => hidden.has(r)), reason };
+  return { outfit, parts, accessories, garments, layers, hidden: BODY_REGIONS.filter((r) => hidden.has(r)), reason };
 }
 
 /** Hidden regions as a bit mask (bit i = BODY_REGIONS[i]), for the shader. */

@@ -858,6 +858,13 @@ export const HANDLERS3: Handlers = {
   'avatar.outfit': (s, op) => {
     avatarSlot(s, op.who).outfit = op.outfit;
   },
+  'avatar.paired': (s, op) => {
+    const st = (s.stage ??= emptyStage());
+    if (op.clip === null) { st.paired = null; return; }
+    const who = op.who.map((w) => avatarSlot(s, w).name);
+    if (new Set(who.map(normalizeName)).size !== who.length) throw new OpError('A paired animation needs different characters');
+    st.paired = { clip: op.clip, who, cue: `pa_${nextCounter(s.counters, 'cue')}` };
+  },
   // ---------------- transit
   'transit.add': (s, op, kit) => {
     const stops = op.stops.map((n) => kit.ensureLocation(n).id);

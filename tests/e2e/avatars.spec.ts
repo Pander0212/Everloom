@@ -142,13 +142,16 @@ test.describe('3D characters', () => {
     expect(errors).toEqual([]);
   });
 
-  test('code-made: make one, edit it, and pictureless characters appear as code-made figures', async ({ page, errors }) => {
+  test('code-made is opt-in: make one, edit it, and explicitly enable procedural NPCs', async ({ page, errors }) => {
+    await page.goto('/');
+    await page.evaluate(() => localStorage.setItem('everloom:3d', JSON.stringify({ experimentalProcedural: true, codeNpcs: true })));
+    await api(page, 'PATCH', '/api/avatar-packs/basics', { enabled: true });
     await page.goto('/characters/avatars');
     await page.getByTestId('avatar-make').click();
     // Realistic characters are only offered where Blender runs.
     const blender = await api(page, 'GET', '/api/blender');
     await expect(page.getByRole('menuitem', { name: /Realistic/ })).toHaveCount(blender.found ? 1 : 0);
-    await page.getByRole('menuitem', { name: /Code-made/ }).click();
+    await page.getByRole('menuitem', { name: /Experimental code-made/ }).click();
     await expect(page).toHaveURL(/\/characters\/avatars\/av_/);
     await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 45_000 });
     await page.getByRole('tab', { name: 'Face & hair' }).click();
@@ -186,6 +189,8 @@ test.describe('3D characters', () => {
   });
 
   test('parts maker on a phone: build, save, use on the stage, and an equipped item swaps a part', async ({ page, errors }) => {
+    await page.goto('/');
+    await api(page, 'PATCH', '/api/avatar-packs/basics', { enabled: true });
     await page.goto('/characters/avatars');
     await page.getByTestId('avatar-make').click();
     await page.getByRole('menuitem', { name: /From parts/ }).click();

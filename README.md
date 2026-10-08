@@ -284,6 +284,30 @@ name it, pick its kind (and whether it loops), and it becomes an emote the story
    colour and pattern variants; the skin under them hides. Equip a sword or a coat in the
    inventory and the character wears it; swipe the message away and it comes off again.
 
+**Your own base body, with sliders and clothes fitted to it.** Import any rigged body (a GLB you
+made or bought) and it becomes a base that characters and clothes are made from:
+
+- *What a base needs:* a humanoid skeleton and skinned meshes, nothing more. Shape keys (morph
+  targets) give it body sliders: name them plainly (`Breast_Large`/`Breast_Small`, `Hips_Wide`/
+  `Hips_Narrow`…) and Everloom sorts them into Body, Face and Other, makes opposite pairs into one
+  slider and links left with right. Without them, generated adjusters (marked as such) can widen or
+  narrow the hips, chest, waist, butt, thighs and shoulders. Breast bones give chest motion, a clean
+  UV layout gives skin layers. The editor's **Base model check** says what your file has and what
+  that turns off. More in [docs/base-model-guide.md](docs/base-model-guide.md).
+- *How fitting works:* drop a garment that isn't rigged (GLB, OBJ or FBX) onto the body, put it in
+  place (drag the handles, or big buttons on a phone; it guesses a start), and press *Fit*. In the
+  background Everloom copies the skin weights from the body under each part of the garment, copies
+  the body's shape keys so it follows the sliders, pushes out anything inside the skin, hangs skirts
+  and long hair on swinging bone chains, and hides the skin it covers. Check it in poses and with
+  every slider at its ends, then save. Every character on that base can wear it.
+- *What the automatic steps can't do:* there's no cloth simulation (a gown swings on chains but
+  doesn't drape or fold), a garment can still clip at the very ends of a slider's range, and loose
+  or layered clothes rig better by hand in Blender. The check flags the spots worth a look.
+- *Also:* skin tone, eye and hair colours change at once; underwear, stockings, makeup and tattoos
+  are painted onto the skin (tap the body to place a tattoo); hair, skirts and the chest swing and
+  collide with the body; and two to four characters can shake hands, hug or dance together, in
+  step, with their hands meeting whatever their heights.
+
 **What the AI tools can and can't do:** with a Meshy or fal.ai connection, *Make with AI* turns a
 description or picture into a prop (hats, weapons, bags: good) or, experimentally, a garment
 fitted with Blender (close-fitting clothes are fine, loose or layered ones come out rough). Your

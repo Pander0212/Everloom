@@ -1,0 +1,17 @@
+[
+  {
+    "console": "[JavaScript Error: \"The connection to http://127.0.0.1:8801/api/events was interrupted while the page was loading.\" {file: \"http://127.0.0.1:8801/assets/index-CXsuamXt.js\" line: 10}]"
+  },
+  {
+    "state": "ready",
+    "body": "3D avatars\nMake\nImport\n\nDrop a VRM, GLB, glTF, FBX, PMX or OBJ here, or choose files. Select companion textures together with the model. Conversion happens in your browser. Export .blend and .vroid projects as GLB or VRM on your PC first.\n\nDrop the model and any companion files here\nMakeHuman character\n41k tris · 2.4 MB\nMakeHuman character\n41k tris · 2.4 MB\nChats\nCharacters\nPersonas\nLore\nSettings\nMakeHuman character\n\nBuild and fit a character in your browser.\n\nName\n\nMakeHuman CC0 assets. Changes rebuild from the original mesh and refit the selected clothes. Age about 25.\n\nFeminine to masculine\nage\nweight\nmuscle\nheight\nproportions\nafrican ancestry mix\nasian ancestry mix\ncaucasian ancestry mix\nBreast size\nBreast firmness\nButt size\nReset body and face\nSkin\nClothes\nShoes\nHair\nEyes\nBrows\nLashes\nTeeth\nTongue\nRig\nLocal body and face targets\n\nSearch a region such as buttocks, belly, nose or jaw. Each target is a delta; reset returns to the original shape.\n\nYour MakeHuman assets\n\nDrop a ZIP, or select the .mhclo, OBJ, material and textures together. Companion files keep their relative paths. Installed files stay in your Vault and can be reused.\n\nAsset kind\nI have permission to use these assets\nInstall from files\nCreate character"
+  },
+  {
+    "maker": "Name\n\nMakeHuman CC0 assets. Changes rebuild from the original mesh and refit the selected clothes. Age about 25.\n\nFeminine to masculine\nage\nweight\nmuscle\nheight\nproportions\nafrican ancestry mix\nasian ancestry mix\ncaucasian ancestry mix\nBreast size\nBreast firmness\nButt size\nReset body and face\nSkin\nClothes\nShoes\nHair\nEyes\nBrows\nLashes\nTeeth\nTongue\nRig\nLocal body and face targets\n\nSearch a region such as buttocks, belly, nose or jaw. Each target is a delta; reset returns to the original shape.\n\nYour MakeHuman assets\n\nDrop a ZIP, or select the .mhclo, OBJ, material and textures together. Companion files keep their relative paths. Installed files stay in your Vault and can be reused.\n\nAsset kind\nI have permission to use these assets\nInstall from files\nCreate character"
+  },
+  {
+    "creation": "ready",
+    "id": "av_18RCWe-SsI0K",
+    "recipePersisted": true
+  }
+]

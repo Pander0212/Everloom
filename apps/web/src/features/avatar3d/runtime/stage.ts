@@ -1,4 +1,4 @@
-/**
+﻿/**
  * The 3D stage: one WebGL canvas for every 3D character in a scene, so they share lights, shadows
  * and a camera that moves between speakers. Sprites and Live2D stay in the page around it.
  *
@@ -8,6 +8,9 @@
  */
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js';
+import { HDRLoader } from 'three/examples/jsm/loaders/HDRLoader.js';
+import { PHYSICS_BUDGET } from '@everloom/engine';
 import { Avatar, type AvatarOptions } from './avatar';
 import { applyLighting, makeLights, PRESETS, type LightingPreset, type StageLights } from './lighting';
 import type { LoadedModel } from './loader';
@@ -55,6 +58,8 @@ interface Entry {
   x: number;
   /** Walk in from / out to the side. */
   enter: number;
+  /** Held in place by a paired animation (position on the floor and facing). */
+  pin: { x: number; z: number; yaw: number; face?: string } | null;
 }
 
 let blobTexture: THREE.Texture | null = null;
@@ -102,18 +107,35 @@ export class Stage3D {
   private drift = Math.random() * 10;
   /** Fraction of the canvas at the bottom that other UI covers (the dialogue box). */
   private safeBottom = 0;
+  private environment: THREE.WebGLRenderTarget;
+  private disposed = false;
+  private frustum = new THREE.Frustum();
+  private projScreen = new THREE.Matrix4();
+  private sphere = new THREE.Sphere();
+  /** Paired animations: positions and the shared clock, run before avatars update (see paired.ts). */
+  pairs: ((dt: number) => void) | null = null;
+  /** Run after the avatars each frame (editor overlays). */
+  readonly tickers = new Set<(dt: number) => void>();
   /** Called after every rendered frame (tests read stats here). */
   onFrame: ((s: StageStats) => void) | null = null;
+  onError: ((reason: string) => void) | null = null;
   stats: StageStats = { fps: 0, frameMs: 0, level: 0, avatars: 0, drawCalls: 0, triangles: 0, paused: false };
 
   constructor(readonly canvas: HTMLCanvasElement, opts: StageOptions) {
     this.opts = opts;
     this.renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: opts.transparent ?? true, powerPreference: 'high-performance', preserveDrawingBuffer: false });
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.renderer.toneMapping = THREE.NeutralToneMapping;
+    this.renderer.debug.onShaderError = (gl, _program, _vertex, fragment) => { throw new Error(`The model shader could not compile on this device. ${(gl.getShaderInfoLog(fragment) ?? '').slice(0, 240)}`); };
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
     this.renderer.toneMappingExposure = 1;
     this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     this.renderer.setClearColor(0x000000, 0);
+    const room = new RoomEnvironment(), pmrem = new THREE.PMREMGenerator(this.renderer);
+    this.environment = pmrem.fromScene(room, 0.04);
+    this.scene.environment = this.environment.texture;
+    this.scene.environmentIntensity = 0.35;
+    room.dispose(); pmrem.dispose();
+    if (opts.quality !== 'low') void this.loadEnvironment();
     this.level = opts.quality === 'auto' ? (window.innerWidth < 700 ? 1 : 2) : LEVEL_FOR[opts.quality];
     this.lights = makeLights(this.scene);
     // A floor that only shows shadows.
@@ -135,6 +157,26 @@ export class Stage3D {
       this.ro.observe(canvas);
     }
     this.resize();
+  }
+
+  private async loadEnvironment() {
+    let texture: THREE.DataTexture | undefined;
+    try {
+      const response = await fetch('/avatar/env/studio_small_09_1k.hdr', { signal: AbortSignal.timeout(15000) });
+      if (!response.ok) return;
+      const data = new HDRLoader().parse(await response.arrayBuffer());
+      if (this.disposed || !data.data) return;
+      texture = new THREE.DataTexture(data.data, data.width, data.height, data.format ?? THREE.RGBAFormat, data.type);
+      texture.colorSpace = THREE.LinearSRGBColorSpace; texture.mapping = THREE.EquirectangularReflectionMapping; texture.flipY = true;
+      texture.minFilter = THREE.LinearFilter; texture.magFilter = THREE.LinearFilter; texture.needsUpdate = true;
+      const generator = new THREE.PMREMGenerator(this.renderer);
+      try {
+        const next = generator.fromEquirectangular(texture);
+        this.environment.dispose(); this.environment = next; this.scene.environment = next.texture; this.scene.environmentIntensity = 0.25;
+      } finally { generator.dispose(); }
+      this.kick();
+    } catch { /* Optional lighting never blocks the model; the room probe remains. */ }
+    finally { texture?.dispose(); }
   }
 
   private onVisibility = () => {
@@ -159,7 +201,8 @@ export class Stage3D {
     this.lights.key.castShadow = L.shadows;
     this.ground.visible = L.shadows;
     for (const e of this.entries.values()) {
-      e.avatar.options.physics = L.physics && this.opts.physics;
+      e.avatar.options.physics = L.physics && this.opts.physics && e.avatar.wantsPhysics;
+      this.physicsBudget(e.avatar);
       e.avatar.setLook(e.avatar.options.look, { outlines: L.outlines && this.opts.outlines });
       e.avatar.model.scene.traverse((o) => {
         if ((o as THREE.Mesh).isMesh) o.castShadow = L.shadows;
@@ -195,7 +238,10 @@ export class Stage3D {
   add(id: string, model: LoadedModel, opts: Partial<AvatarOptions> = {}): Avatar {
     this.remove(id);
     const L = LEVELS[this.level]!;
-    const avatar = new Avatar(model, { look: opts.look ?? 'toon', outlines: (opts.outlines ?? true) && L.outlines && this.opts.outlines, physics: (opts.physics ?? true) && L.physics && this.opts.physics });
+    const budget = PHYSICS_BUDGET[this.level] ?? PHYSICS_BUDGET[PHYSICS_BUDGET.length - 1]!;
+    const avatar = new Avatar(model, { look: opts.look ?? 'toon', outlines: (opts.outlines ?? true) && L.outlines && this.opts.outlines, physics: (opts.physics ?? true) && L.physics && this.opts.physics, stiffness: opts.stiffness, gravity: opts.gravity, settings: opts.settings, budget: { points: Math.max(PHYSICS_BUDGET[1].points, budget.points), hz: budget.hz } });
+    avatar.wantsPhysics = opts.physics ?? true;
+    avatar.kick = () => this.kick();
     const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: blob(), transparent: true, depthWrite: false }));
     shadow.rotation.x = -Math.PI / 2;
     shadow.position.y = 0.002;
@@ -205,10 +251,17 @@ export class Stage3D {
       if ((o as THREE.Mesh).isMesh) o.castShadow = L.shadows;
     });
     this.scene.add(avatar.group);
-    this.entries.set(id, { avatar, slot: 'center', shadow, x: 0, enter: 0 });
+    this.entries.set(id, { avatar, slot: 'center', shadow, x: 0, enter: 0, pin: null });
     this.layout(true);
     this.kick();
     return avatar;
+  }
+
+  /** Cheaper springs on lower quality levels: fewer simulated points and a slower step. */
+  private physicsBudget(avatar: Avatar) {
+    const budget = PHYSICS_BUDGET[this.level] ?? PHYSICS_BUDGET[PHYSICS_BUDGET.length - 1]!;
+    // Points already simulated stay (removing chains mid-scene would pop); the rate drops at once.
+    avatar.physics.hz = budget.hz || PHYSICS_BUDGET[1].hz;
   }
 
   get(id: string): Avatar | undefined {
@@ -234,14 +287,33 @@ export class Stage3D {
     this.layout(false);
   }
 
+  /** Holds a character at a spot and facing (paired animations); null hands it back to its slot. */
+  pin(id: string, at: { x: number; z: number; yaw: number; face?: string } | null) {
+    const e = this.entries.get(id);
+    if (!e) return;
+    e.pin = at;
+    this.kick();
+  }
+
+  /** Where a character's slot puts it across the stage. */
+  slotX(id: string): number | null {
+    return this.entries.get(id)?.x ?? null;
+  }
+
   setFraming(f: Framing) {
     this.framing = f;
+    this.snapCamera();
     this.kick();
   }
 
   setLighting(p: LightingPreset) {
     this.preset = p;
     this.kick();
+  }
+
+  /** Pauses look-around while something else uses the pointer (the fitting gizmo). */
+  setOrbitEnabled(on: boolean) {
+    if (this.controls) this.controls.enabled = on;
   }
 
   /** Inspect mode: drag and pinch to orbit (true), back to the directed camera (false). */
@@ -315,10 +387,12 @@ export class Stage3D {
     this.last = now;
     this.lastRender = now;
     const t0 = performance.now();
-    this.step(dt);
-    this.renderer.render(this.scene, this.camera);
-    this.measure(performance.now() - t0, dt);
-    this.onFrame?.(this.stats);
+    try {
+      this.step(dt);
+      this.renderer.render(this.scene, this.camera);
+      this.measure(performance.now() - t0, dt);
+      this.onFrame?.(this.stats);
+    } catch (error) { this.stop(); this.onError?.((error as Error).message); return; }
     this.raf = requestAnimationFrame(this.frame);
   };
 
@@ -326,16 +400,30 @@ export class Stage3D {
   step(dt: number) {
     const list = [...this.entries.entries()];
     const speakerEntry = this.speaker ? this.entries.get(this.speaker) : undefined;
+    // Characters out of the shot don't need their springs solved.
+    this.camera.updateMatrixWorld();
+    this.frustum.setFromProjectionMatrix(this.projScreen.multiplyMatrices(this.camera.projectionMatrix, this.camera.matrixWorldInverse));
+    for (const [, e] of list) {
+      const h = e.avatar.height;
+      this.sphere.center.copy(e.avatar.group.position).setY(e.avatar.group.position.y + h * 0.5);
+      this.sphere.radius = h * 0.75;
+      e.avatar.physicsPaused = e.slot === 'off' || !this.frustum.intersectsSphere(this.sphere);
+    }
+    this.pairs?.(dt);
     for (const [id, e] of list) {
       const g = e.avatar.group;
-      g.position.x += (e.x - g.position.x) * (1 - Math.exp(-4 * dt));
-      // Turn a little toward whoever speaks (or toward the camera).
-      const towards = speakerEntry && speakerEntry !== e ? Math.atan2(speakerEntry.avatar.group.position.x - g.position.x, 3) * 0.6 : 0;
-      g.rotation.y += (towards - g.rotation.y) * (1 - Math.exp(-3 * dt));
-      e.avatar.lookAt = speakerEntry && this.speaker !== id ? speakerEntry.avatar.rig.bones.head?.getWorldPosition(new THREE.Vector3()) ?? null : null;
+      const k = 1 - Math.exp(-4 * dt);
+      g.position.x += ((e.pin?.x ?? e.x) - g.position.x) * k;
+      g.position.z += ((e.pin?.z ?? 0) - g.position.z) * k;
+      // Turn a little toward whoever speaks (or toward the camera); a paired clip sets the facing.
+      const towards = e.pin ? e.pin.yaw : speakerEntry && speakerEntry !== e ? Math.atan2(speakerEntry.avatar.group.position.x - g.position.x, 3) * 0.6 : 0;
+      g.rotation.y += (towards - g.rotation.y) * (1 - Math.exp(-(e.pin ? 5 : 3) * dt));
+      const partner = e.pin?.face ? this.entries.get(e.pin.face) : undefined;
+      e.avatar.lookAt = partner ? partner.avatar.rig.bones.head?.getWorldPosition(new THREE.Vector3()) ?? null : !e.pin && speakerEntry && this.speaker !== id ? speakerEntry.avatar.rig.bones.head?.getWorldPosition(new THREE.Vector3()) ?? null : null;
       e.avatar.update(dt, this.camera);
     }
     this.syncDances();
+    for (const t of this.tickers) t(dt);
     this.updateCamera(dt);
     const size = Math.max(1, ...list.map(([, e]) => e.avatar.height));
     applyLighting(this.lights, this.preset, this.camTarget.clone().setY(0), size, 1 - Math.exp(-2 * dt));
@@ -359,7 +447,7 @@ export class Stage3D {
     if (!list.length) return;
     // Frame what is standing there now: a seated or lying character brings the camera down.
     const h = list.every((e) => e.avatar.lying) ? Math.max(...list.map((e) => e.avatar.height)) : Math.max(...list.map((e) => e.avatar.poseHeight || e.avatar.height));
-    const xs = list.map((e) => e.x);
+    const xs = list.map((e) => e.pin?.x ?? e.x);
     const minX = Math.min(...xs);
     const maxX = Math.max(...xs);
     const speaker = this.speaker ? this.entries.get(this.speaker) : undefined;
@@ -367,9 +455,9 @@ export class Stage3D {
     const cx = (minX + maxX) / 2 * 0.7 + (speaker ? speaker.x * 0.3 : (minX + maxX) / 2 * 0.3);
     // Everyone lying down: the whole body, from a little above.
     const allLying = list.every((e) => e.avatar.lying);
-    const frame = allLying ? { y: 0.12, span: 0.7 } : { portrait: { y: 0.88, span: 0.36 }, half: { y: 0.7, span: 0.62 }, full: { y: 0.5, span: 1.15 } }[this.framing];
+    const frame = allLying ? { y: 0.12, span: 0.7 } : { portrait: { y: 0.9, span: 0.28 }, half: { y: 0.7, span: 0.62 }, full: { y: 0.5, span: 1.15 } }[this.framing];
     const spanY = h * frame.span;
-    const spanX = (maxX - minX) + h * (allLying ? 1.3 : 0.62);
+    const spanX = (maxX - minX) + Math.max(h * (allLying ? 1.3 : this.framing === 'portrait' ? 0.24 : 0.62), ...list.map(entry => entry.avatar.framingWidth));
     const fovY = (this.camera.fov * Math.PI) / 180;
     const distY = spanY / 2 / Math.tan(fovY / 2);
     const distX = spanX / 2 / (Math.tan(fovY / 2) * this.camera.aspect);
@@ -430,12 +518,14 @@ export class Stage3D {
   }
 
   dispose() {
+    this.disposed = true;
     this.stop();
     document.removeEventListener('visibilitychange', this.onVisibility);
     this.io?.disconnect();
     this.ro?.disconnect();
     this.controls?.dispose();
     for (const id of [...this.entries.keys()]) this.remove(id);
+    this.environment.dispose();
     this.renderer.dispose();
   }
 }

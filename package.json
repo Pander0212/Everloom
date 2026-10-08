@@ -19,6 +19,7 @@
     "typecheck": "tsc -p packages/engine && tsc -p apps/server && tsc -p apps/web",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:3d": "playwright test --config playwright.3d.config.ts",
     "migrate": "node apps/server/dist/index.js --migrate-only",
     "mock-llm": "tsx tests/mock-llm/server.ts",
     "bench:memory": "tsx tests/memory-bench/cli.ts",

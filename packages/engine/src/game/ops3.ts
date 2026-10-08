@@ -282,6 +282,8 @@ export const OpSchemas3 = {
   'avatar.emote': z.object({ type: z.literal('avatar.emote'), who: name, emote: z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_]{0,39}$/) }),
   'avatar.pose': z.object({ type: z.literal('avatar.pose'), who: name, pose: z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_]{0,39}$/).nullable() }),
   'avatar.outfit': z.object({ type: z.literal('avatar.outfit'), who: name, outfit: z.string().trim().max(60).nullable() }),
+  /** Two or more 3D characters play a paired clip together (a handshake); `clip: null` stops a looping one. */
+  'avatar.paired': z.object({ type: z.literal('avatar.paired'), clip: z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_]{0,39}$/).nullable(), who: z.array(name).min(2).max(4) }),
   // ---- transit
   'transit.add': z.object({
     type: z.literal('transit.add'),
@@ -304,4 +306,4 @@ export const OpSchemas3 = {
 } as const;
 
 /** Phase 3 ops the model may emit: things the story establishes, never the player's own money moves. */
-export const AI_OPS3 = ['currency.define', 'shop.upsert', 'bill.add', 'asset.add', 'home.add', 'room.add', 'household.add', 'household.update', 'transit.add', 'route.require', 'mail.receive', 'feed.post', 'fx.play', 'stage.layer', 'cutscene.play', 'music.set', 'ambient.set', 'avatar.emote', 'avatar.pose', 'avatar.outfit'] as const;
+export const AI_OPS3 = ['currency.define', 'shop.upsert', 'bill.add', 'asset.add', 'home.add', 'room.add', 'household.add', 'household.update', 'transit.add', 'route.require', 'mail.receive', 'feed.post', 'fx.play', 'stage.layer', 'cutscene.play', 'music.set', 'ambient.set', 'avatar.emote', 'avatar.pose', 'avatar.outfit', 'avatar.paired'] as const;

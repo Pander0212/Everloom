@@ -8,6 +8,7 @@ import { Check } from 'lucide-react';
 import { cx } from '@/lib/format';
 import { confirm, Segmented, Switch } from '@/ui';
 import { Section, useSettingsPatch } from '../common';
+import AdultToggle from '../AdultToggle';
 
 const GROUPS: Array<{ id: FeatureGroup; title: string; description: string }> = [
   { id: 'game', title: 'Game layer', description: 'The world state the story keeps track of. Off, Everloom is a plain roleplay chat.' },
@@ -48,6 +49,7 @@ export default function FeaturesSection() {
 
   return (
     <>
+      <Section title="Content"><AdultToggle /></Section>
       <Section title="Mode" description="Pick a starting point; every switch below can still be changed. A chat can also have its own mode (in the chat's menu).">
         <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Mode">
           {FEATURE_PRESETS.map((p) => (

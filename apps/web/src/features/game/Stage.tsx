@@ -2,10 +2,10 @@ import type { CampaignDTO, CharacterDTO, ChatDTO, MessageDTO, Op, StageAnim, Sta
 import { useFeatureOn } from '@/lib/features';
 import { stripInlineTags } from '@everloom/engine';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, History, RefreshCw, Rotate3d, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, EyeOff, History, RefreshCw, Rotate3d, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { get } from '@/lib/api';
+import { get, patch } from '@/lib/api';
 import { cx } from '@/lib/format';
 import { renderStory } from '@/lib/render';
 import { t } from '@/lib/motion';
@@ -98,10 +98,11 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const qc = useQueryClient();
   const group = chat.groupId ? groups.data?.find((g) => g.id === chat.groupId) : null;
   const memberIds = group ? group.members.map((m) => m.characterId) : chat.characterId ? [chat.characterId] : [];
-  const chars = useQueries({ queries: memberIds.map((id) => ({ queryKey: qk.character(id), queryFn: () => get<CharacterDTO>(`/api/characters/${id}`) })) }).map((q) => q.data).filter(Boolean) as CharacterDTO[];
+  const allChars = useQueries({ queries: memberIds.map((id) => ({ queryKey: qk.character(id), queryFn: () => get<CharacterDTO>(`/api/characters/${id}`) })) }).map((q) => q.data).filter(Boolean) as CharacterDTO[];
   const persona = personas.data?.find((p) => p.id === chat.personaId) ?? personas.data?.find((p) => p.isDefault);
   const { apply } = useGame();
   const settings = useSettings();
+  const chars = allChars.filter(c => !c.adult || settings.data?.library.nsfw === true);
   const weatherOn = useFeatureOn('weather');
   const live2dFeature = useFeatureOn('live2d');
   const live2dOn = settings.data?.stage?.live2d === true && live2dFeature;
@@ -144,6 +145,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const spritesOnly = usePrefs3D((p) => p.spritesOnly);
   const [failed3d, setFailed3d] = useState<Record<string, string>>({});
   const codeNpcs = usePrefs3D((p) => p.codeNpcs);
+  const experimentalProcedural = usePrefs3D((p) => p.experimentalProcedural);
   /**
    * 3D when the character has an avatar or is set to 3D; characters with no picture at all (most
    * NPCs) get a code-made figure from their description.
@@ -151,7 +153,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const uses3d = (c: CharacterDTO) => {
     const display = c.game?.display ?? 'auto';
     if (!avatarsOn || spritesOnly || failed3d[c.id] || display === 'sprite' || display === 'live2d' || !hasWebGL2()) return false;
-    return !!c.game?.avatar3d || display === '3d' || (codeNpcs && !spriteFor(c, 'neutral') && !(live2dOn && live2d.data?.models[c.id]));
+    return !!c.game?.avatar3d || (experimentalProcedural && (display === '3d' || (codeNpcs && !spriteFor(c, 'neutral') && !(live2dOn && live2d.data?.models[c.id]))));
   };
   const recipes = useRef(new Map<string, AvatarRecipe>());
   const recipeFor = (c: CharacterDTO) => {
@@ -215,6 +217,12 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
               speakerId={speakingId ?? speaker?.id ?? null}
               scene={campaign?.state ? { hour: ((campaign.state.time?.minutes ?? 720) / 60) % 24, weather: campaign.state.weather?.kind ?? null, locationKind: campaign.state.currentLocationId ? (campaign.state.locations[campaign.state.currentLocationId]?.kind ?? null) : null } : null}
               onFail={(id, reason) => setFailed3d((f) => (f[id] ? f : { ...f, [id]: reason }))}
+              paired={(() => {
+                const p = campaign?.state?.stage?.paired;
+                if (!p) return null;
+                const who = p.who.map((n) => chars.find((c) => normalizeName(c.name) === normalizeName(n) && uses3d(c))?.id);
+                return who.every(Boolean) ? { clip: p.clip, cue: p.cue, who: who as string[] } : null;
+              })()}
               cast={chars.filter(uses3d).flatMap((c) => {
                 const layer = layerFor(c);
                 if (directed && (!layer || layer.position === 'off')) return [];
@@ -272,6 +280,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
       </motion.div>
       {/* Quick effects */}
       <div className="absolute right-3 top-3 z-20 flex flex-col gap-2">
+          {allChars.some(c => c.adult) && settings.data?.library.nsfw ? <IconButton icon={EyeOff} label="Hide adult content" className="!bg-surface/90 shadow-1" onClick={() => void patch('/api/settings', { library: { nsfw: false } }).then(s => qc.setQueryData(qk.settings, s))} /> : null}
         <Popover trigger={<IconButton icon={Sparkles} label="Scene effects" className="!bg-surface/90 shadow-1" />} side="bottom" align="end">
           <div className="grid w-56 grid-cols-2 gap-1 p-1" role="group" aria-label="Scene effects">
             {FX_LIST.filter((f) => !fxOff.includes(f.id)).map((f) => (

@@ -1,15 +1,17 @@
 /** 3D avatars API (no three.js here: this module is safe to load with 3D characters off). */
-import type { AvatarConfig, AvatarKind, AvatarRecipe, ExpressionMap, HumanBone, RealisticSpec, RigBone } from '@everloom/engine';
+import type { AvatarConfig, AvatarKind, AvatarRecipe, ExpressionMap, HumanBone, PairedInfo, RealisticSpec, RigBone } from '@everloom/engine';
 import { useQuery } from '@tanstack/react-query';
-import { api, del, get, patch, post, put } from '@/lib/api';
+import { api, del, get, patch, post, put, upload } from '@/lib/api';
 import { queryClient } from '@/lib/queries';
 
 export interface AvatarSummary {
   id: string;
   name: string;
+  adult?: boolean;
   kind: AvatarKind;
   status: 'processing' | 'ready' | 'failed';
   error: string | null;
+  processingStage?: string | null;
   format: 'glb' | 'vrm0' | 'vrm1' | string;
   model: string | null;
   low: string | null;
@@ -90,7 +92,7 @@ export const useAvatars = (enabled = true) =>
     queryFn: () => get<AvatarSummary[]>('/api/avatars'),
     enabled,
     // Keep checking while something is being processed.
-    refetchInterval: (q) => ((q.state.data as AvatarSummary[] | undefined)?.some((a) => a.status === 'processing') ? 1500 : false),
+    refetchInterval: (q) => ((q.state.data as AvatarSummary[] | undefined)?.some((a) => a.status === 'processing' || a.processingStage) ? 1500 : false),
   });
 
 export const useAvatar = (id?: string | null) =>
@@ -98,19 +100,28 @@ export const useAvatar = (id?: string | null) =>
     queryKey: avatarKeys.one(id ?? ''),
     queryFn: () => get<AvatarDetail>(`/api/avatars/${id}`),
     enabled: !!id,
-    refetchInterval: (q) => ((q.state.data as AvatarDetail | undefined)?.status === 'processing' ? 1200 : false),
+    refetchInterval: (q) => { const avatar = q.state.data as AvatarDetail | undefined; return avatar?.status === 'processing' || avatar?.processingStage ? 1200 : false; },
   });
 
 export const useAvatarClips = (enabled = true) => useQuery({ queryKey: avatarKeys.clips, queryFn: () => get<ClipSummary[]>('/api/avatar-clips'), enabled });
-export const useBlender = (enabled = true) => useQuery({ queryKey: avatarKeys.blender, queryFn: () => get<BlenderInfo>('/api/blender'), enabled, staleTime: 5 * 60_000 });
+/** Paired animations this owner may play (built in and imported; adult ones only in adult mode). */
+export const useAvatarPaired = (enabled = true) => useQuery({ queryKey: ['avatar-paired'], queryFn: () => get<PairedInfo[]>('/api/avatar-paired'), enabled, staleTime: 60_000 });
+export const useBlender =(enabled = true) => useQuery({ queryKey: avatarKeys.blender, queryFn: () => get<BlenderInfo>('/api/blender'), enabled, staleTime: 5 * 60_000 });
 
 function refresh(id?: string) {
   void queryClient.invalidateQueries({ queryKey: avatarKeys.list });
   if (id) void queryClient.invalidateQueries({ queryKey: avatarKeys.one(id) });
 }
 
-export async function uploadAvatar(file: File, name?: string): Promise<AvatarSummary> {
-  const r = await api<AvatarSummary>('/api/avatars', { method: 'POST', raw: file, contentType: 'application/octet-stream', query: { filename: file.name, name } });
+export async function uploadAvatar(input: File | File[], name?: string, progress: (step: string) => void = () => {}): Promise<AvatarSummary> {
+  const { browserModel } = await import('@/features/avatar3d/runtime/import');
+  const file = await browserModel(Array.isArray(input) ? input : [input], progress) as File & { missingTextures?: string[] };
+  if (file.missingTextures?.length) {
+    const { toast } = await import('@/lib/store');
+    toast({ title: `Imported without ${file.missingTextures.length} texture${file.missingTextures.length === 1 ? '' : 's'}`, lines: [file.missingTextures.slice(0, 4).join(', '), "Select them together with the model, or set them in the avatar's Materials step."], duration: 9000 });
+  }
+  progress('Uploading to your server…');
+  const r = await upload<AvatarSummary>('/api/avatars', new Blob([file], { type: 'application/octet-stream' }), { filename: file.name.replace(/\.evlt$/i, ''), name });
   refresh();
   return r;
 }

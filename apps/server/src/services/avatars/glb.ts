@@ -42,6 +42,7 @@ export function parseGlb(bytes: Buffer): Glb {
   if (bytes.readUInt32LE(4) !== 2) throw new Error('Only glTF 2.0 files are supported');
   const total = bytes.readUInt32LE(8);
   if (total > bytes.length) throw new Error('The file is cut short');
+  if (total !== bytes.length || total < 20) throw new Error('The GLB file length does not match its header');
   let off = 12;
   let json: GltfJson | null = null;
   let bin: Buffer = Buffer.alloc(0);
@@ -49,6 +50,7 @@ export function parseGlb(bytes: Buffer): Glb {
     const len = bytes.readUInt32LE(off);
     const type = bytes.readUInt32LE(off + 4);
     const start = off + 8;
+    if (len % 4 !== 0) throw new Error('A GLB chunk is not aligned to four bytes');
     if (start + len > total) throw new Error('A chunk runs past the end of the file');
     if (type === JSON_CHUNK && !json) {
       try {
@@ -60,6 +62,7 @@ export function parseGlb(bytes: Buffer): Glb {
     off = start + len;
   }
   if (!json || typeof json !== 'object') throw new Error('The model has no description chunk');
+  if (off !== total) throw new Error('The last GLB chunk is incomplete');
   return { json, bin };
 }
 

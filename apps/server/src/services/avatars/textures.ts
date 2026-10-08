@@ -8,6 +8,8 @@ import { HttpError, type AppContext } from '../../context.js';
 import { generateImage } from '../../media/imagegen.js';
 import { connectionForRole } from '../connections.js';
 import { mediaUrl, readMedia, saveImage } from '../media.js';
+import { getAvatarRow, parseConfig } from './service.js';
+import { assertAdultAvatar } from './adult.js';
 
 /**
  * Makes a tile repeat cleanly: a copy shifted by half (whose edges are the original's middle, so
@@ -49,14 +51,23 @@ export async function seamScore(png: Buffer): Promise<number> {
 
 const TILE = 'Seamless tileable texture filling the whole frame edge to edge, seen straight from above, flat even lighting, no shadows, no perspective, no objects, no folds, no text.';
 
-export async function generateTexture(ctx: AppContext, owner: string, input: { prompt: string; base?: string | null }) {
+export async function generateTexture(ctx: AppContext, owner: string, input: { prompt: string; base?: string | null; adult?: boolean; avatarId?: string }) {
+  const reference = input.base ? readMedia(ctx, owner, input.base) : undefined;
+  const adult = input.adult === true || (reference && JSON.parse(reference.row.meta).adult === true);
+  if (adult) {
+    if (!input.avatarId) throw new HttpError(400, 'Choose a saved adult character for adult texture generation.');
+    const config = parseConfig(getAvatarRow(ctx, owner, input.avatarId).config);
+    if (!config.content.adult) throw new HttpError(403, 'Save this character with adult mode enabled before generating an adult texture.');
+    assertAdultAvatar(ctx, owner, config, input.avatarId);
+  }
   const conn = connectionForRole(ctx, owner, 'image');
   if (!conn) throw new HttpError(400, 'Add an image connection first (Settings › Connections › Images)', 'no_connection');
-  const base = input.base ? readMedia(ctx, owner, input.base).bytes : undefined;
+  if (adult && conn.params.allowAdult !== true) throw new HttpError(403, 'This image connection is not marked as allowing adult content. Check its provider terms and connection settings.');
+  const base = reference?.bytes;
   if (conn.params.edit && !base) throw new HttpError(400, 'This image model edits pictures: choose a texture to change', 'needs_image');
   const prompt = base && conn.params.edit ? `Change this texture: ${input.prompt}. Keep it a flat seamless tile, same scale and lighting.` : `${input.prompt}. ${TILE}`;
   const raw = await generateImage(conn, { prompt, width: 1024, height: 1024, image: base });
   const tile = await makeSeamless(raw);
-  const saved = await saveImage(ctx, owner, tile, { kind: 'model-texture', maxDim: 1024, meta: { prompt: input.prompt.slice(0, 300) } });
+  const saved = await saveImage(ctx, owner, tile, { kind: 'model-texture', maxDim: 1024, meta: { prompt: input.prompt.slice(0, 300), adult: adult === true } });
   return { id: saved.id, url: mediaUrl(saved.id), seam: Math.round(await seamScore(tile)) };
 }

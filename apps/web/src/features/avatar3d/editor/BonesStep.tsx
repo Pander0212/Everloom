@@ -1,11 +1,13 @@
 /** Step 2: which of the model's bones is which. Required bones first; fingers folded away. */
-import { HUMANOID_BONES, REQUIRED_BONES, type AvatarConfig, type HumanBone } from '@everloom/engine';
+import { AvatarConfigSchema, BoneMapSchema, HUMANOID_BONES, REQUIRED_BONES, type AvatarConfig, type HumanBone } from '@everloom/engine';
 import { RotateCcw } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import type { AvatarDetail } from '@/features/avatars/api';
 import { cx } from '@/lib/format';
-import { Badge, Button, SectionTitle, Select } from '@/ui';
+import { Badge, Button, FileButton, SectionTitle, Select } from '@/ui';
+import { toastError } from '@/lib/store';
 import type { PreviewHandle } from '../Preview3D';
+import { downloadPreset, readPreset } from './presets';
 
 const GROUPS: Array<{ label: string; bones: HumanBone[]; folded?: boolean }> = [
   { label: 'Body', bones: ['hips', 'spine', 'chest', 'upperChest', 'neck', 'head', 'jaw', 'leftEye', 'rightEye'] },
@@ -26,8 +28,8 @@ function label(b: HumanBone): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-export function BonesStep({ avatar, config, set }: { avatar: AvatarDetail; config: AvatarConfig; set: (p: Partial<AvatarConfig>) => void; handle: PreviewHandle | null }) {
-  const bones = avatar.info.bones ?? [];
+export function BonesStep({ avatar, config, set, handle }: { avatar: AvatarDetail; config: AvatarConfig; set: (p: Partial<AvatarConfig>) => void; handle: PreviewHandle | null }) {
+  const bones = handle?.model.rigBones ?? avatar.info.bones ?? [];
   const names = useMemo(() => bones.map((b) => b.name), [bones]);
   const [open, setOpen] = useState<Record<string, boolean>>({});
   const used = new Map<string, HumanBone>();
@@ -61,6 +63,17 @@ export function BonesStep({ avatar, config, set }: { avatar: AvatarDetail; confi
 
   return (
     <div className="flex flex-col gap-4">
+      <p className="text-sm text-fg-2">Automatic naming supports VRM/VRoid, Mixamo, MakeHuman, Rigify, Unreal and MMD. Save a mapping and physics preset to reuse your corrections on the same rig.</p>
+      <div className="flex flex-wrap gap-2"><FileButton variant="secondary" onFiles={async ([file]) => {
+        if (!file) return;
+        try {
+          const json = await readPreset(avatar.id, file);
+          if (json.format !== 'everloom-rig-map' || json.version !== 1) throw new Error('Choose an Everloom rig mapping preset, version 1.');
+          const boneMap = BoneMapSchema.parse(json.boneMap);
+          if (Object.values(boneMap).some(name => name && !names.includes(name))) throw new Error('This preset refers to bones missing from this model. Choose a preset for the same rig.');
+          set({ boneMap, physics: AvatarConfigSchema.shape.physics.parse(json.physics ?? config.physics) });
+        } catch (e) { toastError(e); }
+      }}>Import mapping preset</FileButton><Button variant="secondary" onClick={() => void downloadPreset(avatar.id, config, 'rig').catch(toastError)}>Save mapping preset</Button></div>
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p className="text-sm text-fg-2">
           {missing.length ? (
@@ -69,7 +82,7 @@ export function BonesStep({ avatar, config, set }: { avatar: AvatarDetail; confi
             'All main bones are mapped. Use the Check step to see that they move the right way.'
           )}
         </p>
-        <Button size="sm" variant="ghost" icon={RotateCcw} onClick={() => set({ boneMap: avatar.info.boneMap ?? {} })}>
+        <Button size="sm" variant="ghost" icon={RotateCcw} disabled={!handle} onClick={() => set({ boneMap: handle?.model.automaticBoneMap ?? avatar.info.boneMap ?? {} })}>
           Automatic
         </Button>
       </div>

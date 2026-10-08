@@ -7,10 +7,12 @@
  * ranges other code relies on (material groups, outlines) never change.
  */
 import * as THREE from 'three';
-import { BODY_REGIONS, HUMAN_PARENT, regionMask, regionOfBone, type AvatarAccessory, type AvatarConfig, type HumanBone, type WardrobeState } from '@everloom/engine';
+import { BODY_REGIONS, HUMAN_PARENT, morphWeights, regionMask, regionOfBone, type AvatarAccessory, type AvatarConfig, type HumanBone, type WardrobeState } from '@everloom/engine';
 import type { Avatar } from './avatar';
-import { Garments } from './garments';
-import { loaderFor, nodeIndex, type LoadedModel } from './loader';
+import { SHAPE_KEYS } from './body-shape';
+import { applyEyeColour, applyHairColour, SkinPainter } from './skin';
+import { Garments, restPositions } from './garments';
+import { loaderFor, nodeIndex, withRestPose, type LoadedModel } from './loader';
 
 interface BodyMesh {
   mesh: THREE.Mesh;
@@ -81,6 +83,37 @@ export class Wardrobe {
     return this.body.length > 0;
   }
 
+  /** Per worn garment: which triangles of each body mesh it covers. */
+  private coverage = new Map<string, Map<THREE.Mesh, Uint8Array>>();
+  private rest: Array<{ mesh: THREE.Mesh; positions: Float32Array; indices: Uint32Array }> | null = null;
+
+  /** The body meshes' rest shapes (model space) and triangles, for covered-skin tests. */
+  bodyRest() {
+    this.rest ??= withRestPose(this.model, () => this.body.map((b) => ({ mesh: b.mesh, positions: restPositions(b.mesh as THREE.SkinnedMesh, this.model.scene), indices: Uint32Array.from(b.original) })));
+    return this.rest;
+  }
+
+  setCoverage(garment: string, mesh: THREE.Mesh, covered: Uint8Array) {
+    let m = this.coverage.get(garment);
+    if (!m) this.coverage.set(garment, (m = new Map()));
+    m.set(mesh, covered);
+    this.hideRegions(this.mask);
+  }
+
+  clearCoverage(garment: string) {
+    if (this.coverage.delete(garment)) this.hideRegions(this.mask);
+  }
+
+  /** Triangles hidden right now (tests and the review step read it). */
+  hiddenTriangles(mesh: THREE.Mesh): number {
+    const b = this.body.find((x) => x.mesh === mesh);
+    if (!b) return 0;
+    const arr = b.mesh.geometry.index!.array;
+    let n = 0;
+    for (let t = 0; t < arr.length; t += 3) if (arr[t] === arr[t + 1] && arr[t] === arr[t + 2]) n++;
+    return n;
+  }
+
   /** Shows parts, hides covered regions, attaches accessories. */
   apply(cfg: Pick<AvatarConfig, 'parts'>, state: WardrobeState, mask: number) {
     for (const p of cfg.parts) for (const m of p.meshes) this.find(m)?.traverse((o) => void (o.visible = state.parts[p.id] !== false));
@@ -94,13 +127,15 @@ export class Wardrobe {
       const idx = b.mesh.geometry.index!;
       const arr = idx.array as Uint32Array | Uint16Array;
       const hidden = (v: number) => b.region[v]! !== 255 && ((mask >> b.region[v]!) & 1) === 1;
+      const masks = [...this.coverage.values()].map((m) => m.get(b.mesh)).filter((x): x is Uint8Array => !!x && x.length === b.original.length / 3);
       for (let t = 0; t < b.original.length; t += 3) {
         const a = b.original[t]!;
         const c = b.original[t + 1]!;
         const d = b.original[t + 2]!;
-        // Hidden when most of the triangle is covered (edges stay, so seams don't open up).
+        // Hidden when most of the triangle is covered (edges stay, so seams don't open up), or when a
+        // worn garment lies over it.
         const n = (hidden(a) ? 1 : 0) + (hidden(c) ? 1 : 0) + (hidden(d) ? 1 : 0);
-        if (n >= 2) arr[t] = arr[t + 1] = arr[t + 2] = a;
+        if (n >= 2 || masks.some((m) => m[t / 3] === 1)) arr[t] = arr[t + 1] = arr[t + 2] = a;
         else {
           arr[t] = a;
           arr[t + 1] = c;
@@ -146,6 +181,7 @@ export class Wardrobe {
   }
 
   dispose() {
+    this.coverage.clear();
     // Give the body its triangles back (a new wardrobe may cover it differently).
     for (const b of this.body) {
       (b.mesh.geometry.index!.array as Uint32Array | Uint16Array).set(b.original);
@@ -177,11 +213,42 @@ function disposeTree(o: THREE.Object3D) {
 }
 
 /** Dresses an avatar for the current story state (creates its wardrobe the first time). */
-export function dress(avatar: Avatar, cfg: AvatarConfig, renderer: THREE.WebGLRenderer | null, state: WardrobeState, opts: { low?: boolean } = {}) {
+export function dress(avatar: Avatar, cfg: AvatarConfig, renderer: THREE.WebGLRenderer | null, state: WardrobeState, opts: { low?: boolean; adultAllowed?: boolean } = {}) {
   avatar.wardrobe ??= new Wardrobe(avatar.model, cfg.body, renderer);
   avatar.wardrobe.apply(cfg, state, regionMask(state.hidden));
   if (state.garments.length || avatar.garments) {
     avatar.garments ??= new Garments(avatar, renderer);
     void avatar.garments.set(state.garments, avatar.options.look, avatar.options.outlines, !!opts.low).catch(() => undefined);
+  }
+  shapeBody(avatar, cfg, opts);
+  paintSkin(avatar, cfg, renderer, state, opts);
+}
+
+/** Morph weights for the body sliders and the generated adjusters (explicit ones only when allowed). */
+export function bodyWeights(cfg: Pick<AvatarConfig, 'morphs' | 'bodyShape'>, opts: { adultAllowed?: boolean } = {}): Record<string, number> {
+  const sliders = (cfg.morphs?.sliders ?? []).filter((s) => !s.adult || opts.adultAllowed);
+  const weights = morphWeights(sliders, cfg.morphs?.values ?? {});
+  for (const s of cfg.morphs?.sliders ?? []) if (s.adult && !opts.adultAllowed) for (const m of [...s.plus, ...s.minus]) weights[m] = 0;
+  for (const k of SHAPE_KEYS) weights[`EverloomBody_${k}`] = cfg.bodyShape?.[k] ?? 0;
+  return weights;
+}
+
+/** Body sliders: every mesh with the morph follows (garments included). */
+export function shapeBody(avatar: Avatar, cfg: AvatarConfig, opts: { adultAllowed?: boolean; snap?: boolean } = {}) {
+  avatar.morphs.set(bodyWeights(cfg, opts), opts.snap ?? !avatar.started);
+}
+
+/** Skin tone, skin layers, hair and eye colours. */
+export function paintSkin(avatar: Avatar, cfg: AvatarConfig, renderer: THREE.WebGLRenderer | null, state: WardrobeState, opts: { low?: boolean; adultAllowed?: boolean } = {}) {
+  const layers = state.layers.filter((l) => !l.adult || opts.adultAllowed);
+  const tone = cfg.appearance?.skinTone ?? null;
+  if (layers.length || tone || avatar.skin) {
+    avatar.skin ??= new SkinPainter(avatar.model.scene, renderer, opts.low ? 1024 : 2048);
+    void avatar.skin.apply(layers, tone, cfg.appearance?.skinMeshes?.length ? cfg.appearance.skinMeshes : cfg.body).then(() => avatar.kick?.()).catch(() => undefined);
+  }
+  avatar.appearance = cfg.appearance ?? null;
+  if (cfg.appearance) {
+    applyHairColour(avatar.model.scene, cfg.appearance.hair);
+    applyEyeColour(avatar.model.scene, cfg.appearance.eyes);
   }
 }

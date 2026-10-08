@@ -294,3 +294,61 @@ In this sandbox the image was built with an extra CA certificate for the build n
 6. Link quests to places (target pins, "go to objective" on the map).
 7. Persona expression sprites and per-persona overrides.
 8. Split the shared UI chunk further to lift throttled-mobile performance.
+## Custom bases, clothes fitting, physics, skin layers, paired animations (2026-10-08)
+
+Spec: [docs/avatars.md](docs/avatars.md) (Custom bases, Fitting clothes, Physics, Skin layers, Paired
+animations) and [docs/base-model-guide.md](docs/base-model-guide.md); decisions in
+[docs/PHASE2_DECISIONS.md](docs/PHASE2_DECISIONS.md). Evidence (CC0, Everloom-made bodies and
+clothes): `docs/3d-base-evidence/`.
+
+### Done ✅
+- **Custom bases**: any rigged GLB; the base model check in plain words with the features it turns
+  off; body sliders from morph targets (Body/Face/Other, two-way pairs, linked left/right, editable
+  mapping saved with the model, adults-only shapes gated); generated adjusters where morphs are
+  missing; body presets shared by characters on the same base.
+- **Fitting in the browser**: hand placement (gizmo on desktop, hold buttons on phones, snaps,
+  mirror, auto-align, exact numbers), rigging in a worker (normal-checked closest-point weights,
+  fill, smoothing, 4 bones, morphs carried over, push-out, swing chains for skirts and hair, covered
+  skin hidden), review in poses and at slider extremes, saved as a rigged GLB garment.
+- **Physics**: one Verlet solver for VRM springs, file chains, generated chains and the chest;
+  colliders from the body; damping, wind, chest strength and off; budgets per quality; off-screen
+  pause.
+- **Skin layers and colours**: underwear, swimwear, stockings, makeup, paint, tattoos and scars baked
+  into the skin texture; tattoos placed by tapping; skin tone, eye and hair colours.
+- **Paired animations**: story op, emote picker *Together*, `/pair`, scripts; shared clock,
+  placement by height, IK contacts (hands meet, hugs wrap round), step-closer for short arms; four
+  built-in CC0 clips; an importer; adult gating.
+
+### Checklist (prompt §6)
+| # | Check | Result |
+|---|---|---|
+| 1 | Base with morphs: report, sliders (breast, hips, butt) | ✅ `1-base-check`, `1-sliders-max/min` |
+| 2 | Base without morphs: report and fallback | ✅ `2-no-morphs-fallback` |
+| 3 | Shirt, trousers, skirt, shoes (and long hair) fitted by hand, poses, sliders | ✅ `3-*` (see notes) |
+| 4 | 20,000-vertex garment in a worker | ✅ see timings |
+| 5 | Skirt swings and collides; hair; chest motion on/off | ✅ with notes |
+| 6 | Underwear layer, tapped tattoo bending with poses and sliders, colours | ✅ `6-*` |
+| 7 | Paired animation, different heights, hands meeting | ✅ `paired-*` |
+| 8 | Story equips a fitted garment on a custom base; a swipe takes it off | ✅ `8-equipped` |
+| 9 | Frame rates, 1–3 dressed characters, phone and desktop, per quality | ⏳ not measured yet |
+| 10 | 390×844 flow; existing suite | ✅ base-models.spec passes at 390×844 except the 20k responsiveness check (being fixed); unit suite 584 passed; full e2e suite not re-run |
+
+Timings so far (headless Chromium with software WebGL, CPU shared with the renderer, so slow):
+the hand-made test garments (600–3,300 vertices) rig in 0.9–8 s and save in 27–52 s; a
+20,000-vertex garment rigs in 1.5 s of worker time when the page is idle (up to 22 s while
+software rendering competes for the CPU) and saves in about 35 s. Node, same code: 20,000 vertices
+in 0.3 s. Raw numbers: `docs/3d-base-evidence/timings.json`.
+
+## Browser 3D repair — in progress
+
+The owner's phone picker issue, optional optimization blocking imports, Firefox schema CSP
+errors, UTF-8 PMX parsing and scaled-armature retargeting defects have been corrected.
+The full unit checkpoint passed 542 tests (5 skipped) across 93 files. Focused real-file phone
+checks passed in Chromium and Firefox for GLB, VRM 0.x/1.0, FBX and PMX; screenshots also
+revealed animation defects that were fixed instead of accepting ready-state markers alone.
+
+Native MakeHuman, sanitized CC0 packs, browser fitting, donor-part copying, material variants,
+adult eligibility checks and protected presets are implemented. Native quality, editor workflows,
+wardrobe rollback, exports and the full end-to-end suite are still being verified. The 18-item
+acceptance checklist and delivery commit/push are **not complete**. Evidence and baseline:
+`docs/3d-fix-evidence/`, `docs/PHASE2_DECISIONS.md`.

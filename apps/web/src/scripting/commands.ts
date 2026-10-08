@@ -182,6 +182,12 @@ export function installBuiltins() {
     return (await get(`/api/characters/${chat.characterId}`)).name as string;
   };
   def('emote', 'A 3D character does something (wave, bow, laugh…)', '/emote wave  or  /emote who=Mira bow', 'avatar', async (c, ctx) => ops(ctx, [{ type: 'avatar.emote', who: await whoOf(c, ctx), emote: c.text.trim().toLowerCase().replace(/[\s-]+/g, '_') }]));
+  def('pair', 'Characters do something together (handshake, high five, hug, dance together; "stop" ends one)', '/pair handshake Mira, Theo', 'avatar', async (c, ctx) => {
+    const [clip = '', ...rest] = c.text.trim().split(/\s+/);
+    const who = rest.join(' ').split(/\s*(?:,|\band\b)\s*/i).map((s) => s.trim()).filter(Boolean);
+    if (who.length < 2) throw new Error('name two or more characters: /pair handshake Mira, Theo');
+    return ops(ctx, [{ type: 'avatar.paired', clip: /^stop$/i.test(clip) ? null : clip.toLowerCase().replace(/[\s-]+/g, '_'), who }]);
+  });
   def('pose', 'A 3D character holds a pose (sit, sleep, dance…; "stand" to stop)', '/pose sit', 'avatar', async (c, ctx) => {
     const p = c.text.trim();
     return ops(ctx, [{ type: 'avatar.pose', who: await whoOf(c, ctx), pose: !p || /^(stand|none|idle)$/i.test(p) ? null : p.toLowerCase().replace(/[\s-]+/g, '_') }]);

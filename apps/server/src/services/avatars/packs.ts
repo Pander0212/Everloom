@@ -68,7 +68,7 @@ export function listPacks(ctx: AppContext, owner: string): PackDTO[] {
   const rows = ctx.db.prepare('SELECT * FROM avatar_packs WHERE owner_id = ? ORDER BY created_at').all(owner) as PackRow[];
   const builtin = BUILTIN_PACKS.map((b) => {
     const flag = rows.find((r) => r.id === b.id);
-    return { id: b.id, name: b.name, builtin: true, enabled: flag ? !!flag.enabled : true, license: b.license, credits: b.credits, base: b.base, files: null, manifest: null, parts: 0, size: 0, createdAt: 0 } satisfies PackDTO;
+    return { id: b.id, name: `${b.name} (experimental)`, builtin: true, enabled: flag ? !!flag.enabled : false, license: b.license, credits: b.credits, base: b.base, files: null, manifest: null, parts: 0, size: 0, createdAt: 0 } satisfies PackDTO;
   });
   return [...builtin, ...rows.filter((r) => r.manifest).map(dto)];
 }

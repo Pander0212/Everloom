@@ -47,7 +47,7 @@ export function list3d(ctx: AppContext, owner: string, f: { q?: string; type?: s
   for (const r of rows) {
     const cfg = parseConfig(r.config);
     const av = { id: r.id, name: r.name };
-    const kind = { imported: 'Imported model', parts: 'Parts-made', code: 'Code-made', realistic: 'Realistic (MPFB)' }[r.kind] ?? r.kind;
+    const kind = { imported: 'Imported model', parts: 'Parts-made', code: 'Code-made', realistic: 'Realistic (MPFB)', makehuman: 'MakeHuman (native)' }[r.kind] ?? r.kind;
     out.push({ key: `model:${r.id}`, type: 'model', name: r.name, tags: tags[`model:${r.id}`] ?? [], avatar: av, detail: kind, thumb: r.thumb_media ? mediaUrl(r.thumb_media) : null });
     for (const g of cfg.garments) {
       const key = `garment:${r.id}:${g.id}`;

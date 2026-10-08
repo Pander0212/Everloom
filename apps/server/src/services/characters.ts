@@ -15,10 +15,12 @@ import { getMedia, mediaUrl, saveImage } from './media.js';
 import { indexDoc, removeDoc } from './search.js';
 import { countTokens } from './tokens.js';
 import { autoSnapshot } from './versions.js';
+import { assertAdultLink } from './avatars/adult.js';
 
 function summary(r: any): CharacterSummary {
   const card: CardData = json(r.card, emptyCardData(r.name));
   return {
+    adult: !!r.adult,
     id: r.id,
     name: r.name,
     avatar: mediaUrl(r.avatar),
@@ -46,6 +48,7 @@ function summary(r: any): CharacterSummary {
 }
 
 const SUMMARY_SQL = `SELECT c.*,
+  (SELECT json_extract(a.config, '$.content.adult') FROM avatars a WHERE a.id = json_extract(c.game, '$.avatar3d') AND a.owner_id = c.owner_id) AS adult,
   (SELECT COUNT(*) FROM chats WHERE character_id = c.id) AS chat_count,
   EXISTS (SELECT 1 FROM lorebooks l WHERE l.owner_id = c.owner_id AND l.scope = 'character' AND l.scope_id = c.id) AS has_book,
   (EXISTS (SELECT 1 FROM media m WHERE m.owner_id = c.owner_id AND m.character_id = c.id AND m.kind IN ('gallery', 'portrait')) OR json_array_length(COALESCE(json_extract(c.game, '$.gallery'), '[]')) > 0) AS has_gallery,
@@ -89,6 +92,7 @@ export function characterRow(ctx: AppContext, owner: string, id: string): any {
 }
 
 export function createCharacter(ctx: AppContext, owner: string, card: CardData, opts: { avatar?: string | null; game?: CharacterGame; topExtras?: Record<string, unknown> } = {}): CharacterDTO {
+  if (opts.game?.avatar3d) assertAdultLink(ctx, owner, opts.game.avatar3d, card, opts.game);
   const id = newId('ch_');
   const now = Date.now();
   const { character_book, ...rest } = card;
@@ -112,6 +116,7 @@ export function updateCharacter(ctx: AppContext, owner: string, id: string, patc
   delete (card as any).character_book;
   if (patch.fav !== undefined) card.extensions = { ...card.extensions, fav: patch.fav };
   const game = patch.game ? { ...cur.game, ...patch.game } : cur.game;
+  if (game.avatar3d) assertAdultLink(ctx, owner, game.avatar3d, card, game);
   ctx.db
     .prepare('UPDATE characters SET name = ?, card = ?, tags = ?, fav = ?, game = ?, avatar = COALESCE(?, avatar), updated_at = ? WHERE id = ? AND owner_id = ?')
     .run(card.name, JSON.stringify(card), JSON.stringify(card.tags ?? []), (patch.fav ?? cur.fav) ? 1 : 0, JSON.stringify(game), patch.avatar ?? null, Date.now(), id, owner);

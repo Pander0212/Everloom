@@ -11,8 +11,13 @@ tests/e2e/.artifacts/
 coverage/
 .DS_Store
 *.tsbuildinfo
+docs/3d-fix-evidence/owner-*
 .sandbox-ca.crt
 
 # World Engine source: private, contains AGPL/GPL-derived files. Local reference only, never committed.
 docs/reference/world-engine/source/
 .art-raw/
+
+# Owner's paid or private test assets and screenshots of them: never committed.
+.private/
+docs/3d-base-evidence/private/

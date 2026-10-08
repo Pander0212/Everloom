@@ -6,13 +6,14 @@ import { Link, useNavigate } from 'react-router';
 import { useFeatureOn } from '@/lib/features';
 import { cx } from '@/lib/format';
 import { toast, toastError } from '@/lib/store';
-import { Button, Field, Select } from '@/ui';
+import { Button, Field, Input, Select } from '@/ui';
 import { createCodeAvatar, fillRecipe, useAvatars } from './api';
+import { usePrefs3D } from './prefs';
 
 type Choice = 'auto' | 'imported' | 'parts' | 'code' | 'live2d' | 'sprite';
 const CHOICES: Array<{ value: Choice; label: string; line: string }> = [
-  { value: 'auto', label: 'Automatic', line: 'Its 3D avatar if it has one, then Live2D, then pictures; a code-made figure if it has none of these.' },
-  { value: 'imported', label: '3D model', line: 'A model file you imported (GLB, VRM, or FBX/PMX through Blender).' },
+  { value: 'auto', label: 'Automatic', line: 'Its saved 3D avatar, then Live2D, then its sprite or portrait.' },
+  { value: 'imported', label: '3D model', line: 'A model imported from GLB, VRM, glTF, FBX, PMX or OBJ.' },
   { value: 'parts', label: 'Parts-made', line: 'Built in the parts maker from hair, clothes and bodies of a part pack.' },
   { value: 'code', label: 'Code-made', line: 'A simple figure built by Everloom from a few choices; no file, runs on any phone.' },
   { value: 'live2d', label: 'Live2D', line: 'Its Live2D model, if one is installed for it.' },
@@ -21,6 +22,7 @@ const CHOICES: Array<{ value: Choice; label: string; line: string }> = [
 
 export function DisplayFields({ game, setGame, characterId }: { game: CharacterGame; setGame: (p: Partial<CharacterGame>) => void; characterId?: string }) {
   const on = useFeatureOn('avatars3d');
+  const experimental = usePrefs3D(p => p.experimentalProcedural);
   const avatars = useAvatars(on);
   const navigate = useNavigate();
   const [making, setMaking] = useState(false);
@@ -30,10 +32,10 @@ export function DisplayFields({ game, setGame, characterId }: { game: CharacterG
   const chosen = ready.find((a) => a.id === game.avatar3d);
   const display = game.display ?? 'auto';
   const kindOf = (k: AvatarKind | undefined): Choice => (k === 'parts' ? 'parts' : k === 'code' ? 'code' : 'imported');
-  const current: Choice = display === 'live2d' ? 'live2d' : display === 'sprite' ? 'sprite' : display === '3d' ? (chosen ? kindOf(chosen.kind) : 'code') : 'auto';
+  const current: Choice = display === 'live2d' ? 'live2d' : display === 'sprite' ? 'sprite' : display === '3d' ? (chosen ? kindOf(chosen.kind) : 'imported') : 'auto';
   const choice = picked ?? current;
   const kind: AvatarKind | null = choice === 'imported' ? 'imported' : choice === 'parts' ? 'parts' : choice === 'code' ? 'code' : null;
-  const options = kind ? ready.filter((a) => (kind === 'imported' ? a.kind === 'imported' || a.kind === 'realistic' : a.kind === kind)) : [];
+  const options = kind ? ready.filter((a) => (kind === 'imported' ? a.kind === 'imported' || a.kind === 'realistic' || a.kind === 'makehuman' : a.kind === kind)) : [];
 
   const pick = (c: Choice) => {
     setPicked(c);
@@ -65,8 +67,9 @@ export function DisplayFields({ game, setGame, characterId }: { game: CharacterG
 
   return (
     <div className="grid gap-3">
+      <Field label="Recorded age"><Input aria-label="Recorded age" type="number" min={0} max={120} value={game.age ?? ''} onChange={e => setGame({ age: e.target.value === '' ? null : Number(e.target.value) })} /></Field>
       <div role="radiogroup" aria-label="On the stage" className="grid gap-2 sm:grid-cols-2" data-testid="display-picker">
-        {CHOICES.map((c) => (
+        {CHOICES.filter(c => c.value !== 'code' || experimental || chosen?.kind === 'code').map((c) => (
           <button key={c.value} type="button" role="radio" aria-checked={choice === c.value} onClick={() => pick(c.value)} className={cx('pressable rounded-lg border p-3 text-left', choice === c.value ? 'border-accent bg-accent/10' : 'border-line bg-surface hover:border-line-strong')}>
             <span className="block text-sm font-medium">{c.label}</span>
             <span className="mt-0.5 block text-xs text-fg-2">{c.line}</span>
