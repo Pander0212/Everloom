@@ -77,6 +77,8 @@ export class PuppetStage {
   private list = new Map<string, PuppetInstance>();
   private textureCache = new Map<string, Promise<WebGLTexture>>();
   private raf = 0;
+  /** Set by dispose: a stage that is gone never draws again (its canvas may already have a new stage). */
+  private disposed = false;
   private last = 0;
   private lastDraw = 0;
   private hidden = false;
@@ -117,6 +119,8 @@ export class PuppetStage {
     const base = new URL(url, location.href);
     const inst = new PuppetInstance(id, model);
     inst.textures = await Promise.all(model.textures.map((t) => this.tex(new URL(t, base).href)));
+    // Disposed while loading (a remount): don't bring a dead stage back to life.
+    if (this.disposed) return inst;
     this.list.set(id, inst);
     this.kick();
     return inst;
@@ -127,7 +131,7 @@ export class PuppetStage {
   remove(id: string) { this.list.delete(id); this.kick(); }
 
   kick() {
-    if (!this.raf) this.raf = requestAnimationFrame(this.frame);
+    if (!this.raf && !this.disposed) this.raf = requestAnimationFrame(this.frame);
   }
 
   private frame = (now: number) => {
@@ -179,6 +183,7 @@ export class PuppetStage {
   }
 
   dispose() {
+    this.disposed = true;
     cancelAnimationFrame(this.raf);
     this.raf = 0;
     document.removeEventListener('visibilitychange', this.onVisibility);

@@ -10,7 +10,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import sharp from 'sharp';
 import { buildTemplateRig, checkPuppet, type TemplateLandmarks } from '../../packages/engine/src/index.js';
-import { packAtlas, trimRgba, type PartImage } from './atlas.js';
+import { packAtlas, puppetJson, trimRgba, type PartImage } from './atlas.js';
 
 const W = 600, H = 1000;
 export const PLACEHOLDER_LANDMARKS: TemplateLandmarks = {
@@ -95,7 +95,7 @@ async function main() {
   const dir = 'apps/web/public/puppets/placeholder';
   mkdirSync(dir, { recursive: true });
   // Rounded to 0.01 px: smaller, and nothing visible changes.
-  writeFileSync(`${dir}/puppet.json`, JSON.stringify(model, (_k, v) => (typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 100) / 100 : v)));
+  writeFileSync(`${dir}/puppet.json`, puppetJson(model));
   pages.forEach((p, i) => writeFileSync(`${dir}/page${i}.png`, p));
   console.log(`placeholder: ${parts.length} parts, ${model.deformers.length} deformers, ${model.bindings.length} bindings, ${pages.length} page(s), ${parts.reduce((n, p) => n + p.mesh.positions.length / 2, 0)} vertices`);
 }

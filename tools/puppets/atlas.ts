@@ -67,3 +67,17 @@ export async function packAtlas(parts: PartImage[], o: { max?: number; meshScale
   out.sort((a, b) => at.get(a.id)! - at.get(b.id)!);
   return { pages: pngs, parts: out };
 }
+
+/**
+ * A model as compact JSON: puppet-space numbers rounded to 0.01 px (nothing visible changes), but
+ * texture coordinates to 1e-6, since they are fractions of a page a few thousand pixels wide.
+ */
+export function puppetJson(model: unknown): string {
+  const round = (v: unknown, digits: number): unknown => {
+    if (typeof v === 'number') { if (Number.isInteger(v)) return v; const f = 10 ** digits; return Math.round(v * f) / f; }
+    if (Array.isArray(v)) return v.map((x) => round(x, digits));
+    if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, round(x, k === 'uvs' ? 6 : digits)]));
+    return v;
+  };
+  return JSON.stringify(round(model, 2));
+}

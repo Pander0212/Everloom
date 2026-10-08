@@ -30,18 +30,18 @@
    "gpu": "RTX 3090",
    "pricePerHr": 0.22,
    "start": "2026-10-08T20:31:10.877Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-08T21:17:26.616Z",
+   "seconds": 2777,
+   "costUsd": 0.17,
    "balanceBefore": 5,
-   "balanceAfter": null,
+   "balanceAfter": 4.8287534223,
    "images": [
     "u-belt.png",
     "u-lace.png",
     "u-tank.png",
     "u-nude.png"
    ],
-   "result": "started",
+   "result": "4/4 layered; 70 MB",
    "note": "owner's test pictures (4), first real See-through run"
   }
  ]

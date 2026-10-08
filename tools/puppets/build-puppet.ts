@@ -14,7 +14,7 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import sharp from 'sharp';
 import { buildTemplateRig, checkPuppet, type TemplateLandmarks } from '../../packages/engine/src/index.js';
-import { packAtlas, trimRgba, type PartImage } from './atlas.js';
+import { packAtlas, puppetJson, trimRgba, type PartImage } from './atlas.js';
 
 const { values: o, positionals: [src, dst] } = parseArgs({ allowPositionals: true, options: { id: { type: 'string' }, name: { type: 'string' }, template: { type: 'string', default: 'everloom-f' }, rating: { type: 'string', default: 'all-ages' } } });
 if (!src || !dst) { console.error('usage: build-puppet.ts <parts dir> <out dir> [--id x] [--name X] [--rating 18+]'); process.exit(1); }
@@ -37,7 +37,7 @@ async function main() {
   const c = checkPuppet(model);
   if (!c.ok) throw new Error(c.errors.join('\n'));
   mkdirSync(dst!, { recursive: true });
-  writeFileSync(path.join(dst!, 'puppet.json'), JSON.stringify(model, (_k, v) => (typeof v === 'number' && !Number.isInteger(v) ? Math.round(v * 100) / 100 : v)));
+  writeFileSync(path.join(dst!, 'puppet.json'), puppetJson(model));
   pages.forEach((p, i) => writeFileSync(path.join(dst!, `page${i}.png`), p));
   console.log(`${id}: ${parts.length} parts, ${model.deformers.length} deformers, ${model.bindings.length} bindings, ${pages.length} page(s), ${parts.reduce((n, p) => n + p.mesh.positions.length / 2, 0)} vertices`);
 }

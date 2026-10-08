@@ -81,7 +81,7 @@ def base_tag(name):
 SLOT = {
     'back hair': 'hair.back', 'neck': 'body', 'topwear': 'top', 'bottomwear': 'bottom', 'legwear': 'legwear',
     'footwear': 'shoes', 'neckwear': 'acc.body', 'objects': 'acc.body', 'headwear': 'acc.head', 'earwear': 'acc.head',
-    'eyewear': 'acc.head', 'tail': 'acc.back', 'wings': 'acc.back', 'nose': 'nose', 'handwear': 'body',
+    'eyewear': 'acc.head', 'tail': 'acc.back', 'wings': 'acc.back', 'nose': 'nose',
 }
 COLOR = {'hair.back': 'hair', 'hair.front': 'hair', 'hair.side': 'hair', 'brow': 'hair', 'body': 'skin', 'face': 'skin', 'top': 'cloth1', 'bottom': 'cloth2', 'legwear': 'cloth3', 'iris': 'eyes'}
 
@@ -130,7 +130,8 @@ def main(psd_path, src_path, out):
         for a in parts_s:
             u = over(u, a)
         x0, y0, x1, y1 = bbox(u)
-        lm_eye[s] = {'cx': (x0 + x1) / 2, 'cy': (y0 + y1) / 2, 'w': (x1 - x0) / 2, 'h': (y1 - y0) / 2}
+        # Full width and height (the rig's convention, as in the placeholder's landmarks).
+        lm_eye[s] = {'cx': (x0 + x1) / 2, 'cy': (y0 + y1) / 2, 'w': float(x1 - x0), 'h': float(y1 - y0)}
         for k in ('white', 'iris', 'lash'):
             if (s, k) in eye:
                 put(f'eye-{s}-{k}', f'eye.{s}.{k}', eye[(s, k)], 'eyes' if k == 'iris' else None)
@@ -148,7 +149,7 @@ def main(psd_path, src_path, out):
         # Flip so the line bows downward like a shut lid.
         sq = sq[::-1]
         c = np.zeros((H, W, 4), np.uint8)
-        ly = int(e['cy'] + e['h'] * 0.35)
+        ly = int(e['cy'] + e['h'] * 0.18)
         c[ly:ly + hh, x0:x1] = sq
         a = c[..., 3].astype(np.float32)
         c[..., 3] = np.clip(a * 1.6, 0, 255).astype(np.uint8)
@@ -160,7 +161,7 @@ def main(psd_path, src_path, out):
         for s, a in (('l', l), ('r', r)):
             b = bbox(a)
             if b:
-                lm_brow[s] = {'cx': (b[0] + b[2]) / 2, 'cy': (b[1] + b[3]) / 2, 'w': (b[2] - b[0]) / 2}
+                lm_brow[s] = {'cx': (b[0] + b[2]) / 2, 'cy': (b[1] + b[3]) / 2, 'w': float(b[2] - b[0])}
                 put(f'brow-{s}', f'brow.{s}', a, 'hair')
 
     # ---- the face: face + ears + the closed mouth drawn in
@@ -172,7 +173,7 @@ def main(psd_path, src_path, out):
     if 'mouth' in merged:
         mouth_box = bbox(merged['mouth'])
         f = over(f, merged['mouth'])
-    put('face', 'face', f, 'skin')
+    put('face-skin', 'face', f, 'skin')
 
     # Open mouths: a dark lip-coloured shape centred on the mouth, sized from it.
     if mouth_box:
@@ -200,21 +201,37 @@ def main(psd_path, src_path, out):
         ey = np.mean([e['cy'] for e in lm_eye.values()]) if lm_eye else fy0 + R
         cut = int(ey + R * 0.35)
         front, sidel = fh.copy(), fh.copy()
-        ramp = np.clip((np.arange(H) - cut) / (R * 0.25), 0, 1)[:, None]
-        front[..., 3] = (front[..., 3] * (1 - ramp)).astype(np.uint8)
-        sidel[..., 3] = (sidel[..., 3] * ramp).astype(np.uint8)
+        # The side locks are whole from the cut down; the fringe fades out over them (it's drawn on
+        # top), so the seam never shows through as a half-transparent band.
+        rows = np.arange(H)[:, None]
+        fade = np.clip((rows - cut) / (R * 0.2), 0, 1)
+        front[..., 3] = (front[..., 3] * (1 - fade)).astype(np.uint8)
+        sidel[..., 3] = np.where(rows >= cut, sidel[..., 3], 0).astype(np.uint8)
         put('hair-front', 'hair.front', front, 'hair')
         put('hair-side', 'hair.side', sidel, 'hair')
 
     # ---- everything else by tag
     body = np.zeros((H, W, 4), np.uint8)
-    for t in ('neck', 'handwear'):
-        if t in merged:
-            body = over(body, merged[t])
+    if 'neck' in merged:
+        body = over(body, merged['neck'])
     if bbox(body, 8):
-        put('body', 'body', body, 'skin')
+        put('body-skin', 'body', body, 'skin')
+    # Arms (See-through's handwear is the arms and hands): one per side, turning at the shoulder.
+    arm_top = {}
+    if 'handwear' in merged:
+        l, r = split_lr(merged['handwear'], cx)
+        for s, a in (('l', l), ('r', r)):
+            b = bbox(a, 64)
+            if not b:
+                continue
+            put(f'arm-{s}', f'arm.{s}', a, 'skin')
+            # The shoulder: the arm's topmost rows, at their inner half.
+            ys, xs = np.nonzero(a[..., 3] > 64)
+            top = ys.min()
+            sel = ys < top + R * 0.35
+            arm_top[s] = [float(np.median(xs[sel])), float(top + R * 0.2)]
     for t, a in merged.items():
-        if t in ('face', 'ears', 'mouth', 'nose', 'eyewhite', 'irides', 'eyelash', 'eyebrow', 'front hair', 'neck', 'handwear', 'eyes'):
+        if t in ('face', 'ears', 'mouth', 'nose', 'eyewhite', 'irides', 'eyelash', 'eyebrow', 'front hair', 'neck', 'handwear', 'eyes', 'head'):
             continue
         slot = SLOT.get(t)
         if not slot:
@@ -228,7 +245,7 @@ def main(psd_path, src_path, out):
     nb = bbox(neck) if neck is not None else None
     neck_c = {'cx': cx, 'cy': (nb[1] + nb[3]) / 2 if nb else fy1 + R * 0.2}
     torso = np.zeros((H, W), np.uint8)
-    for t in ('neck', 'topwear', 'bottomwear', 'handwear', 'legwear'):
+    for t in ('neck', 'topwear', 'bottomwear', 'legwear'):
         if t in merged:
             torso |= (merged[t][..., 3] > 64).astype(np.uint8)
     rows = np.nonzero(torso.any(axis=1))[0]
@@ -254,8 +271,20 @@ def main(psd_path, src_path, out):
     chest_y = chin + R * 1.35
     waist_y = chin + R * 2.5
     hips_y = chin + R * 3.3
-    e_l = lm_eye.get('l') or {'cx': cx + R * 0.4, 'cy': fy0 + R, 'w': R * 0.2, 'h': R * 0.15}
-    e_r = lm_eye.get('r') or {'cx': cx - R * 0.4, 'cy': fy0 + R, 'w': R * 0.2, 'h': R * 0.15}
+    # Better from the clothes when they're there: chest a third down the top, the waist the
+    # narrowest row above the bottoms' waistband, the hips 40% down the bottoms.
+    tb = bbox(merged['topwear'], 64) if 'topwear' in merged else None
+    bb = bbox(merged['bottomwear'], 64) if 'bottomwear' in merged else None
+    if tb:
+        sh_y = tb[1] + R * 0.3
+        chest_y = tb[1] + (tb[3] - tb[1]) * 0.3
+    if tb and bb:
+        lo, hi = int(chest_y + R * 0.6), int(bb[1] + R * 0.2)
+        if hi > lo:
+            waist_y = min(range(lo, hi), key=width_at)
+        hips_y = bb[1] + (bb[3] - bb[1]) * 0.4
+    e_l = lm_eye.get('l') or {'cx': cx + R * 0.4, 'cy': fy0 + R, 'w': R * 0.4, 'h': R * 0.3}
+    e_r = lm_eye.get('r') or {'cx': cx - R * 0.4, 'cy': fy0 + R, 'w': R * 0.4, 'h': R * 0.3}
     hair_top = min([bbox(merged[t])[1] for t in ('front hair', 'back hair') if t in merged] or [fy0])
     sh_half = width_at(sh_y) / 2
     L = {
@@ -264,9 +293,10 @@ def main(psd_path, src_path, out):
         'eyeL': e_l, 'eyeR': e_r,
         'browL': lm_brow.get('l', {'cx': e_l['cx'], 'cy': e_l['cy'] - e_l['h'] * 2, 'w': e_l['w']}),
         'browR': lm_brow.get('r', {'cx': e_r['cx'], 'cy': e_r['cy'] - e_r['h'] * 2, 'w': e_r['w']}),
-        'mouth': {'cx': float(mcx), 'cy': float(mcy), 'w': float(mw)},
+        # The mouth's warp is 2w wide and w tall: room for the open shapes.
+        'mouth': {'cx': float(mcx), 'cy': float(mcy), 'w': float(max(mw * 2.2, R * 0.4))},
         'neck': neck_c,
-        'shoulderR': [cx - sh_half * 0.85, sh_y], 'shoulderL': [cx + sh_half * 0.85, sh_y],
+        'shoulderR': arm_top.get('r', [cx - sh_half * 0.85, sh_y]), 'shoulderL': arm_top.get('l', [cx + sh_half * 0.85, sh_y]),
         'chest': {'cy': chest_y, 'w': width_at(chest_y)},
         'waist': {'cy': waist_y, 'w': width_at(waist_y)},
         'hips': {'cy': hips_y, 'w': width_at(hips_y)},
@@ -274,7 +304,7 @@ def main(psd_path, src_path, out):
     }
     L = json.loads(json.dumps(L, default=float))
     colors = {}
-    for slot, grp in (('hair-back', 'hair'), ('face', 'skin'), ('topwear', 'cloth1'), ('bottomwear', 'cloth2'), ('eye-l-iris', 'eyes')):
+    for slot, grp in (('hair-back', 'hair'), ('face-skin', 'skin'), ('topwear', 'cloth1'), ('bottomwear', 'cloth2'), ('eye-l-iris', 'eyes')):
         a = files.get(slot)
         if a is not None:
             m = a[..., 3] > 200

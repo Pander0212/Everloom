@@ -20,7 +20,27 @@ Budget rules: [PROMPTING.md](PROMPTING.md) (NanoGPT at most 95 images per UTC da
 - The See-through worker and the RunPod session tool, with its guards. Inputs prepared in
   `.puppets-work/seethrough-in/` (both masters, hip, raise, underwear, keyed).
 
+## Done (2026-10-08, run 2): first real See-through session
+
+- One RunPod session (RTX 3090 community, $0.22/h, 46 min of which ~17 were the image pull,
+  $0.17; nothing left running or stored): the owner's own test character in four pictures
+  (three outfits and an 18+ body), keyed with `tools/puppets/key.py`. All four layered.
+- `tools/puppets/map.py` (layers → slots and landmarks) and `build-puppet.ts` (parts folder →
+  rigged puppet) work end to end: the three outfits run in `/lab/puppets` with head turns, blinks
+  (lids made from the lash layer), talking (placeholder mouth shapes), breathing, hair physics.
+- Fixed on the way: `puppet.json` rounded texture coordinates to 0.01 (20 px on a 2000 px page;
+  small parts sampled their neighbours), now 1e-6 (`puppetJson`); a disposed stage could come back
+  to life after an in-flight load (React's double mount in dev) and blank the canvas.
+- Seen in See-through's output: `handwear` is the arms and hands (mapped to `arm.l/r`), `legwear`
+  the bare legs, `topwear` carries the visible torso skin; there is no separate body-skin tag. The
+  face comes back with the eyes, brows and mouth painted out (good for expressions); the back hair
+  is completed behind the head.
+
 ## Next
+
+0. With the owner's verdict on the test: mouth and eye-smile drawings by edit (Step Image Edit 2
+   on the owner's picture, cut by `cut.py`) instead of the placeholder shapes; warps sized to long
+   hair (hair reaches past the back-hair warp, which only matters in turns).
 
 1. **Run See-through** on `.puppets-work/seethrough-in/*.png` (one session, about 40–60 min,
    $0.15–0.45): `RUNPOD_API_KEY=… node tools/see-through-worker/session.mjs run --max-minutes 75
@@ -47,4 +67,4 @@ Budget rules: [PROMPTING.md](PROMPTING.md) (NanoGPT at most 95 images per UTC da
 
 | Day (UTC) | NanoGPT images | GPU |
 |---|---|---|
-| 2026-10-08 | 51 of 95 (#90–#142, all puppets; #90 and #132 failed, not counted); models: Qwen Image, HiDream, Z Image Turbo, Step Image Edit 2 | RunPod $0.00 of $5.00 (one start with no card free) |
+| 2026-10-08 | 51 of 95 (#90–#142, all puppets; #90 and #132 failed, not counted); models: Qwen Image, HiDream, Z Image Turbo, Step Image Edit 2 | RunPod $0.17 of $5.00 (one start with no card free; one 46-minute session); $4.83 left |
