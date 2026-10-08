@@ -43,6 +43,21 @@
    ],
    "result": "4/4 layered; 70 MB",
    "note": "owner's test pictures (4), first real See-through run"
+  },
+  {
+   "date": "2026-10-08",
+   "provider": "RunPod",
+   "gpu": "RTX 3090 Ti",
+   "pricePerHr": 0.27,
+   "start": "2026-10-08T22:24:53.200Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 4.8241180834,
+   "balanceAfter": null,
+   "images": [],
+   "result": "started",
+   "note": "4 generated characters: nude A-pose bases + 9 outfits each"
   }
  ]
 }
