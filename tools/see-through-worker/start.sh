@@ -31,7 +31,12 @@ from huggingface_hub import snapshot_download
 for repo in ('layerdifforg/seethroughv0.0.2_layerdiff3d', '24yearsold/seethroughv0.0.1_marigold'):
     snapshot_download(repo); print('downloaded', repo, flush=True)
 " >> "$WORK/setup.log" 2>&1
-  python -c "import torch; print('cuda', torch.cuda.is_available(), torch.cuda.get_device_name(0))" >> "$WORK/setup.log" 2>&1
+  # A host whose GPU doesn't work (it happens: "CUDA unknown error") is reported, not marked
+  # ready, so the session gives it back before uploading anything.
+  if ! python -c "import torch; x = torch.ones(1024, 1024, device='cuda', dtype=torch.bfloat16); print('cuda ok', torch.cuda.get_device_name(0), float((x @ x).sum()))" >> "$WORK/setup.log" 2>&1; then
+    stage "GPU check failed"
+    wait
+  fi
   touch "$WORK/READY"
   stage "ready"
 fi
