@@ -40,9 +40,10 @@ export const DEFAULT_MOTIONS: Record<string, PuppetMotion> = {
   shake: { duration: 1.1, loop: false, additive: true, tracks: { AngleX: [[0, 0], [0.18, -16], [0.42, 16], [0.66, -12], [0.88, 6], [1.1, 0]] } },
   tilt: { duration: 1.4, loop: false, additive: true, tracks: { AngleZ: [[0, 0], [0.35, 12], [1.05, 12], [1.4, 0]] } },
   surprise: { duration: 1.0, loop: false, additive: true, tracks: { AngleY: [[0, 0], [0.12, 8], [1, 0]], BrowY: [[0, 0], [0.1, 0.8], [0.8, 0.6], [1, 0]], EyeLOpen: [[0, 0], [0.1, 0.15], [1, 0]], EyeROpen: [[0, 0], [0.1, 0.15], [1, 0]], BodyAngleX: [[0, 0], [0.12, -3], [1, 0]] } },
-  laugh: { duration: 1.6, loop: false, additive: true, tracks: { AngleY: [[0, 0], [0.2, 6], [0.4, -2], [0.6, 6], [0.8, -2], [1.0, 5], [1.6, 0]], EyeSmile: [[0, 0], [0.15, 1], [1.4, 1], [1.6, 0]], MouthOpen: [[0, 0], [0.15, 0.6], [0.3, 0.3], [0.45, 0.6], [0.6, 0.3], [0.75, 0.6], [1.4, 0.4], [1.6, 0]], BodyAngleZ: [[0, 0], [0.4, 2], [1.0, -1], [1.6, 0]] } },
+  laugh: { duration: 1.6, loop: false, additive: true, tracks: { AngleY: [[0, 0], [0.2, 6], [0.4, -2], [0.6, 6], [0.8, -2], [1.0, 5], [1.6, 0]], EyeSmile: [[0, 0], [0.15, 1], [1.4, 1], [1.6, 0]], MouthOpen: [[0, 0], [0.15, 0.6], [0.3, 0.3], [0.45, 0.6], [0.6, 0.3], [0.75, 0.6], [1.4, 0.4], [1.6, 0]], BodyAngleZ: [[0, 0], [0.4, 2], [1.0, -1], [1.6, 0]], BodyY: [[0, 0], [0.2, 0.25], [0.4, -0.1], [0.6, 0.25], [0.8, -0.1], [1.0, 0.2], [1.6, 0]] } },
   wave: { duration: 1.6, loop: false, additive: true, tracks: { ArmRPose: [[0, 0], [0.25, 1], [1.35, 1], [1.6, 0]], ArmWave: [[0, 0], [0.3, 0], [0.5, 1], [0.7, -1], [0.9, 1], [1.1, -1], [1.3, 0]], AngleZ: [[0, 0], [0.3, 4], [1.3, 4], [1.6, 0]], MouthForm: [[0, 0], [0.3, 0.7], [1.4, 0.7], [1.6, 0]] } },
   flinch: { duration: 0.7, loop: false, additive: true, tracks: { AngleY: [[0, 0], [0.08, 8], [0.7, 0]], AngleX: [[0, 0], [0.08, -10], [0.7, 0]], EyeLOpen: [[0, 0], [0.06, -0.8], [0.4, -0.2], [0.7, 0]], EyeROpen: [[0, 0], [0.06, -0.8], [0.4, -0.2], [0.7, 0]], BodyAngleX: [[0, 0], [0.1, -4], [0.7, 0]] } },
+  hop: { duration: 1.3, loop: false, additive: true, tracks: { BodyY: [[0, 0], [0.12, -0.35], [0.3, 1], [0.48, -0.2], [0.62, 0], [0.74, -0.3], [0.9, 0.8], [1.06, -0.15], [1.3, 0]], AngleY: [[0, 0], [0.3, 4], [0.9, 4], [1.3, 0]], MouthForm: [[0, 0], [0.2, 0.8], [1.1, 0.8], [1.3, 0]] } },
   lean: { duration: 1.2, loop: false, additive: true, tracks: { BodyAngleX: [[0, 0], [0.4, 6], [0.8, 6], [1.2, 0]], AngleX: [[0, 0], [0.4, 8], [0.8, 8], [1.2, 0]] } },
 };
 
@@ -58,9 +59,11 @@ export function trackAt(keys: Array<[number, number]>, t: number): number {
   return v0 + (v1 - v0) * f * f * (3 - 2 * f);
 }
 
-interface Pendulum { px: Float32Array; py: Float32Array; qx: Float32Array; qy: Float32Array; inputs: Array<{ i: number; w: number; kind: 'x' | 'angle'; range: number }>; outputs: Array<{ i: number; segment: number; scale: number }>; def: PuppetModel['physics'][number]; acc: number }
+interface Pendulum { px: Float32Array; py: Float32Array; qx: Float32Array; qy: Float32Array; inputs: Array<{ i: number; w: number; kind: 'x' | 'y' | 'angle'; range: number }>; outputs: Array<{ i: number; segment: number; scale: number; axis: 'x' | 'y' }>; def: PuppetModel['physics'][number]; acc: number;
+  /** Springs: the mass's position and velocity (anchor units), primed on the first step. */
+  sx: number; sy: number; vx: number; vy: number; primed: boolean }
 
-/** Pendulum chains (verlet, fixed 60 Hz steps) whose swing drives parameters. */
+/** Pendulum chains and springs (fixed 60 Hz steps) whose motion drives parameters. */
 export class PuppetPendulums {
   private chains: Pendulum[] = [];
   enabled = true;
@@ -68,10 +71,10 @@ export class PuppetPendulums {
   constructor(private rig: PuppetRig, model: PuppetModel) {
     for (const def of model.physics) {
       const n = def.segments + 1;
-      const c: Pendulum = { px: new Float32Array(n), py: new Float32Array(n), qx: new Float32Array(n), qy: new Float32Array(n), def, acc: 0, inputs: [], outputs: [] };
+      const c: Pendulum = { px: new Float32Array(n), py: new Float32Array(n), qx: new Float32Array(n), qy: new Float32Array(n), def, acc: 0, inputs: [], outputs: [], sx: 0, sy: 0, vx: 0, vy: 0, primed: false };
       for (let k = 0; k < n; k++) { c.py[k] = k * def.length; c.qy[k] = c.py[k]!; }
       for (const x of def.inputs) { const i = rig.param(x.param); if (i >= 0) c.inputs.push({ i, w: x.weight, kind: x.kind, range: Math.max(Math.abs(rig.min[i]!), Math.abs(rig.max[i]!)) || 1 }); }
-      for (const o of def.outputs) { const i = rig.param(o.param); if (i >= 0) c.outputs.push({ i, segment: Math.min(o.segment, def.segments - 1), scale: o.scale }); }
+      for (const o of def.outputs) { const i = rig.param(o.param); if (i >= 0) c.outputs.push({ i, segment: Math.min(o.segment, def.segments - 1), scale: o.scale, axis: o.axis ?? 'x' }); }
       this.chains.push(c);
     }
   }
@@ -84,6 +87,16 @@ export class PuppetPendulums {
     for (const c of this.chains) {
       if (!this.enabled) { for (const o of c.outputs) this.rig.values[o.i] = this.rig.defaults[o.i]!; continue; }
       c.acc = Math.min(c.acc + dt, h * 6);
+      if (c.def.kind === 'spring') {
+        while (c.acc >= h) { this.stepSpring(c, h); c.acc -= h; }
+        const ax = this.anchorX(c), ay = this.anchorY(c);
+        for (const o of c.outputs) {
+          const r = Math.max(Math.abs(this.rig.min[o.i]!), Math.abs(this.rig.max[o.i]!));
+          const lag = o.axis === 'y' ? c.sy - ay : c.sx - ax;
+          this.rig.values[o.i] = Math.max(this.rig.min[o.i]!, Math.min(this.rig.max[o.i]!, lag * o.scale * r));
+        }
+        continue;
+      }
       while (c.acc >= h) { this.step(c, h); c.acc -= h; }
       for (const o of c.outputs) {
         const k = o.segment;
@@ -99,6 +112,7 @@ export class PuppetPendulums {
   }
 
   private anchorX(c: Pendulum) { let x = 0; for (const s of c.inputs) if (s.kind === 'x') x += (this.rig.values[s.i]! / s.range) * s.w; return x; }
+  private anchorY(c: Pendulum) { let y = 0; for (const s of c.inputs) if (s.kind === 'y') y += (this.rig.values[s.i]! / s.range) * s.w; return y; }
   private anchorAngle(c: Pendulum) { let a = 0; for (const s of c.inputs) if (s.kind === 'angle') a += (this.rig.values[s.i]! / s.range) * s.w * 30; return a; }
 
   private step(c: Pendulum, h: number) {
@@ -122,8 +136,25 @@ export class PuppetPendulums {
     }
   }
 
+  /** A damped spring pulling the mass toward the anchor (semi-implicit Euler, stable at 60 Hz for
+   * the frequencies the schema allows). */
+  private stepSpring(c: Pendulum, h: number) {
+    const ax = this.anchorX(c), ay = this.anchorY(c);
+    if (!c.primed) { c.sx = ax; c.sy = ay; c.vx = 0; c.vy = 0; c.primed = true; return; }
+    const w = 2 * Math.PI * Math.max(0.1, c.def.stiffness), zeta = c.def.damping;
+    c.vx += (-w * w * (c.sx - ax) - 2 * zeta * w * c.vx) * h;
+    c.vy += (-w * w * (c.sy - ay) - 2 * zeta * w * c.vy) * h;
+    c.sx += c.vx * h; c.sy += c.vy * h;
+    // Never further than `limit`/30 anchor units from the anchor (a hard stop, like a pendulum's).
+    const m = c.def.limit / 30, dx = c.sx - ax, dy = c.sy - ay, d = Math.hypot(dx, dy);
+    if (d > m) { c.sx = ax + (dx / d) * m; c.sy = ay + (dy / d) * m; }
+  }
+
   reset() {
-    for (const c of this.chains) for (let k = 0; k < c.px.length; k++) { c.px[k] = 0; c.py[k] = k * c.def.length; c.qx[k] = 0; c.qy[k] = c.py[k]!; }
+    for (const c of this.chains) {
+      for (let k = 0; k < c.px.length; k++) { c.px[k] = 0; c.py[k] = k * c.def.length; c.qx[k] = 0; c.qy[k] = c.py[k]!; }
+      c.primed = false;
+    }
   }
 }
 

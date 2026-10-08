@@ -23,7 +23,7 @@ cross-references and keyform sizes). Coordinates are the art's pixels, y down.
 | `deformers` | `warp` (a rest rectangle split into `cols × rows` cells) or `rotate` (an origin); each may have a parent |
 | `parts` | `{id, slot, texture, mesh: {positions, uvs, indices}, parent, z, opacity, blend, masks, color}` |
 | `bindings` | Keyforms: `{target, prop, params (1–2), keys, values}`; `prop` is `grid`, `verts`, `angle`, `offset`, `scale`, `opacity` or `z` |
-| `physics` | Pendulum chains: inputs (parameters as sideways motion or turning), outputs (parameters), segments, length, gravity, damping, stiffness, limit |
+| `physics` | `pendulum` chains (inputs as sideways motion or turning; the swing angle is the output) and `spring`s (a mass lagging its anchor, which inputs move sideways `x` or up and down `y`; the lag along an axis is the output); damping, stiffness (a spring's frequency in Hz), limit |
 | `expressions` | Emotion → parameter values (defaults exist for Everloom's emotions) |
 | `motions` | Parameter tracks of `[time, value]` keys (additive by default) |
 | `colors` | Colour group → base colour; the maker recolours by shifting hue, saturation and brightness from it |
@@ -52,10 +52,11 @@ Standard (every template; story, life and lip-sync use them): `AngleX`, `AngleY`
 `EyeBallY`, `BrowY`, `BrowAngle`, `MouthOpen`, `MouthForm`, `Cheek`, `MouthA`/`I`/`U`/`E`/`O`, and
 body shape `Bust`, `Waist`, `Hips`, `Thighs`, `Shoulders`, `Build` (−1…1, clamped to where they
 still look right). The template adds `ArmLPose`, `ArmRPose` (swap the arm drawings), `ArmWave`, and
-internal physics outputs `HairFront`, `HairSide`, `HairBack`, `BustY`, `ArmLSwing`, `ArmRSwing`.
+`BodyY` (a hop or bob: the upper body rises, the feet stay down), and internal physics outputs
+`HairFront`, `HairSide`, `HairBack`, `BustY`, `BustX`, `ArmLSwing`, `ArmRSwing`.
 The ±30 of `AngleX`/`AngleY` maps to 20° and 14° of real turn (the art's limit).
 
-Motions built in: `nod`, `shake`, `tilt`, `surprise`, `laugh`, `wave`, `flinch`, `lean`.
+Motions built in: `nod`, `shake`, `tilt`, `surprise`, `laugh` (with a bob), `wave`, `flinch`, `hop`, `lean`.
 
 ## The part schema (both templates)
 
@@ -100,8 +101,11 @@ for a template lines up with them.
 and BustY keyforms; a neck rotation (AngleZ, a small move with AngleX); one warp per depth layer
 (face, hairFront, hairSide, hairBack) with AngleX × AngleY keyforms from a sphere projection plus
 hair sway; eye warps (EyeSmile), brow rotations (BrowY, BrowAngle), the mouth warp (MouthForm,
-MouthOpen); shoulder rotations for the arms (swing, wave). Physics: front, side and back hair, the
-chest, both arms.
+MouthOpen); shoulder rotations for the arms (swing, wave); a `chest` warp under the body holding
+the upper-body parts (top, underwear, skin above the hips), sized to contain them, whose BustY and
+BustX keyforms move only two soft ovals at the breasts. Physics: front, side and back hair and
+both arms (pendulums); the chest (a spring at about 2.6 Hz, damping ratio 0.22, pushed by BodyY,
+breathing, nods, body sway and lean).
 
 ## Making a template or a character
 

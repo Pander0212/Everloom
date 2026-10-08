@@ -41,7 +41,9 @@ export interface RigOptions {
 
 /** Template parameters on top of the standard set. */
 const EXTRA_PARAMS: Array<[string, number, number, number, boolean?]> = [
-  ['HairFront', -1, 1, 0, true], ['HairSide', -1, 1, 0, true], ['HairBack', -1, 1, 0, true], ['BustY', -1, 1, 0, true],
+  ['HairFront', -1, 1, 0, true], ['HairSide', -1, 1, 0, true], ['HairBack', -1, 1, 0, true], ['BustY', -1, 1, 0, true], ['BustX', -1, 1, 0, true],
+  // A small hop or bob (laughing, bouncing): the upper body rises, the feet stay on the floor.
+  ['BodyY', -1, 1, 0],
   ['ArmLSwing', -1, 1, 0, true], ['ArmRSwing', -1, 1, 0, true],
   ['ArmLPose', 0, 1, 0], ['ArmRPose', 0, 1, 0], ['ArmWave', -1, 1, 0],
 ];
@@ -120,8 +122,32 @@ export function buildTemplateRig(L: TemplateLandmarks, parts: RigPart[], o: RigO
   shape('Thighs', L.hips.cy + torso * 0.45, torso * 0.4, 0.08);
   shape('Shoulders', L.shoulderL[1], torso * 0.3, 0.07);
   bindings.push({ target: 'body', prop: 'grid', params: ['Build'], keys: [[-1, 0, 1]], values: [-1, 0, 1].map((s) => s === 0 ? zeros(bodyPts.length * 2) : gridOffsets(bodyPts, (x, y) => [x + (x - cx) * 0.05 * s * (y > bodyTop + R * 0.3 ? 1 : 0.4), y])) });
-  // The chest's own bounce (written by physics).
-  bindings.push({ target: 'body', prop: 'grid', params: ['BustY'], keys: [[-1, 0, 1]], values: [-1, 0, 1].map((s) => s === 0 ? zeros(bodyPts.length * 2) : gridOffsets(bodyPts, (x, y) => [x, y + s * R * 0.035 * band(y, L.chest.cy, torso * 0.18) * band(x, cx, L.chest.w * 0.75)])) });
+  // A hop: everything above the hips rises, the legs stretch to keep the feet down.
+  bindings.push({ target: 'body', prop: 'grid', params: ['BodyY'], keys: [[-1, 0, 1]], values: [-1, 0, 1].map((s) => s === 0 ? zeros(bodyPts.length * 2) : gridOffsets(bodyPts, (x, y) => [x, y - s * R * 0.3 * (y <= L.hips.cy ? 1 : Math.max(0, 1 - (y - L.hips.cy) / Math.max(1, L.bottom - L.hips.cy)))])) });
+
+  // ---- the chest: its own fine warp (under the body's) for the bounce, so only the breasts move.
+  // It holds the parts of the upper body (top, underwear, the body's skin above the hips) and is
+  // sized to contain them, so nothing is ever extrapolated outside it.
+  const chestSlots = new Set(['body', 'underwear', 'top', 'outer']);
+  const chestParts = parts.filter((p) => chestSlots.has(slotOf(p.slot)) && (() => { const b = meshBox([p.mesh]); return !!b && b[1] + b[3] / 2 < L.hips.cy; })());
+  const bustCx = [cx - L.chest.w * 0.23, cx + L.chest.w * 0.23], bustCy = L.chest.cy + torso * 0.02;
+  const bustRx = L.chest.w * 0.32, bustRy = torso * 0.2;
+  const chestIds = new Set<string>();
+  if (chestParts.length) {
+    const boxes = chestParts.map((p) => meshBox([p.mesh])!);
+    const x0 = Math.min(bustCx[0]! - bustRx, ...boxes.map((b) => b[0])) - 4, y0 = Math.min(bustCy - bustRy, ...boxes.map((b) => b[1])) - 4;
+    const x1 = Math.max(bustCx[1]! + bustRx, ...boxes.map((b) => b[0] + b[2])) + 4, y1 = Math.max(bustCy + bustRy, ...boxes.map((b) => b[1] + b[3])) + 4;
+    const rect: [number, number, number, number] = [x0, y0, x1 - x0, y1 - y0];
+    const cols = Math.max(4, Math.min(16, Math.round(rect[2] / (R * 0.5)))), rows = Math.max(4, Math.min(20, Math.round(rect[3] / (R * 0.5))));
+    deformers.push({ kind: 'warp', id: 'chest', parent: 'body', rect, cols, rows });
+    const pts = gridPoints(rect, cols, rows);
+    // How much a point belongs to a breast: a soft oval around each.
+    const bump = (x: number, y: number) => Math.max(...bustCx.map((bx) => { const r = Math.hypot((x - bx) / bustRx, (y - bustCy) / bustRy); return r >= 1 ? 0 : 0.5 + 0.5 * Math.cos(Math.PI * r); }));
+    // Up and down (positive lifts), and sideways; physics writes both.
+    bindings.push({ target: 'chest', prop: 'grid', params: ['BustY'], keys: [[-1, 0, 1]], values: [-1, 0, 1].map((s) => s === 0 ? zeros(pts.length * 2) : gridOffsets(pts, (x, y) => { const w = bump(x, y); return [x, y - s * R * 0.24 * w]; })) });
+    bindings.push({ target: 'chest', prop: 'grid', params: ['BustX'], keys: [[-1, 0, 1]], values: [-1, 0, 1].map((s) => s === 0 ? zeros(pts.length * 2) : gridOffsets(pts, (x, y) => [x + s * R * 0.14 * bump(x, y), y])) });
+    for (const p of chestParts) chestIds.add(p.id);
+  }
 
   // ---- the head: a rotation at the neck (tilt), then one warp per depth layer
   deformers.push({ kind: 'rotate', id: 'neck', parent: 'body', origin: [L.neck.cx, L.neck.cy] });
@@ -189,7 +215,7 @@ export function buildTemplateRig(L: TemplateLandmarks, parts: RigPart[], o: RigO
     const slot = slotOf(p.slot);
     const def = SLOTS[slot];
     if (!def) throw new Error(`Unknown slot "${p.slot}" on part ${p.id}`);
-    out.push({ id: p.id, name: p.name, slot: p.slot, texture: p.texture, mesh: p.mesh, parent: def.deformer, z: p.z ?? def.z, opacity: 1, blend: 'normal', masks: def.mask ? idsOf(def.mask) : [], color: p.color ?? def.color });
+    out.push({ id: p.id, name: p.name, slot: p.slot, texture: p.texture, mesh: p.mesh, parent: chestIds.has(p.id) ? 'chest' : def.deformer, z: p.z ?? def.z, opacity: 1, blend: 'normal', masks: def.mask ? idsOf(def.mask) : [], color: p.color ?? def.color });
   }
   const opacity = (slot: string, params: string[], keys: number[][], values: number[]) => { for (const id of idsOf(slot)) bindings.push({ target: id, prop: 'opacity', params, keys, values }); };
   for (const s of ['l', 'r'] as const) {
@@ -244,12 +270,13 @@ export function buildTemplateRig(L: TemplateLandmarks, parts: RigPart[], o: RigO
   }
 
   // ---- physics: hair and arms swing with the head and body, the chest bounces a little
-  physics.push({ id: 'hairFront', inputs: [{ param: 'AngleX', weight: 1, kind: 'x' }, { param: 'AngleZ', weight: 0.8, kind: 'angle' }, { param: 'BodyAngleX', weight: 0.4, kind: 'x' }], outputs: [{ param: 'HairFront', segment: 0, scale: 1 }], segments: 2, length: 0.6, gravity: 1, damping: 0.12, stiffness: 3, limit: 25 });
-  physics.push({ id: 'hairSide', inputs: [{ param: 'AngleX', weight: 1, kind: 'x' }, { param: 'AngleZ', weight: 1, kind: 'angle' }, { param: 'BodyAngleX', weight: 0.6, kind: 'x' }], outputs: [{ param: 'HairSide', segment: 1, scale: 1 }], segments: 2, length: 1, gravity: 1, damping: 0.1, stiffness: 2, limit: 30 });
-  physics.push({ id: 'hairBack', inputs: [{ param: 'AngleX', weight: 1, kind: 'x' }, { param: 'AngleZ', weight: 1, kind: 'angle' }, { param: 'BodyAngleX', weight: 1, kind: 'x' }, { param: 'BodyAngleZ', weight: 0.6, kind: 'angle' }], outputs: [{ param: 'HairBack', segment: 2, scale: 1 }], segments: 3, length: 1.2, gravity: 1, damping: 0.08, stiffness: 1.5, limit: 30 });
-  physics.push({ id: 'bust', inputs: [{ param: 'BodyAngleX', weight: 0.6, kind: 'x' }, { param: 'Breath', weight: 0.3, kind: 'x' }, { param: 'AngleY', weight: 0.3, kind: 'x' }], outputs: [{ param: 'BustY', segment: 0, scale: 0.6 }], segments: 1, length: 0.3, gravity: 0.6, damping: 0.25, stiffness: 6, limit: 20 });
-  physics.push({ id: 'armL', inputs: [{ param: 'BodyAngleZ', weight: 1, kind: 'angle' }, { param: 'BodyAngleX', weight: 0.5, kind: 'x' }], outputs: [{ param: 'ArmLSwing', segment: 0, scale: 1 }], segments: 1, length: 1.5, gravity: 1, damping: 0.2, stiffness: 1.5, limit: 15 });
-  physics.push({ id: 'armR', inputs: [{ param: 'BodyAngleZ', weight: 1, kind: 'angle' }, { param: 'BodyAngleX', weight: 0.5, kind: 'x' }], outputs: [{ param: 'ArmRSwing', segment: 0, scale: 1 }], segments: 1, length: 1.5, gravity: 1, damping: 0.2, stiffness: 1.5, limit: 15 });
+  physics.push({ id: 'hairFront', kind: 'pendulum', inputs: [{ param: 'AngleX', weight: 1, kind: 'x' }, { param: 'AngleZ', weight: 0.8, kind: 'angle' }, { param: 'BodyAngleX', weight: 0.4, kind: 'x' }], outputs: [{ param: 'HairFront', segment: 0, scale: 1, axis: 'x' }], segments: 2, length: 0.6, gravity: 1, damping: 0.12, stiffness: 3, limit: 25 });
+  physics.push({ id: 'hairSide', kind: 'pendulum', inputs: [{ param: 'AngleX', weight: 1, kind: 'x' }, { param: 'AngleZ', weight: 1, kind: 'angle' }, { param: 'BodyAngleX', weight: 0.6, kind: 'x' }], outputs: [{ param: 'HairSide', segment: 1, scale: 1, axis: 'x' }], segments: 2, length: 1, gravity: 1, damping: 0.1, stiffness: 2, limit: 30 });
+  physics.push({ id: 'hairBack', kind: 'pendulum', inputs: [{ param: 'AngleX', weight: 1, kind: 'x' }, { param: 'AngleZ', weight: 1, kind: 'angle' }, { param: 'BodyAngleX', weight: 1, kind: 'x' }, { param: 'BodyAngleZ', weight: 0.6, kind: 'angle' }], outputs: [{ param: 'HairBack', segment: 2, scale: 1, axis: 'x' }], segments: 3, length: 1.2, gravity: 1, damping: 0.08, stiffness: 1.5, limit: 30 });
+  // The chest: a spring that lags behind the body and wobbles back (about 2.6 bounces a second).
+  if (chestIds.size) physics.push({ id: 'bust', kind: 'spring', inputs: [{ param: 'BodyY', weight: 1, kind: 'y' }, { param: 'Breath', weight: 0.15, kind: 'y' }, { param: 'AngleY', weight: 0.15, kind: 'y' }, { param: 'BodyAngleX', weight: 0.7, kind: 'x' }, { param: 'BodyAngleZ', weight: 0.5, kind: 'x' }, { param: 'AngleX', weight: 0.1, kind: 'x' }], outputs: [{ param: 'BustY', segment: 0, scale: 1.6, axis: 'y' }, { param: 'BustX', segment: 0, scale: 1.6, axis: 'x' }], segments: 1, length: 1, gravity: 0, damping: 0.22, stiffness: 2.6, limit: 18 });
+  physics.push({ id: 'armL', kind: 'pendulum', inputs: [{ param: 'BodyAngleZ', weight: 1, kind: 'angle' }, { param: 'BodyAngleX', weight: 0.5, kind: 'x' }], outputs: [{ param: 'ArmLSwing', segment: 0, scale: 1, axis: 'x' }], segments: 1, length: 1.5, gravity: 1, damping: 0.2, stiffness: 1.5, limit: 15 });
+  physics.push({ id: 'armR', kind: 'pendulum', inputs: [{ param: 'BodyAngleZ', weight: 1, kind: 'angle' }, { param: 'BodyAngleX', weight: 0.5, kind: 'x' }], outputs: [{ param: 'ArmRSwing', segment: 0, scale: 1, axis: 'x' }], segments: 1, length: 1.5, gravity: 1, damping: 0.2, stiffness: 1.5, limit: 15 });
 
   const params = [...STANDARD_PARAMS.map(([id, min, max, def]) => ({ id, min, max, default: def })), ...EXTRA_PARAMS.map(([id, min, max, def, internal]) => ({ id, min, max, default: def, ...(internal ? { internal: true } : {}) }))];
   const box = meshBox(parts.map((p) => p.mesh));

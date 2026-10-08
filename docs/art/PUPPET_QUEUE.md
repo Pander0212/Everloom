@@ -36,6 +36,16 @@ Budget rules: [PROMPTING.md](PROMPTING.md) (NanoGPT at most 95 images per UTC da
   face comes back with the eyes, brows and mouth painted out (good for expressions); the back hair
   is completed behind the head.
 
+## Done (2026-10-08, run 2, later)
+
+- Body parts take See-through's own draw order (arms behind the top's straps, the waistband over
+  the top) instead of the template's.
+- Chest physics: a `spring` physics kind, a fine `chest` warp, `BodyY` and a `hop` motion; on all
+  three test outfits and the owner's 18+ test (from the layered nude picture, not committed).
+- Textoon checked and not run: its base model (Live2D "haimeng") is only given to university
+  researchers who sign Live2D's terms, its output is a Cubism model under Live2D's Free Material
+  License, and its image models come from sites that need accounts. $0 spent on it.
+
 ## Next
 
 0. With the owner's verdict on the test: mouth and eye-smile drawings by edit (Step Image Edit 2

@@ -102,22 +102,26 @@ export const BindingSchema = z.object({
 export type PuppetBinding = z.infer<typeof BindingSchema>;
 
 /**
- * A pendulum chain driven by how the head and body move: hair strands, ribbons, skirts, earrings,
- * the chest. Its swing is written to an output parameter that keyforms then use.
+ * Physics driven by how the head and body move, written to output parameters that keyforms use.
+ * A `pendulum` is a chain that swings (hair strands, ribbons, skirts, earrings); a `spring` is a
+ * mass that lags behind its anchor and wobbles back, in two directions (the chest, soft bellies).
  */
 export const PuppetPhysicsSchema = z.object({
   id,
-  /** Which parameters push it and how much (sideways motion `x`, turning `angle`). */
-  inputs: z.array(z.object({ param: id, weight: finite, kind: z.enum(['x', 'angle']).default('x') })).min(1).max(8),
-  /** Written each frame with the swing (the chain's end angle, mapped to the parameter's range). */
-  outputs: z.array(z.object({ param: id, segment: z.number().int().min(0).max(7).default(0), scale: finite.default(1) })).min(1).max(4),
+  kind: z.enum(['pendulum', 'spring']).default('pendulum'),
+  /** Which parameters push it and how much: sideways motion `x`, up-down motion `y` (springs),
+   * turning `angle` (pendulums). Each moves the anchor by value/range × weight. */
+  inputs: z.array(z.object({ param: id, weight: finite, kind: z.enum(['x', 'y', 'angle']).default('x') })).min(1).max(8),
+  /** Written each frame: a pendulum's swing (its end angle over `limit`), a spring's lag along
+   * `axis` (in anchor units × scale), mapped onto the parameter's range. */
+  outputs: z.array(z.object({ param: id, segment: z.number().int().min(0).max(7).default(0), scale: finite.default(1), axis: z.enum(['x', 'y']).default('x') })).min(1).max(4),
   segments: z.number().int().min(1).max(8).default(2),
   /** Length of each segment, in relative units (1 ≈ a head's height). */
   length: z.number().positive().max(10).default(1),
   gravity: z.number().min(0).max(4).default(1),
-  /** 0 keeps swinging, 1 stops at once. */
+  /** 0 keeps swinging, 1 stops at once (a spring: its damping ratio, 1 = no overshoot). */
   damping: z.number().min(0).max(1).default(0.15),
-  /** Pull back to hanging straight down. */
+  /** Pendulum: pull back to hanging straight down. Spring: its natural frequency, Hz. */
   stiffness: z.number().min(0).max(20).default(2),
   /** Largest swing either way, degrees. */
   limit: z.number().min(1).max(90).default(30),

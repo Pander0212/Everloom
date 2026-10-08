@@ -212,6 +212,31 @@ describe('the animator', () => {
     expect(a.rig.get('HairBack')).toBe(0);
   });
 
+  it('bounces the chest on a spring: it lags a hop, overshoots, settles; only the breasts move', () => {
+    const a = new PuppetAnimator(placeholder(), seeded());
+    a.life = { blink: false, breath: false, sway: false };
+    for (let i = 0; i < 30; i++) a.update(1 / 60);
+    expect(a.rig.get('BustY')).toBeCloseTo(0, 3);
+    a.play('hop');
+    let low = 0, high = 0;
+    for (let i = 0; i < 90; i++) { a.update(1 / 60); low = Math.min(low, a.rig.get('BustY')); high = Math.max(high, a.rig.get('BustY')); }
+    // Rising, the chest lags below; it then swings past and back.
+    expect(low).toBeLessThan(-0.15);
+    expect(high).toBeGreaterThan(0.1);
+    for (let i = 0; i < 60 * 6; i++) a.update(1 / 60);
+    expect(Math.abs(a.rig.get('BustY'))).toBeLessThan(0.02);
+    // The bounce moves the chest and leaves the waist and the face where they were.
+    const at = (id: string) => { const i = a.rig.model.parts.findIndex((p) => p.id === id); return Array.from(a.rig.frames[i]!.positions); };
+    const top0 = at('top'), face0 = at('face-skin');
+    a.physics.enabled = false;
+    a.rig.set('BustY', 1);
+    a.rig.evaluate();
+    const top1 = at('top'), face1 = at('face-skin');
+    const moved = top0.map((v, k) => Math.abs(v - top1[k]!));
+    expect(Math.max(...moved)).toBeGreaterThan(3);
+    expect(Math.max(...face0.map((v, k) => Math.abs(v - face1[k]!)))).toBeLessThan(0.01);
+  });
+
   it('follows a look target with the eyes and the head', () => {
     const a = new PuppetAnimator(placeholder(), seeded());
     a.life = { blink: false, breath: false, sway: false };
