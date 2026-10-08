@@ -326,3 +326,14 @@ else, so the new hair or clothes come out as layers that line up.
 - Qwen Image: the NanoGPT model description and its model card (text rendering, multi-image editing)
 - NanoGPT: [Image API](https://docs.nano-gpt.com/api-reference/image-generation.md), [Subscription Usage](https://docs.nano-gpt.com/api-reference/endpoint/subscription-usage.md), [billing override](https://docs.nano-gpt.com/api-reference/miscellaneous/billing-override.md)
 - ElectronHub: [Image Generations](https://docs.electronhub.ai/api-reference/images/generations.md), `/v1/models`
+
+### Outfits on a nude base (Seedream 4.5), lessons from run 3
+
+- Seedream keeps the base's pose and face exactly, which is what makes outfits line up as layers.
+- It sometimes leaves the base showing: a skirt with no top, a dress or bikini drawn sheer enough
+  that nipples or genitals show through. Check every outfit by eye. Redo the half-dressed ones
+  ("…covers her whole chest completely, with its top and straps clearly drawn"); rate the
+  see-through ones 18+ (they then show only with adult content on) or redo them.
+- None of this art goes to GitHub: generated characters, outfits and built puppets stay in the
+  git-ignored `.puppets-work/` and `apps/web/public/puppets/local/` (scripts/check-pack-art.mjs
+  refuses them), and 18+ prompts stay out of the ledger (`gen.mjs --adult`).
