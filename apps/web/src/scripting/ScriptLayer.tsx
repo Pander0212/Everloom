@@ -23,6 +23,8 @@ export interface LayerProps {
   swipeNew?: () => Promise<void>;
   /** App level: only global scripts that run "when Everloom opens". */
   global?: boolean;
+  /** Called once this chat's frames are attached (they count as starting from then on). */
+  onReady?: () => void;
 }
 
 /** An extension's entry file, ready for a frame. */
@@ -53,7 +55,7 @@ function ExtensionBackground({ ext, chatId, characterId, settings }: { ext: Exte
   return <ScriptFrame spec={spec} hidden />;
 }
 
-export default function ScriptLayer({ chatId, characterId, settings, runnable, extensions, send, swipeNew, global }: LayerProps) {
+export default function ScriptLayer({ chatId, characterId, settings, runnable, extensions, send, swipeNew, global, onReady }: LayerProps) {
   const scripts = useMemo(() => {
     const wanted = runnable.filter((s) => (global ? s.ref.scope === 'global' && s.script.triggers.includes('load') : !(s.ref.scope === 'global' && s.script.triggers.length === 1 && s.script.triggers[0] === 'load')));
     // Extension scripts come as their own frames (below); the rest is limited by "how many at once".
@@ -64,6 +66,8 @@ export default function ScriptLayer({ chatId, characterId, settings, runnable, e
   }, [runnable, settings.maxActive, global]);
 
   const restarts = useScriptUi((s) => s.restarts);
+  // The frames below attach in their own effects, which run before this one.
+  useEffect(() => { onReady?.(); }, [chatId]); // eslint-disable-line react-hooks/exhaustive-deps
   // The chat's bridge: sending a message runs the normal reply flow.
   useEffect(() => {
     if (!chatId || !send) return;

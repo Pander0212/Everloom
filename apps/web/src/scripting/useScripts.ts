@@ -13,5 +13,7 @@ export function useScripts(chatId: string | null) {
   const active = useQuery({ queryKey: ['scripts-active', chatId], queryFn: () => get<ActiveSet>('/api/scripts/active', chatId ? { chatId } : undefined), enabled: !!settings.data && on, staleTime: 30_000 });
   const extensions = useQuery({ queryKey: ['extensions-ui'], queryFn: () => get<ExtensionUi[]>('/api/extensions/ui'), enabled: !!settings.data && on, staleTime: 60_000 });
   const runnable = on ? (active.data?.scripts ?? []).filter((x) => x.granted && x.script.enabled) : [];
-  return { settings: s ?? null, safe, on, active: on ? (active.data ?? null) : null, extensions: on ? (extensions.data ?? []) : [], runnable };
+  // Still finding out what runs in this chat (a message sent now waits for it: see whenStarted).
+  const loading = on && (active.isPending || extensions.isPending);
+  return { settings: s ?? null, safe, on, loading, active: on ? (active.data ?? null) : null, extensions: on ? (extensions.data ?? []) : [], runnable };
 }

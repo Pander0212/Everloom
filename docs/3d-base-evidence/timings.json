@@ -8,13 +8,13 @@
    "pushed": 708,
    "mixedLimbs": 0,
    "flipped": false,
-   "ms": 83,
+   "ms": 116.80000000074506,
    "workerPhaseLatencyMs": 0,
    "swingBones": 0,
    "hiddenTriangles": 3099,
-   "longestTaskMs": 59,
-   "wallMs": 706,
-   "saveMs": 1323
+   "longestTaskMs": 121,
+   "wallMs": 805,
+   "saveMs": 1406
   },
   "trousers": {
    "vertices": 1202,
@@ -24,13 +24,13 @@
    "pushed": 422,
    "mixedLimbs": 6,
    "flipped": false,
-   "ms": 86.40000000002328,
+   "ms": 136.09999999962747,
    "workerPhaseLatencyMs": 0,
    "swingBones": 0,
    "hiddenTriangles": 1782,
-   "longestTaskMs": 208,
-   "wallMs": 1032,
-   "saveMs": 1290
+   "longestTaskMs": 0,
+   "wallMs": 820,
+   "saveMs": 1030
   },
   "skirt": {
    "vertices": 637,
@@ -40,13 +40,13 @@
    "pushed": 43,
    "mixedLimbs": 0,
    "flipped": false,
-   "ms": 73.09999999997672,
+   "ms": 53.19999999925494,
    "workerPhaseLatencyMs": 0,
    "swingBones": 40,
-   "hiddenTriangles": 214,
-   "longestTaskMs": 205,
-   "wallMs": 818,
-   "saveMs": 442
+   "hiddenTriangles": 263,
+   "longestTaskMs": 286,
+   "wallMs": 1002,
+   "saveMs": 474
   },
   "shoes": {
    "vertices": 1846,
@@ -56,13 +56,13 @@
    "pushed": 536,
    "mixedLimbs": 0,
    "flipped": false,
-   "ms": 45.09999999997672,
-   "workerPhaseLatencyMs": 1,
+   "ms": 64.69999999925494,
+   "workerPhaseLatencyMs": 0,
    "swingBones": 0,
    "hiddenTriangles": 4215,
-   "longestTaskMs": 182,
-   "wallMs": 914,
-   "saveMs": 1476
+   "longestTaskMs": 188,
+   "wallMs": 956,
+   "saveMs": 1019
   },
   "longHair": {
    "vertices": 3312,
@@ -72,13 +72,13 @@
    "pushed": 505,
    "mixedLimbs": 0,
    "flipped": false,
-   "ms": 127,
-   "workerPhaseLatencyMs": 0,
+   "ms": 86.29999999888241,
+   "workerPhaseLatencyMs": 1,
    "swingBones": 50,
    "hiddenTriangles": 0,
-   "longestTaskMs": 227,
-   "wallMs": 850,
-   "saveMs": 1591
+   "longestTaskMs": 110,
+   "wallMs": 1044,
+   "saveMs": 1222
   },
   "tube20k": {
    "vertices": 20000,
@@ -88,13 +88,13 @@
    "pushed": 7160,
    "mixedLimbs": 92,
    "flipped": false,
-   "ms": 808.5,
-   "workerPhaseLatencyMs": 4,
+   "ms": 845.6999999992549,
+   "workerPhaseLatencyMs": 1,
    "swingBones": 0,
    "hiddenTriangles": 1918,
-   "longestTaskMs": 92,
-   "wallMs": 1484,
-   "saveMs": 2829
+   "longestTaskMs": 409,
+   "wallMs": 1758,
+   "saveMs": 2890
   }
  },
  "fitting": {
@@ -106,13 +106,13 @@
    "pushed": 708,
    "mixedLimbs": 0,
    "flipped": false,
-   "ms": 68.70000000018626,
+   "ms": 77.5,
    "workerPhaseLatencyMs": 0,
    "swingBones": 0,
    "hiddenTriangles": 3099,
-   "longestTaskMs": 453,
-   "wallMs": 1480,
-   "saveMs": 1302
+   "longestTaskMs": 463,
+   "wallMs": 1639,
+   "saveMs": 1499
   },
   "trousers": {
    "vertices": 1202,
@@ -122,13 +122,13 @@
    "pushed": 422,
    "mixedLimbs": 6,
    "flipped": false,
-   "ms": 86,
+   "ms": 61.70000000111759,
    "workerPhaseLatencyMs": 0,
    "swingBones": 0,
    "hiddenTriangles": 1782,
-   "longestTaskMs": 206,
-   "wallMs": 942,
-   "saveMs": 1325
+   "longestTaskMs": 0,
+   "wallMs": 717,
+   "saveMs": 1507
   },
   "skirt": {
    "vertices": 637,
@@ -138,13 +138,13 @@
    "pushed": 43,
    "mixedLimbs": 0,
    "flipped": false,
-   "ms": 21.899999999906868,
+   "ms": 39.29999999888241,
    "workerPhaseLatencyMs": 0,
    "swingBones": 40,
-   "hiddenTriangles": 214,
-   "longestTaskMs": 184,
-   "wallMs": 1106,
-   "saveMs": 854
+   "hiddenTriangles": 263,
+   "longestTaskMs": 222,
+   "wallMs": 1168,
+   "saveMs": 520
   },
   "shoes": {
    "vertices": 1846,
@@ -154,13 +154,13 @@
    "pushed": 536,
    "mixedLimbs": 0,
    "flipped": false,
-   "ms": 31.5999999998603,
+   "ms": 39.29999999888241,
    "workerPhaseLatencyMs": 0,
    "swingBones": 0,
    "hiddenTriangles": 4215,
-   "longestTaskMs": 226,
-   "wallMs": 846,
-   "saveMs": 1003
+   "longestTaskMs": 198,
+   "wallMs": 803,
+   "saveMs": 1438
   },
   "longHair": {
    "vertices": 3312,
@@ -170,13 +170,13 @@
    "pushed": 505,
    "mixedLimbs": 0,
    "flipped": false,
-   "ms": 84.39999999990687,
-   "workerPhaseLatencyMs": 0,
+   "ms": 139.39999999850988,
+   "workerPhaseLatencyMs": 2,
    "swingBones": 50,
    "hiddenTriangles": 0,
-   "longestTaskMs": 121,
-   "wallMs": 808,
-   "saveMs": 2309
+   "longestTaskMs": 129,
+   "wallMs": 778,
+   "saveMs": 1307
   },
   "tube20k": {
    "vertices": 20000,
@@ -186,13 +186,13 @@
    "pushed": 7160,
    "mixedLimbs": 92,
    "flipped": false,
-   "ms": 844.6999999999534,
-   "workerPhaseLatencyMs": 2,
+   "ms": 1131.0999999996275,
+   "workerPhaseLatencyMs": 3,
    "swingBones": 0,
    "hiddenTriangles": 1918,
-   "longestTaskMs": 929,
-   "wallMs": 2508,
-   "saveMs": 2383
+   "longestTaskMs": 608,
+   "wallMs": 2497,
+   "saveMs": 2632
   }
  }
 }

@@ -36,7 +36,7 @@ test.describe('depth', () => {
 
     // Phone: the waiting text is written on open, then a reply to ours.
     await openTool(page, 'Phone');
-    await page.getByRole('button', { name: /Tobias/ }).first().click();
+    await page.getByRole('dialog', { name: 'Codex' }).getByRole('button', { name: /Tobias/ }).first().click();
     await expect(page.getByText(/rehearsal was a mess/).first()).toBeVisible({ timeout: 15000 });
     await page.getByLabel('Message Tobias').fill('See you tonight');
     await page.getByLabel('Message Tobias').press('Enter');

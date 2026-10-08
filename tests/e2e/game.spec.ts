@@ -42,14 +42,15 @@ test.describe('game core', () => {
 
     // Inventory: use the tea.
     await openTool(page, 'Inventory');
-    await page.getByRole('button', { name: /Iced Lemon Tea/ }).first().click();
+    // In the sheet (the reply's "+1 Iced Lemon Tea" note matches too while the sheet loads).
+    await page.getByRole('dialog', { name: /Inventory/ }).getByRole('button', { name: /Iced Lemon Tea/ }).first().click();
     await page.getByRole('button', { name: 'Use', exact: true }).click();
     await expect(page.getByText(/−1 Iced Lemon Tea/)).toBeVisible();
     await closeSheets(page);
 
     // NPCs: Tobias was met; edit his title.
     await openTool(page, 'NPCs');
-    await page.getByRole('button', { name: /Tobias/ }).first().click();
+    await page.getByRole('dialog', { name: /NPCs/ }).getByRole('button', { name: /Tobias/ }).first().click();
     await page.getByLabel('Title').fill('Drummer');
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect.poll(async () => Object.values((await api(page, 'GET', `/api/campaigns/${chat.campaignId}`)).state.npcs).map((n: any) => n.title)).toContain('Drummer');

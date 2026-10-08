@@ -24,7 +24,7 @@ import type { Command } from '@/features/game/CommandMenu';
 import { SavesSheet, ViewSheet } from './SavesSheet';
 import { scriptBus } from '@/scripting/bus';
 import { isCommand, runSlashLine, setChatActions } from '@/scripting/commands';
-import { whenStarted } from '@/scripting/registry';
+import { noteStarting, whenStarted } from '@/scripting/registry';
 import { ScriptViewContext, type ScriptView } from '@/scripting/context';
 import { QuickBar } from '@/scripting/QuickBar';
 import { ReviewSheet } from '@/scripting/ReviewSheet';
@@ -62,6 +62,18 @@ export default function StoryView() {
   const [limit, setLimit] = useState(PAGE);
   const [sheet, setSheet] = useState<null | 'inspector' | 'search' | 'note' | 'memory' | 'info' | 'world' | 'saves' | 'view' | 'scripts'>(null);
   const scripts = useScripts(id);
+  // Read when a turn runs (a message sent as the chat opens waits for its scripts, then needs the
+  // list as it is by then, not as it was when the message was typed).
+  const scriptsRef = useRef(scripts);
+  scriptsRef.current = scripts;
+  // Until the chat's scripts are known and their frames attached, they count as starting.
+  const [layerFor, setLayerFor] = useState<string | null>(null);
+  const needsLayer = scripts.on && !!scripts.settings && (scripts.runnable.length > 0 || scripts.extensions.some((e) => e.background));
+  useEffect(() => {
+    const key = `chat:${id}`;
+    noteStarting(key, scripts.loading || (needsLayer && layerFor !== id));
+    return () => noteStarting(key, false);
+  }, [id, scripts.loading, needsLayer, layerFor]);
   const [review, setReview] = useState<ReviewTarget | null>(null);
   const [pendingSeen, setPendingSeen] = useState(false);
   const [cinematic, setCinematic] = useState(false);
@@ -137,6 +149,7 @@ export default function StoryView() {
 
   const run = async (type: Parameters<typeof generate>[1], text?: string) => {
     setStuck(true);
+    const scripts = scriptsRef.current;
     // Scripts see the turn: a hook before it (they may set variables), then what happened.
     if (scripts.runnable.length || scripts.extensions.length) {
       if (type !== 'impersonate') await scriptBus.beforeGeneration({ chatId: id, type });
@@ -484,7 +497,7 @@ export default function StoryView() {
       </ScriptViewContext.Provider>
       {scripts.on && scripts.settings && (scripts.runnable.length || scripts.extensions.some((e) => e.background)) ? (
         <Suspense fallback={null}>
-          <ScriptLayer chatId={id} characterId={c.characterId} settings={scripts.settings} runnable={scripts.runnable} extensions={scripts.extensions} send={sendText} swipeNew={swipeNew} />
+          <ScriptLayer chatId={id} characterId={c.characterId} settings={scripts.settings} runnable={scripts.runnable} extensions={scripts.extensions} send={sendText} swipeNew={swipeNew} onReady={() => setLayerFor(id)} />
         </Suspense>
       ) : null}
       <ScriptsSheet open={sheet === 'scripts'} onOpenChange={(o) => setSheet(o ? 'scripts' : null)} active={scripts.active} extensions={scripts.extensions} safe={scripts.safe} on={scripts.on} onReview={setReview} />
