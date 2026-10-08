@@ -1076,6 +1076,12 @@ source-preservation tests; real-browser wardrobe and clipping checks remain requ
 - **No chest helper bones.** Generating breast bones for a base without them means splitting the
   chest's skin weights between new bones, a fitting problem of its own; the base check now says a
   base without breast bones has no chest motion instead of promising helper bones.
+- **A chat counts as starting until its scripts are known.** The earlier fix (a message sent as a
+  chat opens waits for scripts that are starting) only saw frames that already existed; while the
+  chat's script list or the lazy script layer was still loading nothing was "starting", and the
+  turn kept the empty list it was typed with, so `entryActivated` never fired. The chat now marks
+  itself starting until the list has loaded and the layer has attached its frames, and the turn
+  reads the list through a ref when it runs. Still bounded by the same few-second wait.
 - **Measuring is a separate spec.** `tests/e2e/measure-3d.spec.ts` (skipped unless `MEASURE_3D=1`)
   times the 20,000-vertex fit with the preview hidden (and the same input in Node), samples frame
   rates for one to three dressed characters per quality, and checks the skirt against the legs and
@@ -1085,3 +1091,64 @@ source-preservation tests; real-browser wardrobe and clipping checks remain requ
   testing from a git-ignored `.private/` folder; screenshots of them are in a git-ignored
   `docs/3d-base-evidence/private/`, taken dressed. Committed evidence uses Everloom-made CC0 bodies
   and garments (`tools/avatars/build-test-base.ts`, `build-test-garments.ts`).
+
+## Everloom Puppets: format, tools and pipeline (2026-10-08, first run)
+
+**Research (sources cloned and read; licences checked in each repository):**
+
+| Project | Licence | What it is | Use |
+|---|---|---|---|
+| Inochi2D SDK (D), Inochi Creator | BSD-2-Clause | The open Live2D alternative and its editor; `.inp`/`.inx` (`TRNSRTS`, big-endian JSON payload, `TEX_SECT`, `EXT_SECT`) | Interchange only: export and import written from the 0.8.7 serializer |
+| Inox2D (Rust) | BSD-2-Clause | Native Rust runtime with a WebGL example | Prototype by its own account ("not recommended for production"); no mesh groups yet; would need a WASM build and Rust toolchain in our build |
+| inochi2d-ts / inochi-chat fork | unstated | A Three.js port | Unmaintained, untested features, no licence named: not used |
+| See-through (shitagaki-lab) | Apache-2.0 code; weights CreativeML OpenRAIL++-M (LayerDiff 3D, Marigold), Apache-2.0 (SAM body parsing) | One anime image → up to 23 inpainted layers with draw order and depth (SIGGRAPH 2026) | The layering step of the pipeline, on a rented GPU (`tools/see-through-worker`) |
+| Stretchy Studio | MIT | Browser editor: imports See-through PSDs, auto-rigs with bones, contour + Delaunay meshes, Spine export | Ideas taken: the See-through tag → role mapping (`psdOrganizer.js`), contour meshes (a possible upgrade of our grid meshes). Its `.stretch` project is an editor format, not a runtime format |
+| Anime2.5DRig | MIT | Browser 2.5D VTuber rig from See-through-named PSDs | Confirms the layer-naming route; not used directly |
+| seethrough-live2d-pipeline (Kota-Ohno) | MIT | Post-processing for See-through output | Idea taken: keep generated pixels only where things were hidden, re-project the original's pixels where visible, refine edges from the original's matte |
+| easy-live2d | MIT | Pixi.js 8 wrapper for real Live2D models | Not adopted yet: the current Live2D sprite works and the swap is outside this run; noted for the Live2D upgrade |
+| Textoon | Apache-2.0 code; template under Live2D's material licence | Text → Live2D by filling a template | Confirms the template approach; nothing used (its template is not usable) |
+| flat2rig | MIT | CPU bone splitter | Too basic; nothing used |
+| Bunraku (arXiv 2607.27348) | paper CC BY-NC-SA; repo has only a readme | Single image → Live2D layers, meshes, keyposes | No code or weights released; its ideas (fixed taxonomy, alpha meshes, per-parameter keypose offsets) match our design |
+
+**Format: (B), our own runtime and format, with Inochi2D import and export.** No browser runtime for
+Inochi2D is maintained and phone-ready: the official one is D compiled to WASM with a patched
+runtime, Inox2D calls itself a prototype, and the TypeScript port is abandoned. Stretchy Studio's
+format belongs to its editor. Our runtime is small (a keyform evaluator, warp and rotation
+deformers, pendulums, one WebGL 2 program with stencil masks and batching), so the cost of owning it
+is low and it fits Everloom's rules (lazy-loaded behind the feature switch, no dependency).
+Inochi2D interchange: parts, meshes, draw order, masks, blend modes, and every parameter as a
+one-axis Inochi2D parameter with deform and opacity bindings baked from our rig (Inochi2D has no
+warp deformers); the whole Everloom puppet travels in the `everloom.puppet` extension section, so a
+round trip is lossless and edits made in Inochi Creator come back as a correction layer. Not
+exchanged: physics, two-axis tables (cut along each axis), animations. The round trip is unit
+tested; opening the file in Inochi Creator itself was not possible here (no desktop), and is the
+first thing to check by hand.
+
+**Pipeline: master image → See-through layers → schema → automatic rig, with edits only for
+expressions.** The first attempt (before See-through was in scope) made every layer from an edit
+of the master: bald, armless, underwear, eyes blank, and so on, cut by difference. It works and the
+edits line up (they stay in `tools/puppets/cut.py`, which also measures the template's landmarks),
+but it costs about 20 images per template and gets hidden areas only as far as an edit can reveal
+them. See-through fills hidden areas in one pass, so it now makes the base layers and the edit
+route is kept for what one picture can't hold (eyes shut and smiling, mouth shapes, blush, arm
+poses). Lessons recorded in docs/art/PROMPTING.md: Z Image Turbo makes the cleanest masters (a
+truly flat key, the framing asked for, 1024x1536); an identity edit of the master gives a working
+master in the editor's own colours (background difference ~14 → ~3 levels); differences must
+tolerate one- or two-pixel line jitter or every outline counts as a change.
+
+**The template rig is generated, not hand-placed:** `buildTemplateRig` (engine) takes the
+template's landmarks and the parts and makes the deformer tree and every keyform. Head turns project
+each layer onto a sphere with its own depth (face 0, fringe +0.42, side hair +0.22, back hair −0.5),
+so parallax comes from geometry, not hand-tuned offsets; eyes open and close by squashing the open
+drawings toward the lash line and handing over to the half and shut drawings; mouths are a
+crossfade table over MouthOpen × MouthForm; breathing lifts the shoulders and widens the chest;
+body shape is banded grid keyforms on the body warp, which clothing shares. The placeholder puppet
+goes through the same function, which is how the rig was built and tested before the art existed.
+
+**GPU sessions:** RunPod first (community 24 GB cards from $0.16/h, then secure up to $0.60/h), one
+batch per session, a time cap that keeps $0.50 on the account in the worst case, termination in a
+`finally` step plus the pod's own idle and time watchdog, and a check of the account's pod and
+volume lists at the start and end. No network volume (the weights download in a few minutes,
+cheaper than storage). SaladCloud wasn't used: no key was given. The first attempt found no free
+community card with the first request size and ended without starting anything ($0.00, in the GPU
+ledger); the second attempt needs the owner's approval to run in this environment.

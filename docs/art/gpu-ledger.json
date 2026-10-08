@@ -1,0 +1,28 @@
+{
+ "sessions": [
+  {
+   "date": "2026-10-08",
+   "provider": "RunPod",
+   "gpu": null,
+   "pricePerHr": null,
+   "start": null,
+   "stop": "2026-10-08T19:09:27.941Z",
+   "seconds": 2,
+   "costUsd": null,
+   "balanceBefore": 5,
+   "balanceAfter": 5,
+   "images": [
+    "f-hip.png",
+    "f-master.png",
+    "f-raise.png",
+    "f-underwear.png",
+    "m-hip.png",
+    "m-master.png",
+    "m-raise.png",
+    "m-underwear.png"
+   ],
+   "result": "failed: no 24 GB GPU was available",
+   "note": "templates f/m: masters, arm poses, underwear"
+  }
+ ]
+}

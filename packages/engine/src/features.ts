@@ -49,6 +49,7 @@ export const FEATURES = [
   { id: 'ambience', group: 'story', label: 'Ambience', description: 'Background sound for the scene.', requires: [] },
   { id: 'live2d', group: 'story', label: 'Live2D', description: 'Animated Live2D models on the stage.', requires: ['stage'] },
   { id: 'avatars3d', group: 'story', label: '3D characters', description: '3D models on the stage, with emotes, dances and clothes that follow what they wear.', requires: ['stage'] },
+  { id: 'puppets', group: 'story', label: 'Puppets', description: 'Animated 2D characters made from a picture (Everloom Puppets), with expressions, lip-sync and swappable hair and outfits.', requires: ['stage'] },
   // AI helpers: extra model work around a reply.
   { id: 'trackerPass', group: 'helpers', label: 'Tracker pass', description: 'A second, small model call after each reply that updates the game state.', requires: ['trackers'] },
   { id: 'sceneBlock', group: 'helpers', label: 'Scene block', description: 'The game state and what each person knows, added to the prompt.', requires: ['game'] },
@@ -86,7 +87,7 @@ export function presetFeatures(p: FeaturePreset): FeatureSet {
   if (p === 'full') return { on: all(true), memory: 'full' };
   if (p === 'classic') return { on: { ...all(false), sources: true, voice: true, imagegen: true, scripts: true, extensions: true, interactive: true }, memory: 'off' };
   const on = all(false);
-  for (const id of ['game', 'trackers', 'time', 'diary', 'journal', 'databank', 'stage', 'effects', 'cutscenes', 'music', 'ambience', 'live2d', 'avatars3d', 'trackerPass', 'sceneBlock', 'scripts', 'extensions', 'interactive', 'sources', 'voice', 'imagegen', 'weather'] as FeatureId[]) on[id] = true;
+  for (const id of ['game', 'trackers', 'time', 'diary', 'journal', 'databank', 'stage', 'effects', 'cutscenes', 'music', 'ambience', 'live2d', 'avatars3d', 'puppets', 'trackerPass', 'sceneBlock', 'scripts', 'extensions', 'interactive', 'sources', 'voice', 'imagegen', 'weather'] as FeatureId[]) on[id] = true;
   return { on, memory: 'full' };
 }
 

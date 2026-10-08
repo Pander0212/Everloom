@@ -71,6 +71,29 @@ Live2D support is optional and off by default. Two Live2D components are involve
 
 Live2D models belong to their creators and carry their own terms (for Live2D's sample models, the Free Material License).
 
+## Everloom Puppets
+
+The puppet runtime, format, template rig and tools are Everloom's own (MIT). What they build on:
+
+- **Inochi2D** ([SDK](https://github.com/Inochi2D/inochi2d), BSD-2-Clause, © Inochi2D Project and
+  Kitsunebi Games): the `.inp`/`.inx` import and export (`packages/engine/src/puppet/inochi.ts`)
+  follows the field names and container layout of the SDK's 0.8.7 serializer. No Inochi2D code is
+  included. Inochi Creator (BSD-2-Clause) is the editor owners can polish puppets in.
+- **See-through** ([shitagaki-lab/see-through](https://github.com/shitagaki-lab/see-through),
+  Apache-2.0; Lin et al., SIGGRAPH 2026): the layering step, run on the owner's rented GPU by
+  `tools/see-through-worker` (it fetches See-through at a pinned commit; nothing of it is in this
+  repository). Its weights are fetched at run time: LayerDiff 3D and the fine-tuned Marigold depth
+  model under the **CreativeML OpenRAIL++-M** licence (outputs are free to use; its use restrictions
+  apply, including no sexual content involving minors), SAM body parsing under Apache-2.0.
+- **Ideas** (no code copied): Stretchy Studio (MIT, the See-through tag → role mapping and contour
+  meshes), Anime2.5DRig (MIT), Kota-Ohno's seethrough-live2d-pipeline (MIT, re-projecting the
+  original's visible pixels over generated layers), the Bunraku paper (arXiv 2607.27348: a fixed
+  layer taxonomy, meshes from alpha, per-parameter keypose offsets), Textoon (template approach;
+  its Live2D template is not used).
+- **The placeholder puppet** (`apps/web/public/puppets/placeholder/`) is simple shapes drawn by
+  `tools/puppets/build-placeholder.ts`, CC0. Generated puppet art never enters the repository; it is
+  shared as packs under the image services' terms (NanoGPT assigns outputs to the user).
+
 ## Artwork
 
 Everloom's bundled pictures (item icons, backgrounds, genre cards, map thumbnails, the demo

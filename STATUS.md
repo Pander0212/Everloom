@@ -324,6 +324,13 @@ clothes): `docs/3d-base-evidence/`.
   pushing through the back of a skirt while dancing (skin under the mostly pinned part now hides),
   hair drawn under tops (hair is now the outermost layer), the base check promising chest helper
   bones that aren't made, and a unit test that only passed with the server built.
+- **Found by the full e2e re-run**: a message sent while a chat's scripts were still loading never
+  told its lorebook scripts which entries activated (the turn kept the script list from when the
+  message was typed, and nothing counted as starting while the list or the script layer loaded);
+  the chat now counts as starting until its scripts are known and their frames attached, and the
+  turn reads the list as it is when it runs. Tests that had drifted or raced: the adult-content
+  switch (renamed, now with an 18+ confirmation) and three clicks that could hit a matching button
+  outside the sheet that was still opening.
 
 ### Checklist (prompt §6)
 | # | Check | Result |
@@ -337,7 +344,7 @@ clothes): `docs/3d-base-evidence/`.
 | 7 | Paired animation, different heights, hands meeting | ✅ `paired-*` |
 | 8 | Story equips a fitted garment on a custom base; a swipe takes it off | ✅ `8-equipped` |
 | 9 | Frame rates, 1–3 dressed characters, phone and desktop, per quality | ✅ table in [docs/avatars.md › Rendering](docs/avatars.md#rendering); `9-three-dancing` |
-| 10 | 390×844 flow; existing suite | ✅ base-models.spec passes at 390×844 and 1280×800; unit 594 passed, 5 skipped; full e2e suite re-run in progress |
+| 10 | 390×844 flow; existing suite | ✅ base-models.spec passes at 390×844 and 1280×800; unit 594 passed, 5 skipped (97 files); full e2e 451 passed, 54 skipped, 0 failed on all 8 projects |
 
 **Timings** (`docs/3d-base-evidence/timings.json` from one clean run of base-models.spec,
 `measurements.json` from `tests/e2e/measure-3d.spec.ts`; headless Chromium with software WebGL):
@@ -365,6 +372,55 @@ the CPU times carry over to real devices.
   swung far out can show a strip of thigh through the cloth between two chains near the hem.
 - **Jeans at slider max**: a small gap on the inside of the lower leg.
 - **Physics budget on medium**: 48 points; a skirt takes 40, so long hair worn with it barely swings.
+
+## Everloom Puppets — run 1 of several (2026-10-08)
+
+Spec: [docs/puppets.md](docs/puppets.md); decisions and research:
+[docs/PHASE2_DECISIONS.md › Everloom Puppets](docs/PHASE2_DECISIONS.md); the queue for the next run:
+[docs/art/PUPPET_QUEUE.md](docs/art/PUPPET_QUEUE.md).
+
+### Done ✅
+- **Research and decision**: Inochi2D (no maintained, phone-ready browser runtime), See-through,
+  Stretchy Studio, Anime2.5DRig, easy-live2d, Textoon, flat2rig, Bunraku (no code released), with
+  licences; route (B): our own runtime and format, plus Inochi2D import and export.
+- **Engine** (`packages/engine/src/puppet/`): the format with validation; keyform evaluation over
+  one or two parameters; warp and rotation deformers in a tree; masks, blend modes, opacity and
+  draw order by parameter; pendulum physics; automatic life (blinking with natural timing,
+  breathing, idle sway, eyes and head toward a target, lip-sync from the voice level and vowels);
+  expressions for Everloom's emotions; gestures (nod, shake, tilt, surprise, laugh, wave, flinch,
+  lean); meshes from transparency (finer around eyes and mouth); the template rig generator (head
+  turns by sphere projection per depth layer, eyes, brows, mouth, breathing, body shape, hair and
+  chest physics); `.inp`/`.inx` export and import.
+- **Web**: the WebGL 2 player (one canvas for everyone, batching, stencil masks, recolouring in the
+  shader, quality by pixel ratio, 30 fps when idle, paused when hidden) and `/lab/puppets`.
+- **The placeholder puppet** (simple shapes, 38 parts, rigged by the same generator); a `puppets`
+  feature switch (in the Story preset, needs the stage).
+- **Art**: both template masters and full edit sets (51 NanoGPT images on 2026-10-08, ledger
+  #90–#142, within the 95 cap, allowed models only); the prompting guide's puppet section, written
+  before the first call and extended with what the calls taught; `tools/puppets/cut.py`.
+- **GPU tooling**: the See-through worker (API, watchdog, Dockerfile) and the RunPod session tool
+  with its guards; the GPU ledger. A pre-commit check refuses puppet art outside the placeholder;
+  the RunPod key's hash is in the local key scan.
+
+### Not done yet (next runs, in order)
+- **The See-through session**: the first start found no free 24 GB community card (nothing ran, $0
+  spent); the second start, with wider choices, needs the owner's approval in this environment.
+  RunPod balance $5.00, no pods, no volumes (checked through the API).
+- Mapping See-through's layers to the schema; the template puppets with real art; tuning by
+  looking (sweeps and clips in `docs/puppets-evidence/`); the pack builder and installer; the stage
+  integration and story ops; the maker; hairstyles and outfits; the adult layer; in-app layering
+  and part creation. SaladCloud: no key given.
+
+### Tests
+- Engine: 17 puppet tests (deformation, keyforms, masks and draw order, auto-meshes, the template
+  rig's parallax, body shape with the outfit following, eye and mouth crossfades, blinking,
+  breathing, expressions, a nod, lip-sync, hair physics, the look target, the Inochi2D container,
+  a lossless round trip, edits from Creator coming back, and a plain import).
+- Browser (`tests/e2e/puppets.spec.ts`, desktop and 390×844): the placeholder renders, turns its
+  head, blinks on its own, talks and nods; three on stage at about 1.1 ms of CPU per frame (software
+  WebGL; not yet measured with the CPU slowed 4×). Evidence: `docs/puppets-evidence/placeholder-*`.
+  A halo bug (textures not premultiplied when loaded as ImageBitmaps) was found this way and fixed.
+- All unit tests: 611 passed, 5 skipped (98 files).
 
 ## Browser 3D repair — in progress
 

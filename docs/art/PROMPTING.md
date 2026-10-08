@@ -208,6 +208,105 @@ material scans; what the calls taught is added at the end.
   view, no text, no labels". Image-to-3D services want the front view alone, cropped, on a plain
   background.
 
+## Puppet templates and parts (Everloom Puppets)
+
+Written before the first puppet call (2026-10-08), from the notes above and what the expression
+sets taught (#45–#51). What the calls teach is added at the end of this section. The pipeline is
+in `docs/puppets.md`; the queue and today's budget are in `PUPPET_QUEUE.md`.
+
+**The rule: one master per template, every part by editing that master.** Parts generated one by
+one never match in line weight, shading, proportions or angle. A part is the *difference* between
+the master and an edit of the master (or of a base layer made from it), so it lines up by
+construction.
+
+**The master (text to image):**
+
+- Model: the character model from `STYLE.md` (Qwen Image) unless the comparison below says
+  otherwise. Try the same brief on HiDream (more pixels: 832x1248) and Z Image Turbo (1024*1536)
+  once, and keep the best; parts need the face large enough (eyes at least ~40 px wide).
+- Brief, in this order: the style line; "an adult woman in her mid twenties" / "an adult man in
+  his late twenties" (clearly adult face and proportions, never youthful); standing straight,
+  facing the viewer, symmetrical front view, arms relaxed and held a little away from the body
+  with a gap between arm and waist, hands open; neutral calm expression, mouth closed, eyes open
+  looking at the viewer; hair that clears the face and ears (shoulder length, tucked behind the
+  ears is easier to remove than bangs over the eyes); a simple fitted base outfit in plain colours
+  (this becomes the default outfit, and the edit pass reveals the underwear layer under it);
+  framing from the top of the head to mid-thigh, centred, nothing cropped at the sides; "flat
+  solid pure green background, uniform, no floor, no shadow, no gradient" (the key colour); "even
+  soft front lighting, clean line art, soft cel shading"; "no text, no logo, no watermark".
+- Colours: nothing green on the character (hair, eyes, clothes), since green is keyed out. Hair
+  brown or black: it is recoloured in code later (hue shift inside the layer keeps its shading).
+- Pick the master by looking: symmetry, both arms clear of the body, both hands readable, the
+  face large and calm, edges clean against the green. Several attempts; the best one fixes the
+  style for everything after.
+
+**Making it big enough:** the master is upscaled 2x in code (Lanczos), then one Step Image Edit 2
+pass "Keep the image exactly the same; redraw it crisply at this size with clean sharp line art,
+same colours" restores line sharpness at the new size (the edit model returns the input's size).
+If that pass changes the drawing (face shape, colours), skip it and work from the plain upscale.
+Every later edit starts from this one *working master*, never from an edit (edits soften).
+
+**Edits that make the layers (Step Image Edit 2, one change per call, at most 512 characters):**
+
+- Phrase: what to change, then "Keep everything else exactly the same: the same character,
+  face, pose, outfit, framing, line art and colours, and the flat green background."
+- Layers by edit: hair removed ("her hair removed completely, showing the bare scalp, forehead
+  and ears, as a bald head with the same skin tone"); eyes closed; eyes half closed; eyes smiling
+  (closed upward arcs); mouth shapes (open, wide open, smile, "a", "i", "u", "e", "o"); brows
+  raised, brows furrowed; blush; clothing removed down to plain simple underwear (sports bra and
+  briefs / boxer briefs, all-ages); each alternate arm pose.
+- Hidden areas are painted by a further edit of the *layer* (for example the eyeball under the
+  lids: an edit of the eyes-closed image is useless; instead the eye white and iris come from the
+  master, and the lid is the difference between master and eyes-closed).
+- Hairstyles and outfits: edit the right base ("the same bald character, now with a long
+  ponytail"; "the same character in underwear, now wearing a pleated skirt and a cardigan"), then
+  the difference against that base is the new part, split into the schema's slots in code.
+
+**In code, never with more image calls:** the difference mask (per-pixel colour distance after
+a small blur, thresholded, cleaned with open/close and limited to the slot's region), keying the
+green out (distance from the key colour with a soft edge and green-spill removal), filling small
+holes, cutting the part with a 1–2 px overlap so neighbours never show a gap, and aligning: the
+edit model can shift or rescale the whole picture a little, so each edit is registered to the
+master (phase correlation on the unchanged area) before the difference is taken; an edit that
+moved the face or changed its shape beyond a small tolerance is rejected.
+
+**What to expect (to be confirmed by the first calls):** edits re-render the whole picture, so
+"unchanged" areas differ by a few levels and the background may not stay perfectly flat; small
+features (irises, mouths) may drift a few pixels; large pose changes fail (arm poses may need
+several tries or a hand fix); Qwen tends to centre and simplify.
+
+**For See-through (the layering step):** it was trained on anime and VTuber-style illustrations.
+Give it a clear silhouette on a flat background (we send the keyed master with a transparent
+background), nothing crossing the face (no hands, props or hair strands across the eyes), arms
+held away from the body so it doesn't have to guess where they end, and plain readable clothing
+layers. Hairstyles and outfits for a template are edits of the template's master ("the same
+character, now with a long ponytail"), run through See-through in the same batch as everything
+else, so the new hair or clothes come out as layers that line up.
+
+**What the first puppet calls taught (2026-10-08, ledger #90–#142):**
+
+- Master model: Qwen Image has the nicest anime faces but painted a floor and wall instead of a flat
+  key and is limited to 768x1024; HiDream ignored the green and smudged the shirt; **Z Image Turbo**
+  with "anime cel-shaded illustration" said twice gave a truly flat key, the framing asked for,
+  clear gaps between arms and body, and 1024x1536 (the face about 230 px wide). Chosen.
+- **The working master:** every Step Image Edit 2 result is a little brighter and greener than a Z
+  Image Turbo JPEG (~14 levels off on the background). One identity edit ("keep the image exactly
+  the same… clean up compression noise only") gives a master in the editor's own colours; against
+  it, later edits differ by ~3 levels where nothing changed. All edits start from it.
+- A 2x Lanczos upscale plus a "redraw crisply" edit sharpened lines a little but faded colours: not
+  worth it. Native 1024x1536 is enough for phones.
+- Edits line up well (registration shifts under 3 px) but leak: "eyes closed" also smiled; "mouth
+  wide" also frowned; "raise the hand" recoloured the trousers. Cut every part from its own region
+  only, and colour-match per region.
+- "Remove the irises" gives clean white eyes; the difference to the master is exactly the irises,
+  which is the best way to find the eyes.
+- Line art jitters by a pixel or two between edits: a plain difference marks every outline. Compare
+  each pixel with the best match within two pixels, and fill only small holes (filling all holes
+  fills the whole face outline).
+- Underwear, "remove both arms" (they end up tucked behind the back), hand on hip and a raised hand
+  all came out cleanly on the first try for both templates.
+- Two transient 503s (`rate_limiter_unavailable`), not counted; retried later.
+
 ## Rules for every prompt (all models)
 
 - **All-ages only:** fully clothed, no suggestive poses, no gore. For Chroma and the anime fine-tunes,

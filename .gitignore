@@ -21,3 +21,6 @@ docs/reference/world-engine/source/
 # Owner's paid or private test assets and screenshots of them: never committed.
 .private/
 docs/3d-base-evidence/private/
+
+# Everloom Puppets: the art working folder and built packs (art is shared as packs, never committed)
+.puppets-work/
