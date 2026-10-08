@@ -86,6 +86,54 @@ SLOT = {
 COLOR = {'hair.back': 'hair', 'hair.front': 'hair', 'hair.side': 'hair', 'brow': 'hair', 'body': 'skin', 'face': 'skin', 'top': 'cloth1', 'bottom': 'cloth2', 'legwear': 'cloth3', 'iris': 'eyes'}
 
 
+def measure_bust(root, name, cx, L, size):
+    """
+    Each breast from See-through's depth of the torso layer (topwear, which holds the chest's skin
+    or the garment over it): the part of the upper torso nearest the viewer, split at the centre;
+    its outline as an oval (from its area's moments) and its tip as the nearest point (the nipple,
+    or the garment's furthest point). None when the depth isn't there or shows no clear bulge.
+    """
+    dp, ap = os.path.join(root, name, 'topwear_depth.png'), os.path.join(root, name, 'topwear.png')
+    if not (os.path.exists(dp) and os.path.exists(ap)):
+        return None
+    d = np.asarray(Image.open(dp).convert('L')).astype(np.float32)
+    a = np.asarray(Image.open(ap).convert('RGBA'))[..., 3]
+    if d.shape != a.shape or d.shape != (size[1], size[0]):
+        return None
+    H = d.shape[0]
+    rows = np.arange(H)[:, None]
+    # The upper torso: between the shoulders and the hips.
+    region = (a > 128) & (rows > L['shoulderL'][1]) & (rows < L['hips']['cy'] + (L['hips']['cy'] - L['shoulderL'][1]) * 0.3)
+    v = d[region]
+    if v.size < 500:
+        return None
+    # Two populations (near and far); Otsu's threshold between them.
+    hist, edges = np.histogram(v, bins=64)
+    w0 = np.cumsum(hist); w1 = w0[-1] - w0
+    m = np.cumsum(hist * edges[:-1]); mu0 = m / np.maximum(w0, 1); mu1 = (m[-1] - m) / np.maximum(w1, 1)
+    t = edges[np.argmax(w0 * w1 * (mu0 - mu1) ** 2)]
+    near = region & (d <= t)
+    out = {}
+    for s, sel in (('l', np.arange(d.shape[1])[None, :] >= cx), ('r', np.arange(d.shape[1])[None, :] < cx)):
+        mk = (near & sel).astype(np.uint8)
+        n, lab, stats, _ = cv2.connectedComponentsWithStats(mk, connectivity=8)
+        if n < 2:
+            return None
+        k = 1 + int(np.argmax(stats[1:, cv2.CC_STAT_AREA]))
+        blob = lab == k
+        if blob.sum() < 400:
+            return None
+        ys, xs = np.nonzero(blob)
+        # An oval with the blob's area and spread (2 standard deviations ≈ the edge).
+        ox, oy = xs.mean(), ys.mean()
+        rx, ry = 2 * xs.std(), 2 * ys.std()
+        # The tip: the nearest few percent, averaged.
+        dv = d[ys, xs]
+        q = dv <= np.percentile(dv, 3)
+        out[s] = {'cx': float(ox), 'cy': float(oy), 'rx': float(rx), 'ry': float(ry), 'tip': [float(xs[q].mean()), float(ys[q].mean())]}
+    return out
+
+
 def main(psd_path, src_path, out):
     (W, H), ls = layers(psd_path)
     os.makedirs(out, exist_ok=True)
@@ -307,6 +355,9 @@ def main(psd_path, src_path, out):
         'hips': {'cy': hips_y, 'w': width_at(hips_y)},
         'bottom': float(bottom),
     }
+    bust = measure_bust(os.path.dirname(psd_path), os.path.splitext(os.path.basename(psd_path))[0], cx, L, (W, H))
+    if bust:
+        L['bustL'], L['bustR'] = bust['l'], bust['r']
     L = json.loads(json.dumps(L, default=float))
     colors = {}
     for slot, grp in (('hair-back', 'hair'), ('face-skin', 'skin'), ('topwear', 'cloth1'), ('bottomwear', 'cloth2'), ('eye-l-iris', 'eyes')):

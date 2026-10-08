@@ -3,7 +3,7 @@
  * character, step 5): each part is a full-canvas RGBA PNG in its slot, listed in `parts.json`, with
  * the template landmarks in `landmarks.json` (both written by `tools/puppets/map.py`).
  *
- *   npx tsx tools/puppets/build-puppet.ts <parts dir> <out dir> [--id x] [--name X] [--rating 18+]
+ *   npx tsx tools/puppets/build-puppet.ts <parts dir> <out dir> [--id x] [--name X] [--rating 18+] [--bounce 1.3]
  *
  * parts.json: { "parts": [{ "id", "slot", "file", "color"?, "z"? }], "colors"?: { group: "#rrggbb" } }
  * Writes <out>/puppet.json and <out>/page<i>.png. Output is art: it belongs in .puppets-work/ or a
@@ -16,7 +16,7 @@ import sharp from 'sharp';
 import { buildTemplateRig, checkPuppet, type TemplateLandmarks } from '../../packages/engine/src/index.js';
 import { packAtlas, puppetJson, trimRgba, type PartImage } from './atlas.js';
 
-const { values: o, positionals: [src, dst] } = parseArgs({ allowPositionals: true, options: { id: { type: 'string' }, name: { type: 'string' }, template: { type: 'string', default: 'everloom-f' }, rating: { type: 'string', default: 'all-ages' } } });
+const { values: o, positionals: [src, dst] } = parseArgs({ allowPositionals: true, options: { id: { type: 'string' }, name: { type: 'string' }, template: { type: 'string', default: 'everloom-f' }, rating: { type: 'string', default: 'all-ages' }, bounce: { type: 'string' } } });
 if (!src || !dst) { console.error('usage: build-puppet.ts <parts dir> <out dir> [--id x] [--name X] [--rating 18+]'); process.exit(1); }
 
 interface PartsFile { parts: Array<{ id: string; slot: string; file: string; color?: string; z?: number }>; colors?: Record<string, string> }
@@ -34,7 +34,7 @@ async function main() {
   const { pages, parts } = await packAtlas(images, { max: 2048, meshScale: 1 });
   const id = o.id ?? path.basename(path.resolve(src!));
   const zOf = new Map(spec.parts.map((p) => [p.id, p.z]));
-  const model = buildTemplateRig(L, parts.map((p) => ({ ...p, z: zOf.get(p.id) })), { id, name: o.name ?? id, template: o.template!, rating: o.rating === '18+' ? '18+' : 'all-ages', textures: pages.map((_, i) => `page${i}.png`), colors: spec.colors });
+  const model = buildTemplateRig(L, parts.map((p) => ({ ...p, z: zOf.get(p.id) })), { id, name: o.name ?? id, template: o.template!, rating: o.rating === '18+' ? '18+' : 'all-ages', textures: pages.map((_, i) => `page${i}.png`), colors: spec.colors, bounce: o.bounce ? Number(o.bounce) : undefined });
   const c = checkPuppet(model);
   if (!c.ok) throw new Error(c.errors.join('\n'));
   mkdirSync(dst!, { recursive: true });

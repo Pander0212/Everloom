@@ -103,9 +103,14 @@ and BustY keyforms; a neck rotation (AngleZ, a small move with AngleX); one warp
 hair sway; eye warps (EyeSmile), brow rotations (BrowY, BrowAngle), the mouth warp (MouthForm,
 MouthOpen); shoulder rotations for the arms (swing, wave); a `chest` warp under the body holding
 the upper-body parts (top, underwear, skin above the hips), sized to contain them, whose BustY and
-BustX keyforms move only two soft ovals at the breasts. Physics: front, side and back hair and
-both arms (pendulums); the chest (a spring at about 2.6 Hz, damping ratio 0.22, pushed by BodyY,
-breathing, nods, body sway and lean).
+BustX keyforms move only two soft ovals at the breasts, and BustTipY/BustTipX a smaller oval
+around each tip. The ovals and tips come from `bustL`/`bustR` landmarks, which `map.py` measures
+from See-through's depth of the torso layer (the nearest region of the upper torso, split at the
+centre; the tip is its nearest point), or else are placed from `chest`. `bounce` (a rig option,
+`--bounce` in the builder) scales how far they move. Physics: front, side and back hair and both
+arms (pendulums); the chest (a spring at about 2.6 Hz, damping ratio 0.22) and the tips (a softer
+one at 1.9 Hz, 0.14, so they trail and wobble longer), pushed by BodyY, breathing, nods, body sway
+and lean.
 
 ## Making a template or a character
 

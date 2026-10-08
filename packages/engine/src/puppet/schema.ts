@@ -92,4 +92,10 @@ export interface TemplateLandmarks {
   /** Elbow positions for arm swings (optional). */
   elbowL?: [number, number];
   elbowR?: [number, number];
+  /** Each breast's outline (an oval) and its tip, measured from a layered picture's depth (the
+   * part of the torso nearest the viewer). Without it the rig places them from `chest`. */
+  bustL?: BustLandmark;
+  bustR?: BustLandmark;
 }
+
+export interface BustLandmark { cx: number; cy: number; rx: number; ry: number; tip: [number, number] }
