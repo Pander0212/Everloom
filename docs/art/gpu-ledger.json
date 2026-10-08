@@ -65,6 +65,21 @@
    "gpu": "RTX 3090",
    "pricePerHr": 0.5,
    "start": "2026-10-08T23:07:57.319Z",
+   "stop": "2026-10-08T23:08:38.456Z",
+   "seconds": 41,
+   "costUsd": 0.006,
+   "balanceBefore": 4.6321440088,
+   "balanceAfter": 4.632,
+   "images": [],
+   "result": "stopped on purpose during setup (secure card too dear for the batch in the budget); pod terminated",
+   "note": "4 generated characters: nude A-pose bases + 9 outfits each (second try)"
+  },
+  {
+   "date": "2026-10-08",
+   "provider": "RunPod",
+   "gpu": "RTX 3090 Ti",
+   "pricePerHr": 0.27,
+   "start": "2026-10-08T23:09:11.143Z",
    "stop": null,
    "seconds": null,
    "costUsd": null,
@@ -72,7 +87,7 @@
    "balanceAfter": null,
    "images": [],
    "result": "started",
-   "note": "4 generated characters: nude A-pose bases + 9 outfits each (second try)"
+   "note": "4 generated characters: nude A-pose bases + 9 outfits each (third try)"
   }
  ]
 }

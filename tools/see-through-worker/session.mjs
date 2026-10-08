@@ -29,7 +29,9 @@ const NAME = 'everloom-see-through';
 // Secure-cloud prices per hour (October 2026), to skip the dear ones.
 const PRICES = { 'NVIDIA RTX A5000': 0.27, 'NVIDIA GeForce RTX 3090': 0.5, 'NVIDIA GeForce RTX 3090 Ti': 0.46, 'NVIDIA RTX A6000': 0.59, 'NVIDIA A40': 0.59, 'NVIDIA GeForce RTX 4090': 0.89 };
 
-const { values: a, positionals } = parseArgs({ allowPositionals: true, options: { out: { type: 'string' }, 'max-minutes': { type: 'string', default: '60' }, note: { type: 'string', default: '' }, budget: { type: 'string' }, gpus: { type: 'string' }, 'wait-dir': { type: 'string' }, expect: { type: 'string' } } });
+const { values: a, positionals } = parseArgs({ allowPositionals: true, options: { out: { type: 'string' }, 'max-minutes': { type: 'string', default: '60' }, note: { type: 'string', default: '' }, budget: { type: 'string' }, gpus: { type: 'string' }, 'wait-dir': { type: 'string' }, expect: { type: 'string' }, 'wait-community': { type: 'string' } } });
+// --wait-community N: retry the community cards every two minutes for up to N minutes before
+// taking a (dearer) secure one.
 // --wait-dir/--expect: the inputs are still being made; once the worker is ready, wait (at most
 // 45 minutes, with the worker kept awake) until the folder holds that many PNGs, then upload them
 // all. Lets the pod's setup overlap the image generation.
@@ -103,12 +105,16 @@ async function run(images) {
   let pod = null;
   const t0 = Date.now();
   // Stopped from outside (Ctrl-C, kill): still give the pod back before exiting.
-  const onSignal = async () => { if (pod?.id) { try { await terminate(pod.id); console.log(`terminated ${pod.id} on a stop signal`); } catch { /* the pod's own watchdog ends it */ } } entry.result = 'stopped by a signal'; entry.stop = new Date().toISOString(); saveLedger(L); process.exit(130); };
+  const onSignal = async () => { if (pod?.id) { try { await terminate(pod.id); console.log(`terminated ${pod.id} on a stop signal`); } catch { /* the pod's own watchdog ends it */ } } entry.result = 'stopped by a signal'; entry.stop = new Date().toISOString(); entry.seconds = Math.round((Date.now() - t0) / 1000); if (entry.pricePerHr != null) entry.costUsd = Math.round(((entry.pricePerHr * entry.seconds) / 3600) * 1000) / 1000; saveLedger(L); process.exit(130); };
   process.once('SIGINT', onSignal);
   process.once('SIGTERM', onSignal);
   try {
     // Community first (cheaper), then secure; as small a machine as See-through needs.
-    for (const [cloud, gpu] of [...gpuOrder.map((g) => ['COMMUNITY', g]), ...gpuOrder.map((g) => ['SECURE', g])]) {
+    const waitCommunity = Date.now() + Number(a['wait-community'] ?? 0) * 60_000;
+    const tries = () => [...gpuOrder.map((g) => ['COMMUNITY', g]), ...(Date.now() >= waitCommunity ? gpuOrder.map((g) => ['SECURE', g]) : [])];
+    for (let round = 0; !pod?.id; round++) {
+    if (round > 0) { if (Date.now() >= waitCommunity) break; console.log('no community card free; trying again in 2 minutes'); await sleep(120_000); }
+    for (const [cloud, gpu] of tries()) {
       if (cloud === 'SECURE' && (PRICES[gpu] ?? 1) > 0.6) continue;
       try {
         const d = await gql(`mutation($input: PodFindAndDeployOnDemandInput) { podFindAndDeployOnDemand(input: $input) { id costPerHr machine { gpuDisplayName } } }`, { input: {
@@ -122,6 +128,7 @@ async function run(images) {
         if (pod?.id && pod.costPerHr > 0.6) { console.log(`${cloud} ${gpu}: $${pod.costPerHr}/h is over $0.60, released`); await terminate(pod.id); pod = null; continue; }
         if (pod?.id) break;
       } catch (e) { console.log(`${cloud} ${gpu}: ${/no longer any instances/.test(e.message) ? 'none available' : String(e.message).slice(0, 120)}`); }
+    }
     }
     if (!pod?.id) throw new Error('no 24 GB GPU was available');
     entry.gpu = pod.machine?.gpuDisplayName ?? '?';
@@ -160,17 +167,21 @@ async function run(images) {
     }
     const started = await api('/run', { method: 'POST' });
     if (!started.ok) throw new Error(`run: ${started.status} ${await started.text()}`);
-    while (Date.now() < deadline) {
+    // Stop waiting a few minutes before the limit: what is finished is still downloaded.
+    const stopWaiting = deadline - 6 * 60_000;
+    let done = -1;
+    while (Date.now() < stopWaiting) {
       await sleep(20_000);
       const r = await api('/health').catch(() => null);
       if (!r?.ok) continue;
       health = await r.json();
+      if (health.done.length !== done) { done = health.done.length; console.log(`[${Math.round((Date.now() - t0) / 1000)} s] ${done} of ${images.length} layered`); }
       if (!health.busy) break;
     }
     const log = await (await api('/log')).text();
     mkdirSync(a.out, { recursive: true });
     writeFileSync(path.join(a.out, 'worker.log'), log);
-    if (health.busy) throw new Error('layering did not finish in time');
+    if (health.busy) console.log('time is nearly up: downloading what is finished');
     if (health.error) console.log(`worker error: ${health.error}`);
     const zip = await api('/result.zip');
     if (!zip.ok) throw new Error(`download: ${zip.status}`);

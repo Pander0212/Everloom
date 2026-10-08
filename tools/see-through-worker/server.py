@@ -62,6 +62,14 @@ def watchdog():
             end_pod(f'idle for {IDLE} s')
 
 
+def finished():
+    """Pictures whose layering is complete (their PSD is written), counted live during a run."""
+    try:
+        return sorted(f[:-4] for f in os.listdir(f'{WORK}/out') if f.endswith('.psd') and not f.endswith('_depth.psd'))
+    except FileNotFoundError:
+        return []
+
+
 def export_layers():
     """
     Next to each <name>.psd: <name>/layers/NN.png (each layer, cropped) and <name>/layers.json
@@ -138,7 +146,7 @@ class Handler(BaseHTTPRequestHandler):
             return
         if self.path == '/health':
             stage = state['stage'] if ready() else (open(f'{WORK}/STAGE').read().strip() if os.path.exists(f'{WORK}/STAGE') else 'setting up')
-            return self.send(200, {'ready': ready(), 'busy': state['busy'], 'stage': stage, 'images': sorted(os.listdir(f'{WORK}/in')), 'done': state['done'], 'error': state['error'], 'uptime': int(time.time() - START)})
+            return self.send(200, {'ready': ready(), 'busy': state['busy'], 'stage': stage, 'images': sorted(os.listdir(f'{WORK}/in')), 'done': finished(), 'error': state['error'], 'uptime': int(time.time() - START)})
         if self.path == '/log':
             out = b''
             for f in ('setup.log', 'run.log'):
