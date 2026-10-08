@@ -46,6 +46,23 @@ Budget rules: [PROMPTING.md](PROMPTING.md) (NanoGPT at most 95 images per UTC da
   researchers who sign Live2D's terms, its output is a Cubism model under Live2D's Free Material
   License, and its image models come from sites that need accounts. $0 spent on it.
 
+## Done (2026-10-08, run 3): four generated characters
+
+- NanoGPT paid models allowed for 18+ work (owner's $2 cap; `gen.mjs` reads each model's price and
+  NSFW flag and the balance before and after every call). Bases: WAI Illustrious SDXL
+  ($0.005, booru tags and a negative prompt; it would not hold an A-pose), then Seedream 4.5
+  ($0.04) to put each in a clean A-pose. HiDream O1 was tried for the pose and dressed the figure
+  instead (it censors nude input), so outfits are Seedream 4.5 too: 9 per character, pixel-aligned
+  with the base; 2 came back half-dressed and were redone with "covers her chest completely".
+  Expressions (closed, smile, ah, oh) by Step Image Edit 2 on the T-shirt outfit (subscription).
+  Paid total $1.78 of $2.00.
+- Characters: Mika (slim, small chest, black bob), Nora (tall, small-medium, wavy brown), Rhea
+  (athletic, medium, red ponytail), Selene (curvy, large, silver waves).
+- The app makes puppets itself now (Settings › Puppets): see puppets.md › Making a puppet in the app.
+- RunPod: one host hung in setup for 27 min ($0.19); session tooling now gives up on a stuck host,
+  shows setup progress, frees the pod on a stop signal, downloads what is finished before its time
+  limit, and can wait for a community card.
+
 ## Next
 
 0. With the owner's verdict on the test: mouth and eye-smile drawings by edit (Step Image Edit 2
