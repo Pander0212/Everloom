@@ -23,6 +23,26 @@
    ],
    "result": "failed: no 24 GB GPU was available",
    "note": "templates f/m: masters, arm poses, underwear"
+  },
+  {
+   "date": "2026-10-08",
+   "provider": "RunPod",
+   "gpu": "RTX 3090",
+   "pricePerHr": 0.22,
+   "start": "2026-10-08T20:31:10.877Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 5,
+   "balanceAfter": null,
+   "images": [
+    "u-belt.png",
+    "u-lace.png",
+    "u-tank.png",
+    "u-nude.png"
+   ],
+   "result": "started",
+   "note": "owner's test pictures (4), first real See-through run"
   }
  ]
 }

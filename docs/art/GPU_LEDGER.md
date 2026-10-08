@@ -7,3 +7,4 @@ on RunPod, no paid storage kept, every pod terminated (checked through the API a
 | Date (UTC) | Provider | GPU | Price/h | Start | Stop | Time | Cost | Balance | Images | Result |
 |---|---|---|---|---|---|---|---|---|---|---|
 | 2026-10-08 | RunPod | — | — | — | 19:09:27 | 0 min | — | $5.00 → $5.00 | f-hip.png, f-master.png, f-raise.png, f-underwear.png, m-hip.png, m-master.png, m-raise.png, m-underwear.png | failed: no 24 GB GPU was available |
+| 2026-10-08 | RunPod | RTX 3090 | $0.220 | 20:31:10 | — | — | — | $5.00 → ? | u-belt.png, u-lace.png, u-tank.png, u-nude.png | started |
