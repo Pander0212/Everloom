@@ -117,6 +117,9 @@ chest, both arms.
    → arms, `legwear`, `footwear`, `headwear`/`earwear`/`eyewear` → `acc.head`, `neckwear` →
    `acc.body`, `tail`/`wings` → `acc.back`). Visible pixels come from the master (sharper); only
    hidden areas keep See-through's painted pixels. Left and right are split by the face's centre.
+   Body-level parts (arms, legs, top, bottoms, neck) take See-through's own front-to-back order
+   as their `z` (10–29) instead of the slot's: one picture has arms behind the top's straps,
+   another a waistband over the shirt. Head parts keep the schema's order.
 4. **Expressions by edit** (`tools/puppets/edits.sh`, `cut.py`): eyes half shut, shut, smiling;
    mouth shapes; blush; arm poses. Each is cut where it differs from the working master (with one-
    or two-pixel tolerance for line jitter) inside its own region.

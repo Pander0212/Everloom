@@ -89,9 +89,10 @@ COLOR = {'hair.back': 'hair', 'hair.front': 'hair', 'hair.side': 'hair', 'brow':
 def main(psd_path, src_path, out):
     (W, H), ls = layers(psd_path)
     os.makedirs(out, exist_ok=True)
-    by = {}
-    for name, a in ls:
+    by, order = {}, {}
+    for i, (name, a) in enumerate(ls):
         by.setdefault(base_tag(name), []).append(a)
+        order.setdefault(base_tag(name), i)
     merged = {}
     for t, arr in by.items():
         acc = np.zeros((H, W, 4), np.uint8)
@@ -107,9 +108,13 @@ def main(psd_path, src_path, out):
     R = (fx1 - fx0) / 2
     parts, files = [], {}
 
-    def put(pid, slot, a, color=None):
+    tag_of = {}
+
+    def put(pid, slot, a, color=None, tag=None):
         if bbox(a, 8) is None:
             return
+        if tag:
+            tag_of[pid] = tag
         f = f'{pid}.png'
         Image.fromarray(a, 'RGBA').save(os.path.join(out, f))
         parts.append({'id': pid, 'slot': slot, 'file': f, **({'color': color} if color else {})})
@@ -215,7 +220,7 @@ def main(psd_path, src_path, out):
     if 'neck' in merged:
         body = over(body, merged['neck'])
     if bbox(body, 8):
-        put('body-skin', 'body', body, 'skin')
+        put('body-skin', 'body', body, 'skin', tag='neck')
     # Arms (See-through's handwear is the arms and hands): one per side, turning at the shoulder.
     arm_top = {}
     if 'handwear' in merged:
@@ -224,7 +229,7 @@ def main(psd_path, src_path, out):
             b = bbox(a, 64)
             if not b:
                 continue
-            put(f'arm-{s}', f'arm.{s}', a, 'skin')
+            put(f'arm-{s}', f'arm.{s}', a, 'skin', tag='handwear')
             # The shoulder: the arm's topmost rows, at their inner half.
             ys, xs = np.nonzero(a[..., 3] > 64)
             top = ys.min()
@@ -237,7 +242,7 @@ def main(psd_path, src_path, out):
         if not slot:
             print(f'unmapped tag {t!r}, skipped')
             continue
-        put(t.replace(' ', '-'), slot, a, COLOR.get(slot))
+        put(t.replace(' ', '-'), slot, a, COLOR.get(slot), tag=t)
 
     # ---- landmarks
     src = np.asarray(Image.open(src_path).convert('RGBA'))
@@ -310,6 +315,12 @@ def main(psd_path, src_path, out):
             m = a[..., 3] > 200
             if m.any():
                 colors[grp] = '#%02x%02x%02x' % tuple(int(v) for v in np.median(a[m][:, :3], axis=0))
+    # Body-level draw order from See-through's own (its layers come back to front): arms behind the
+    # top, the waistband over the shirt. Head parts keep the schema's order, which expressions use.
+    body_parts = [q for q in parts if q['id'] in tag_of and q['slot'].split(':')[0].split('.')[0] in ('body', 'underwear', 'legwear', 'shoes', 'bottom', 'top', 'outer', 'acc', 'arm', 'sleeve') and not q['slot'].startswith('acc.head')]
+    ranks = sorted({order[tag_of[q['id']]] for q in body_parts})
+    for q in body_parts:
+        q['z'] = 10 + ranks.index(order[tag_of[q['id']]]) * min(2, 19 / max(1, len(ranks)))
     json.dump({'parts': parts, 'colors': colors}, open(os.path.join(out, 'parts.json'), 'w'), indent=1)
     json.dump(L, open(os.path.join(out, 'landmarks.json'), 'w'), indent=1)
     print(f'{out}: {len(parts)} parts; head r {R:.0f} at ({cx:.0f}, {L["head"]["cy"]:.0f})')

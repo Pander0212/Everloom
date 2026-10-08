@@ -21,6 +21,10 @@ export interface RigPart {
   mesh: PuppetMesh;
   name?: string;
   color?: string;
+  /** Draw order instead of the slot's: a layered picture knows its own (arms behind the top, the
+   * waistband over the shirt). Keep body parts within 10–29 so they stay between the back hair and
+   * the face. */
+  z?: number;
 }
 
 export interface RigOptions {
@@ -185,7 +189,7 @@ export function buildTemplateRig(L: TemplateLandmarks, parts: RigPart[], o: RigO
     const slot = slotOf(p.slot);
     const def = SLOTS[slot];
     if (!def) throw new Error(`Unknown slot "${p.slot}" on part ${p.id}`);
-    out.push({ id: p.id, name: p.name, slot: p.slot, texture: p.texture, mesh: p.mesh, parent: def.deformer, z: def.z, opacity: 1, blend: 'normal', masks: def.mask ? idsOf(def.mask) : [], color: p.color ?? def.color });
+    out.push({ id: p.id, name: p.name, slot: p.slot, texture: p.texture, mesh: p.mesh, parent: def.deformer, z: p.z ?? def.z, opacity: 1, blend: 'normal', masks: def.mask ? idsOf(def.mask) : [], color: p.color ?? def.color });
   }
   const opacity = (slot: string, params: string[], keys: number[][], values: number[]) => { for (const id of idsOf(slot)) bindings.push({ target: id, prop: 'opacity', params, keys, values }); };
   for (const s of ['l', 'r'] as const) {
