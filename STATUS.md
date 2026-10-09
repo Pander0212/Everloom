@@ -30,7 +30,7 @@ acceptance evidence: [docs/ux/evidence/acceptance.md](docs/ux/evidence/acceptanc
 
 ### Tests
 - Typecheck clean; Vitest 106 files, 780 passed, 5 skipped (Blender).
-- Playwright e2e, eight projects: E2E_RESULT.
+- Playwright e2e, eight projects: 499 passed, 60 skipped, 2 failed, then fixed; the fixed specs re-run in all eight projects: 121 passed.
 - UX suite (`playwright.ux.config.ts`): task tests, screens, themes, scenery CPU, presets (Classic,
   Story, Full RPG) all passing.
 - Found and fixed by the final runs: a closing sheet's fading backdrop swallowed the next tap; the

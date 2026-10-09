@@ -51,7 +51,7 @@ test.describe('features from Hakawati', () => {
     await sheet.getByRole('button', { name: 'Wren', exact: true }).click();
     await sheet.getByLabel('What is your name?').fill('Ana');
     await sheet.getByRole('button', { name: 'Start chat' }).click();
-    await expect(page.getByText('Welcome aboard the Wren, Ana.')).toBeVisible();
+    await expect(page.locator('.ev-message').getByText('Welcome aboard the Wren, Ana.')).toBeVisible();
     expect((await api(page, 'GET', `/api/characters/${ch.id}`)).card.first_mes).toContain('${What is your name?}');
     expect(errors).toEqual([]);
   });

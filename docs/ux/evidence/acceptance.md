@@ -24,8 +24,8 @@ Run on the final build (a snapshot of `apps/web/dist`, so a rebuild can't change
 |---|---|
 | `npm run typecheck` | clean |
 | Vitest (engine, server, web) | 106 files, **780 passed**, 5 skipped (need Blender) |
-| Playwright e2e, all eight projects (`npx playwright test`) | E2E_RESULT |
-| Presets (`tests/ux/presets.spec.ts`, `UX_PRESET=classic`, `story`, `full`) | PRESETS_RESULT |
+| Playwright e2e, all eight projects (`npx playwright test`) | **499 passed**, 60 skipped (heavy 3D checks run on two of the eight projects, desktop-only cases, measuring runs), 2 failed in the full run; both were fixed (a closing sheet, a reload race) and their specs re-run in all eight projects with the Hakawati spec: **121 passed** |
+| Presets (`tests/ux/presets.spec.ts`, `UX_PRESET=classic`, `story`, `full`) | Classic, Story and Full RPG: passed (screens in [presets/](presets)) |
 
 "Every preset": the e2e suite starts as Full RPG (set at first run) and runs its chats in the preset
 each test needs, Classic chat in 10 of them, Full RPG in the rest; Story (memory, light
