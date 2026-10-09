@@ -12,8 +12,8 @@ import { assertAdultAvatar } from './adult.js';
 import { HttpError, type AppContext } from '../../context.js';
 import { newId } from '../../security/crypto.js';
 import { deleteMedia, mediaUrl, readMedia, saveImage, saveModelFile } from '../media.js';
-import { runBlenderJob } from '../blender.js';
-import { blendJobFiles, blendNotes, isBlend, zipHasBlend } from './blendfile.js';
+import { findBlender, runBlenderJob } from '../blender.js';
+import { blendJobFiles, blendNotes, blendVersion, isBlend, newerThan, zipHasBlend } from './blendfile.js';
 import { isGlb, parseGlb } from './glb.js';
 import { inspectModel, type ModelInfo } from './inspect.js';
 import { optimizeModel, type OptimizeOptions, type OptimizeResult } from './optimize.js';
@@ -209,12 +209,22 @@ async function processAvatar(ctx: AppContext, owner: string, id: string, opts: P
     const ext = path.extname(src.row.filename).slice(1) as SourceType;
     let glb = src.bytes;
     let conversion: Record<string, unknown> | null = null;
+    let fileVersion: string | null = null;
     if (ext === 'blend' || ext === 'zip') {
       progress('Optional Blender conversion');
       const job = blendJobFiles(src.bytes, `model.${ext === 'zip' ? 'zip' : 'blend'}`);
-      const r = await runBlenderJob(ctx, owner, { op: 'convert', files: job.files, input: job.input, output: 'output.glb', timeoutMs: 8 * 60_000 });
-      glb = r.output;
-      conversion = r.result;
+      fileVersion = blendVersion(job.files[job.input]!);
+      try {
+        const r = await runBlenderJob(ctx, owner, { op: 'convert', files: job.files, input: job.input, output: 'output.glb', timeoutMs: 8 * 60_000 });
+        glb = r.output;
+        conversion = r.result;
+      } catch (e) {
+        // Say plainly when the file is newer than the Blender that tried to open it.
+        const info = await findBlender(ctx, owner).catch(() => null);
+        const have = info?.version?.replace(/\s.*$/, '') ?? null;
+        if (newerThan(fileVersion, have)) throw new Error(`This .blend was saved with Blender ${fileVersion}; the Blender here is ${have}, which couldn't open it. Install Blender ${fileVersion} or newer (Settings › 3D characters › Blender), or export the character as GLB from Blender.`);
+        throw e;
+      }
     } else if (BLENDER_TYPES.has(ext)) {
       progress('Optional Blender conversion');
       const r = await runBlenderJob(ctx, owner, { op: 'convert', files: { [`input.${ext}`]: src.bytes }, input: `input.${ext}`, output: 'output.glb' });
@@ -223,7 +233,7 @@ async function processAvatar(ctx: AppContext, owner: string, id: string, opts: P
     }
     progress('Inspecting meshes, bones and expressions');
     const info = await inspectModel(glb);
-    if (conversion) info.warnings.push(...blendNotes(conversion));
+    if (conversion) info.warnings.push(...blendNotes(conversion, fileVersion));
     const basic = conversion ? saveModelFile(ctx, owner, glb, { kind: 'model', ext: 'glb', meta: { avatar: id, basic: true } }).id : src.row.id;
     const initialConfig = parseConfig(getAvatarRow(ctx, owner, id).config);
     const mappedConfig = { ...initialConfig, rig: initialConfig.rig ?? info.rig, boneMap: Object.keys(initialConfig.boneMap).length ? initialConfig.boneMap : info.boneMap, expressionMap: Object.keys(initialConfig.expressionMap).length ? initialConfig.expressionMap : info.expressionMap };

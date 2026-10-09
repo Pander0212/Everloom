@@ -55,7 +55,7 @@ for (const model of models) for (const flow of ['picker', 'drop'] as const) {
 test('unsupported and broken files explain the correction', async ({ page }) => {
   await page.goto('/characters/avatars');
   for (const [name, buffer, message] of [
-    ['unexported.blend', Buffer.from('BLENDER'), /has to be exported/],
+    ['unexported.blend', Buffer.from('BLENDER'), /needs Blender, and none was found/],
     ['project.vroid', Buffer.from('PK'), /export a .vrm/],
     ['broken.glb', Buffer.from('not a model'.repeat(8)), /glTF|GLB|magic|model/i],
   ] as const) {

@@ -5,7 +5,7 @@ import { OBJLoader } from 'three/examples/jsm/loaders/OBJLoader.js';
 import { MTLLoader } from 'three/examples/jsm/loaders/MTLLoader.js';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 
-export const BLEND_HELP = 'A .blend file has to be exported from Blender first. Export it as .glb or .vrm on your PC, then drop that file here. In Blender: select the character and its armature, File → Export → glTF 2.0, choose GLB, and include skinning and shape keys. The Everloom Blender add-on can also export and send it.';
+export const BLEND_HELP = 'Opening a .blend needs Blender, and none was found on your Everloom server. Choose one: install the headless Blender converter (Settings › 3D characters › Blender, about 1 GB of disk and 2 GB of RAM, no graphics card needed); point Everloom at a Blender you already have (the Windows app finds a local Blender by itself); or export the character from Blender as GLB (File › Export › glTF 2.0, with skinning and shape keys) and drop that here.';
 export const VROID_HELP = 'This is a VRoid Studio project or custom item, rather than an exported character. Open it in VRoid Studio and export a .vrm, or export the clothing texture as a PNG and add it to a clothing slot.';
 export const MAX_IMPORT_BYTES = 200 * 1024 * 1024;
 /** A 1×1 white PNG standing in for a texture that wasn't selected. */
@@ -28,14 +28,32 @@ function cutOut(image: unknown): boolean {
   return clear > (size * size) / 10;
 }
 
+/** Names inside a zip (read without unpacking): does it hold a .blend? */
+export async function zipHasBlend(f: File): Promise<boolean> {
+  const { unzipSync } = await import('fflate');
+  let found = false;
+  try {
+    unzipSync(new Uint8Array(await f.arrayBuffer()), { filter: (e) => { if (/\.blend$/i.test(e.name) && !e.name.startsWith('__MACOSX/')) found = true; return false; } });
+  } catch {
+    return false;
+  }
+  return found;
+}
+
 export async function browserModel(files: File[], progress: ImportProgress = () => {}): Promise<File> {
   if (!files.length) throw new Error('Choose a model file.');
   if (files.some(f => f.size > MAX_IMPORT_BYTES) || files.reduce((n, f) => n + f.size, 0) > MAX_IMPORT_BYTES) throw new Error('The upload is larger than 200 MB. Choose a smaller export.');
-  const main = files.find(f => /\.(vrm|glb|gltf|fbx|pmx|pmd|obj|blend|vroid|vroidcustomitem)$/i.test(f.name)) ?? files[0]!;
+  const main = files.find(f => /\.(vrm|glb|gltf|fbx|pmx|pmd|obj|blend|zip|vroid|vroidcustomitem)$/i.test(f.name)) ?? files[0]!;
   const ext = main.name.split('.').pop()!.toLowerCase();
   // The common upload helper and server open password-protected Everloom exports.
   if (ext === 'evlt') return main;
-  if (ext === 'blend') throw new Error(BLEND_HELP);
+  if (ext === 'blend' || (ext === 'zip' && await zipHasBlend(main))) {
+    // Converted on the server by Blender (meshes, armature, weights, shape keys, materials).
+    const info = await fetch('/api/blender', { credentials: 'same-origin' }).then((r) => (r.ok ? r.json() : null)).catch(() => null) as { found?: boolean } | null;
+    if (!info?.found) throw new Error(BLEND_HELP);
+    progress('Sending the .blend to Blender on your server…');
+    return main;
+  }
   if (ext === 'vroid' || ext === 'vroidcustomitem') throw new Error(VROID_HELP);
   if (ext === 'glb' || ext === 'vrm') return main;
   if (!['gltf', 'fbx', 'pmx', 'pmd', 'obj'].includes(ext)) throw new Error('Unsupported model. Choose VRM, GLB, glTF, FBX, PMX, PMD or OBJ. Select any textures and companion files together.');

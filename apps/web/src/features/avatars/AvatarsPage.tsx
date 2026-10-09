@@ -31,7 +31,9 @@ export default function AvatarsPage() {
   const importFile = async (files: File[]) => {
     const f = files[0];
     if (!f) return;
-    if (unityInput(files)) {
+    // A zip with a .blend inside goes to Blender; other zips and Unity files to the Unity import.
+    const blendZip = files.length === 1 && /\.zip$/i.test(f.name) && (await (await import('@/features/avatar3d/runtime/import')).zipHasBlend(f));
+    if (unityInput(files) && !blendZip) {
       setUnity(files);
       return;
     }
@@ -84,7 +86,7 @@ export default function AvatarsPage() {
       }
     >
       <p className="mb-4 text-sm text-fg-2">
-        Drop a VRM, GLB, glTF, FBX, PMX or OBJ here, or a Unity package (.unitypackage) from BOOTH or Gumroad, or a zip of an extracted Unity folder. Select companion textures together with the model. Conversion happens in your browser.
+        Drop a VRM, GLB, glTF, FBX, PMX, OBJ or .blend here, or a Unity package (.unitypackage) from BOOTH or Gumroad, or a zip of an extracted Unity folder. Select companion textures together with the model. Conversion happens in your browser.
       </p>
       <div className="mb-4 rounded-lg border border-dashed border-line p-4 text-sm text-fg-2" data-testid="avatar-drop" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (!busy) void importFile(Array.from(e.dataTransfer.files)); }}>
         {busy ? <span role="status">{progress || 'Reading model…'}</span> : 'Drop the model and any companion files here'}
