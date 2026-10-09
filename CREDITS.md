@@ -215,3 +215,20 @@ from Poly Haven, 1K HDR, unmodified (1,615,248 bytes; SHA-256
 `e7cfda5f4e98e623db12b8bfd0184e048488e4855d9c83e2751fb44a32e80c45`).
 The [asset license](https://polyhaven.com/license) explicitly permits CC0 redistribution.
 It is served locally only when the 3D renderer is used; no CDN call is made by the app.
+
+## 3D import: Unity packages, bone names, formats (October 2026)
+
+Licenses checked by reading each project's LICENSE file; details in
+[docs/3d-import/research.md](docs/3d-import/research.md).
+
+- **watari-basis** (MIT, Copyright (c) 2026 yuna0x0), https://github.com/yuna0x0/watari-basis:
+  the table of known VRChat, Modular Avatar, Dynamic Bone and VRM script identities in
+  `packages/engine/src/unity/vrchat.ts`, and its notes on PhysBone fields and prefab overrides.
+  The Unity YAML reader is our own, written with its approach in mind.
+- **UniVRMExtensions** (MIT, © 2020 100の人 / esperecyan): the PhysBone → spring formulas
+  (stiffness from pull, damping from spring, gravity scaled), adapted to Everloom's solver.
+- **unitypackage_extractor** (MIT, Copyright 2018 Peter Fornari / "Cobertos"): the rule that
+  package paths never leave the archive; reimplemented in TypeScript.
+- Read for ideas only, nothing copied: VRMConverterForVRChat (MPL-2.0), Cats Blender Plugin forks
+  by teamneoneko (GPL-3 LICENSE file), Avatar-Toolkit (GPL-3), BoneForge (GPL-2.0+),
+  clipdecode (LGPL-2.1), PhysBone-to-DynamicBone and ShinuToki's extractor (no license).

@@ -1253,3 +1253,22 @@ Evaluated against what Everloom already had; details and tables in
   tested here; the Windows app is the natural place to add it first. No other product's client id is
   used anywhere.
 - **Right-to-left: skipped** until Everloom has translations.
+
+## 3D import: Unity packages, bone mapping, formats (October 2026)
+
+Research with licenses: [docs/3d-import/research.md](3d-import/research.md).
+
+- **Unity files are read without Unity, in our own code.** A focused reader for Unity's YAML
+  (file ids are 64-bit and stay strings), a streaming tar reader with limits on entries, file size
+  and total size, and a resolver for prefabs, variants and nested prefabs with their
+  modifications. All of it is plain TypeScript in the engine, so the browser (in a worker) and the
+  server use the same code. Paths inside a package are names only; nothing is written to disk by
+  path.
+- **Components are recognised two ways**: by known script GUIDs (VRChat SDK, Modular Avatar,
+  Dynamic Bone, VRM) and by the fields they serialize, so a newer SDK still imports.
+- **The conversion happens in the browser**, like FBX and PMX today: the package is unpacked in a
+  worker, the FBX loaded with three.js, materials, blendshape presets, physics and visemes
+  applied, and the result saved as a GLB with an import report. The server stores it encrypted
+  with the Vault like any other model.
+- **GPL, LGPL and MPL projects are reference only**; bone-name dictionaries come from the MIT
+  original of the Cats plugin plus our own Chinese and Korean words.
