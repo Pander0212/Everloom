@@ -29,8 +29,8 @@ describe('importing Everloom’s Unity test packages', () => {
     expect(s.avatars[0]!.reason).toMatch(/descriptor/);
     expect(s.exact).toBe(true);
     expect(s.license[0]?.path).toBe('Assets/Ava/README.txt');
-    const j = summarize(pkg('AvaJacket.unitypackage'));
-    expect(j.outfits.map((o) => o.name)).toEqual(['Jacket']);
+    const j = summarize(pkg('AvaShirt.unitypackage'));
+    expect(j.outfits.map((o) => o.name)).toEqual(['Shirt']);
     expect(j.outfits[0]!.reason).toMatch(/Merge Armature/);
   });
 
@@ -66,11 +66,11 @@ describe('importing Everloom’s Unity test packages', () => {
     expect(plan.report.thirdParty).toBe(true);
   });
 
-  it('plans the jacket as an outfit merged by bone names', () => {
-    const p = pkg('AvaJacket.unitypackage');
+  it('plans the shirt as an outfit merged by bone names', () => {
+    const p = pkg('AvaShirt.unitypackage');
     const plan = planImport(p, summarize(p).outfits[0]!.guid);
-    expect(plan.merge).toEqual({ root: ['Jacket', 'Armature'], prefix: 'Outfit_', suffix: '' });
-    expect(Object.values(plan.materials).map((m) => m.name)).toEqual(['Jacket']);
+    expect(plan.merge).toEqual({ root: ['Shirt', 'Armature'], prefix: 'Outfit_', suffix: '' });
+    expect(Object.values(plan.materials).map((m) => m.name)).toEqual(['Shirt']);
   });
 
   it('reads the same avatar from extracted files, with .meta files exactly', () => {

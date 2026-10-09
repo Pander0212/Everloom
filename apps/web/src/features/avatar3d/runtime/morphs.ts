@@ -20,9 +20,18 @@ export class MorphController {
   }
 
   register(root: THREE.Object3D) {
+    // Shapes already on the body that no slider drives (a Unity prefab's preset, baked into the
+    // file): a garment with the same shape takes the body's value, like Blendshape Sync.
+    const baked = new Map<string, number>();
+    for (const m of this.meshes) for (const [name, i] of Object.entries(m.morphTargetDictionary ?? {})) {
+      const v = m.morphTargetInfluences?.[i] ?? 0;
+      if (v && !this.target.has(name) && !baked.has(name)) baked.set(name, v);
+    }
     root.traverse((o) => {
       const m = o as THREE.Mesh;
-      if (m.isMesh && m.morphTargetDictionary && Object.keys(m.morphTargetDictionary).length) this.meshes.add(m);
+      if (!(m.isMesh && m.morphTargetDictionary && Object.keys(m.morphTargetDictionary).length)) return;
+      if (!this.meshes.has(m) && m.morphTargetInfluences) for (const [name, i] of Object.entries(m.morphTargetDictionary)) if (baked.has(name)) m.morphTargetInfluences[i] = baked.get(name)!;
+      this.meshes.add(m);
     });
     this.index = null;
     // A garment put on mid-way takes the current shape at once.

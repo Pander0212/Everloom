@@ -75,15 +75,38 @@ mat = bpy.data.materials.new('Hat')
 hat.data.materials.append(mat)
 export(os.path.join(out, 'Ava.fbx'))
 
-# ---------------------------------------------------------------- the jacket, made for that avatar
-reset()
-bpy.ops.import_scene.gltf(filepath=os.path.join(models, 'garment-jacket.glb'))
-drop_helpers()
+# ---------------------------------------------------------------- a shirt made for that avatar
+# Like a BOOTH outfit, it's modelled on the avatar's own body: the torso and arms, a little bigger,
+# on a copy of the avatar's armature whose bones carry a prefix (as Modular Avatar outfits often do).
+# It keeps the body's shape keys, so it follows the avatar's body shape (Blendshape Sync).
+import bmesh
+for o in list(bpy.data.objects):
+    if o.type == 'MESH' and o.name != 'Body':
+        bpy.data.objects.remove(o, do_unlink=True)
+body = bpy.data.objects['Body']
+body.name = 'Shirt'
+body.data.name = 'Shirt'
+keep = ('上半身', 'spine_02', 'spine_03', 'clavicle', 'upperarm', 'breast', 'pelvis')
+groups = {g.index: g.name for g in body.vertex_groups}
+bm = bmesh.new()
+bm.from_mesh(body.data)
+deform = bm.verts.layers.deform.active
+drop = []
+for v in bm.verts:
+    w = v[deform] if deform else {}
+    best = max(w.items(), key=lambda kv: kv[1])[0] if w else None
+    name = groups.get(best, '')
+    if not any(name.startswith(k) for k in keep) or (name == 'pelvis' and v.co.z < 0.92):
+        drop.append(v)
+bmesh.ops.delete(bm, geom=drop, context='VERTS')
+for v in bm.verts:
+    v.co += v.normal * 0.012
+bm.to_mesh(body.data)
+bm.free()
+body.data.materials.clear()
+body.data.materials.append(bpy.data.materials.new('Shirt'))
 arm = next(o for o in bpy.data.objects if o.type == 'ARMATURE')
-arm.name = 'Armature'
-# Its own bone names follow the avatar's, with a prefix.
-renames = {'spine_01': '上半身', 'neck_01': '首', 'Head': 'head', 'root': 'Root'}
 for b in arm.data.bones:
-    b.name = 'Outfit_' + renames.get(b.name, b.name)
-export(os.path.join(out, 'Jacket.fbx'))
+    b.name = 'Outfit_' + b.name
+export(os.path.join(out, 'Shirt.fbx'))
 print('UNITY_FIXTURE_OK')

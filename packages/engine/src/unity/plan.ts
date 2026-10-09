@@ -282,7 +282,8 @@ function addModelMaterials(project: UnityProject, plan: UnityPlan, model: UnityA
   if (!remapped) {
     const dir = dirName(model.path);
     const up = dirName(dir);
-    for (const a of project.all('material')) if (a.path.startsWith(dir + '/') || (up && a.path.startsWith(up + '/'))) addMaterial(project, plan, a);
+    // (Files picked without their folders all sit at the top: every material counts.)
+    for (const a of project.all('material')) if (!dir || a.path.startsWith(dir + '/') || (up && a.path.startsWith(up + '/'))) addMaterial(project, plan, a);
   }
 }
 

@@ -120,6 +120,22 @@ export const AvatarOutfitSchema = z.object({
   materialOverrides: MaterialOverridesSchema.optional(),
 });
 
+const reportLines = z.array(z.object({ what: z.string().max(120), detail: z.string().max(600).optional() })).max(60).default([]);
+/** How a model came in (a Unity package, extracted files…), and what the import did with it. */
+export const ImportReportSchema = z.object({
+  source: z.string().max(80),
+  imported: reportLines,
+  approximated: reportLines,
+  skipped: reportLines,
+  /** The package's own license or readme (first part). */
+  license: z.array(z.object({ path: z.string().max(300), text: z.string().max(6000) })).max(6).default([]),
+  /** Bought or downloaded content: personal use; never exported, bundled or shared unless the owner confirms the right to. */
+  thirdParty: z.boolean().default(false),
+  guessed: z.array(z.object({ from: z.string().max(300), to: z.string().max(300), how: z.string().max(120) })).max(200).default([]),
+  at: z.string().max(40).optional(),
+});
+export type ImportReport = z.infer<typeof ImportReportSchema>;
+
 export const AvatarConfigSchema = z.object({
   content: z.object({ adult: z.boolean().default(false), age: z.number().min(0).max(120).nullable().default(null), description: z.string().max(4000).default(''), confirmedAdult: z.boolean().default(false) }).default({ adult: false, age: null, description: '', confirmedAdult: false }),
   version: z.literal(1).default(1),
@@ -163,6 +179,8 @@ export const AvatarConfigSchema = z.object({
   maker: MakerSelectionSchema.optional(),
   /** Realistic (MPFB) avatars: the sliders and assets it was made from (to make it again). */
   realistic: RealisticSpecSchema.optional(),
+  /** Imported from a Unity package or similar: what came in, and the license the files came with. */
+  importReport: ImportReportSchema.optional(),
   /** Native MakeHuman data recipe, applied in the browser to a professionally authored base. */
   makehuman: z.object({
     macro: RealisticSpecSchema.shape.macro,

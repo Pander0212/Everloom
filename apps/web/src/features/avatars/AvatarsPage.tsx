@@ -9,9 +9,13 @@ import { Badge, Button, EmptyState, FileButton, Icon, IconButton, Menu, Spinner 
 import { createCodeAvatar, fmtBytes, uploadAvatar, useAvatars, useBlender } from './api';
 import { RealisticMaker } from './Realistic';
 import { usePrefs3D } from './prefs';
+import { UnityImport } from './UnityImport';
 const NativeHuman = lazy(() => import('@/features/avatar3d/NativeHuman'));
 
-export const MODEL_ACCEPT = '.glb,.gltf,.vrm,.blend,.vroid,.vroidcustomitem,.fbx,.pmx,.pmd,.obj,.mtl,.png,.jpg,.jpeg,.webp,.tga,.bin';
+export const MODEL_ACCEPT = '.glb,.gltf,.vrm,.blend,.vroid,.vroidcustomitem,.fbx,.pmx,.pmd,.obj,.mtl,.png,.jpg,.jpeg,.webp,.tga,.bin,.unitypackage,.zip,.prefab,.mat,.meta';
+
+/** A Unity package, a zip (often an extracted Unity folder) or loose Unity files go to the Unity import. */
+const unityInput = (files: File[]) => files.some((f) => /\.(unitypackage|zip|prefab|meta)$/i.test(f.name));
 
 export default function AvatarsPage() {
   const navigate = useNavigate();
@@ -23,9 +27,14 @@ export default function AvatarsPage() {
   const experimental = usePrefs3D(p => p.experimentalProcedural);
   const [progress, setProgress] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [unity, setUnity] = useState<File[] | null>(null);
   const importFile = async (files: File[]) => {
     const f = files[0];
     if (!f) return;
+    if (unityInput(files)) {
+      setUnity(files);
+      return;
+    }
     setBusy(true);
     setError(null);
     try {
@@ -75,7 +84,7 @@ export default function AvatarsPage() {
       }
     >
       <p className="mb-4 text-sm text-fg-2">
-        Drop a VRM, GLB, glTF, FBX, PMX or OBJ here, or choose files. Select companion textures together with the model. Conversion happens in your browser. Export .blend and .vroid projects as GLB or VRM on your PC first.
+        Drop a VRM, GLB, glTF, FBX, PMX or OBJ here, or a Unity package (.unitypackage) from BOOTH or Gumroad, or a zip of an extracted Unity folder. Select companion textures together with the model. Conversion happens in your browser.
       </p>
       <div className="mb-4 rounded-lg border border-dashed border-line p-4 text-sm text-fg-2" data-testid="avatar-drop" onDragOver={e => e.preventDefault()} onDrop={e => { e.preventDefault(); if (!busy) void importFile(Array.from(e.dataTransfer.files)); }}>
         {busy ? <span role="status">{progress || 'Reading model…'}</span> : 'Drop the model and any companion files here'}
@@ -107,6 +116,7 @@ export default function AvatarsPage() {
           ))}
         </ul>
       )}
+      <UnityImport files={unity} onClose={() => setUnity(null)} />
       <RealisticMaker open={realistic} onOpenChange={setRealistic} />
       {native ? <Suspense fallback={<Spinner />}><NativeHuman open={native} onOpenChange={setNative} /></Suspense> : null}
     </Page>

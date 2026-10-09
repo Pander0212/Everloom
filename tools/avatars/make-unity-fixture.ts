@@ -15,7 +15,7 @@ import sharp from 'sharp';
 import { writeTar } from '../../packages/engine/src/unity/tar';
 
 const fbxDir = process.argv[2];
-if (!fbxDir) throw new Error('usage: make-unity-fixture.ts <dir with Ava.fbx and Jacket.fbx>');
+if (!fbxDir) throw new Error('usage: make-unity-fixture.ts <dir with Ava.fbx and Shirt.fbx>');
 const OUT = 'tests/fixtures/unity';
 
 const G = {
@@ -27,10 +27,10 @@ const G = {
   readme: '1a0e0000000000000000000000000006',
   script: '1a0e0000000000000000000000000007',
   folder: '1a0e0000000000000000000000000008',
-  jacketFbx: '1a0e0000000000000000000000000011',
-  jacketPrefab: '1a0e0000000000000000000000000012',
-  jacketMat: '1a0e0000000000000000000000000013',
-  jacketTex: '1a0e0000000000000000000000000014',
+  shirtFbx: '1a0e0000000000000000000000000011',
+  shirtPrefab: '1a0e0000000000000000000000000012',
+  shirtMat: '1a0e0000000000000000000000000013',
+  shirtTex: '1a0e0000000000000000000000000014',
 };
 // lilToon's shader GUID is not needed: the material is recognised by its properties.
 const LILTOON_SHADER = '{fileID: 4800000, guid: df12117ecd77c31469c224178886498e, type: 3}';
@@ -59,10 +59,10 @@ const AVA_IDS: [number, string, string][] = [
   [137, '13700002', 'Hat'],
 ];
 const JACKET_IDS: [number, string, string][] = [
-  [1, '919132149155446097', 'Jacket'],
-  [1, '200001', 'Jacket'],
+  [1, '919132149155446097', 'Shirt'],
+  [1, '200001', 'Shirt'],
   [1, '200002', 'Armature'],
-  [137, '13700011', 'Jacket'],
+  [137, '13700011', 'Shirt'],
 ];
 
 const human: [string, string][] = [
@@ -303,20 +303,20 @@ MonoBehaviour:
   isSynced: 1
 `;
 
-const jacketPrefab = `%YAML 1.1
+const shirtPrefab = `%YAML 1.1
 %TAG !u! tag:unity3d.com,2011:
 --- !u!1001 &5100000000000000001
 PrefabInstance:
   m_Modification:
     m_TransformParent: {fileID: 0}
     m_Modifications:
-    - target: {fileID: 919132149155446097, guid: ${G.jacketFbx}, type: 3}
+    - target: {fileID: 919132149155446097, guid: ${G.shirtFbx}, type: 3}
       propertyPath: m_Name
-      value: Jacket
+      value: Shirt
       objectReference: {fileID: 0}
     m_RemovedComponents: []
-  m_SourcePrefab: {fileID: 100100000, guid: ${G.jacketFbx}, type: 3}
-${stripped(1, 'GameObject', '6100000000000000001', '200002', G.jacketFbx, '5100000000000000001')}--- !u!114 &7100000000000000001
+  m_SourcePrefab: {fileID: 100100000, guid: ${G.shirtFbx}, type: 3}
+${stripped(1, 'GameObject', '6100000000000000001', '200002', G.shirtFbx, '5100000000000000001')}--- !u!114 &7100000000000000001
 MonoBehaviour:
   m_GameObject: {fileID: 6100000000000000001}
   m_Enabled: 1
@@ -349,11 +349,11 @@ async function main() {
     { path: 'Assets/Ava/README.txt', guid: G.readme, data: enc.encode(README), meta: simpleMeta(G.readme, 'TextScriptImporter') },
     { path: 'Assets/Ava/Scripts/AvaHelper.cs', guid: G.script, data: enc.encode('// A script: Everloom lists it and skips it.\npublic class AvaHelper {}\n'), meta: simpleMeta(G.script, 'MonoImporter') },
   ];
-  const jacketFiles = [
-    { path: 'Assets/AvaJacket/Jacket.fbx', guid: G.jacketFbx, data: readFileSync(join(fbxDir, 'Jacket.fbx')), meta: modelMeta(G.jacketFbx, JACKET_IDS, false, [['Jacket', G.jacketMat]]) },
-    { path: 'Assets/AvaJacket/Jacket.prefab', guid: G.jacketPrefab, data: enc.encode(jacketPrefab), meta: simpleMeta(G.jacketPrefab, 'PrefabImporter') },
-    { path: 'Assets/AvaJacket/Jacket.mat', guid: G.jacketMat, data: enc.encode(lilMat('Jacket', G.jacketTex, '{r: 0.35, g: 0.42, b: 0.7, a: 1}', '{r: 0.6, g: 0.6, b: 0.8, a: 1}')), meta: simpleMeta(G.jacketMat, 'NativeFormatImporter', '  mainObjectFileID: 2100000\n') },
-    { path: 'Assets/AvaJacket/Jacket.png', guid: G.jacketTex, data: await png(80, 100, 170), meta: textureMeta(G.jacketTex) },
+  const shirtFiles = [
+    { path: 'Assets/AvaShirt/Shirt.fbx', guid: G.shirtFbx, data: readFileSync(join(fbxDir, 'Shirt.fbx')), meta: modelMeta(G.shirtFbx, JACKET_IDS, false, [['Shirt', G.shirtMat]]) },
+    { path: 'Assets/AvaShirt/Shirt.prefab', guid: G.shirtPrefab, data: enc.encode(shirtPrefab), meta: simpleMeta(G.shirtPrefab, 'PrefabImporter') },
+    { path: 'Assets/AvaShirt/Shirt.mat', guid: G.shirtMat, data: enc.encode(lilMat('Shirt', G.shirtTex, '{r: 0.35, g: 0.42, b: 0.7, a: 1}', '{r: 0.6, g: 0.6, b: 0.8, a: 1}')), meta: simpleMeta(G.shirtMat, 'NativeFormatImporter', '  mainObjectFileID: 2100000\n') },
+    { path: 'Assets/AvaShirt/Shirt.png', guid: G.shirtTex, data: await png(80, 100, 170), meta: textureMeta(G.shirtTex) },
   ];
   rmSync(OUT, { recursive: true, force: true });
   mkdirSync(OUT, { recursive: true });
@@ -368,7 +368,7 @@ async function main() {
       ),
     );
   writeFileSync(join(OUT, 'Ava.unitypackage'), pack(avaFiles));
-  writeFileSync(join(OUT, 'AvaJacket.unitypackage'), pack(jacketFiles));
+  writeFileSync(join(OUT, 'AvaShirt.unitypackage'), pack(shirtFiles));
   // The same avatar, extracted: with .meta files, and without them.
   for (const [dir, withMeta] of [['Ava-extracted', true], ['Ava-extracted-nometa', false]] as const) {
     for (const f of avaFiles) {
@@ -379,7 +379,7 @@ async function main() {
       if (withMeta) writeFileSync(p + '.meta', f.meta);
     }
   }
-  writeFileSync(join(OUT, 'README.md'), `# Unity test packages\n\nEvery one of these files was made by Everloom from its own CC0 test models (\`tests/fixtures/avatars/models\`), with\n\`tools/avatars/unity-fixture.py\` and \`tools/avatars/make-unity-fixture.ts\`. CC0 1.0.\n\n- \`Ava.unitypackage\`: an avatar laid out like a VRChat one (humanoid .meta, lilToon materials, descriptor, PhysBones, a blendshape preset, a hidden hat with a toggle, a script).\n- \`AvaJacket.unitypackage\`: a jacket made for it (Modular Avatar Merge Armature, bones prefixed \`Outfit_\`).\n- \`Ava-extracted/\`, \`Ava-extracted-nometa/\`: the avatar as loose files, with and without .meta files.\n`);
+  writeFileSync(join(OUT, 'README.md'), `# Unity test packages\n\nEvery one of these files was made by Everloom from its own CC0 test models (\`tests/fixtures/avatars/models\`), with\n\`tools/avatars/unity-fixture.py\` and \`tools/avatars/make-unity-fixture.ts\`. CC0 1.0.\n\n- \`Ava.unitypackage\`: an avatar laid out like a VRChat one (humanoid .meta, lilToon materials, descriptor, PhysBones, a blendshape preset, a hidden hat with a toggle, a script).\n- \`AvaShirt.unitypackage\`: a shirt made for it (Modular Avatar Merge Armature, bones prefixed \`Outfit_\`).\n- \`Ava-extracted/\`, \`Ava-extracted-nometa/\`: the avatar as loose files, with and without .meta files.\n`);
   console.log('ok');
 }
 void main();
