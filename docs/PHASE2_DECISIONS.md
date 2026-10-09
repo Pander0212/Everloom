@@ -1272,3 +1272,7 @@ Research with licenses: [docs/3d-import/research.md](3d-import/research.md).
   with the Vault like any other model.
 - **GPL, LGPL and MPL projects are reference only**; bone-name dictionaries come from the MIT
   original of the Cats plugin plus our own Chinese and Korean words.
+- **.blend**: converted by Blender, never by a partial in-browser reader (none handles current
+  files reliably). Blender can run on the server (one-click install of the official 4.2 LTS build,
+  checksum-verified), on the owner's PC through the Windows app, or for a batch on a rented RunPod
+  CPU machine under the GPU budget rules. Details: [3d-import/blend.md](3d-import/blend.md).
