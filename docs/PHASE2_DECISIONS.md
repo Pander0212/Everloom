@@ -1230,3 +1230,26 @@ Details in [docs/ux/themes.md](ux/themes.md).
 - **Micro-interactions** per theme (typing indicators, arrival, buttons, switches, a level-up
   burst): transform and opacity, the theme's own 140–220 ms; the pushable button is adapted from
   uiverse.io (Voxybuns, MIT, credited), the rest written for Everloom.
+
+## Design and UX: features from Hakawati (October 2026)
+
+Evaluated against what Everloom already had; details and tables in
+[docs/ux/hakawati.md](ux/hakawati.md). Built clean-room (Hakawati is GPL-3.0).
+
+- **Adopted**: input modes (Act, Say, Story, Direct; Continue = empty send; plain Chat stays the
+  default), scenario questions (`${…}` with options or fixed choices, answers on the chat, the card
+  never changed), Quickstart (client-run steps with a timer; cancel deletes what was made and keeps
+  the form), scenarios (a table of their own, copied into each story, JSON by clipboard or file),
+  the story panel, undo/redo for turns, interface scaling.
+- **Merged**: story cards are the chat's own lorebook (one system, not two); thinking levels were
+  already per connection, now one tap in the story panel; dictation adds the voice connection to the
+  browser's own; editing was already in place and now doesn't jump.
+- **Checked and fixed**: backups before upgrades existed; migrations now run all-or-nothing and the
+  error explains the way back (README › If an update fails).
+- **Continue with ChatGPT: not built yet.** OpenAI's Sign in with ChatGPT with plan usage
+  (https://developers.openai.com/siwc/llms.txt, announced 2026-09-29, preview) is official and
+  self-serve for open-source and locally hosted apps, with a client id registered per installation,
+  but needs a `127.0.0.1` redirect, so a VPS install would need a credentials-copy step; it can't be
+  tested here; the Windows app is the natural place to add it first. No other product's client id is
+  used anywhere.
+- **Right-to-left: skipped** until Everloom has translations.
