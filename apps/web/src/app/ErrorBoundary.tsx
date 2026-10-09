@@ -1,5 +1,5 @@
 import { Component, useEffect, useState, type ReactNode } from 'react';
-import { reloadOnce, resetApp } from '@/lib/recover';
+import { isReloading, reloadOnce, resetApp } from '@/lib/recover';
 import { Button } from '@/ui';
 
 function Recovery({ title, body, detail }: { title: string; body: string; detail?: string }) {
@@ -40,6 +40,8 @@ export class ErrorBoundary extends Component<{ children: ReactNode }, { error: E
   }
   override render() {
     if (!this.state.error) return this.props.children;
+    // The failed part is being fetched again by a reload: no error screen in the meantime.
+    if (isReloading()) return <div className="min-h-[100dvh] bg-bg" />;
     return (
       <div className="flex min-h-[100dvh] items-center justify-center bg-bg">
         <Recovery title="Something went wrong" body="Everloom hit an error while loading. Reload, or reset the app if it keeps happening." detail={this.state.error.message} />

@@ -4,6 +4,10 @@
  * that doesn't help, the person can reset the offline copy of the app (their data is on the server).
  */
 const KEY = 'everloom.reloaded-at';
+let reloading = false;
+
+/** A reload has been started; what's on screen is about to go away. */
+export const isReloading = () => reloading;
 
 /** Reloads, unless we already did in the last 30 seconds (then returns false: stop and show the error). */
 export function reloadOnce(): boolean {
@@ -13,6 +17,7 @@ export function reloadOnce(): boolean {
   } catch {
     /* no storage: reload anyway */
   }
+  reloading = true;
   location.reload();
   return true;
 }
