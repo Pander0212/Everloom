@@ -38,7 +38,9 @@ export class UnityProject {
   readonly byGuid = new Map<string, UnityAsset>();
   readonly byPath = new Map<string, UnityAsset>();
   /** Links made by name because a .meta was missing (shown in the report; the owner can change them). */
-  readonly guessed: { from: string; to: string; how: string }[] = [];
+  readonly guessed: { from: string; to: string; how: string; kind: UnityKind; key: string }[] = [];
+  /** The owner's own choices in "Link missing files": guess key → asset GUID ('' = none). */
+  readonly choices = new Map<string, string>();
   /** Links the owner set by hand in "Link missing files": missing GUID → asset GUID. */
   readonly links = new Map<string, string>();
 
@@ -56,6 +58,12 @@ export class UnityProject {
    */
   guess(from: string, kind: UnityKind, hint?: string, slot?: string): UnityAsset | undefined {
     if (this.exact) return undefined;
+    const key = `${from}|${kind}|${slot ?? ''}`;
+    if (this.choices.has(key)) {
+      const chosen = this.byGuid.get(this.choices.get(key)!);
+      this.guessed.push({ from, to: chosen?.path ?? '', how: 'chosen by you', kind, key });
+      return chosen;
+    }
     const dir = dirName(from);
     const pool = this.all(kind).filter((a) => a.guessed);
     if (!pool.length) return undefined;
@@ -72,8 +80,11 @@ export class UnityProject {
       return v;
     };
     const best = pool.sort((a, b) => score(b) - score(a))[0];
-    if (!best || (h && score(best) < 1 && pool.length > 1)) return undefined;
-    this.guessed.push({ from, to: best.path, how: hint ? `by the name “${hint}”` : 'the only one in its folder' });
+    if (!best || (h && score(best) < 1 && pool.length > 1)) {
+      this.guessed.push({ from, to: '', how: 'no match found', kind, key });
+      return undefined;
+    }
+    this.guessed.push({ from, to: best.path, how: hint ? `by the name “${hint}”` : 'the only one in its folder', kind, key });
     return best;
   }
   all(kind?: UnityKind) {

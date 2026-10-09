@@ -45,6 +45,23 @@ export function UnityImport({ files, onClose, target: fixed, onOutfit }: { files
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState<{ build: UnityBuild; id: string } | null>(null);
+  const [links, setLinks] = useState<{ from: string; to: string; how: string; kind: string; key: string }[]>([]);
+  const [linkRev, setLinkRev] = useState(0);
+  // Without .meta files: preview the guessed links so the owner can fix them before importing.
+  useEffect(() => {
+    if (!project || !pick || project.exact) {
+      setLinks([]);
+      return;
+    }
+    void import('@everloom/engine/unity').then(({ planImport }) => {
+      try {
+        planImport(project, pick.guid);
+        setLinks([...project.guessed]);
+      } catch {
+        setLinks([]);
+      }
+    });
+  }, [project, pick, linkRev]);
 
   useEffect(() => {
     if (!files) return;
@@ -235,6 +252,36 @@ export function UnityImport({ files, onClose, target: fixed, onOutfit }: { files
                 <h3 className="mb-2 text-sm font-medium">Outfits and accessories</h3>
                 <ul role="radiogroup" aria-label="Outfits" className="flex flex-col gap-2">{summary.outfits.map((c) => option(c, 'outfit'))}</ul>
               </section>
+            ) : null}
+            {links.length ? (
+              <details className="rounded-md border border-line p-3" data-testid="link-files">
+                <summary className="cursor-pointer text-sm font-medium">Link missing files ({links.length})</summary>
+                <p className="mt-1 text-xs text-fg-2">These links were guessed by name and folder. Pick another file where a guess is wrong.</p>
+                <ul className="mt-2 flex flex-col gap-2">
+                  {links.map((l) => (
+                    <li key={l.key} className="flex flex-col gap-1">
+                      <label className="text-xs text-fg-2" htmlFor={`link-${l.key}`}>
+                        {l.from.split('/').pop()} → {l.kind}
+                      </label>
+                      <Select
+                        id={`link-${l.key}`}
+                        value={project?.all(l.kind as never).find((a) => a.path === l.to)?.guid ?? ''}
+                        onChange={(e) => {
+                          project?.choices.set(l.key, e.target.value);
+                          setLinkRev((r) => r + 1);
+                        }}
+                      >
+                        <option value="">None</option>
+                        {(project?.all(l.kind as never) ?? []).map((a) => (
+                          <option key={a.guid} value={a.guid}>
+                            {a.path}
+                          </option>
+                        ))}
+                      </Select>
+                    </li>
+                  ))}
+                </ul>
+              </details>
             ) : null}
             {pick?.as === 'outfit' && !fixed ? (
               <Field label="For which avatar" htmlFor="unity-target" hint="Its bones are matched to the avatar's by name (Modular Avatar's Merge Armature, or the same names).">

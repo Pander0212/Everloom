@@ -29,7 +29,7 @@ export interface ImportReport {
   /** Third-party content bought or downloaded by the owner: personal use, never in exports or shares. */
   thirdParty: boolean;
   /** Links between files that had to be guessed (no .meta files). */
-  guessed: { from: string; to: string; how: string }[];
+  guessed: { from: string; to: string; how: string; kind?: UnityKind; key?: string }[];
 }
 
 export interface Candidate {
@@ -138,6 +138,7 @@ const SKIP_WHY: Partial<Record<UnityKind, string>> = {
 export function planImport(project: UnityProject, guid: string, source = 'package'): UnityPlan {
   const asset = project.get(guid);
   if (!asset) throw new Error('That file isn’t in the package.');
+  project.guessed.length = 0;
   const report: ImportReport = { source, imported: [], approximated: [], skipped: [], license: licenseFiles(project), thirdParty: true, guessed: [] };
   const plan: UnityPlan = { name: stem(asset.path), models: [], hidden: [], renderers: [], materials: {}, textures: {}, humanoid: null, boneMap: {}, descriptor: null, chains: [], toggles: [], merge: null, blendshapeSync: [], anims: [], expressions: {}, report };
 

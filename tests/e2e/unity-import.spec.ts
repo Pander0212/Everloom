@@ -98,6 +98,10 @@ test.describe('Unity packages', () => {
     await (await chooser).setFiles(['Ava.fbx', 'Ava.prefab', 'Materials/Body.mat', 'Materials/Hat.mat', 'Textures/Body.png'].map((f) => path.join(root, f)));
     const sheet = page.getByRole('dialog', { name: 'Import from Unity' });
     await expect(sheet.getByText(/Some \.meta files are missing/)).toBeVisible({ timeout: 30_000 });
+    // The guessed links can be checked and changed before importing.
+    await sheet.getByText(/Link missing files/).click();
+    await expect(sheet.getByLabel('Ava.prefab → model')).toHaveValue(/.+/);
+    await expect(sheet.getByLabel('Body.mat → texture')).toHaveValue(/.+/);
     await sheet.getByRole('button', { name: 'Import the avatar' }).click();
     const report = sheet.getByTestId('import-report');
     await expect(report).toBeVisible({ timeout: 90_000 });
