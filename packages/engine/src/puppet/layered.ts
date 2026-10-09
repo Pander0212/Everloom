@@ -28,6 +28,8 @@ export interface LayeredPicture {
   layers: LayerImage[];
   /** Depth of the torso layer (one byte per pixel, smaller = nearer), for the chest. */
   topwearDepth?: Uint8Array;
+  /** The picture that was layered, on the same canvas (RGBA): what no layer holds is recovered. */
+  source?: Uint8Array;
 }
 
 export interface MappedPart { id: string; slot: string; rgba: Uint8Array; color?: string; z?: number }
@@ -336,6 +338,60 @@ export function mapLayers(pic: LayeredPicture): MappedPuppet {
     const sh = landmarks.shoulderL[1], hy = landmarks.hips.cy;
     const bust = measureBust(pic.topwearDepth, (i) => top[i * 4 + 3]!, W, H, cx, sh, hy + (hy - sh) * 0.3);
     if (bust) { landmarks.bustL = bust.l; landmarks.bustR = bust.r; }
+  }
+
+  // ---- what no layer holds (See-through sometimes drops a tag, e.g. a picture's shoes): solid
+  // pieces below the hips, away from the canvas edge, become `shoes`, just above the legs.
+  if (pic.source && pic.source.length === N) {
+    const left = new Uint8Array(W * H);
+    for (let y = Math.floor(landmarks.hips.cy); y < H; y++) for (let x = 0; x < W; x++) {
+      const i = y * W + x;
+      if (pic.source[i * 4 + 3]! <= 160) continue;
+      let c = 0;
+      for (const l of pic.layers) { const a = l.rgba[i * 4 + 3]!; if (a > c) c = a; }
+      if (c < 64) left[i] = 1;
+    }
+    // Shrunk by 3 px, thin strips (outline halos) vanish; each piece must keep 1500 px.
+    const core = new Uint8Array(W * H);
+    for (let y = 3; y < H - 3; y++) for (let x = 3; x < W - 3; x++) {
+      let all = 1;
+      for (let dy = -3; dy <= 3 && all; dy++) for (let dx = -3; dx <= 3; dx++) if (!left[(y + dy) * W + x + dx]) { all = 0; break; }
+      core[y * W + x] = all;
+    }
+    const seen = new Uint8Array(W * H), keep = new Uint8Array(W * H);
+    for (let i = 0; i < W * H; i++) {
+      if (!left[i] || seen[i]) continue;
+      const comp: number[] = [], stack = [i];
+      seen[i] = 1;
+      let edge = false, coreN = 0;
+      while (stack.length) {
+        const j = stack.pop()!; comp.push(j); if (core[j]) coreN++;
+        const x = j % W, y = (j - x) / W;
+        if (x === 0 || y === 0 || x === W - 1 || y === H - 1) edge = true;
+        for (let dy = -1; dy <= 1; dy++) for (let dx = -1; dx <= 1; dx++) {
+          const nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= W || ny >= H) continue;
+          const k = ny * W + nx;
+          if (left[k] && !seen[k]) { seen[k] = 1; stack.push(k); }
+        }
+      }
+      if (!edge && comp.length >= 1500 && coreN >= 1500) for (const j of comp) keep[j] = 1;
+    }
+    let any = false;
+    const rest = new Uint8Array(N);
+    for (let y = 2; y < H - 2; y++) for (let x = 2; x < W - 2; x++) {
+      // Grown by 2 px so the piece overlaps what it meets.
+      let k = 0;
+      for (let dy = -2; dy <= 2 && !k; dy++) for (let dx = -2; dx <= 2; dx++) if (keep[(y + dy) * W + x + dx]) { k = 1; break; }
+      const i = y * W + x;
+      if (!k || pic.source[i * 4 + 3]! <= 8) continue;
+      rest.set(pic.source.subarray(i * 4, i * 4 + 4), i * 4);
+      any = true;
+    }
+    if (any) {
+      put(parts.some((p) => p.id === 'footwear') ? 'feet-rest' : 'footwear', 'shoes', rest, undefined, 'footwear-rest');
+      order.set('footwear-rest', (order.get('legwear') ?? 0) + 0.5);
+    }
   }
 
   // ---- colour groups from the parts' opaque pixels

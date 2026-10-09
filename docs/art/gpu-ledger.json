@@ -278,13 +278,25 @@
    "gpu": "RTX A5000",
    "pricePerHr": 0.27,
    "start": "2026-10-09T04:01:07.201Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-09T04:46:20.828Z",
+   "seconds": 2714,
+   "costUsd": 0.204,
    "balanceBefore": 3.2602631028,
-   "balanceAfter": null,
-   "images": [],
-   "result": "started",
+   "balanceAfter": 3.0295853338,
+   "images": [
+    "rhea-tee.png",
+    "selene-adventurer.png",
+    "selene-base.png",
+    "selene-bikini.png",
+    "selene-gown.png",
+    "selene-hoodie.png",
+    "selene-lingerie.png",
+    "selene-office.png",
+    "selene-sundress.png",
+    "selene-sweater.png",
+    "selene-tee.png"
+   ],
+   "result": "11/11 layered; 217 MB",
    "note": "4 generated characters: the last 11 pictures"
   }
  ]

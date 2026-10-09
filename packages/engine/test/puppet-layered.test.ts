@@ -45,6 +45,22 @@ describe('a layered picture to puppet parts', () => {
     expect(z.bottomwear).toBeGreaterThan(z.topwear!);
   });
 
+  it('recovers what no layer holds below the hips (a dropped tag), but not specks or edge background', () => {
+    const src = new Uint8Array(W * H * 4);
+    for (const l of pic.layers) for (let i = 0; i < src.length; i += 4) if (l.rgba[i + 3]! > 0) { src.set(l.rgba.subarray(i, i + 4), i); }
+    // Shoes See-through dropped (a solid block under the legs), a speck, and a band along the bottom edge.
+    const fill = (x0: number, y0: number, x1: number, y1: number) => { for (let y = y0; y < y1; y++) for (let x = x0; x < x1; x++) src.set([250, 250, 250, 255], (y * W + x) * 4); };
+    fill(10, 381, 190, 397); fill(20, 300, 24, 304); fill(0, 399, W, H);
+    const r = mapLayers({ ...pic, source: src });
+    const shoes = r.parts.filter((p) => p.slot === 'shoes');
+    expect(shoes).toHaveLength(1);
+    const a = shoes[0]!.rgba;
+    expect(a[(385 * W + 100) * 4 + 3]).toBe(255);
+    expect(a[(302 * W + 22) * 4 + 3]).toBe(0);
+    expect(a[(399 * W + 5) * 4 + 3]).toBe(0);
+    expect(shoes[0]!.z).toBeGreaterThan(r.parts.find((p) => p.id === 'legwear')!.z!);
+  });
+
   it('rigs into a valid puppet', () => {
     const parts = m.parts.map((p, i) => ({ id: p.id, slot: p.slot, texture: 0, mesh: rectMesh(i, i, 10, 10), z: p.z }));
     const model = buildTemplateRig(m.landmarks, parts, { id: 't', name: 'T', template: 'everloom-f', textures: ['page0.png'], colors: m.colors });

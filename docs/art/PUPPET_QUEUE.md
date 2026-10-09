@@ -63,6 +63,14 @@ Budget rules: [PROMPTING.md](PROMPTING.md) (NanoGPT at most 95 images per UTC da
   shows setup progress, frees the pod on a stop signal, downloads what is finished before its time
   limit, and can wait for a community card.
 
+- All 40 layered (8 RunPod sessions; $1.80 of the $2: five bad hosts and one container restart
+  before the tooling learned to save each picture as it finishes) and rigged: 4 characters × (18+
+  base + 9 outfits), with expressions cut from the edits (closed and smiling eyes, ah, oh,
+  smile). Rated 18+: the four bases, Nora's bikini and Mika's sundress (see-through).
+- See-through sometimes drops a tag (one picture's shoes were in no layer): map.py and mapLayers
+  now recover solid pieces below the hips that no layer holds (not halos, specks or background
+  left along the edge). Thin sandals and flip-flops still slip through in two outfits.
+
 ## Next
 
 0. With the owner's verdict on the test: mouth and eye-smile drawings by edit (Step Image Edit 2

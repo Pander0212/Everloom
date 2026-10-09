@@ -44,7 +44,13 @@ export async function puppetFromLayers(read: (p: string) => Buffer | null, name:
     const { data, info } = await sharp(dp).greyscale().raw().toBuffer({ resolveWithObject: true });
     if (info.width === W && info.height === H) topwearDepth = new Uint8Array(data.buffer, data.byteOffset, W * H);
   }
-  const mapped = mapLayers({ width: W, height: H, layers, topwearDepth });
+  let source: Uint8Array | undefined;
+  const sp = read(`${name}/src_img.png`);
+  if (sp) {
+    const { data, info } = await sharp(sp).ensureAlpha().raw().toBuffer({ resolveWithObject: true });
+    if (info.width === W && info.height === H) source = new Uint8Array(data.buffer, data.byteOffset, W * H * 4);
+  }
+  const mapped = mapLayers({ width: W, height: H, layers, topwearDepth, source });
   const images: PartImage[] = [];
   for (const p of mapped.parts) {
     const t = await trimRgba(Buffer.from(p.rgba.buffer, p.rgba.byteOffset, p.rgba.length), W, H);

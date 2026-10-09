@@ -366,6 +366,37 @@ def main(psd_path, src_path, out):
             m = a[..., 3] > 200
             if m.any():
                 colors[grp] = '#%02x%02x%02x' % tuple(int(v) for v in np.median(a[m][:, :3], axis=0))
+    # Anything visible in the picture that no layer holds (See-through sometimes drops a tag: the
+    # shoes of one picture came back in no layer at all): below the hips it becomes `shoes`, drawn
+    # just above the legs.
+    if src.shape[:2] == (H, W):
+        cover = np.zeros((H, W), np.float32)
+        for _, a in ls:
+            cover = np.maximum(cover, a[..., 3] / 255.0)
+        left = (src[..., 3] > 160) & (cover < 0.25)
+        left[:int(L['hips']['cy']), :] = False
+        # Only solid pieces: thin strips (outline halos, background left along an edge) and small
+        # specks vanish when shrunk by 3 px; a dropped shoe or bag doesn't.
+        core = cv2.erode(left.astype(np.uint8), np.ones((7, 7), np.uint8))
+        n, lab, stats, _ = cv2.connectedComponentsWithStats(left.astype(np.uint8), connectivity=8)
+        keep = np.zeros((H, W), bool)
+        for k in range(1, n):
+            comp = lab == k
+            x, y, w, h = stats[k, cv2.CC_STAT_LEFT], stats[k, cv2.CC_STAT_TOP], stats[k, cv2.CC_STAT_WIDTH], stats[k, cv2.CC_STAT_HEIGHT]
+            # Background the keying left along the picture's edge touches the canvas border.
+            if x <= 0 or y <= 0 or x + w >= W or y + h >= H:
+                continue
+            if stats[k, cv2.CC_STAT_AREA] >= 1500 and core[comp].sum() >= 1500:
+                keep |= comp
+        if keep.any():
+            # Grow a little so the piece overlaps what it meets instead of leaving a seam.
+            keep = cv2.dilate(keep.astype(np.uint8), np.ones((5, 5), np.uint8)).astype(bool) & (src[..., 3] > 8)
+            a = np.zeros((H, W, 4), np.uint8)
+            a[keep] = src[keep]
+            pid = 'footwear' if not any(p['id'] == 'footwear' for p in parts) else 'feet-rest'
+            put(pid, 'shoes', a, None, tag='footwear-rest')
+            order.setdefault('footwear-rest', (order.get('legwear', 0) + 0.5))
+            print(f'filled {int(keep.sum())} px no layer held (below the hips) as {pid}')
     # Body-level draw order from See-through's own (its layers come back to front): arms behind the
     # top, the waistband over the shirt. Head parts keep the schema's order, which expressions use.
     body_parts = [q for q in parts if q['id'] in tag_of and q['slot'].split(':')[0].split('.')[0] in ('body', 'underwear', 'legwear', 'shoes', 'bottom', 'top', 'outer', 'acc', 'arm', 'sleeve') and not q['slot'].startswith('acc.head')]
