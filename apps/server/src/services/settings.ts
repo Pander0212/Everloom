@@ -32,6 +32,8 @@ export const DEFAULT_SETTINGS: Settings = {
   features: defaultFeatureSettings(),
   privacy: { shield: defaultShieldSettings() },
   scripts: defaultScriptSettings(),
+  ui: { pins: null, quick: null, tours: [], advanced: false, experimental: false },
+  look: { id: 'everloom', scenery: 'animated', reading: { leading: 1.6, width: 760, paragraph: 0.75, storyFont: null, uiFont: null } },
 };
 
 function merge<T>(base: T, patch: any): T {

@@ -1,5 +1,7 @@
 import type { ReactNode } from 'react';
-import { Badge, Field, Input, Segmented, ToggleRow } from '@/ui';
+import { Link } from 'react-router';
+import { Badge, Button, Field, Input, Segmented, ToggleRow } from '@/ui';
+import { useFeatures } from '@/lib/features';
 import { Section, useSettingsPatch } from '../common';
 import { HUD_OPTIONS } from '@/features/game/hud-options';
 
@@ -21,13 +23,27 @@ const PROFILE_HINT: Record<string, string> = {
   custom: 'Your own mix of the switches below.',
 };
 
+/** A part that is switched off in Settings › Features: say so, with the way back. */
+function OffNote({ what }: { what: string }) {
+  return (
+    <p className="rounded-md bg-surface-2 px-3 py-2 text-sm text-fg-2">
+      {what} is off. Turn it on in{' '}
+      <Link to="/settings/features" className="font-medium text-accent-text">
+        Features
+      </Link>
+      .
+    </p>
+  );
+}
+
 function WorldSection() {
   const { settings, update } = useSettingsPatch();
+  const f = useFeatures(null);
   if (!settings) return null;
   const w = settings.world;
   return (
     <>
-      <Section title="World engine" description="How much the world does between replies. Every extra model call is listed in the World inspector's call log.">
+      <Section title="World engine" description="How much the world does between replies. Every extra AI call is listed in a chat's Story state › Model calls.">
         <Segmented
           label="World engine profile"
           value={w.profile}
@@ -44,18 +60,24 @@ function WorldSection() {
       <Section title="World simulation">
         <div className="flex flex-col divide-y divide-line">
           <ToggleRow label="Understand where you go" description="“I head to the market” moves you before the reply is written, and your companions come along. No model call." checked={w.intent} onChange={(v) => update({ world: { intent: v } })} />
-          <ToggleRow label="Skill checks with real odds" description="Risky actions get a roll decided by code, shown to the narrator. A swipe replays the same roll." checked={w.dice} onChange={(v) => update({ world: { dice: v } })} />
-          <ToggleRow label="Random events" description="Now and then something happens on its own. No model call." checked={w.pulse} onChange={(v) => update({ world: { pulse: v } })} />
-          <ToggleRow label="Off-screen storylines" description="Slow-burning threads that grow from rumour to something you can't ignore. No model call." checked={w.threads} onChange={(v) => update({ world: { threads: v } })} />
-          <ToggleRow label={<CostLabel text="Seed new storylines" cost="background" />} checked={w.threadSeeding} onChange={(v) => update({ world: { threadSeeding: v } })} disabled={!w.threads} />
-          <ToggleRow label={<CostLabel text="Off-screen life" cost="background" />} description="What the people you aren't with do to each other." checked={w.social} onChange={(v) => update({ world: { social: v } })} />
-          <ToggleRow label={<CostLabel text="Read my message first" cost="main" />} description="A quick utility-model read before the reply, for moves, time skips and checks the rules missed." checked={w.preRead} onChange={(v) => update({ world: { preRead: v } })} />
+          {f.on.dice ? <ToggleRow label="Dice" description="Risky actions get a roll decided by code, shown to the narrator. A new version replays the same roll." checked={w.dice} onChange={(v) => update({ world: { dice: v } })} /> : null}
+          {f.on.storylines ? (
+            <>
+              <ToggleRow label="Random events" description="Now and then something happens on its own. No extra AI call." checked={w.pulse} onChange={(v) => update({ world: { pulse: v } })} />
+              <ToggleRow label="Off-screen storylines" description="Slow-burning threads that grow from rumour to something you can't ignore. No extra AI call." checked={w.threads} onChange={(v) => update({ world: { threads: v } })} />
+              <ToggleRow label={<CostLabel text="Seed new storylines" cost="background" />} checked={w.threadSeeding} onChange={(v) => update({ world: { threadSeeding: v } })} disabled={!w.threads} />
+            </>
+          ) : null}
+          {f.on.offscreen ? <ToggleRow label={<CostLabel text="Off-screen life" cost="background" />} description="What the people you aren't with do to each other." checked={w.social} onChange={(v) => update({ world: { social: v } })} /> : null}
+          {f.on.preRead ? <ToggleRow label={<CostLabel text="Read my message first" cost="main" />} description="A quick read before the reply, for moves, time skips and checks the rules missed." checked={w.preRead} onChange={(v) => update({ world: { preRead: v } })} /> : null}
         </div>
-        <div className="mt-3 grid grid-cols-2 gap-3">
-          <Field label="Off-screen life every N turns" htmlFor="se">
-            <Input id="se" type="number" min={1} max={50} value={w.socialEvery} onChange={(e) => update({ world: { socialEvery: Number(e.target.value) } })} />
-          </Field>
-        </div>
+        {f.on.offscreen ? (
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <Field label="Off-screen life every N turns" htmlFor="se">
+              <Input id="se" type="number" min={1} max={50} value={w.socialEvery} onChange={(e) => update({ world: { socialEvery: Number(e.target.value) } })} />
+            </Field>
+          </div>
+        ) : null}
       </Section>
     </>
   );
@@ -64,33 +86,54 @@ function WorldSection() {
 
 export default function GameSection() {
   const { settings, update } = useSettingsPatch();
+  const f = useFeatures(null);
   if (!settings) return null;
   const w = settings.world;
   const pinned = settings.hud.pinned;
   const toggle = (id: string) => update({ hud: { pinned: pinned.includes(id) ? pinned.filter((p) => p !== id) : [...pinned, id] } });
   return (
     <>
-      <Section title="State tracking" description="After each reply the game reads what happened and updates items, time, places, people and stats.">
-        <Field label="Tracker mode" htmlFor="tm" hint={settings.tracker.mode === 'separate' ? 'A second, cheap call to the utility model after each reply. Most reliable.' : settings.tracker.mode === 'inline' ? 'The main model appends changes in a hidden tag. One call, but depends on the model following instructions.' : 'No automatic tracking. You can still change state by hand.'}>
-          <Segmented
-            label="Tracker mode"
-            value={settings.tracker.mode}
-            onChange={(v) => update({ tracker: { mode: v } })}
-            options={[
-              { value: 'separate', label: 'Separate pass' },
-              { value: 'inline', label: 'Inline tags' },
-              { value: 'off', label: 'Off' },
-            ]}
-          />
-        </Field>
-        <div className="mt-2 flex flex-col divide-y divide-line">
-          <ToggleRow label="Send game state to the model" description="Adds a compact summary of time, place, vitals and nearby people." checked={settings.tracker.injectState} onChange={(v) => update({ tracker: { injectState: v } })} />
-        </div>
-        <Field label="Scene block budget (tokens)" htmlFor="ib" className="mt-3" hint="Over budget, the least important lines go first; where you are, who's here and the dice never do.">
-          <Input id="ib" type="number" min={300} max={4000} step={50} value={w.sceneBudget} onChange={(e) => update({ world: { sceneBudget: Number(e.target.value) } })} className="max-w-[160px]" />
-        </Field>
+      <Section title="Auto-tracking" description="After each reply, Everloom reads what happened and updates items, time, places, people and stats.">
+        {!f.on.trackerPass ? (
+          <OffNote what="Auto-tracking" />
+        ) : settings.tracker.mode === 'off' ? (
+          <div className="flex items-center gap-3 rounded-md bg-surface-2 px-3 py-2 text-sm text-fg-2">
+            <span className="flex-1">Auto-tracking is paused. You can still change things by hand.</span>
+            <Button size="sm" onClick={() => update({ tracker: { mode: 'separate' } })}>
+              Resume
+            </Button>
+          </div>
+        ) : (
+          <Field label="How it runs" htmlFor="tm" hint={settings.tracker.mode === 'separate' ? 'A second, small call to the utility model after each reply. Most reliable.' : 'The main model notes the changes inside its reply. One call, but it depends on the model following instructions.'}>
+            <Segmented
+              label="How auto-tracking runs"
+              value={settings.tracker.mode}
+              onChange={(v) => update({ tracker: { mode: v } })}
+              options={[
+                { value: 'separate', label: 'Separate call' },
+                { value: 'inline', label: 'Inside the reply' },
+              ]}
+            />
+          </Field>
+        )}
       </Section>
-      <Section title="HUD" description="The thin bar at the top of a chat. Tap it to see everything.">
+      <Section title="What the AI sees" description="The story state (time, place, people here, what each person knows) given to the AI with every reply.">
+        {!f.on.sceneBlock ? (
+          <OffNote what="What the AI sees" />
+        ) : !settings.tracker.injectState ? (
+          <div className="flex items-center gap-3 rounded-md bg-surface-2 px-3 py-2 text-sm text-fg-2">
+            <span className="flex-1">The story state isn't being sent.</span>
+            <Button size="sm" onClick={() => update({ tracker: { injectState: true } })}>
+              Send it again
+            </Button>
+          </div>
+        ) : (
+          <Field label="Size limit (tokens)" htmlFor="ib" hint="Over the limit, the least important lines go first; where you are, who's here and the dice never do.">
+            <Input id="ib" type="number" min={300} max={4000} step={50} value={w.sceneBudget} onChange={(e) => update({ world: { sceneBudget: Number(e.target.value) } })} className="max-w-[160px]" />
+          </Field>
+        )}
+      </Section>
+      <Section title="Status bar" description="The thin bar at the top of a game chat. Tap it to see your status, or the place to open the map.">
         <div className="flex flex-wrap gap-2">
           {HUD_OPTIONS.map(([id, label]) => (
             <button key={id} onClick={() => toggle(id)} aria-pressed={pinned.includes(id)} className={`pressable h-9 rounded-full px-3.5 text-sm ${pinned.includes(id) ? 'bg-accent-soft font-medium text-accent-text' : 'bg-surface-2 text-fg-2'}`}>
@@ -100,9 +143,9 @@ export default function GameSection() {
         </div>
       </Section>
       <WorldSection />
-      <Section title="Memory" description="What the story remembers and who knows it. Open Memory from a chat's menu to see it all.">
+      <Section title="Memory" description="What the story remembers and who knows it. In a chat, Tools › Memory shows it all.">
         <div className="flex flex-col divide-y divide-line">
-          <ToggleRow label="Remember events and facts" description="Read from each reply by the tracker pass — no extra call." checked={w.memory} onChange={(v) => update({ world: { memory: v } })} />
+          <ToggleRow label="Remember events and facts" description="Read from each reply by auto-tracking — no extra call." checked={w.memory} onChange={(v) => update({ world: { memory: v } })} />
           <ToggleRow label={<CostLabel text="Search by meaning" cost="embeddings" />} description="Also recall memories that mean the same thing in other words. Needs an embeddings connection." checked={w.semantic} onChange={(v) => update({ world: { semantic: v } })} />
           <ToggleRow label="Gossip" description="People standing together pass on what they saw (never secrets). No model call." checked={w.hearsay} onChange={(v) => update({ world: { hearsay: v } })} />
           <ToggleRow label={<CostLabel text="Chronicler" cost="background" />} description="Reads the chat in batches for anything the turn-by-turn pass missed. The only memory writer in chats without a game." checked={w.chronicler} onChange={(v) => update({ world: { chronicler: v } })} />
@@ -123,16 +166,13 @@ export default function GameSection() {
           </Field>
         </div>
       </Section>
-      <Section title="Helper and atmosphere">
-        <div className="flex flex-col divide-y divide-line">
-          <ToggleRow label="Show the helper companion" checked={settings.helper.visible} onChange={(v) => update({ helper: { visible: v } })} />
-          <ToggleRow label="Weather and time-of-day overlay" description="A subtle tint and particles in Stage mode." checked={settings.atmosphere.enabled} onChange={(v) => update({ atmosphere: { enabled: v } })} />
-          <ToggleRow label="Particles" checked={settings.atmosphere.particles} onChange={(v) => update({ atmosphere: { particles: v } })} disabled={!settings.atmosphere.enabled} />
-        </div>
-        <Field label="Helper name" htmlFor="hn" className="mt-3">
-          <Input id="hn" value={settings.helper.name} onChange={(e) => update({ helper: { name: e.target.value } })} className="max-w-[240px]" />
-        </Field>
-      </Section>
+      {f.on.helper ? (
+        <Section title="Helper" description="The small companion you can ask about the game (Tools › Helper). Weather and particles are in Tools › Weather & mood.">
+          <Field label="Helper name" htmlFor="hn">
+            <Input id="hn" value={settings.helper.name} onChange={(e) => update({ helper: { name: e.target.value } })} className="max-w-[240px]" />
+          </Field>
+        </Section>
+      ) : null}
     </>
   );
 }

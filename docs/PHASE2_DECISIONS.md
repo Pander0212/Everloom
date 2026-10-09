@@ -1162,3 +1162,46 @@ are shown and allowed without enabling anything. The one 18+ switch left is for 
 character browser (Settings › Character sources: browsing and importing from public sites). What
 stays everywhere: an avatar or preset rated adult still needs a recorded age of 18+ and an adult
 confirmation, and anything that describes a minor is refused (services/avatars/adult.ts).
+
+## Design and UX: simpler tools (October 2026)
+
+The owner: the tools and actions were "way too overfilled". Audit, maps and numbers in
+[docs/ux/](ux/audit.md).
+
+- **One registry, one palette.** Every tool, sheet, action, page and settings page is an entry in
+  `apps/web/src/lib/registry.ts` with a group, a one-line description, a "What is this?" and the
+  feature switches it needs. The palette (the Tools button, Ctrl/⌘K, desktop Search, the phone's
+  settings search) reads it; so do the help buttons, the settings index and a reachability test
+  (`apps/web/test/reachability.test.ts`) that reads the tool, sheet, route and settings lists from
+  the code that renders them. Adding a tool without an entry fails the test. The old command menu
+  and the header's ⋯ menu are gone; their entries are in the palette.
+- **Grouped by intent**: This scene, My character, The world, Story tools, Create, Settings,
+  Advanced. Pins (up to eight, defaults per mode) keep the daily tools one tap away with no scroll.
+  Searching also finds settings pages, feature switches (switchable in the row), the story's
+  places, items and people, and characters.
+- **Message actions**: Edit, Copy, Delete under a message (on tap or hover; the newest message
+  always shows New version, Edit and More), the rest in a More menu with labelled groups. Read
+  aloud and Re-read only show when Voice or the game is on (they used to show and do nothing).
+- **Renames**, following the owner's examples: Tracker pass → Auto-tracking, Scene block → What
+  the AI sees, Prompt inspector → Everything sent to the AI, World inspector → Story state (with
+  Story changes and Story problems as their own entries), Author's note → Note to the AI, swipe →
+  version, Regenerate → Rewrite this version, Databank → Facts, NPCs → People, Social →
+  Relationships, Atmosphere → Weather & mood, Stage mode → Stage view, Pre-read → Read my message
+  first. The feature ids, op names and API are unchanged, so nothing stored changes.
+- **Duplicates merged**: on/off lives only in Settings › Features; Settings › Game keeps only *how*
+  (Auto-tracking's method, What the AI sees' size) and shows the world-simulation rows only for
+  features that are on. "Show the helper companion" did nothing and is gone; the weather overlay
+  settings live in Weather & mood only. Scripts and Extensions settings pages, dictation, Read
+  aloud and the stage's scene-effects button now follow their switches.
+- **Settings: Simple and Advanced.** Simple shows 9 of 21 pages (Models & connections, Features,
+  Appearance & themes, Chat, Voice, Backups & import, Privacy, Account & security, About), Advanced
+  all, in five groups. A page opened by link or palette shows in either view.
+- **Experimental**: the design-system page and the 3D and puppet labs are listed (Tools ›
+  Advanced) only with Settings › Features › Experimental on; their URLs still work.
+- **First-run tour**: six cards per mode after the first-run question, skippable, replayable
+  (Tools › Take the tour). It opens from a session flag set by setup, so existing installs and
+  updates never see it unasked.
+- **A chat's model** is chosen in This chat (tap the title). The server already honoured
+  `metadata.connectionId`; there was no control for it.
+- **Measured** on a phone with Playwright (`playwright.ux.config.ts`): nine tasks went from 32
+  taps and 2 scrolls to 25 taps and none; the play screen from 20 visible controls to 15.

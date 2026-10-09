@@ -21,28 +21,28 @@ test('screens', async ({ page }, info) => {
   // Message actions
   const msg = page.locator('[id^="msg-"]').last();
   await msg.hover();
-  await msg.getByRole('button', { name: /Message actions|More/ }).first().click();
+  await msg.getByRole('button', { name: /^(Message actions|More actions)$/ }).first().click();
   await shot(page, dir, '03-message-actions');
   await page.keyboard.press('Escape');
-  // Command menu / palette
-  await page.getByRole('button', { name: /Actions and tools|Tools/ }).first().click();
+  // Palette (the tools menu)
+  await page.getByRole('button', { name: /^(Actions and tools|Tools)$/ }).first().click();
   await page.waitForTimeout(500);
   await shot(page, dir, '04-command-menu');
+  const search = page.getByLabel(/Search tools/);
+  await search.fill('story state');
+  await page.waitForTimeout(300);
+  await shot(page, dir, '04b-palette-search');
+  await page.getByRole('button', { name: /^Story state/ }).first().click();
+  await page.waitForTimeout(800);
+  await shot(page, dir, '06-world-inspector');
   await page.keyboard.press('Escape');
   await page.waitForTimeout(400);
-  // Chat menu
-  const chatMenu = page.getByRole('button', { name: 'Chat menu' });
-  if (await chatMenu.count()) {
-    await chatMenu.click();
-    await shot(page, dir, '05-chat-menu');
-    const wi = page.getByRole('menuitem', { name: /World inspector|What the AI sees/ });
-    if (await wi.count()) {
-      await wi.click();
-      await page.waitForTimeout(800);
-      await shot(page, dir, '06-world-inspector');
-    }
-    await page.keyboard.press('Escape');
-  }
+  // This chat
+  await page.getByRole('button', { name: /Iris Thorne/ }).first().click();
+  await page.waitForTimeout(600);
+  await shot(page, dir, '05-this-chat');
+  await page.keyboard.press('Escape');
+  await page.waitForTimeout(400);
   // Settings
   await page.goto('/settings');
   await shot(page, dir, '07-settings');
@@ -54,11 +54,13 @@ test('screens', async ({ page }, info) => {
   await shot(page, dir, '10-settings-appearance');
   await page.goto('/characters');
   await shot(page, dir, '11-characters');
+  await page.goto('/settings/game');
+  await page.getByRole('button', { name: 'What is this?' }).first().click();
+  await shot(page, dir, '12-settings-help');
   if (phone) {
-    await page.goto(`/chat/${chat.id}`);
-    await page.getByRole('button', { name: 'Chat menu' }).click();
-    await page.getByRole('menuitem', { name: 'Prompt inspector' }).click().catch(() => {});
-    await page.waitForTimeout(800);
-    await shot(page, dir, '12-prompt-inspector');
+    await page.goto('/settings');
+    await page.getByRole('radio', { name: 'Advanced' }).click();
+    await page.waitForTimeout(300);
+    await shot(page, dir, '13-settings-advanced');
   }
 });

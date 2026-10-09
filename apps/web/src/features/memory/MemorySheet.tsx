@@ -3,6 +3,7 @@
  * pin, edit, forget, "why recalled?"), a per-person view, versioned facts with conflicts to
  * settle, and the editable summaries (scene → day → chapter).
  */
+import { entry } from '@/lib/registry';
 import type { ChatDTO } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { animate, motion, useMotionValue, useTransform } from 'motion/react';
@@ -127,6 +128,7 @@ export function MemorySheet({ chat, open, onOpenChange }: { chat: ChatDTO; open:
         open={open}
         onOpenChange={onOpenChange}
         title="Memory"
+        help={entry('memory')?.help}
         description="What the story remembers, and who knows it."
         size="lg"
         headerActions={<IconButton icon={Plus} label="Add a memory" onClick={() => setEditing('new')} />}

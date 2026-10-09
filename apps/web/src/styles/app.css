@@ -6,8 +6,11 @@
 
 /* ------------------------------------------------------------------ tokens
    Every color in the app comes from these variables. Light is the default;
-   dark overrides below. One accent (warm amber) plus semantic colors. */
-:root {
+   dark overrides below. One accent (warm amber) plus semantic colors. Themes (src/themes/looks.ts)
+   override these per [data-look]; a [data-theme] on any element (the theme gallery's previews)
+   scopes light or dark to it. */
+:root,
+[data-theme='light'] {
   --bg: #f6f5f2;
   --surface: #ffffff;
   --surface-2: #efeeea;
@@ -35,6 +38,21 @@
   --shadow-3: 0 16px 40px rgb(var(--shadow-color) / 0.14), 0 4px 10px rgb(var(--shadow-color) / 0.06);
   --focus: 0 0 0 2px var(--bg), 0 0 0 4px var(--accent);
   --story-size: 17px;
+  /* Set per theme (looks.ts); these are Everloom's. */
+  --font-ui: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-story: 'Source Serif 4 Variable', ui-serif, Georgia, serif;
+  --font-heading: var(--font-ui);
+  --r-sm: 6px;
+  --r-md: 10px;
+  --r-lg: 16px;
+  --ui-dur: 220ms;
+  --ui-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --press: 0.97;
+  --texture: none;
+  /* Reading settings (Settings › Appearance & themes). */
+  --story-leading: 1.6;
+  --story-width: 760px;
+  --story-paragraph: 0.75em;
   --safe-top: env(safe-area-inset-top, 0px);
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --tabbar-h: 60px;
@@ -54,7 +72,7 @@
   color-scheme: light;
 }
 
-:root[data-theme='dark'] {
+[data-theme='dark'] {
   --bg: #0e0f11;
   --surface: #151619;
   --surface-2: #1b1c20;
@@ -179,6 +197,11 @@
   --accent-soft: rgb(92 184 224 / 0.14);
 }
 
+/* Themes with a texture (paper grain, scanlines) show it behind the story too. */
+.ev-story {
+  background-image: var(--texture);
+}
+
 /* What the story view shows (per device), and cinematic mode: the story and nothing else. */
 :root[data-hide-hud] .ev-hud,
 :root[data-hide-chips] .ev-chips,
@@ -204,6 +227,9 @@
 :root[data-text-size='large'] {
   --story-size: 19px;
 }
+:root[data-text-size='xlarge'] {
+  --story-size: 21px;
+}
 
 @theme inline {
   --color-bg: var(--bg);
@@ -228,8 +254,8 @@
   --color-warning-soft: var(--warning-soft);
   --color-overlay: var(--overlay);
 
-  --font-sans: 'Inter Variable', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif;
-  --font-serif: 'Source Serif 4 Variable', ui-serif, Georgia, serif;
+  --font-sans: var(--font-ui);
+  --font-serif: var(--font-story);
 
   /* Type scale: 12 / 14 / 16 / 20 / 28 */
   --text-xs: 12px;
@@ -243,12 +269,12 @@
   --text-xl: 28px;
   --text-xl--line-height: 34px;
   --text-story: var(--story-size);
-  --text-story--line-height: 1.6;
+  --text-story--line-height: var(--story-leading);
 
   /* Radius scale: 6 / 10 / 16 */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 16px;
+  --radius-sm: var(--r-sm);
+  --radius-md: var(--r-md);
+  --radius-lg: var(--r-lg);
 
   --shadow-1: var(--shadow-1);
   --shadow-2: var(--shadow-2);
@@ -269,7 +295,8 @@
     -webkit-tap-highlight-color: transparent;
   }
   body {
-    background: var(--bg);
+    background-color: var(--bg);
+    background-image: var(--texture);
     color: var(--text);
     font-family: var(--font-sans);
     font-size: 16px;
@@ -281,6 +308,11 @@
   }
   ::selection {
     background: var(--accent-soft);
+  }
+  h1,
+  h2,
+  h3 {
+    font-family: var(--font-heading);
   }
   :focus-visible {
     outline: none;
@@ -314,13 +346,13 @@
   /* Press state — adapted from Uiverse.io by Custyyyy (fuzzy-fireant-2) / ZiyadOuamna (hungry-penguin-18). */
   .pressable {
     transition:
-      transform 120ms var(--ease-out),
-      background-color 150ms var(--ease-out),
-      color 150ms var(--ease-out),
-      opacity 150ms var(--ease-out);
+      transform calc(var(--ui-dur) * 0.6) var(--ui-ease),
+      background-color var(--ui-dur) var(--ease-out),
+      color var(--ui-dur) var(--ease-out),
+      opacity var(--ui-dur) var(--ease-out);
   }
   .pressable:active:not(:disabled) {
-    transform: scale(0.97);
+    transform: scale(var(--press));
   }
 
   /* Text field focus — adapted from Uiverse.io by AtharvaMistry (kind-treefrog-34): quiet fill, accent ring on focus. */
@@ -546,12 +578,12 @@
   .story {
     font-family: var(--font-serif);
     font-size: var(--story-size);
-    line-height: 1.6;
+    line-height: var(--story-leading);
     color: var(--text);
     overflow-wrap: anywhere;
   }
   .story p {
-    margin: 0 0 0.75em;
+    margin: 0 0 var(--story-paragraph);
   }
   .story p:last-child {
     margin-bottom: 0;

@@ -36,7 +36,7 @@ for (const model of models) for (const flow of ['picker', 'drop'] as const) {
     // Match the app's client routing. Hard navigation interrupts the live SSE
     // request and Firefox emits a browser-generated cancellation diagnostic.
     await page.evaluate(url => { history.pushState(null, '', url); window.dispatchEvent(new PopStateEvent('popstate')); }, `/chat/${chat.id}`);
-    await page.getByRole('button', { name: 'Switch to stage mode' }).click();
+    await page.getByRole('button', { name: 'Switch to stage view' }).click();
     await expect(page.getByTestId('stage-3d')).toBeVisible({ timeout: 60_000 });
     await expect(page.getByTestId('stage-3d')).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
     const result = await api(page, 'POST', `/api/campaigns/${chat.campaignId}/ops`, { chatId: chat.id, ops: [{ type: 'avatar.emote', who, emote: 'wave' }] });

@@ -2,8 +2,8 @@ import { api, expect, mockControl, test } from './fixtures';
 import type { Page } from '@playwright/test';
 
 async function openTool(page: Page, name: string | RegExp) {
-  await page.getByRole('button', { name: 'Actions and tools' }).click();
-  await page.getByLabel('Search tools and actions').fill(typeof name === 'string' ? name : 'Phone');
+  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await page.getByLabel('Search tools, settings and the story').fill(typeof name === 'string' ? name : 'Phone');
   await page.getByRole('button', { name, exact: typeof name === 'string' }).first().click();
 }
 

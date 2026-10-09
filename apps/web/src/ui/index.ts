@@ -15,3 +15,4 @@ export * from './Tooltip';
 export * from './useMedia';
 export * from './FileButton';
 export * from './Popover';
+export * from './HelpNote';

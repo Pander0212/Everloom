@@ -5,7 +5,8 @@ import { lazy, memo, Suspense, useEffect, useMemo, useState } from 'react';
 import { cx } from '@/lib/format';
 import { renderStory } from '@/lib/render';
 import { t } from '@/lib/motion';
-import { Avatar, Button, Icon, IconButton, Menu, Textarea, Typing } from '@/ui';
+import { Avatar, Button, Icon, IconButton, Menu, Textarea, Typing, type MenuItem } from '@/ui';
+import { useFeatureOn } from '@/lib/features';
 import { splitInteractive } from '@/scripting/bus';
 import { useScriptView } from '@/scripting/context';
 
@@ -82,21 +83,34 @@ export const Message = memo(function Message({ m, index = 0, depth, avatar, isLa
     if (!editing) setDraft(text);
   }, [text, editing]);
 
-  const menu = (
-    <Menu
-      trigger={<IconButton size="sm" icon={MoreHorizontal} label="Message actions" className="opacity-70 hover:opacity-100" />}
-      items={[
-        { label: 'Edit', icon: Pencil, onSelect: () => setEditing(true), disabled: busy },
-        { label: 'Copy text', icon: Copy, onSelect: () => void navigator.clipboard?.writeText(text) },
-        { label: 'Read aloud', icon: Volume2, onSelect: () => actions.onSpeak(m) },
-        { label: m.bookmarked ? 'Remove bookmark' : 'Bookmark', icon: m.bookmarked ? BookmarkCheck : Bookmark, onSelect: () => actions.onBookmark(m) },
-        { label: 'Branch from here', icon: GitBranch, onSelect: () => actions.onBranch(m) },
-        ...(m.role === 'assistant' ? [{ label: 'Re-read game changes', icon: ScanSearch, onSelect: () => actions.onRetrack(m), disabled: busy }] : []),
-        { label: m.hidden ? 'Include in prompt' : 'Hide from prompt', icon: EyeOff, onSelect: () => actions.onHide(m) },
-        { label: 'Delete', icon: Trash2, danger: true, separatorBefore: true, onSelect: () => actions.onDelete(m), disabled: busy },
-        { label: 'Delete this and after', icon: Trash2, danger: true, onSelect: () => actions.onDelete(m, true), disabled: busy },
-      ]}
-    />
+  const voiceOn = useFeatureOn('voice');
+  const gameOn = useFeatureOn('game');
+  // Actions show on the newest message, and on others when hovered, focused or tapped.
+  const [open, setOpen] = useState(false);
+  const reveal = (e: React.MouseEvent) => {
+    if ((e.target as HTMLElement).closest('a, button, input, textarea, select, iframe, [role=button], [role=menuitem]')) return;
+    if (window.getSelection()?.toString()) return;
+    setOpen((o) => !o);
+  };
+  const more: MenuItem[] = [
+    ...(m.role === 'assistant' && isLast ? [{ group: 'This version', label: 'Rewrite this version', description: 'Replaces this version with a new one', icon: RefreshCw, onSelect: actions.onRegenerate, disabled: busy }] : []),
+    { group: 'Story', label: 'Branch from here', description: 'A new chat that goes on from this message', icon: GitBranch, onSelect: () => actions.onBranch(m) },
+    ...(m.role === 'assistant' && gameOn ? [{ group: 'Story', label: 'Re-read story changes', description: 'Look for items, places and feelings again', icon: ScanSearch, onSelect: () => actions.onRetrack(m), disabled: busy }] : []),
+    { group: 'Story', label: m.hidden ? 'Show to the AI' : 'Hide from the AI', description: m.hidden ? 'The AI reads this message again' : 'Stays here, but the AI won\u2019t read it', icon: EyeOff, onSelect: () => actions.onHide(m) },
+    { group: 'Keep', label: m.bookmarked ? 'Remove bookmark' : 'Bookmark', description: 'Find it later under Find in chat', icon: m.bookmarked ? BookmarkCheck : Bookmark, onSelect: () => actions.onBookmark(m) },
+    ...(voiceOn ? [{ group: 'Keep', label: 'Read aloud', icon: Volume2, onSelect: () => actions.onSpeak(m) }] : []),
+    { group: 'Delete', label: 'Delete this and everything after', icon: Trash2, danger: true, onSelect: () => actions.onDelete(m, true), disabled: busy },
+  ];
+  const actionRow = (
+    <div className={cx('ev-msg-actions flex items-center gap-0.5 text-fg-2 transition-opacity', isLast || open ? 'opacity-100' : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100')}>
+      <IconButton size="sm" icon={Pencil} label="Edit" disabled={busy} onClick={() => setEditing(true)} />
+      <Menu trigger={<IconButton size="sm" icon={MoreHorizontal} label="More actions" />} items={more} align={isUser ? 'end' : 'start'} />
+      {/* On the newest message only Edit and More stay out; Copy and Delete join them on tap or hover. */}
+      <span className={cx('flex items-center gap-0.5 transition-opacity', isLast && !open && 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100')}>
+        <IconButton size="sm" icon={Copy} label="Copy text" onClick={() => void navigator.clipboard?.writeText(text)} />
+        <IconButton size="sm" icon={Trash2} label="Delete" disabled={busy} onClick={() => actions.onDelete(m)} />
+      </span>
+    </div>
   );
 
   const body = editing ? (
@@ -123,24 +137,28 @@ export const Message = memo(function Message({ m, index = 0, depth, avatar, isLa
 
   if (isUser) {
     return (
-      <div id={`msg-${m.id}`} className={cx('ev-message ev-message-user group flex flex-col items-end py-2', m.hidden && 'opacity-50', highlight && 'rounded-md bg-accent-soft')}>
+      <div id={`msg-${m.id}`} className={cx('ev-message ev-message-user group flex flex-col items-end py-2', m.hidden && 'opacity-50', highlight && 'rounded-md bg-accent-soft')} onClick={editing ? undefined : reveal}>
         <div className="flex max-w-[88%] items-start gap-1 sm:max-w-[75%]">
-          <div className="opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100">{menu}</div>
-          <div className="min-w-0 rounded-lg rounded-tr-sm bg-surface-2 px-4 py-2.5 [&_.story]:text-[16px]">{body}</div>
+          {m.hidden ? <Icon icon={EyeOff} size={14} className="mt-3 text-fg-3" aria-label="Hidden from the AI" /> : null}
+          <div className="ev-bubble min-w-0 rounded-lg rounded-tr-sm bg-surface-2 px-4 py-2.5 [&_.story]:text-[16px]">{body}</div>
         </div>
+        {!editing ? <div className="mt-0.5">{actionRow}</div> : null}
       </div>
     );
   }
 
+  const many = m.swipes.length > 1;
   const swipeBar =
     canSwipe && !editing ? (
-      <div className="mt-2 flex items-center gap-1 text-fg-2">
-        <IconButton size="sm" icon={ChevronLeft} label="Previous swipe" disabled={busy || m.swipeId === 0} onClick={() => actions.onSwipe(m, -1)} />
-        <span className="min-w-[36px] text-center text-xs tabular-nums">
-          {m.swipeId + 1}/{m.swipes.length}
-        </span>
-        <IconButton size="sm" icon={ChevronRight} label={m.swipeId === m.swipes.length - 1 ? 'New swipe' : 'Next swipe'} disabled={busy || (!isLast && m.swipeId === m.swipes.length - 1)} onClick={() => actions.onSwipe(m, 1)} />
-        {isLast ? <IconButton size="sm" icon={RefreshCw} label="Regenerate" disabled={busy} onClick={actions.onRegenerate} /> : null}
+      <div className="flex items-center gap-0.5 text-fg-2">
+        {many ? <IconButton size="sm" icon={ChevronLeft} label="Previous version" disabled={busy || m.swipeId === 0} onClick={() => actions.onSwipe(m, -1)} /> : null}
+        {many ? (
+          <span className="min-w-[32px] text-center text-xs tabular-nums" aria-label={`Version ${m.swipeId + 1} of ${m.swipes.length}`}>
+            {m.swipeId + 1}/{m.swipes.length}
+          </span>
+        ) : null}
+        <IconButton size="sm" icon={ChevronRight} label={m.swipeId === m.swipes.length - 1 ? 'New version' : 'Next version'} disabled={busy || (!isLast && m.swipeId === m.swipes.length - 1)} onClick={() => actions.onSwipe(m, 1)} />
+        <span className="mx-1 h-4 w-px bg-line" aria-hidden="true" />
       </div>
     ) : null;
 
@@ -149,8 +167,7 @@ export const Message = memo(function Message({ m, index = 0, depth, avatar, isLa
       <div className="mb-1 flex items-center gap-2">
         <span className="truncate text-sm font-semibold text-fg">{m.name}</span>
         {m.bookmarked ? <Icon icon={BookmarkCheck} size={14} className="text-accent-text" /> : null}
-        {m.hidden ? <Icon icon={EyeOff} size={14} className="text-fg-3" /> : null}
-        <span className="ml-auto opacity-0 transition-opacity group-hover:opacity-100 max-md:opacity-100">{menu}</span>
+        {m.hidden ? <Icon icon={EyeOff} size={14} className="text-fg-3" aria-label="Hidden from the AI" /> : null}
       </div>
       {showReasoning ? <Reasoning text={reasoning} live={streaming && !text} /> : null}
       {body}
@@ -158,7 +175,12 @@ export const Message = memo(function Message({ m, index = 0, depth, avatar, isLa
       {Array.isArray(m.extra?.shieldHint) && (m.extra.shieldHint as string[]).length && !streaming ? (
         <p className="mt-2 text-xs text-fg-3">Name shield: possible stand-in left in the text ({(m.extra.shieldHint as string[]).join(', ')}). Edit the message if it should be the real name.</p>
       ) : null}
-      {swipeBar}
+      {!editing && !(streaming && !text) ? (
+        <div className="mt-1.5 flex flex-wrap items-center">
+          {swipeBar}
+          {actionRow}
+        </div>
+      ) : null}
     </div>
   );
 
@@ -172,6 +194,7 @@ export const Message = memo(function Message({ m, index = 0, depth, avatar, isLa
       dragConstraints={{ left: 0, right: 0 }}
       dragElastic={0.18}
       dragSnapToOrigin
+      onClick={editing ? undefined : reveal}
       onDragEnd={(_e, info) => {
         if (info.offset.x < -70 && Math.abs(info.velocity.y) < 600) actions.onSwipe(m, 1);
         else if (info.offset.x > 70 && m.swipeId > 0) actions.onSwipe(m, -1);

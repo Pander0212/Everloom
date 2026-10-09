@@ -1,3 +1,4 @@
+import { queueTour } from '@/features/guide/tour';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { useState, type FormEvent } from 'react';
 import { ApiError, get, patch, post, setCsrf } from '@/lib/api';
@@ -49,6 +50,7 @@ export function SetupPage({ onDone }: { onDone: () => void }) {
     setBusy(true);
     try {
       await patch('/api/settings', { features: { preset: p } });
+      queueTour(p);
     } catch {
       /* the default (everything on) stays; it can be changed in Settings › Features */
     }

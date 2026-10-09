@@ -13,8 +13,8 @@ async function closeSheets(page: Page) {
 }
 
 async function openTool(page: Page, name: string) {
-  await page.getByRole('button', { name: 'Actions and tools' }).click();
-  await page.getByLabel('Search tools and actions').fill(name);
+  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await page.getByLabel('Search tools, settings and the story').fill(name);
   await page.getByRole('button', { name, exact: true }).click();
 }
 
@@ -107,7 +107,7 @@ test.describe('world', () => {
     await closeSheets(page);
 
     // Social and persona screens open cleanly.
-    await openTool(page, 'Social');
+    await openTool(page, 'Relationships');
     await closeSheets(page);
     await openTool(page, 'Persona');
     await expect(page.getByLabel('Name')).toHaveValue('Anala');

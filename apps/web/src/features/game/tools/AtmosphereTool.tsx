@@ -47,7 +47,7 @@ export default function AtmosphereTool() {
   };
 
   return (
-    <ToolSheet title="Atmosphere" description="Scene background, weather and effects">
+    <ToolSheet title="Weather & mood" description="Scene background, weather and effects">
       <div className="flex flex-col gap-6">
         <section>
           <h3 className="mb-2 text-xs font-semibold uppercase tracking-wide text-fg-3">Background</h3>

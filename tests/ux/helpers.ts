@@ -76,7 +76,14 @@ export class Probe {
   constructor(private page: Page) {}
   private async reach(l: Locator) {
     await l.waitFor({ state: 'visible' });
-    const box = await l.boundingBox();
+    // Wait for sheets and drawers to finish sliding in before judging whether it's on screen.
+    let box = await l.boundingBox();
+    for (let i = 0; i < 20; i++) {
+      await this.page.waitForTimeout(80);
+      const next = await l.boundingBox();
+      if (box && next && Math.abs(next.y - box.y) < 1 && Math.abs(next.x - box.x) < 1) break;
+      box = next;
+    }
     const vp = this.page.viewportSize()!;
     if (box && (box.y < 0 || box.y + box.height > vp.height || box.x < 0 || box.x + box.width > vp.width)) this.scrolls++;
   }
@@ -115,7 +122,11 @@ export async function visibleControls(page: Page) {
       const r = el.getBoundingClientRect();
       if (r.width < 4 || r.height < 4 || r.bottom <= 0 || r.right <= 0 || r.top >= vh || r.left >= vw) continue;
       const cs = getComputedStyle(el);
-      if (cs.visibility === 'hidden' || Number(cs.opacity) < 0.1) continue;
+      if (cs.visibility === 'hidden' || cs.pointerEvents === 'none') continue;
+      // Invisible if it or any parent is (nearly) transparent.
+      let op = 1;
+      for (let a: HTMLElement | null = el; a; a = a.parentElement) op *= Number(getComputedStyle(a).opacity);
+      if (op < 0.1) continue;
       // Covered by something else (a sheet, an overlay)?
       const hit = document.elementFromPoint(Math.min(vw - 1, Math.max(0, r.left + r.width / 2)), Math.min(vh - 1, Math.max(0, r.top + r.height / 2)));
       if (hit && !el.contains(hit) && !hit.contains(el)) continue;

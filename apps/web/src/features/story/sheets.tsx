@@ -1,12 +1,13 @@
 import { FEATURE_PRESETS, PRESET_INFO } from '@everloom/engine';
+import { entry } from '@/lib/registry';
 import type { ChatDTO, MessageDTO } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookmarkCheck, ChevronDown, Copy, Download, GitBranch, Pin, RefreshCw, Search, Trash2, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
-import { useNavigate } from 'react-router';
+import { Link, useNavigate } from 'react-router';
 import { del, download, get, patch, post, upload } from '@/lib/api';
 import { cx, relativeTime } from '@/lib/format';
-import { qk, useChats, usePersonas } from '@/lib/queries';
+import { qk, useChats, useConnections, usePersonas, useSettings } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
 import { Badge, Button, confirm, EmptyState, Field, FileButton, Icon, IconButton, Input, ListRow, Segmented, Select, Sheet, Spinner, Textarea } from '@/ui';
 
@@ -53,7 +54,7 @@ export function InspectorSheet({ chatId, open, onOpenChange }: { chatId: string;
   const d = q.data;
   const pct = d ? Math.min(1, d.totalTokens / d.budget) : 0;
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Prompt inspector" description="Exactly what the model receives, block by block." size="lg" headerActions={<IconButton icon={RefreshCw} label="Refresh" onClick={() => q.refetch()} />}>
+    <Sheet open={open} onOpenChange={onOpenChange} title="Everything sent to the AI" description="Exactly what the AI read for the last reply, piece by piece." help={entry('sent-to-ai')?.help} size="lg" headerActions={<IconButton icon={RefreshCw} label="Refresh" onClick={() => q.refetch()} />}>
       <Segmented
         label="Which prompt"
         value={mode}
@@ -134,7 +135,7 @@ export function SearchSheet({ chatId, messages, open, onOpenChange, onJump }: { 
   const res = useQuery({ queryKey: ['search', chatId, q], queryFn: () => get<Array<{ id: string; seq: number; snippet: string }>>(`/api/chats/${chatId}/search`, { q }), enabled: open && q.trim().length > 1 });
   const bookmarks = messages.filter((m) => m.bookmarked);
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Find in chat" size="md">
+    <Sheet open={open} onOpenChange={onOpenChange} title="Find in chat" help={entry('find')?.help} size="md">
       <Segmented
         label="Mode"
         value={tab}
@@ -191,9 +192,9 @@ export function NoteSheet({ chat, open, onOpenChange }: { chat: ChatDTO; open: b
     }
   };
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Author's note" description="A standing instruction inserted near the end of the chat." footer={<Button variant="primary" size="lg" block onClick={save}>Save note</Button>}>
+    <Sheet open={open} onOpenChange={onOpenChange} title="Note to the AI" description="A standing instruction the AI reads every reply (the Author's note)." help={entry('note')?.help} footer={<Button variant="primary" size="lg" block onClick={save}>Save note</Button>}>
       <div className="flex flex-col gap-4">
-        <Textarea rows={5} aria-label="Author's note" value={content} onChange={(e) => setContent(e.target.value)} placeholder="[Style: slow-burn, keep replies under 200 words.]" />
+        <Textarea rows={5} aria-label="Note to the AI" value={content} onChange={(e) => setContent(e.target.value)} placeholder="[Style: slow-burn, keep replies under 200 words.]" />
         <div className="grid grid-cols-2 gap-3">
           <Field label="Depth" htmlFor="and" hint="Messages from the end.">
             <Input id="and" type="number" min={0} max={100} value={depth} onChange={(e) => setDepth(Number(e.target.value))} />
@@ -218,6 +219,10 @@ export function ChatInfoSheet({ chat, open, onOpenChange }: { chat: ChatDTO; ope
   const all = useChats(chat.characterId ? { characterId: chat.characterId } : chat.groupId ? { groupId: chat.groupId } : undefined);
   const [title, setTitle] = useState(chat.title);
   useEffect(() => setTitle(chat.title), [chat.title, open]);
+  const conns = useConnections();
+  const settings = useSettings();
+  const llms = (conns.data ?? []).filter((c) => ['openai', 'anthropic', 'gemini', 'textgen'].includes(c.provider));
+  const mainConn = llms.find((c) => c.id === settings.data?.roles.main);
   const branches = (all.data ?? []).filter((c) => c.id !== chat.id && (c.parentChatId === chat.id || c.id === chat.parentChatId || (chat.parentChatId && c.parentChatId === chat.parentChatId)));
   const update = async (p: object) => {
     try {
@@ -241,10 +246,20 @@ export function ChatInfoSheet({ chat, open, onOpenChange }: { chat: ChatDTO; ope
     }
   };
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="Chat" size="md">
+    <Sheet open={open} onOpenChange={onOpenChange} title="This chat" help={entry('chat-details')?.help} size="md">
       <div className="flex flex-col gap-4">
         <Field label="Title" htmlFor="ctitle">
           <Input id="ctitle" value={title} onChange={(e) => setTitle(e.target.value)} onBlur={() => title.trim() && title !== chat.title && update({ title: title.trim() })} />
+        </Field>
+        <Field label="Model" htmlFor="cmodel" hint={<>Which AI writes this chat. <Link to="/settings/connections" className="font-medium text-accent-text">Add or change models</Link></>}>
+          <Select id="cmodel" value={(chat.metadata.connectionId as string | null | undefined) ?? ''} onChange={(e) => update({ metadata: { connectionId: e.target.value || null } })}>
+            <option value="">{mainConn ? `Main model (${mainConn.name})` : 'Main model (from Settings)'}</option>
+            {llms.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}{c.model ? ` — ${c.model}` : ''}
+              </option>
+            ))}
+          </Select>
         </Field>
         <Field label="Mode" htmlFor="cmode" hint={chat.metadata.features && chat.metadata.features !== 'classic' && !chat.campaignId ? 'This chat was started without a game, so game screens stay empty here; start a new chat to play with them.' : 'Classic is a plain roleplay chat with one model call per reply. Nothing is deleted when you switch.'}>
           <Select id="cmode" value={chat.metadata.features ?? ''} onChange={(e) => update({ metadata: { features: e.target.value || null } })}>

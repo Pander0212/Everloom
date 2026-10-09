@@ -20,8 +20,8 @@ async function closeSheets(page: Page) {
 }
 
 async function openTool(page: Page, name: string) {
-  await page.getByRole('button', { name: 'Actions and tools' }).click();
-  await page.getByLabel('Search tools and actions').fill(name);
+  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await page.getByLabel('Search tools, settings and the story').fill(name);
   await page.getByRole('button', { name, exact: true }).click();
 }
 
@@ -49,8 +49,8 @@ test.describe('game core', () => {
     await closeSheets(page);
 
     // NPCs: Tobias was met; edit his title.
-    await openTool(page, 'NPCs');
-    await page.getByRole('dialog', { name: /NPCs/ }).getByRole('button', { name: /Tobias/ }).first().click();
+    await openTool(page, 'People');
+    await page.getByRole('dialog', { name: /People/ }).getByRole('button', { name: /Tobias/ }).first().click();
     await page.getByLabel('Title').fill('Drummer');
     await page.getByRole('button', { name: 'Save', exact: true }).click();
     await expect.poll(async () => Object.values((await api(page, 'GET', `/api/campaigns/${chat.campaignId}`)).state.npcs).map((n: any) => n.title)).toContain('Drummer');
@@ -76,9 +76,9 @@ test.describe('game core', () => {
     await closeSheets(page);
 
     // Stage mode
-    await page.getByRole('button', { name: 'Switch to stage mode' }).click();
+    await page.getByRole('button', { name: 'Switch to stage view' }).click();
     await expect(page.getByLabel('Dialogue — tap to reveal or advance')).toBeVisible();
-    await page.getByRole('button', { name: 'Switch to chat mode' }).click();
+    await page.getByRole('button', { name: 'Switch to chat view' }).click();
     expect(errors).toEqual([]);
   });
 });

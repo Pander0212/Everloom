@@ -179,6 +179,8 @@ export interface ChatMeta {
   lastPrompt?: unknown;
   /** This chat's own feature preset (Classic, Story, Full RPG); unset follows Settings › Features. */
   features?: FeaturePreset | null;
+  /** This world's own theme (a look id); unset uses the player's. */
+  look?: string | null;
   [k: string]: unknown;
 }
 
@@ -225,7 +227,7 @@ export interface CampaignDTO {
 export interface Settings {
   theme: 'system' | 'light' | 'dark';
   motion: 'full' | 'reduced';
-  textSize: 'small' | 'medium' | 'large';
+  textSize: 'small' | 'medium' | 'large' | 'xlarge';
   /** Accent palette. */
   palette: 'amber' | 'dusk' | 'sea' | 'rose';
   /** Tint the story view to match the campaign's genre. */
@@ -270,6 +272,22 @@ export interface Settings {
   studio: { presets: Array<{ id: string; name: string; system: string }>; preset: string; connection: string | null };
   /** Which modules are on (Settings › Features). */
   features: FeatureSettings;
+  /**
+   * Interface choices (docs/ux/navigation.md): pinned palette entries and composer quick actions
+   * (null = the defaults for the preset), tours already seen, the Simple/Advanced settings view and
+   * whether experimental entries show.
+   */
+  ui: { pins: string[] | null; quick: string[] | null; tours: string[]; advanced: boolean; experimental: boolean };
+  /**
+   * The theme (apps/web/src/themes/looks.ts) and reading settings. A device can override the theme
+   * and the scenery; a chat can have its own theme (`ChatMeta.look`).
+   */
+  look: {
+    id: string;
+    scenery: 'animated' | 'still' | 'off';
+    /** Line height, story column width (px), space between paragraphs (em), font ids (null = the theme's). */
+    reading: { leading: number; width: number; paragraph: number; storyFont: string | null; uiFont: string | null };
+  };
   /** Settings › Privacy. */
   privacy: { shield: ShieldSettings };
   /** Settings › Scripts. */

@@ -29,7 +29,7 @@ export default function Npcs({ arg }: { arg?: string }) {
   const chars = useCharacters();
   const npcs = useMemo(() => Object.values(s?.npcs ?? {}).sort((a, b) => b.lastSeenAt - a.lastSeenAt), [s]);
   const dupes = useMemo(() => (s ? findDuplicateNpcs(s) : []), [s]);
-  if (!s) return <ToolSheet title="NPCs"><NoCampaign /></ToolSheet>;
+  if (!s) return <ToolSheet title="People"><NoCampaign /></ToolSheet>;
   const n = q.trim().toLowerCase();
   const list = n ? npcs.filter((x) => x.name.toLowerCase().includes(n) || x.role.toLowerCase().includes(n) || x.aliases.some((a) => a.toLowerCase().includes(n))) : npcs;
   const npc = openId ? s.npcs[openId] : null;
@@ -37,7 +37,7 @@ export default function Npcs({ arg }: { arg?: string }) {
 
   return (
     <ToolSheet
-      title="NPCs"
+      title="People"
       description={`${npcs.length} known`}
       footer={
         <Button variant="secondary" icon={UserPlus} block onClick={() => setAdding(true)}>

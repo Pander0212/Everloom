@@ -167,7 +167,7 @@ async function openStage(page: Page, chat: string, n: number, quality: 'low' | '
   await page.goto(`/chat/${chat}`);
   // Stage mode is remembered per chat: switch only the first time.
   await expect(page.getByRole('button', { name: /^Switch to (stage|chat) mode$/ })).toBeVisible({ timeout: 30_000 });
-  const toStage = page.getByRole('button', { name: 'Switch to stage mode' });
+  const toStage = page.getByRole('button', { name: 'Switch to stage view' });
   if (await toStage.isVisible()) await toStage.click();
   const stage = page.getByTestId('stage-3d');
   await expect(stage).toHaveAttribute('data-avatars', new RegExp(`^[^|]+${'\\|[^|]+'.repeat(n - 1)}$`), { timeout: 180_000 });

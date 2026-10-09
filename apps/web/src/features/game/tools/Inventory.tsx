@@ -44,13 +44,52 @@ function ItemTile({ it, onOpen, index }: { it: Item; onOpen: () => void; index: 
   );
 }
 
-export default function Inventory() {
+const OUTFITS_HELP = 'The clothes and accessories you own. Tap Wear to put one on; the story and the stage follow. Add new clothes in Inventory.';
+const WEARABLE: ItemCategory[] = ['clothing', 'accessory', 'armor'];
+
+/** Outfits: what you can wear, with one tap to put it on or take it off. */
+function Outfits() {
+  const { state: s, apply, open } = useGame();
+  if (!s) return <ToolSheet title="Outfits"><NoCampaign /></ToolSheet>;
+  const wear = Object.values(s.inventory).filter((i) => !i.holder && WEARABLE.includes(i.category)).sort((a, b) => Number(b.equipped) - Number(a.equipped) || a.name.localeCompare(b.name));
+  return (
+    <ToolSheet title="Outfits" description="What you can wear. The story and the stage follow." help={OUTFITS_HELP} footer={<Button variant="secondary" block onClick={() => open('inventory')}>All items</Button>}>
+      {wear.length ? (
+        <div className="flex flex-col gap-1">
+          {wear.map((it) => (
+            <div key={it.id} className="flex min-h-14 items-center gap-3 rounded-md px-2 hover:bg-surface-2">
+              <span className="flex size-10 flex-none items-center justify-center rounded-md bg-surface-2">
+                <ItemGlyph icon={it.icon} name={it.name} size={22} className="text-fg-2" />
+              </span>
+              <span className="min-w-0 flex-1">
+                <span className="block truncate text-sm font-medium">{it.name}</span>
+                <span className="block truncate text-xs text-fg-2">{it.equipped ? `Wearing${it.slot ? ` · ${it.slot}` : ''}` : it.category}</span>
+              </span>
+              <Button size="sm" variant={it.equipped ? 'secondary' : 'primary'} aria-label={`${it.equipped ? 'Take off' : 'Wear'} ${it.name}`} onClick={() => void apply([{ type: 'item.equip', name: it.id, equipped: !it.equipped } as Op])}>
+                {it.equipped ? 'Take off' : 'Wear'}
+              </Button>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState icon={Backpack} title="Nothing to wear yet" body="Clothes and accessories you get in the story show up here. Add your own in Inventory › Add item, as Clothing." />
+      )}
+    </ToolSheet>
+  );
+}
+
+export default function Inventory({ arg }: { arg?: string }) {
+  if (arg === 'wear') return <Outfits />;
+  return <Items itemId={arg} />;
+}
+
+function Items({ itemId }: { itemId?: string }) {
   const { state: s, apply } = useGame();
   const gen = useImageGen();
   const [cat, setCat] = useState<string>('all');
   const [q, setQ] = useState('');
   const [view, setView] = useState<'grid' | 'list'>('grid');
-  const [openId, setOpenId] = useState<string | null>(null);
+  const [openId, setOpenId] = useState<string | null>(itemId ?? null);
   const [picking, setPicking] = useState(false);
   const [adding, setAdding] = useState(false);
   // Whose items: yours (carried), the shared party bag, or a party member's.

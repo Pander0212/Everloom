@@ -31,7 +31,7 @@ test.describe('extensions', () => {
     const chat = await api(page, 'POST', '/api/chats', { characterId: ch.id, features: 'classic' });
     await page.goto(`/chat/${chat.id}`);
     // The panel, from the command menu.
-    await page.getByRole('button', { name: 'Actions and tools' }).click();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
     await page.getByRole('dialog').getByRole('button', { name: 'Dice roller', exact: true }).click();
     const panel = page.frameLocator('iframe[title="Dice roller"]');
     await panel.getByRole('button', { name: '4d6kh3' }).click();

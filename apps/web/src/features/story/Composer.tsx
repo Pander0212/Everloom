@@ -1,4 +1,4 @@
-import { ArrowUp, Mic, MicOff, Plus, Square, Theater } from 'lucide-react';
+import { ArrowUp, LayoutGrid, Mic, MicOff, Square, Theater } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { cx } from '@/lib/format';
 import { toast } from '@/lib/store';
@@ -60,10 +60,10 @@ export function Composer({ busy, enterToSend, onSwipeKey, stt, placeholder, onSe
     setListening(true);
   };
   return (
-    <div className="ev-composer mx-auto w-full max-w-[760px] px-3 pb-[calc(var(--safe-bottom)+8px)] pt-2 sm:px-4">
+    <div className="ev-composer mx-auto w-full max-w-[var(--story-width)] px-3 pb-[calc(var(--safe-bottom)+8px)] pt-2 sm:px-4">
       {accessory}
       <div className="flex items-end gap-1.5 rounded-lg bg-surface-2 p-1.5 transition-shadow focus-within:shadow-[0_0_0_2px_var(--accent-soft)]">
-        <IconButton icon={Plus} label="Actions and tools" onClick={onMenu} />
+        <IconButton icon={LayoutGrid} label="Tools" title="Tools (Ctrl K)" onClick={onMenu} />
         <textarea
           ref={ref}
           value={value}
@@ -86,7 +86,7 @@ export function Composer({ busy, enterToSend, onSwipeKey, stt, placeholder, onSe
         {busy ? (
           <IconButton icon={Square} label="Stop" onClick={onStop} className="!bg-fg !text-bg" />
         ) : (
-          <IconButton icon={value.trim() ? ArrowUp : Theater} label={value.trim() ? 'Send' : 'Let the story continue'} tone="accent" onClick={submit} className={cx(!value.trim() && '!bg-surface-3 !text-fg-2')} />
+          <IconButton icon={value.trim() ? ArrowUp : Theater} label={value.trim() ? 'Send' : 'Continue the story'} tone="accent" onClick={submit} className={cx(!value.trim() && '!bg-surface-3 !text-fg-2')} />
         )}
       </div>
     </div>

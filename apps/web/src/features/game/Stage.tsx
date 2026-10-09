@@ -103,6 +103,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const { apply } = useGame();
   const settings = useSettings();
   const chars = allChars;
+  const effectsOn = useFeatureOn('effects');
   const weatherOn = useFeatureOn('weather');
   const live2dFeature = useFeatureOn('live2d');
   const live2dOn = settings.data?.stage?.live2d === true && live2dFeature;
@@ -280,6 +281,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
       </motion.div>
       {/* Quick effects */}
       <div className="absolute right-3 top-3 z-20 flex flex-col gap-2">
+        {effectsOn ? (
         <Popover trigger={<IconButton icon={Sparkles} label="Scene effects" className="!bg-surface/90 shadow-1" />} side="bottom" align="end">
           <div className="grid w-56 grid-cols-2 gap-1 p-1" role="group" aria-label="Scene effects">
             {FX_LIST.filter((f) => !fxOff.includes(f.id)).map((f) => (
@@ -289,6 +291,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
             ))}
           </div>
         </Popover>
+        ) : null}
         {chars.some(uses3d) ? <EmotePicker cast={chars.filter(uses3d).map((c) => ({ id: c.id, name: c.name }))} /> : null}
         {chars.some(uses3d) ? <IconButton icon={Rotate3d} label={inspect3d ? 'Stop looking around' : 'Look around'} active={inspect3d} className="!bg-surface/90 shadow-1" onClick={() => setInspect3d((v) => !v)} /> : null}
       </div>
@@ -329,12 +332,12 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
               </div>
               {isLast && m.role === 'assistant' && lastAssistant?.id === m.id ? (
                 <div className="flex items-center gap-0.5 rounded-md bg-surface/90 shadow-1">
-                  <IconButton size="sm" icon={ChevronLeft} label="Previous swipe" disabled={busy || m.swipeId === 0} onClick={() => actions.onSwipe(m, -1)} />
+                  <IconButton size="sm" icon={ChevronLeft} label="Previous version" disabled={busy || m.swipeId === 0} onClick={() => actions.onSwipe(m, -1)} />
                   <span className="w-10 text-center text-xs tabular-nums">
                     {m.swipeId + 1}/{m.swipes.length}
                   </span>
-                  <IconButton size="sm" icon={ChevronRight} label={m.swipeId === m.swipes.length - 1 ? 'New swipe' : 'Next swipe'} disabled={busy} onClick={() => actions.onSwipe(m, 1)} />
-                  <IconButton size="sm" icon={RefreshCw} label="Regenerate" disabled={busy} onClick={actions.onRegenerate} />
+                  <IconButton size="sm" icon={ChevronRight} label={m.swipeId === m.swipes.length - 1 ? 'New version' : 'Next version'} disabled={busy} onClick={() => actions.onSwipe(m, 1)} />
+                  <IconButton size="sm" icon={RefreshCw} label="Rewrite this version" disabled={busy} onClick={actions.onRegenerate} />
                 </div>
               ) : null}
             </div>

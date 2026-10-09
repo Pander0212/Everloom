@@ -1,11 +1,17 @@
-import { BookOpen, MessagesSquare, Settings, UserRound, Users } from 'lucide-react';
+import { BookOpen, MessagesSquare, Search, Settings, UserRound, Users } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { NavLink, Outlet, useLocation } from 'react-router';
-import { Suspense } from 'react';
+import { Suspense, useEffect, useMemo, useState } from 'react';
+import { useNavigate } from 'react-router';
+import { Palette } from '@/features/palette/Palette';
+import { usePaletteWiring } from '@/features/palette/wiring';
+import { openTour } from '@/features/guide/tour';
+import { useFeatures } from '@/lib/features';
+import type { Entry } from '@/lib/registry';
 import { cx } from '@/lib/format';
 import { t } from '@/lib/motion';
 import { useUi } from '@/lib/store';
-import { Icon, Spinner } from '@/ui';
+import { Icon, Kbd, Spinner } from '@/ui';
 import { Logo } from './Logo';
 
 export const NAV = [
@@ -64,7 +70,36 @@ function TabItem({ item }: { item: (typeof NAV)[number] }) {
   );
 }
 
+/** The palette outside a chat: pages, settings, feature switches and characters (Ctrl/⌘K). */
+function ShellPalette({ open, setOpen }: { open: boolean; setOpen: (o: boolean) => void }) {
+  const features = useFeatures(null);
+  const wiring = usePaletteWiring(features);
+  const navigate = useNavigate();
+  const scope = useMemo(() => ({ features, chat: false, game: false, experimental: wiring.experimental }), [features, wiring.experimental]);
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setOpen(true);
+      }
+    };
+    const onOpen = () => setOpen(true);
+    window.addEventListener('keydown', onKey);
+    document.addEventListener('everloom:palette', onOpen);
+    return () => {
+      window.removeEventListener('keydown', onKey);
+      document.removeEventListener('everloom:palette', onOpen);
+    };
+  }, [setOpen]);
+  const onEntry = (e: Entry) => {
+    if (e.target.kind === 'route') navigate(e.target.to);
+    else if (e.target.kind === 'action' && e.target.action === 'tour') openTour(features);
+  };
+  return <Palette open={open} onOpenChange={setOpen} scope={scope} onEntry={onEntry} pins={wiring.pins} onPins={wiring.onPins} onFeature={wiring.onFeature} onSettings={wiring.onSettings} characters={wiring.characters} onCharacter={wiring.onCharacter} />;
+}
+
 export function Shell() {
+  const [palette, setPalette] = useState(false);
   return (
     <div className="flex h-full">
       <aside className="ev-sidebar hidden w-[232px] flex-none flex-col border-r border-line px-3 py-4 md:flex">
@@ -77,6 +112,11 @@ export function Shell() {
             <SideItem key={n.to} item={n} />
           ))}
         </nav>
+        <button onClick={() => setPalette(true)} className="pressable mt-4 flex h-10 items-center gap-3 rounded-md px-3 text-sm font-medium text-fg-2 hover:bg-surface-2 hover:text-fg">
+          <Icon icon={Search} />
+          <span className="flex-1 text-left">Search</span>
+          <Kbd>Ctrl K</Kbd>
+        </button>
       </aside>
       <div className="flex min-w-0 flex-1 flex-col">
         <main className="min-h-0 flex-1 overflow-y-auto pb-[calc(var(--tabbar-h)+var(--safe-bottom))] md:pb-0">
@@ -96,6 +136,7 @@ export function Shell() {
           ))}
         </nav>
       </div>
+      <ShellPalette open={palette} setOpen={setPalette} />
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import { TourHost } from '@/features/guide/tour';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { GlobalScripts } from '@/scripting/GlobalScripts';
 import { lazy, Suspense, useEffect, useState } from 'react';
@@ -6,7 +7,8 @@ import { api, get, onAuthRequired, setCsrf } from '@/lib/api';
 import { CustomCss } from '@/lib/customCss';
 import { startEvents, stopEvents } from '@/lib/events';
 import { useSettings } from '@/lib/queries';
-import { applyMotion, applyPalette, applyTextSize, applyTheme, watchSystemTheme } from '@/lib/theme';
+import { applyLooks, applyMotion, applyPalette, applyReading, applyTextSize, applyTheme, watchSystemTheme } from '@/lib/theme';
+import { useDeviceLook } from '@/themes/device';
 import { Button, ConfirmHost, PasswordHost, Spinner, Toaster } from '@/ui';
 import { LoginPage, SetupPage, UnlockPage } from './AuthPages';
 import { onVaultLocked, setVaultOn } from '@/lib/vaultMode';
@@ -44,22 +46,26 @@ export function PageFallback() {
 
 function AuthedApp() {
   const settings = useSettings();
+  const device = useDeviceLook();
   useEffect(() => {
     startEvents();
     return () => stopEvents();
   }, []);
   useEffect(() => {
     if (!settings.data) return;
+    applyLooks({ account: settings.data.look?.id ?? 'everloom', device: device.id, worlds: device.worlds });
     applyTheme(settings.data.theme);
     applyMotion(settings.data.motion);
     applyTextSize(settings.data.textSize);
     applyPalette(settings.data.palette);
+    applyReading(settings.data.look?.reading);
     return watchSystemTheme(() => settings.data!.theme);
-  }, [settings.data]);
+  }, [settings.data, device.id, device.worlds]);
   return (
     <Suspense fallback={<PageFallback />}>
       <CustomCss />
       <GlobalScripts />
+      <TourHost />
       <Routes>
         <Route path="/chat/:id" element={<StoryView />} />
         <Route path="/design" element={<DesignPage />} />

@@ -2,46 +2,46 @@
   "Send a message and swipe": {
     "taps": 3,
     "scrolls": 0,
-    "ms": 1284
+    "ms": 1129
   },
   "Edit a message": {
     "taps": 4,
     "scrolls": 0,
-    "ms": 734
+    "ms": 915
   },
   "Change the character's outfit": {
     "taps": 4,
-    "scrolls": 2,
-    "ms": 2880
+    "scrolls": 0,
+    "ms": 2631
   },
   "Open the map and travel": {
     "taps": 4,
-    "scrolls": 2,
-    "ms": 2989
+    "scrolls": 0,
+    "ms": 2787
   },
   "Check the inventory": {
     "taps": 2,
-    "scrolls": 1,
-    "ms": 1351
+    "scrolls": 0,
+    "ms": 1345
   },
   "Change the model": {
     "taps": 5,
     "scrolls": 1,
-    "ms": 1020
+    "ms": 1289
   },
   "Turn a feature off": {
     "taps": 4,
     "scrolls": 1,
-    "ms": 1117
+    "ms": 1804
   },
   "Find the memory screen": {
     "taps": 2,
     "scrolls": 0,
-    "ms": 717
+    "ms": 527
   },
   "Start a new chat with a character": {
     "taps": 4,
     "scrolls": 0,
-    "ms": 1517
+    "ms": 1631
   }
 }

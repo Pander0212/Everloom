@@ -8,7 +8,7 @@ import type { ChatSummary, FilterPreset } from '@everloom/engine';
 import { useQuery } from '@tanstack/react-query';
 import { Check, MessageSquarePlus, MessagesSquare, Plug, Save, Search, SlidersHorizontal, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Link, useNavigate } from 'react-router';
+import { Link, useNavigate, useSearchParams } from 'react-router';
 import { Page } from '@/app/Shell';
 import { get } from '@/lib/api';
 import { relativeTime } from '@/lib/format';
@@ -48,6 +48,14 @@ export default function ChatsPage() {
   const [view, setView] = useState<View>(load);
   const [debounced, setDebounced] = useState(view.q);
   const [newOpen, setNewOpen] = useState(false);
+  // The palette's "New chat" lands here with ?new=1.
+  const [params, setParams] = useSearchParams();
+  useEffect(() => {
+    if (params.get('new') === '1') {
+      setNewOpen(true);
+      setParams({}, { replace: true });
+    }
+  }, [params, setParams]);
   const [filters, setFilters] = useState(false);
   const [presetName, setPresetName] = useState('');
   const navigate = useNavigate();

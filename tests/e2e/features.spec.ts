@@ -12,7 +12,7 @@ test.describe('feature switches', () => {
     await page.getByRole('radio', { name: /Classic chat/ }).click();
     await expect(page.getByRole('radio', { name: /Classic chat/ })).toHaveAttribute('aria-checked', 'true');
     // Game settings disappear from the list.
-    await expect(page.getByRole('link', { name: 'Game & trackers' })).toHaveCount(0);
+    await expect(page.getByRole('link', { name: 'Game & story state' })).toHaveCount(0);
 
     // A new chat in Classic mode: no status bar, no game tools in the command menu.
     const chat = await api(page, 'POST', '/api/chats', { characterId: ch.id });
@@ -20,9 +20,9 @@ test.describe('feature switches', () => {
     await page.goto(`/chat/${chat.id}`);
     await expect(page.getByText('Hello there.')).toBeVisible();
     await expect(page.getByRole('button', { name: /^Status:/ })).toHaveCount(0);
-    await page.getByRole('button', { name: 'Actions and tools' }).click();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
     const menu = page.getByRole('dialog');
-    await expect(menu.getByText("Author's note")).toBeVisible();
+    await expect(menu.getByText('Note to the AI').first()).toBeVisible();
     for (const tool of ['Inventory', 'Map', 'Journal', 'Phone', 'Battle']) await expect(menu.getByRole('button', { name: tool, exact: true })).toHaveCount(0);
     await page.keyboard.press('Escape');
 
@@ -43,7 +43,7 @@ test.describe('feature switches', () => {
     await page.goto(`/chat/${chat.id}`);
     // The game layer is on for this chat: the status bar and the game tools are there.
     await expect(page.getByRole('button', { name: /^Status:/ })).toBeVisible();
-    await page.getByRole('button', { name: 'Actions and tools' }).click();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
     await expect(page.getByRole('dialog').getByRole('button', { name: 'Inventory', exact: true })).toBeVisible();
     await page.keyboard.press('Escape');
     expect(errors).toEqual([]);

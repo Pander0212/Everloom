@@ -13,8 +13,8 @@ async function closeSheets(page: Page) {
 }
 
 async function openTool(page: Page, name: string) {
-  await page.getByRole('button', { name: 'Actions and tools' }).click();
-  await page.getByLabel('Search tools and actions').fill(name);
+  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await page.getByLabel('Search tools, settings and the story').fill(name);
   // Tools with news carry a count in their name ("Phone, 1 new").
   await page.getByRole('button', { name: new RegExp(`^${name}(,|$)`) }).first().click();
 }
@@ -93,7 +93,7 @@ test.describe('depth', () => {
     await closeSheets(page);
 
     // Atmosphere: paint the scene as the chat background.
-    await openTool(page, 'Atmosphere');
+    await openTool(page, 'Weather & mood');
     await page.getByRole('button', { name: 'Paint this scene' }).click();
     await expect(page.getByRole('img', { name: 'Current background' })).toBeVisible();
     expect((await api(page, 'GET', `/api/chats/${chat.id}`)).metadata.background).toBeTruthy();

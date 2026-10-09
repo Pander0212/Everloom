@@ -1,5 +1,6 @@
-import { X } from 'lucide-react';
-import type { ReactNode } from 'react';
+import { HelpCircle, X } from 'lucide-react';
+import { useState, type ReactNode } from 'react';
+import { HelpNote } from './HelpNote';
 import { Drawer } from 'vaul';
 import { cx } from '@/lib/format';
 import { IconButton } from './Button';
@@ -18,14 +19,17 @@ export interface SheetProps {
   /** Remove body padding (for edge-to-edge content like maps). */
   flush?: boolean;
   dismissible?: boolean;
+  /** "What is this?": plain words and an example, behind a help button in the header. */
+  help?: string;
 }
 
 /**
  * Bottom sheet on phones (drag handle, follows the finger, swipe down to dismiss),
  * side panel on desktop. Built on vaul (Radix Dialog underneath) for focus trapping and a11y.
  */
-export function Sheet({ open, onOpenChange, title, description, children, footer, headerActions, size = 'md', flush, dismissible = true }: SheetProps) {
+export function Sheet({ open, onOpenChange, title, description, children, footer, headerActions, size = 'md', flush, dismissible = true, help }: SheetProps) {
   const desktop = useDesktop();
+  const [showHelp, setShowHelp] = useState(false);
   const width = size === 'md' ? 'min(460px, 100vw)' : size === 'lg' ? 'min(640px, 100vw)' : 'min(960px, 100vw)';
   return (
     <Drawer.Root open={open} onOpenChange={onOpenChange} direction={desktop ? 'right' : 'bottom'} dismissible={dismissible} repositionInputs={false}>
@@ -46,9 +50,11 @@ export function Sheet({ open, onOpenChange, title, description, children, footer
               {description ? <Drawer.Description className="mt-0.5 text-sm text-fg-2">{description}</Drawer.Description> : null}
             </div>
             {headerActions}
+            {help ? <IconButton icon={HelpCircle} label="What is this?" active={showHelp} onClick={() => setShowHelp((v) => !v)} /> : null}
             <IconButton icon={X} label="Close" onClick={() => onOpenChange(false)} />
           </div>
           <div className={cx('min-h-0 flex-1 overflow-y-auto overscroll-contain', !flush && 'px-4 pb-4 sm:px-5')} data-vaul-no-drag={flush ? '' : undefined}>
+            {help && showHelp ? <HelpNote className={flush ? 'm-4' : 'mb-4'} onClose={() => setShowHelp(false)}>{help}</HelpNote> : null}
             {children}
           </div>
           {footer ? <div className="hairline-t flex flex-none items-center gap-2 px-4 py-3 safe-bottom sm:px-5">{footer}</div> : <div className="safe-bottom flex-none" />}

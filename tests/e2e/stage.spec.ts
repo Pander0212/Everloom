@@ -3,8 +3,8 @@ import type { Page } from '@playwright/test';
 import { zipSync } from 'fflate';
 
 async function openTool(page: Page, name: string) {
-  await page.getByRole('button', { name: 'Actions and tools' }).click();
-  await page.getByLabel('Search tools and actions').fill(name);
+  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await page.getByLabel('Search tools, settings and the story').fill(name);
   await page.getByRole('button', { name, exact: true }).click();
 }
 
@@ -81,7 +81,7 @@ test.describe('stage and sound', () => {
     });
     await api(page, 'POST', `/api/campaigns/${chat.campaignId}/ops`, { chatId: chat.id, ops: [{ type: 'stage.layer', character: 'Iris Vale', position: 'left', anim: 'bounce' }] });
     await page.goto(`/chat/${chat.id}`);
-    await page.getByRole('button', { name: 'Switch to stage mode' }).click();
+    await page.getByRole('button', { name: 'Switch to stage view' }).click();
     await expect(page.getByTestId('stage-sprite')).toHaveAttribute('data-position', 'left');
     await expect(page.getByTestId('speech-bubble')).toContainText('You made it');
     // The sprite breathes while idle (or holds still with reduced motion).

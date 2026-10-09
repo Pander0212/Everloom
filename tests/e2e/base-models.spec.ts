@@ -158,7 +158,7 @@ test.describe('custom base models', () => {
     const chat = await api(page, 'POST', '/api/chats', { groupId: group.id, features: 'full' });
     expect((await api(page, 'POST', `/api/campaigns/${chat.campaignId}/ops`, { chatId: chat.id, ops: [{ type: 'party.add', name: a }, { type: 'item.add', name: 'Linen Shirt', category: 'clothing', slot: 'body' }] })).errors).toEqual([]);
     await page.goto(`/chat/${chat.id}`);
-    await page.getByRole('button', { name: 'Switch to stage mode' }).click();
+    await page.getByRole('button', { name: 'Switch to stage view' }).click();
     const stage = page.getByTestId('stage-3d');
     await expect(stage).toHaveAttribute('data-avatars', /\|/, { timeout: 60_000 });
     await expect(stage).toHaveAttribute('data-worn', new RegExp(`${ca.id}:(\\||$)`));
@@ -170,7 +170,7 @@ test.describe('custom base models', () => {
     await settle(page, 3000);
     await ev(page, '8-equipped');
     await mockControl({ trackerOps: [] });
-    await page.getByRole('button', { name: 'New swipe' }).click();
+    await page.getByRole('button', { name: 'New version' }).click();
     await expect(stage).toHaveAttribute('data-worn', new RegExp(`${ca.id}:(\\||$)`), { timeout: 60_000 });
     await mockControl({ trackerOps: null });
 

@@ -97,8 +97,9 @@ test.describe('scripting', () => {
     await expect(page.getByText('Hello from a script')).toBeVisible({ timeout: 10_000 });
     // An endless loop is stopped and reported; the app stays responsive.
     await page.getByRole('button', { name: 'Spin' }).click();
-    await page.getByRole('button', { name: 'Chat menu' }).click();
-    await page.getByRole('menuitem', { name: 'Scripts' }).click();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByLabel('Search tools, settings and the story').fill('Scripts in this chat');
+    await page.getByRole('button', { name: 'Scripts in this chat', exact: true }).click();
     const sheet = page.getByRole('dialog', { name: 'Scripts' });
     await expect(sheet.getByRole('list', { name: 'Console of Greeter' })).toContainText(/Stopped/, { timeout: 15_000 });
     // The stopped loop's own error is reported by the frame: expected.
@@ -118,8 +119,9 @@ test.describe('scripting', () => {
     await page.goto(`/chat/${chat.id}?safe=1`);
     await expect(page.locator('.ev-message-text')).toBeVisible();
     await expect(page.locator('iframe[title="Interactive content from Nosy Nell"]')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Chat menu' }).click();
-    await page.getByRole('menuitem', { name: 'Scripts' }).click();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByLabel('Search tools, settings and the story').fill('Scripts in this chat');
+    await page.getByRole('button', { name: 'Scripts in this chat', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Scripts' })).toContainText('Safe mode');
     await page.goto(`/chat/${chat.id}?safe=0`);
     expect(errors.filter((e) => !/Read this chat/.test(e))).toEqual([]);

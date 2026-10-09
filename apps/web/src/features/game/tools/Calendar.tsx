@@ -219,7 +219,7 @@ function EventDialog({ open, onOpenChange, date }: { open: boolean; onOpenChange
 function Schedules() {
   const { state: s, open } = useGame();
   const withSchedule = Object.values(s!.npcs).filter((n) => n.schedule.length);
-  if (!withSchedule.length) return <EmptyState title="No schedules yet" body="Give NPCs a routine in their profile; the world moves them as time passes." action={<Button onClick={() => open('npcs')}>Open NPCs</Button>} />;
+  if (!withSchedule.length) return <EmptyState title="No schedules yet" body="Give people a routine in their profile; the world moves them as time passes." action={<Button onClick={() => open('npcs')}>Open People</Button>} />;
   return (
     <div className="flex flex-col divide-y divide-line">
       {withSchedule.map((n) => {
