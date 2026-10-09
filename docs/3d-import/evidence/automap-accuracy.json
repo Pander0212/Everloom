@@ -1,0 +1,97 @@
+{
+  "VRoid export": {
+    "bones": 111,
+    "accuracy": 100,
+    "byRole": {
+      "ignore": "1/1",
+      "humanoid": "51/51",
+      "spine": "3/3",
+      "breast": "4/4",
+      "hair": "36/36",
+      "skirt": "16/16"
+    },
+    "review": 1
+  },
+  "MMD model (Japanese standard names)": {
+    "bones": 81,
+    "accuracy": 100,
+    "byRole": {
+      "ignore": "6/6",
+      "humanoid": "49/49",
+      "spine": "2/2",
+      "upperArmHelper": "2/2",
+      "breast": "4/4",
+      "hair": "18/18"
+    },
+    "review": 0
+  },
+  "Mixamo rig": {
+    "bones": 53,
+    "accuracy": 100,
+    "byRole": {
+      "humanoid": "49/49",
+      "spine": "3/3",
+      "ignore": "1/1"
+    },
+    "review": 0
+  },
+  "Rigify (deform bones)": {
+    "bones": 58,
+    "accuracy": 100,
+    "byRole": {
+      "humanoid": "49/49",
+      "spine": "3/3",
+      "breast": "2/2",
+      "upperArmHelper": "2/2",
+      "thighHelper": "2/2"
+    },
+    "review": 0
+  },
+  "VRChat-style, English names": {
+    "bones": 185,
+    "accuracy": 100,
+    "byRole": {
+      "ignore": "2/2",
+      "humanoid": "49/49",
+      "spine": "5/5",
+      "breast": "6/6",
+      "butt": "4/4",
+      "upperArmHelper": "2/2",
+      "thighHelper": "2/2",
+      "hair": "72/72",
+      "skirt": "37/37",
+      "tail": "5/5",
+      "accessory": "1/1"
+    },
+    "review": 1
+  },
+  "VRChat-style, Japanese names": {
+    "bones": 158,
+    "accuracy": 100,
+    "byRole": {
+      "humanoid": "49/49",
+      "spine": "3/3",
+      "breast": "6/6",
+      "butt": "4/4",
+      "upperArmHelper": "2/2",
+      "thighHelper": "2/2",
+      "hair": "56/56",
+      "skirt": "31/31",
+      "tail": "5/5"
+    },
+    "review": 0
+  },
+  "VRChat-style, meaningless secondary names (geometry only)": {
+    "bones": 250,
+    "accuracy": 100,
+    "byRole": {
+      "humanoid": "49/49",
+      "spine": "3/3",
+      "breast": "6/6",
+      "butt": "4/4",
+      "hair": "140/140",
+      "skirt": "48/48"
+    },
+    "review": 0
+  }
+}

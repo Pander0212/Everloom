@@ -12,6 +12,7 @@ import { RealisticSpecSchema } from './realistic.js';
 import { MorphSettingsSchema } from './morphs.js';
 import { AppearanceSchema, SkinLayerSchema } from './layers.js';
 import { GarmentPhysicsSchema, PhysicsSchema } from './physics.js';
+import { RigMappingSchema } from '../rig/schema.js';
 
 const id = z.string().regex(/^[a-z0-9_-]{1,40}$/);
 const label = z.string().trim().min(1).max(60);
@@ -142,6 +143,8 @@ export const AvatarConfigSchema = z.object({
   content: z.object({ adult: z.boolean().default(false), age: z.number().min(0).max(120).nullable().default(null), description: z.string().max(4000).default(''), confirmedAdult: z.boolean().default(false) }).default({ adult: false, age: null, description: '', confirmedAdult: false }),
   version: z.literal(1).default(1),
   boneMap: BoneMapSchema.default({}),
+  /** The spine chain and secondary roles (breasts, butt, hair, skirt, helpers…), see docs/3d-import/bones.md. */
+  rig: RigMappingSchema.optional(),
   expressionMap: ExpressionMapSchema.default({}),
   materialOverrides: MaterialOverridesSchema.default({}),
   bodyShape: z.object({ chest: z.number().min(-0.35).max(0.35).default(0), buttocks: z.number().min(-0.35).max(0.35).default(0), hips: z.number().min(-0.35).max(0.35).default(0), waist: z.number().min(-0.35).max(0.35).default(0), thighs: z.number().min(-0.35).max(0.35).default(0), shoulders: z.number().min(-0.35).max(0.35).default(0) }).optional(),

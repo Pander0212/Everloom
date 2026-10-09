@@ -78,3 +78,4 @@ export * from './puppet/rig.js';
 export * from './puppet/inochi.js';
 export { mapLayers, measureBust, type LayerImage, type LayeredPicture, type MappedPart, type MappedPuppet } from './puppet/layered.js';
 export { keyBackground } from './puppet/key.js';
+export * from './rig/index.js';
