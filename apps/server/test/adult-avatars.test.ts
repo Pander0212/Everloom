@@ -17,15 +17,15 @@ it('enforces owner confirmation, age and character descriptions on the server', 
   expect(created.status).toBe(200);
   const id = created.json.id;
   const config = AvatarConfigSchema.parse({ content: { adult: true, age: 25, confirmedAdult: true } });
-  expect((await c.req('PATCH', `/api/avatars/${id}`, { config })).status).toBe(403);
-  await c.req('PATCH', '/api/settings', { library: { nsfw: true, adultConfirmed: true } });
+  // No setting is needed for adult content (only the online character browser has an 18+ switch);
+  // the character's recorded age and description still decide.
   expect((await c.req('PATCH', `/api/avatars/${id}`, { config: { ...config, content: { ...config.content, age: 17 } } })).status).toBe(400);
   expect((await c.req('PATCH', `/api/avatars/${id}`, { config: { ...config, content: { ...config.content, description: 'a 16-year-old student' } } })).status).toBe(400);
   expect((await c.req('PATCH', `/api/avatars/${id}`, { config })).status).toBe(200);
   const owner = (c.built.ctx.sys.prepare('SELECT id FROM users WHERE username = ?').get('owner') as { id: string }).id;
   expect(() => assertAdultLink(c!.built.ctx, owner, id, { ...emptyCardData('Child'), description: 'a child' }, { avatar3d: id, age: 10 })).toThrow(/minor/);
   await c.req('PATCH', '/api/settings', { library: { nsfw: false } });
-  expect(() => assertAdultLink(c!.built.ctx, owner, id, emptyCardData('Adult'), { avatar3d: id, age: 25 })).toThrow(/Enable Adult/);
+  expect(() => assertAdultLink(c!.built.ctx, owner, id, emptyCardData('Adult'), { avatar3d: id, age: 25 })).not.toThrow();
 }, 30000);
 
 it('requires adult eligibility and provider permission before generating or reusing adult textures', async () => {
@@ -54,7 +54,7 @@ it('requires adult eligibility and provider permission before generating or reus
   expect(generate).toHaveBeenCalledTimes(1);
   const row = c.built.ctx.db.prepare('SELECT meta FROM media WHERE id = ?').get(result.json.id) as { meta: string };
   expect(JSON.parse(row.meta).adult).toBe(true);
+  // The online browser's 18+ switch doesn't affect the character editor.
   await c.req('PATCH', '/api/settings', { library: { nsfw: false } });
-  expect((await c.req('POST', '/api/avatars/texture', request)).status).toBe(403);
-  expect(generate).toHaveBeenCalledTimes(1);
+  expect((await c.req('POST', '/api/avatars/texture', request)).status).toBe(200);
 }, 30000);

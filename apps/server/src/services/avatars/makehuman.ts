@@ -9,7 +9,7 @@ import { gunzipSync } from 'node:zlib';
 import { HttpError, type AppContext } from '../../context.js';
 import { safeFetch } from '../../util/fetch.js';
 import { deleteMedia, mediaUrl, saveModelFile } from '../media.js';
-import { getKv, getSettings, setKv } from '../settings.js';
+import { getKv, setKv } from '../settings.js';
 
 const SOURCES = {
   core: { url: '', sha256: '9218e83c44a0335f37e01bcf471c6d57899115cacff9031fc817a34c709511ec', bytes: 38637876, max: 70 * 1024 * 1024 },
@@ -26,7 +26,8 @@ const allowed = /\.(obj|mhclo|mhmat|mhskel|mhw|json|target|target\.gz|png|jpg|jp
 const explicit = /(?:^|[\/_-])(genitals?|penis|vagina|nipples?|anus|explicit)(?:[\/_.-]|$)/i;
 
 export function makeHumanStatus(ctx: AppContext, owner: string) {
-  const adultEnabled = getSettings(ctx, owner).library.nsfw === true && getSettings(ctx, owner).library.adultConfirmed === true;
+  // Adult packs are always available (no setting; only the online character browser has one).
+  const adultEnabled = true;
   const packs = getKv<OwnerPack[]>(ctx, owner, ownerKey, []).filter(pack => !pack.adult || adultEnabled);
   return { adultEnabled, ownerPacks: packs.map(({ files, ...metadata }) => ({ ...metadata, count: Object.keys(files).length })), ...Object.fromEntries((['core', 'system'] as const).map(pack => {
     const data = getKv<Installed | null>(ctx, owner, keyFor(pack), null);
@@ -38,7 +39,6 @@ export function makeHumanStatus(ctx: AppContext, owner: string) {
 /** Owner-provided data never leaves the server or bypasses the Vault. */
 export async function importHumanAssets(ctx: AppContext, owner: string, bytes: Buffer, options: { kind: string; label: string; adult: boolean; rightsConfirmed: boolean }) {
   if (!options.rightsConfirmed) throw new HttpError(400, 'Confirm that you may use these asset files.');
-  if (options.adult && !(getSettings(ctx, owner).library.nsfw === true && getSettings(ctx, owner).library.adultConfirmed === true)) throw new HttpError(403, 'Enable adult content before installing an adult asset pack.');
   if (bytes.length > 100 * 1024 * 1024) throw new HttpError(413, 'Asset packs must be smaller than 100 MB.');
   let total = 0, count = 0;
   let entries: Record<string, Uint8Array>;

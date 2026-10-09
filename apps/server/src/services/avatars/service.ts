@@ -8,7 +8,6 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { allowedPaired, AvatarConfigSchema, BUILTIN_PAIRED, installedEmotes, modelUrl, PairedClipSchema, regionOfBone, type AvatarConfig, type AvatarKind, type GarmentSlot, type HumanBone, type PairedInfo } from '@everloom/engine';
-import { getSettings } from '../settings.js';
 import { assertAdultAvatar } from './adult.js';
 import { HttpError, type AppContext } from '../../context.js';
 import { newId } from '../../security/crypto.js';
@@ -428,8 +427,7 @@ export function pairedFor(ctx: AppContext, owner: string): PairedInfo[] {
     const p = PairedClipSchema.safeParse(safeJson(r.data, {}));
     return p.success ? [{ id: r.id, label: r.label, participants: p.data.roles.length, loop: p.data.loop, adult: p.data.adult, aliases: p.data.aliases, source: 'imported' as const }] : [];
   });
-  const settings = getSettings(ctx, owner);
-  return allowedPaired([...BUILTIN_PAIRED, ...imported.filter((p) => !BUILTIN_PAIRED.some((b) => b.id === p.id))], { adultMode: settings.library.nsfw === true && settings.library.adultConfirmed === true, everyoneAdult: true });
+  return allowedPaired([...BUILTIN_PAIRED, ...imported.filter((p) => !BUILTIN_PAIRED.some((b) => b.id === p.id))], { adultMode: true, everyoneAdult: true });
 }
 
 /**

@@ -63,9 +63,10 @@ export default function Preview3D({ src: baseSrc, fallbackSrc, config, framing =
   const modelLoading = useRef(false);
   const prefs = usePrefs3D();
   const settings = useSettings();
-  const adultHidden = config?.content?.adult === true && settings.data?.library.nsfw !== true;
+  // Adult content is never hidden (no setting; only the online character browser has an 18+ switch).
+  const adultHidden = false;
   /** Explicit sliders and layers: an adult character, confirmed, in adult mode. */
-  const adultAllowed = adultContentAllowed(config?.content, settings.data?.library.nsfw === true);
+  const adultAllowed = adultContentAllowed(config?.content, true);
   const adultRef = useRef(adultAllowed);
   adultRef.current = adultAllowed;
   const [state, setState] = useState<'loading' | 'ready' | 'error' | 'unsupported'>('loading');

@@ -18,12 +18,11 @@ it('installs real clothing data, refuses unsafe references and keeps adult packs
   expect((await client.req('POST', endpoint, missing)).status).toBe(400);
   const invalid = Buffer.from(zipSync({ 'broken.target': strToU8('99999 0 1 0') }));
   expect((await client.req('POST', endpoint, invalid)).status).toBe(400);
-  expect((await client.req('POST', endpoint.replace('adult=false', 'adult=true'), pack)).status).toBe(403);
-  await client.req('PATCH', '/api/settings', { library: { nsfw: true, adultConfirmed: true } });
+  // Adult packs install without a setting (only the online character browser has an 18+ switch).
   const adultPack = Buffer.from(zipSync({ 'owner.target': strToU8('100 0 0.1 0') }));
   expect((await client.req('POST', endpoint.replace('kind=clothes', 'kind=targets').replace('adult=false', 'adult=true'), adultPack)).status).toBe(200);
   await client.req('PATCH', '/api/settings', { library: { nsfw: false } });
-  const hidden = await client.req('GET', '/api/makehuman');
-  expect(hidden.json.ownerPacks).toHaveLength(1);
-  expect(Object.keys(hidden.json.core.files).some(path => path.endsWith('owner.target'))).toBe(false);
+  const shown = await client.req('GET', '/api/makehuman');
+  expect(shown.json.ownerPacks).toHaveLength(2);
+  expect(Object.keys(shown.json.core.files).some(path => path.endsWith('owner.target'))).toBe(true);
 }, 60_000);

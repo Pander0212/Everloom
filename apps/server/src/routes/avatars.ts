@@ -3,7 +3,6 @@ import type { FastifyInstance } from 'fastify';
 import { unzipSync } from 'fflate';
 import { z } from 'zod';
 import { AvatarConfigSchema, BoneMapSchema, BUILTIN_EMOTES, BUILTIN_PAIRED, ClipSchema, EMOTE_CATEGORIES, EMOTE_ID, GARMENT_SLOTS, PAIRED_ID, PairedClipSchema } from '@everloom/engine';
-import { getSettings } from '../services/settings.js';
 import { parseGlb } from '../services/avatars/glb.js';
 import { HttpError, owner, type AppContext } from '../context.js';
 import { blenderJobs, findBlender, runBlenderJob, setBlenderPath } from '../services/blender.js';
@@ -290,10 +289,6 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     if (!PAIRED_ID.test(id)) throw new HttpError(400, 'Names use lowercase letters, digits and _');
     if (BUILTIN_PAIRED.some((p) => p.id === id) || BUILTIN_EMOTES.some((e) => e.id === id)) throw new HttpError(409, 'That name is already a built-in animation');
     const clip = parse(PairedClipSchema, { ...(req.body as object), id });
-    if (clip.adult) {
-      const s = getSettings(ctx, owner(req));
-      if (s.library.nsfw !== true || s.library.adultConfirmed !== true) throw new HttpError(403, 'Enable Adult content (18+) and confirm you are an adult in Settings › Features first.');
-    }
     const existing = ctx.db.prepare('SELECT category FROM avatar_clips WHERE owner_id = ? AND emote = ?').get(owner(req), id) as { category: string } | undefined;
     if (existing && existing.category !== 'paired') throw new HttpError(409, 'An emote already has that name');
     ctx.db

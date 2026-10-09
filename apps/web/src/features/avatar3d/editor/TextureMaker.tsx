@@ -16,7 +16,7 @@ export function TextureMaker({ onMade, base, avatarId, adultCharacter = false }:
   const [adult, setAdult] = useState(false);
   const settings = useSettings(), connections = useConnections();
   const connection = connections.data?.find(value => value.id === settings.data?.roles.image);
-  const canAdult = adultCharacter && settings.data?.library.nsfw === true && connection?.params.allowAdult === true;
+  const canAdult = adultCharacter && connection?.params.allowAdult === true;
   return (
     <div className="flex flex-col gap-2">
     {canAdult ? <Switch label="Adult texture (18+)" checked={adult} onChange={setAdult} /> : null}

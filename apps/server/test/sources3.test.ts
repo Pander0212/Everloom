@@ -134,12 +134,12 @@ describe('browser bridge', () => {
     expect(js.body).not.toMatch(/evb_[A-Za-z0-9_-]{20,}/);
   });
 
-  it('a hidden card keeps only its public profile, whatever arrives; adult cards need the setting', async () => {
+  it('a hidden card keeps only its public profile, whatever arrives; adult cards import without a setting', async () => {
     const { token } = (await c.req('POST', '/api/bridge/devices', { label: 'Phone' })).json;
     const r = await send(token, { page: 'https://janitorai.com/characters/9', hidden: true, card: { name: 'Veiled', description: 'leaked?', personality: 'leaked?', first_mes: '', creator_notes: 'Public bio.' } });
     const ch = (await c.req('GET', `/api/characters/${JSON.parse(r.body).id}`)).json;
     expect(ch.card).toMatchObject({ description: '', personality: '', creator_notes: 'Public bio.', extensions: { definition_hidden: true, source_url: 'https://janitorai.com/characters/9' } });
-    expect((await send(token, { page: 'https://janitorai.com/characters/10', nsfw: true, card: { name: 'Adult' } })).statusCode).toBe(403);
+    expect((await send(token, { page: 'https://janitorai.com/characters/10', nsfw: true, card: { name: 'Adult' } })).statusCode).toBe(200);
   });
 
   it('the bookmarklet hand-off imports with the signed-in session', async () => {

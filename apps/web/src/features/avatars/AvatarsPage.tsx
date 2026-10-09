@@ -9,7 +9,6 @@ import { Badge, Button, EmptyState, FileButton, Icon, IconButton, Menu, Spinner 
 import { createCodeAvatar, fmtBytes, uploadAvatar, useAvatars, useBlender } from './api';
 import { RealisticMaker } from './Realistic';
 import { usePrefs3D } from './prefs';
-import { useSettings } from '@/lib/queries';
 const NativeHuman = lazy(() => import('@/features/avatar3d/NativeHuman'));
 
 export const MODEL_ACCEPT = '.glb,.gltf,.vrm,.blend,.vroid,.vroidcustomitem,.fbx,.pmx,.pmd,.obj,.mtl,.png,.jpg,.jpeg,.webp,.tga,.bin';
@@ -17,7 +16,6 @@ export const MODEL_ACCEPT = '.glb,.gltf,.vrm,.blend,.vroid,.vroidcustomitem,.fbx
 export default function AvatarsPage() {
   const navigate = useNavigate();
   const list = useAvatars();
-  const settings = useSettings();
   const blender = useBlender();
   const [busy, setBusy] = useState(false);
   const [realistic, setRealistic] = useState(false);
@@ -91,7 +89,7 @@ export default function AvatarsPage() {
         <EmptyState icon={Box} title="No 3D avatars yet" body="Import a model to edit it and use it on the stage." />
       ) : (
         <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4" data-testid="avatar-list">
-          {list.data.filter(a => !a.adult || settings.data?.library.nsfw === true).map((a) => (
+          {list.data.map((a) => (
             <li key={a.id}>
               <button type="button" onClick={() => navigate(`/characters/avatars/${a.id}`)} className="pressable flex w-full flex-col overflow-hidden rounded-lg border border-line bg-surface text-left hover:border-line-strong">
                 <div className="grid aspect-square place-items-center bg-surface-2">

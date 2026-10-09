@@ -8,7 +8,6 @@ import { useQuery } from '@tanstack/react-query';
 import { AlertTriangle, Check, Info, Link2, Pencil, Trash2, X } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { get } from '@/lib/api';
-import { useSettings } from '@/lib/queries';
 import { toastError } from '@/lib/store';
 import { cx } from '@/lib/format';
 import { Badge, Button, Checkbox, Field, IconButton, Input, SectionTitle, Segmented, Select, Slider, Switch } from '@/ui';
@@ -24,8 +23,7 @@ const emptySettings = (): MorphSettings => ({ base: null, sliders: [], values: {
 const presetId = (name: string, taken: string[]) => { const base = name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 30) || 'preset'; let id = base, n = 2; while (taken.includes(id)) id = `${base}-${n++}`; return id; };
 
 export function BodyStep({ config, set, handle }: { config: AvatarConfig; set: (p: Partial<AvatarConfig>) => void; handle: PreviewHandle | null }) {
-  const settings = useSettings();
-  const adultAllowed = adultContentAllowed(config.content, settings.data?.library.nsfw === true);
+  const adultAllowed = adultContentAllowed(config.content, true);
   const [group, setGroup] = useState<MorphGroup>('body');
   const [editing, setEditing] = useState(false);
   const [presetName, setPresetName] = useState('');

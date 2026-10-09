@@ -55,7 +55,7 @@ export default function PuppetsSection() {
       <Section title="Make a puppet from a picture" description="One character facing you, head to feet, arms a little away from the body, on a plain background. The picture is split into layers (hair, face, eyes, mouth, body, clothes) by your layering connection, then rigged: head turns, blinking, talking, breathing, hair and body physics.">
         <div className="flex flex-col gap-3">
           <Field label="Name" htmlFor="puppet-name"><Input id="puppet-name" value={name} onChange={(e) => setName(e.target.value)} placeholder="My puppet" maxLength={80} /></Field>
-          <Field label="Rating" htmlFor="puppet-rating" hint="18+ puppets are only shown with adult content on; the chest moves more.">
+          <Field label="Rating" htmlFor="puppet-rating" hint="18+ puppets move their chest more.">
             <Segmented aria-label="Rating" value={rating} onChange={(v) => setRating(v as 'all-ages' | '18+')} options={[{ value: 'all-ages', label: 'All ages' }, { value: '18+', label: '18+' }]} />
           </Field>
           {hasLayering ? (

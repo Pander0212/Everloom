@@ -7,7 +7,7 @@ import { BUILTIN_EMOTES, BUILTIN_PAIRED, PAIRED_ID, type PairedClip } from '@eve
 import { Plus, Trash2, Upload } from 'lucide-react';
 import { useState } from 'react';
 import { put } from '@/lib/api';
-import { queryClient, useSettings } from '@/lib/queries';
+import { queryClient } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
 import { Button, Field, FileButton, IconButton, Input, Select, Switch } from '@/ui';
 import { load, type Loaded } from './ClipImporter';
@@ -33,7 +33,7 @@ const HANDS = {
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').replace(/^(\d)/, 'p$1').slice(0, 40);
 
 export default function PairedImporter({ onDone }: { onDone: () => void }) {
-  const adultMode = useSettings().data?.library.nsfw === true;
+  const adultMode = true;
   const [parts, setParts] = useState<Part[]>([{ loaded: null, from: 0, anim: 0, name: 'Lead' }, { loaded: null, from: 1, anim: 0, name: 'Partner' }]);
   const [label, setLabel] = useState('');
   const [id, setId] = useState('');

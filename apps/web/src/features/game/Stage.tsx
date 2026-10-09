@@ -2,10 +2,10 @@ import type { CampaignDTO, CharacterDTO, ChatDTO, MessageDTO, Op, StageAnim, Sta
 import { useFeatureOn } from '@/lib/features';
 import { stripInlineTags } from '@everloom/engine';
 import { useQueries, useQuery, useQueryClient } from '@tanstack/react-query';
-import { ChevronLeft, ChevronRight, EyeOff, History, RefreshCw, Rotate3d, Sparkles } from 'lucide-react';
+import { ChevronLeft, ChevronRight, History, RefreshCw, Rotate3d, Sparkles } from 'lucide-react';
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react';
 import { lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
-import { get, patch } from '@/lib/api';
+import { get } from '@/lib/api';
 import { cx } from '@/lib/format';
 import { renderStory } from '@/lib/render';
 import { t } from '@/lib/motion';
@@ -102,7 +102,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const persona = personas.data?.find((p) => p.id === chat.personaId) ?? personas.data?.find((p) => p.isDefault);
   const { apply } = useGame();
   const settings = useSettings();
-  const chars = allChars.filter(c => !c.adult || settings.data?.library.nsfw === true);
+  const chars = allChars;
   const weatherOn = useFeatureOn('weather');
   const live2dFeature = useFeatureOn('live2d');
   const live2dOn = settings.data?.stage?.live2d === true && live2dFeature;
@@ -280,7 +280,6 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
       </motion.div>
       {/* Quick effects */}
       <div className="absolute right-3 top-3 z-20 flex flex-col gap-2">
-          {allChars.some(c => c.adult) && settings.data?.library.nsfw ? <IconButton icon={EyeOff} label="Hide adult content" className="!bg-surface/90 shadow-1" onClick={() => void patch('/api/settings', { library: { nsfw: false } }).then(s => qc.setQueryData(qk.settings, s))} /> : null}
         <Popover trigger={<IconButton icon={Sparkles} label="Scene effects" className="!bg-surface/90 shadow-1" />} side="bottom" align="end">
           <div className="grid w-56 grid-cols-2 gap-1 p-1" role="group" aria-label="Scene effects">
             {FX_LIST.filter((f) => !fxOff.includes(f.id)).map((f) => (

@@ -9,7 +9,6 @@ import { Crosshair, ImagePlus, Paintbrush, Trash2 } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 import { upload } from '@/lib/api';
-import { useSettings } from '@/lib/queries';
 import { cx } from '@/lib/format';
 import { Badge, Button, Checkbox, Field, FileButton, IconButton, Input, SectionTitle, Select, Slider, Switch } from '@/ui';
 import type { PreviewHandle } from '../Preview3D';
@@ -32,8 +31,7 @@ function ColourField({ label, value, onChange }: { label: string; value: string 
 }
 
 export function SkinStep({ config, set, handle }: { config: AvatarConfig; set: (p: Partial<AvatarConfig>) => void; handle: PreviewHandle | null }) {
-  const settings = useSettings();
-  const adultAllowed = adultContentAllowed(config.content, settings.data?.library.nsfw === true);
+  const adultAllowed = adultContentAllowed(config.content, true);
   const appearance = config.appearance ?? AppearanceSchema.parse({});
   const setAppearance = (p: Partial<typeof appearance>) => set({ appearance: { ...appearance, ...p } });
   const [open, setOpen] = useState<string | null>(null);

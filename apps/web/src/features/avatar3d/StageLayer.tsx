@@ -66,7 +66,7 @@ export default function StageLayer({ cast, speakerId, scene, onFail, paired = nu
   const [modelsLoaded, modelLoaded] = useReducer((n: number) => n + 1, 0);
   const prefs = usePrefs3D();
   const settings = useSettings();
-  const adultMode = settings.data?.library.nsfw === true;
+  const adultMode = true;
   const adultModeRef = useRef(adultMode);
   adultModeRef.current = adultMode;
   const loaded = useRef(new Map<string, string>());

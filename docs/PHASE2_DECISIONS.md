@@ -1152,3 +1152,13 @@ volume lists at the start and end. No network volume (the weights download in a 
 cheaper than storage). SaladCloud wasn't used: no key was given. The first attempt found no free
 community card with the first request size and ended without starting anything ($0.00, in the GPU
 ledger); the second attempt needs the owner's approval to run in this environment.
+
+## Adult content without a setting (owner's decision, October 2026)
+
+The owner removed the app-wide "Adult content (18+)" switch (it was on Settings › Features and
+hard to find, and adult characters stayed hidden): the people using Everloom are responsible for
+themselves, so adult characters, 3D avatars, puppets, packs, paired animations and bridge imports
+are shown and allowed without enabling anything. The one 18+ switch left is for the online
+character browser (Settings › Character sources: browsing and importing from public sites). What
+stays everywhere: an avatar or preset rated adult still needs a recorded age of 18+ and an adult
+confirmation, and anything that describes a minor is refused (services/avatars/adult.ts).

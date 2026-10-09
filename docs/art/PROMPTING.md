@@ -333,7 +333,7 @@ else, so the new hair or clothes come out as layers that line up.
 - It sometimes leaves the base showing: a skirt with no top, a dress or bikini drawn sheer enough
   that nipples or genitals show through. Check every outfit by eye. Redo the half-dressed ones
   ("…covers her whole chest completely, with its top and straps clearly drawn"); rate the
-  see-through ones 18+ (they then show only with adult content on) or redo them.
+  see-through ones 18+ (a label for packs and for the character browser; the app itself shows adult content without a setting) or redo them.
 - None of this art goes to GitHub: generated characters, outfits and built puppets stay in the
   git-ignored `.puppets-work/` and `apps/web/public/puppets/local/` (scripts/check-pack-art.mjs
   refuses them), and 18+ prompts stay out of the ledger (`gen.mjs --adult`).

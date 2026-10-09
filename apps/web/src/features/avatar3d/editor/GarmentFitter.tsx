@@ -14,7 +14,6 @@ import { toast } from '@/lib/store';
 import { Badge, Button, Checkbox, Field, FileButton, Input, Segmented, Select, Slider, Switch, useDesktop } from '@/ui';
 import type { PreviewHandle } from '../Preview3D';
 import { adultContentAllowed } from '../Preview3D';
-import { useSettings } from '@/lib/queries';
 import { browserModel } from '../runtime/import';
 import { loaderFor } from '../runtime/loader';
 import { CHECK_POSES, type CheckPose } from '../runtime/poses';
@@ -56,8 +55,7 @@ const STEPS: Record<Mode, { fine: number; coarse: number }> = { move: { fine: 0.
 
 export function GarmentFitter({ avatar, config, set, handle }: { avatar: AvatarDetail; config: AvatarConfig; set: (patch: Partial<AvatarConfig>) => void; handle: PreviewHandle | null }) {
   const desktop = useDesktop();
-  const settings = useSettings();
-  const adultAllowed = adultContentAllowed(config.content, settings.data?.library.nsfw === true);
+  const adultAllowed = adultContentAllowed(config.content, true);
   const [phase, setPhase] = useState<Phase>('idle');
   const [error, setError] = useState<string | null>(null);
   const [progress, setProgress] = useState<{ f: number; step: string }>({ f: 0, step: '' });
