@@ -3,6 +3,8 @@
  * device's own choice, reading settings and motion. docs/ux/themes.md.
  */
 import { Check } from 'lucide-react';
+import { useState } from 'react';
+import { getUiScale, setUiScale } from '@/lib/scale';
 import { cx } from '@/lib/format';
 import { applyLooks, applyMotion, applyPalette, applyReading, applyTextSize, applyTheme, useLookId } from '@/lib/theme';
 import { Field, Icon, Segmented, Select, Slider, ToggleRow } from '@/ui';
@@ -24,6 +26,7 @@ export default function AppearanceSection() {
   const { settings, update } = useSettingsPatch();
   const device = useDeviceLook();
   const shown = useLookId();
+  const [uiScale, setScale] = useState(getUiScale);
   if (!settings) return null;
   const account = settings.look?.id ?? 'everloom';
   const deviceOnly = device.id !== null;
@@ -151,6 +154,9 @@ export default function AppearanceSection() {
 
       <Section title="Reading" description="How the story reads. Fonts set here win over the theme's.">
         <div className="flex flex-col gap-4">
+          <Field label={`Interface size on this device: ${Math.round(uiScale * 100)}%`} hint="Also Ctrl/⌘ + plus, minus or 0. Ctrl/⌘ + the mouse wheel over the story changes only the story's text.">
+            <Slider label="Interface size" min={0.5} max={2} step={0.05} value={uiScale} onChange={(v) => setScale(setUiScale(v))} />
+          </Field>
           <Field label="Story text size">
             <Segmented
               label="Story text size"

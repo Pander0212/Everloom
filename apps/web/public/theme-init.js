@@ -13,6 +13,8 @@
         document.documentElement.style.backgroundColor = b.bg;
       }
     }
+    var z = Number(localStorage.getItem('everloom.uiScale'));
+    if (z >= 0.5 && z <= 2 && z !== 1) document.documentElement.style.zoom = String(z);
     var m = localStorage.getItem('everloom.motion');
     if (m === 'reduced') document.documentElement.dataset.motion = 'reduced';
     var s = localStorage.getItem('everloom.textSize');
