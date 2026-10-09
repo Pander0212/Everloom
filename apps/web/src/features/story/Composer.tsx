@@ -1,7 +1,8 @@
 import { ArrowUp, Check, Compass, Footprints, LayoutGrid, MessageCircle, MessageSquareQuote, Mic, MicOff, PenLine, Square, Theater } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
 import { cx } from '@/lib/format';
-import { toast } from '@/lib/store';
+import { toast, toastError } from '@/lib/store';
+import { apiFetch } from '@/lib/api';
 import { IconButton, Icon } from '@/ui';
 import * as P from '@radix-ui/react-popover';
 import { INPUT_MODES, type InputMode } from '@everloom/engine';
@@ -12,6 +13,8 @@ export interface ComposerProps {
   /** Arrow keys on an empty box swipe the last reply. */
   onSwipeKey?: (dir: -1 | 1) => void;
   stt: boolean;
+  /** Dictation by the browser, or recorded and transcribed by the voice connection. */
+  sttEngine?: 'browser' | 'connection';
   placeholder: string;
   onSend: (text: string) => void;
   onStop: () => void;
@@ -27,7 +30,7 @@ export interface ComposerProps {
 
 type SR = { start: () => void; stop: () => void; onresult: (e: any) => void; onend: () => void; onerror: (e: any) => void; continuous: boolean; interimResults: boolean; lang: string };
 
-export function Composer({ busy, enterToSend, onSwipeKey, stt, placeholder, onSend, onStop, onMenu, accessory, value, onChange, mode, onMode }: ComposerProps) {
+export function Composer({ busy, enterToSend, onSwipeKey, stt, sttEngine = 'browser', placeholder, onSend, onStop, onMenu, accessory, value, onChange, mode, onMode }: ComposerProps) {
   const modeInfo = INPUT_MODES.find((m) => m.id === mode);
   const ref = useRef<HTMLTextAreaElement>(null);
   const [listening, setListening] = useState(false);
@@ -51,7 +54,40 @@ export function Composer({ busy, enterToSend, onSwipeKey, stt, placeholder, onSe
     onSend(value);
   };
   const SpeechRec: any = typeof window !== 'undefined' ? (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition : null;
+  const recorder = useRef<MediaRecorder | null>(null);
+  const [transcribing, setTranscribing] = useState(false);
+  const toggleRecord = async () => {
+    if (recorder.current) return recorder.current.stop();
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      const r = new MediaRecorder(stream);
+      const chunks: Blob[] = [];
+      r.ondataavailable = (e) => e.data.size && chunks.push(e.data);
+      r.onstop = async () => {
+        stream.getTracks().forEach((t) => t.stop());
+        recorder.current = null;
+        setListening(false);
+        const blob = new Blob(chunks, { type: r.mimeType || 'audio/webm' });
+        setTranscribing(true);
+        try {
+          const res = await apiFetch(`/api/stt?lang=${encodeURIComponent(navigator.language || 'en')}`, { raw: blob, contentType: blob.type });
+          const { text } = (await res.json()) as { text: string };
+          if (text) onChange(`${value}${value && !value.endsWith(' ') ? ' ' : ''}${text}`);
+        } catch (e) {
+          toastError(e);
+        } finally {
+          setTranscribing(false);
+        }
+      };
+      recorder.current = r;
+      r.start();
+      setListening(true);
+    } catch {
+      toast({ title: 'The microphone could not be opened', tone: 'danger' });
+    }
+  };
   const toggleMic = () => {
+    if (sttEngine === 'connection') return void toggleRecord();
     if (!SpeechRec) return toast({ title: 'Voice input is not supported in this browser', tone: 'danger' });
     if (listening) {
       recog.current?.stop();
@@ -97,7 +133,7 @@ export function Composer({ busy, enterToSend, onSwipeKey, stt, placeholder, onSe
           aria-label="Message"
           className="max-h-[180px] min-h-10 flex-1 resize-none bg-transparent px-1 py-2 text-base leading-6 text-fg outline-none placeholder:text-fg-3 focus-visible:shadow-none"
         />
-        {stt ? <IconButton icon={listening ? MicOff : Mic} label={listening ? 'Stop dictation' : 'Dictate'} active={listening} onClick={toggleMic} /> : null}
+        {stt ? <IconButton icon={listening ? MicOff : Mic} label={listening ? 'Stop dictation' : transcribing ? 'Writing down what you said…' : 'Dictate'} active={listening} disabled={transcribing} onClick={toggleMic} /> : null}
         {busy ? (
           <IconButton icon={Square} label="Stop" onClick={onStop} className="!bg-fg !text-bg" />
         ) : (

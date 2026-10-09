@@ -62,3 +62,20 @@ export async function listVoices(conn: ResolvedConnection): Promise<Array<{ id: 
   }
   return OPENAI_VOICES.map((v) => ({ id: v, name: v[0].toUpperCase() + v.slice(1) }));
 }
+
+/**
+ * Dictation through the voice connection: OpenAI-compatible /audio/transcriptions (OpenAI, and
+ * local Whisper servers that follow it). Audio goes out as-is; the text comes back to the box.
+ */
+export async function transcribe(conn: ResolvedConnection, audio: Buffer, mime: string, opts: { language?: string; signal?: AbortSignal } = {}): Promise<string> {
+  if (conn.provider !== 'tts-openai') throw new HttpError(400, 'Dictation through a voice service needs an OpenAI-compatible voice connection');
+  const form = new FormData();
+  const ext = /webm/.test(mime) ? 'webm' : /ogg/.test(mime) ? 'ogg' : /mp4|m4a|aac/.test(mime) ? 'm4a' : /wav/.test(mime) ? 'wav' : 'webm';
+  form.append('file', new Blob([new Uint8Array(audio)], { type: mime }), `speech.${ext}`);
+  form.append('model', String((conn.params as Record<string, unknown>).sttModel || 'whisper-1'));
+  if (opts.language) form.append('language', opts.language.slice(0, 2));
+  const { 'content-type': _json, ...headers } = openaiHeaders(conn);
+  const res = await safeFetch(`${base(conn)}/audio/transcriptions`, { method: 'POST', headers, body: form, timeoutMs: 120_000, signal: opts.signal });
+  const j = (await readJson(res)) as { text?: string };
+  return String(j.text ?? '').trim();
+}

@@ -257,7 +257,7 @@ export interface Settings {
   hud: { pinned: string[] };
   wi: WISettings & { semantic: boolean; semanticTopK: number; semanticThreshold: number };
   memory: { auto: boolean; every: number; maxWords: number };
-  chat: { enterToSend: boolean; showReasoning: boolean; autoTts: boolean; defaultMode: 'chat' | 'stage'; stt: boolean };
+  chat: { enterToSend: boolean; showReasoning: boolean; autoTts: boolean; defaultMode: 'chat' | 'stage'; stt: boolean; /** Dictation by the browser, or recorded and sent to the voice connection. */ sttEngine?: 'browser' | 'connection' };
   tts: { provider: 'browser' | 'connection'; narratorVoice: string; rate: number; pitch: number };
   images: { autoBackground: boolean; style: string };
   backups: { nightly: boolean; retention: number; hour: number };

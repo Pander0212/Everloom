@@ -1,6 +1,6 @@
 import { cx } from '@/lib/format';
 import { useFeatures } from '@/lib/features';
-import { ToggleRow } from '@/ui';
+import { Field, Segmented, ToggleRow } from '@/ui';
 import { defaultQuick, QUICK_ACTIONS } from '@/features/game/ComposerChips';
 import { Section, useSettingsPatch } from '../common';
 
@@ -21,6 +21,13 @@ export default function ChatSection() {
           {f.on.voice ? (
             <>
               <ToggleRow label="Dictation" description="A microphone button in the message box that turns your speech into text." checked={settings.chat.stt} onChange={(v) => update({ chat: { stt: v } })} />
+              {settings.chat.stt ? (
+                <div className="py-3">
+                  <Field label="Dictation by" hint={settings.chat.sttEngine === 'connection' ? 'Your words are recorded and written down by your voice connection (OpenAI-compatible, for example Whisper). Works in every browser.' : 'Your browser writes down what you say. Not every browser can.'}>
+                    <Segmented label="Dictation by" value={settings.chat.sttEngine ?? 'browser'} onChange={(v) => update({ chat: { sttEngine: v } })} options={[{ value: 'browser', label: 'This browser' }, { value: 'connection', label: 'Voice connection' }]} />
+                  </Field>
+                </div>
+              ) : null}
               <ToggleRow label="Read replies aloud automatically" checked={settings.chat.autoTts} onChange={(v) => update({ chat: { autoTts: v } })} />
             </>
           ) : null}

@@ -390,6 +390,7 @@ export default function StoryView() {
       onChange={setComposer}
       enterToSend={!!settings.data?.chat.enterToSend}
       stt={!!settings.data?.chat.stt && features.on.voice}
+      sttEngine={settings.data?.chat.sttEngine ?? 'browser'}
       placeholder={`Message ${group ? 'the group' : title}`}
       onSend={(text) => {
         setComposer('');
