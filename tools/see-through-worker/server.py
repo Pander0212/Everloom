@@ -81,23 +81,27 @@ def export_layers():
     except Exception as e:  # report, never crash the API
         state['error'] = f'layer export unavailable: {e}'[:300]
         return
-    for f in sorted(os.listdir(f'{WORK}/out')):
-        if not f.endswith('.psd') or f.endswith('_depth.psd'):
+    for name in finished():
+        export_one(name, PSDImage)
+
+
+def export_one(name, PSDImage=None):
+    """<name>/layers.json and <name>/layers/NN.png for one finished picture."""
+    if PSDImage is None:
+        from psd_tools import PSDImage
+    d = f'{WORK}/out/{name}/layers'
+    os.makedirs(d, exist_ok=True)
+    psd = PSDImage.open(f'{WORK}/out/{name}.psd')
+    rows = []
+    for i, layer in enumerate(psd):
+        im = layer.topil()
+        if im is None:
             continue
-        name = f[:-4]
-        d = f'{WORK}/out/{name}/layers'
-        os.makedirs(d, exist_ok=True)
-        psd = PSDImage.open(f'{WORK}/out/{f}')
-        rows = []
-        for i, layer in enumerate(psd):
-            im = layer.topil()
-            if im is None:
-                continue
-            fn = f'{i:02d}.png'
-            im.convert('RGBA').save(f'{d}/{fn}')
-            rows.append({'name': layer.name, 'file': f'layers/{fn}', 'left': layer.left, 'top': layer.top, 'width': im.width, 'height': im.height})
-        with open(f'{WORK}/out/{name}/layers.json', 'w') as out:
-            json.dump({'width': psd.width, 'height': psd.height, 'layers': rows}, out)
+        fn = f'{i:02d}.png'
+        im.convert('RGBA').save(f'{d}/{fn}')
+        rows.append({'name': layer.name, 'file': f'layers/{fn}', 'left': layer.left, 'top': layer.top, 'width': im.width, 'height': im.height})
+    with open(f'{WORK}/out/{name}/layers.json', 'w') as out:
+        json.dump({'width': psd.width, 'height': psd.height, 'layers': rows}, out)
 
 
 def run_batch():
@@ -154,6 +158,25 @@ class Handler(BaseHTTPRequestHandler):
                 if os.path.exists(p):
                     out += f'==> {f}\n'.encode() + open(p, 'rb').read()[-6000:] + b'\n'
             return self.send(200, out, 'text/plain')
+        m = re.fullmatch(r'/result/([A-Za-z0-9_.-]{1,80})\.zip', self.path)
+        if m:
+            # One finished picture: its folder (layers, depth, layers.json) and its PSDs, so a
+            # client can save results as they finish.
+            name = m.group(1)
+            if name not in finished():
+                return self.send(404, {'error': 'not finished'})
+            if not os.path.exists(f'{WORK}/out/{name}/layers.json'):
+                export_one(name)
+            buf = io.BytesIO()
+            with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:
+                for f in (f'{name}.psd', f'{name}_depth.psd'):
+                    if os.path.exists(f'{WORK}/out/{f}'):
+                        z.write(f'{WORK}/out/{f}', f)
+                for root, _, files in os.walk(f'{WORK}/out/{name}'):
+                    for f in files:
+                        p = os.path.join(root, f)
+                        z.write(p, os.path.relpath(p, f'{WORK}/out'))
+            return self.send(200, buf.getvalue(), 'application/zip')
         if self.path == '/result.zip':
             buf = io.BytesIO()
             with zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED) as z:

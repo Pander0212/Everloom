@@ -12,7 +12,7 @@
 // also ends itself (idle or time limit). Every session goes in docs/art/GPU_LEDGER.md.
 // The key comes from the environment and is never printed or stored.
 import { randomBytes } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, readdirSync, renameSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parseArgs } from 'node:util';
@@ -145,6 +145,22 @@ async function run(images) {
     const base = `https://${pod.id}-8000.proxy.runpod.net`;
     const api = async (p, init = {}) => fetch(base + p, { ...init, headers: { 'x-token': token, ...(init.headers ?? {}) }, signal: AbortSignal.timeout(90_000) });
     const deadline = t0 + limitMinutes * 60_000;
+    // Each finished picture is saved as soon as it's done (a restart then loses only the one in
+    // progress): <out>/parts/<name>.zip.
+    mkdirSync(path.join(a.out, 'parts'), { recursive: true });
+    const saved = new Set();
+    const saveFinished = async (names) => {
+      for (const n of names) {
+        if (saved.has(n) || existsSync(path.join(a.out, 'parts', `${n}.zip`))) { saved.add(n); continue; }
+        try {
+          const r = await fetch(`${base}/result/${n}.zip`, { headers: { 'x-token': token }, signal: AbortSignal.timeout(300_000) });
+          if (!r.ok) continue;
+          writeFileSync(path.join(a.out, 'parts', `${n}.zip.part`), Buffer.from(await r.arrayBuffer()));
+          renameSync(path.join(a.out, 'parts', `${n}.zip.part`), path.join(a.out, 'parts', `${n}.zip`));
+          saved.add(n);
+        } catch { /* next round */ }
+      }
+    };
     let health = null, lastStage = '';
     // A host that isn't ready in this long is stuck (a slow mirror, a broken image): give it back.
     const setupDeadline = Math.min(deadline, Date.now() + 35 * 60_000);
@@ -163,6 +179,11 @@ async function run(images) {
       const got = list();
       console.log(`[${Math.round((Date.now() - t0) / 1000)} s] ${got.length} of ${want} inputs ready`);
       for (const f of got) if (!images.includes(f)) images.push(f);
+      // Pictures saved by an earlier session (a restart, a time limit) aren't layered again.
+      const before = images.length;
+      for (let i = images.length - 1; i >= 0; i--) if (existsSync(path.join(a.out, 'parts', `${path.basename(images[i]).replace(/\.png$/, '')}.zip`))) images.splice(i, 1);
+      if (images.length < before) console.log(`${before - images.length} already layered earlier; ${images.length} to go`);
+      if (!images.length) throw new Error('nothing left to layer');
       entry.images = images.map((f) => path.basename(f));
     }
     for (const f of images) {
@@ -180,18 +201,24 @@ async function run(images) {
       if (!r?.ok) continue;
       health = await r.json();
       if (health.done.length !== done) { done = health.done.length; console.log(`[${Math.round((Date.now() - t0) / 1000)} s] ${done} of ${images.length} layered`); }
+      await saveFinished(health.done);
       if (!health.busy) break;
     }
+    await saveFinished(health.done ?? []);
     const log = await (await api('/log')).text();
     mkdirSync(a.out, { recursive: true });
     writeFileSync(path.join(a.out, 'worker.log'), log);
     if (health.busy) console.log('time is nearly up: downloading what is finished');
     if (health.error) console.log(`worker error: ${health.error}`);
-    const zip = await api('/result.zip');
-    if (!zip.ok) throw new Error(`download: ${zip.status}`);
-    const buf = Buffer.from(await zip.arrayBuffer());
-    writeFileSync(path.join(a.out, 'result.zip'), buf);
-    entry.result = `${health.done.length}/${images.length} layered${health.error ? ` (${health.error})` : ''}; ${Math.round(buf.length / 1e6)} MB`;
+    let mb = 0;
+    if (health.done.some((n) => !saved.has(n))) {
+      const zip = await api('/result.zip');
+      if (!zip.ok) throw new Error(`download: ${zip.status}`);
+      const buf = Buffer.from(await zip.arrayBuffer());
+      writeFileSync(path.join(a.out, 'result.zip'), buf);
+      mb = buf.length / 1e6;
+    } else for (const n of saved) mb += readFileSync(path.join(a.out, 'parts', `${n}.zip`)).length / 1e6;
+    entry.result = `${health.done.length}/${images.length} layered${health.error ? ` (${health.error})` : ''}; ${Math.round(mb)} MB`;
     console.log(entry.result);
   } catch (e) {
     entry.result = `failed: ${String(e.message).slice(0, 160)}`;
