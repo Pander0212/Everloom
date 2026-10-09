@@ -46,6 +46,7 @@ export * from './game/progress.js';
 export * from './game/comms.js';
 export * from './features.js';
 export * from './questions.js';
+export * from './inputModes.js';
 export * from './privacy/shield.js';
 export * from './scripting/types.js';
 export * from './scripting/regex.js';

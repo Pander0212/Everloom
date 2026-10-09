@@ -4,7 +4,7 @@ import {
   type PersonMemoryView, type SceneBlock,
   stripInlineTags, type AssembledPrompt, type CampaignState, type ChatDTO, type CharacterDTO, type HistoryMessage, type MacroContext,
   type MessageDTO, type PersonaDTO, type ScanEntry, type Settings, type FeatureSet,
-  applyRegexScripts, expandMacros, messageVarsAt, RegexPlacement, type VarMap,
+  applyRegexScripts, expandMacros, fillCard, frameInput, isInputMode, messageVarsAt, RegexPlacement, type VarMap,
 } from '@everloom/engine';
 import { settingsFor } from './features.js';
 import type { AppContext } from '../context.js';
@@ -58,7 +58,9 @@ export function macroGame(state: CampaignState | null): MacroContext['game'] {
 export function loadPromptContext(ctx: AppContext, owner: string, chatId: string, speakerId?: string | null): PromptContext {
   const chat = getChat(ctx, owner, chatId);
   const { settings, features } = settingsFor(ctx, owner, chat);
-  const members = chat.groupId ? getGroup(ctx, owner, chat.groupId).members.map((m) => getCharacter(ctx, owner, m.characterId)) : [getCharacter(ctx, owner, chat.characterId!)];
+  // Scenario questions answered when the chat began fill this chat's copy of each card.
+  const answers = (chat.metadata.answers as Record<string, string> | undefined) ?? null;
+  const members = (chat.groupId ? getGroup(ctx, owner, chat.groupId).members.map((m) => getCharacter(ctx, owner, m.characterId)) : [getCharacter(ctx, owner, chat.characterId!)]).map((c) => (answers ? { ...c, card: fillCard(c.card, answers) } : c));
   const character = (speakerId && members.find((m) => m.id === speakerId)) || members[0];
   const persona = chat.personaId ? safePersona(ctx, owner, chat.personaId) : defaultPersona(ctx, owner);
   // Game layer off: the game's data stays, but nothing of it reaches the prompt.
@@ -264,7 +266,7 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     id: m.id,
     role: m.role === 'user' ? 'user' : m.role === 'system' ? 'system' : 'assistant',
     name: m.name,
-    content: rx(stripInlineTags(textOf(m)), m.role === 'user' ? RegexPlacement.userInput : RegexPlacement.aiOutput, visible.length - 1 - i),
+    content: rx(stripInlineTags(m.role === 'user' && isInputMode(m.extra?.inputMode) ? frameInput(m.extra.inputMode, textOf(m)) : textOf(m)), m.role === 'user' ? RegexPlacement.userInput : RegexPlacement.aiOutput, visible.length - 1 - i),
   }));
   if (rules.length) {
     const wiRx = (t: string) => rx(t, RegexPlacement.worldInfo, undefined, true);

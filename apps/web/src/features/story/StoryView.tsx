@@ -1,4 +1,4 @@
-import type { MessageDTO } from '@everloom/engine';
+import { isInputMode, type InputMode, type MessageDTO } from '@everloom/engine';
 import { useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ArrowLeft, BookText, Minimize2, PanelRight, ShieldQuestion, Sparkles, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
@@ -95,6 +95,24 @@ export default function StoryView() {
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
   const [target, setTarget] = useState<string | null>(null);
+  // The input mode, remembered on this device (plain chat until the player picks one).
+  const [inputMode, setInputModeState] = useState<InputMode | null>(() => {
+    try {
+      const v = localStorage.getItem('everloom.inputMode');
+      return isInputMode(v) ? v : null;
+    } catch {
+      return null;
+    }
+  });
+  const setInputMode = (m: InputMode | null) => {
+    setInputModeState(m);
+    try {
+      if (m) localStorage.setItem('everloom.inputMode', m);
+      else localStorage.removeItem('everloom.inputMode');
+    } catch {
+      /* private mode */
+    }
+  };
   const scroller = useRef<HTMLDivElement>(null);
   const column = useRef<HTMLDivElement>(null);
   const lookId = useLookId();
@@ -165,7 +183,7 @@ export default function StoryView() {
     }, 60);
   };
 
-  const run = async (type: Parameters<typeof generate>[1], text?: string) => {
+  const run = async (type: Parameters<typeof generate>[1], text?: string, mode?: InputMode | null) => {
     setStuck(true);
     const scripts = scriptsRef.current;
     // Scripts see the turn: a hook before it (they may set variables), then what happened.
@@ -173,7 +191,7 @@ export default function StoryView() {
       if (type !== 'impersonate') await scriptBus.beforeGeneration({ chatId: id, type });
       scriptBus.emit('generationStart', { chatId: id, type });
     }
-    const r = await generate(id, type, { text, characterId: speaker, target: type === 'normal' && text ? target : null });
+    const r = await generate(id, type, { text, characterId: speaker, target: type === 'normal' && text ? target : null, mode: type === 'normal' && text ? (mode ?? null) : null });
     if (scripts.runnable.length || scripts.extensions.length) {
       const after = qc.getQueryData<MessageDTO[]>(qk.messages(id)) ?? [];
       const lastA = [...after].reverse().find((x) => x.role === 'assistant');
@@ -326,10 +344,12 @@ export default function StoryView() {
         if (isCommand(text)) return void runSlashLine(text.trim(), { perms: 'owner', chatId: id, from: 'You' });
         const t = text.trim().startsWith('//') ? text.trim().slice(1) : text.trim();
         // Scripts that are still starting (the chat just opened) get to hear this message's events.
-        void whenStarted(3000).then(() => run('normal', t || undefined));
+        void whenStarted(3000).then(() => run('normal', t || undefined, inputMode));
       }}
       onStop={() => void stop(id)}
       onMenu={() => setMenuOpen(true)}
+      mode={inputMode}
+      onMode={setInputMode}
       onSwipeKey={(dir) => {
         const last = list[list.length - 1];
         if (last && last.role === 'assistant' && !busy) void actions.onSwipe(last, dir);

@@ -1,5 +1,5 @@
-import { applyRegexScripts, RegexPlacement, type MessageDTO } from '@everloom/engine';
-import { Bookmark, BookmarkCheck, Brain, ChevronDown, ChevronLeft, ChevronRight, Copy, EyeOff, GitBranch, MoreHorizontal, Pencil, RefreshCw, ScanSearch, Trash2, Volume2 } from 'lucide-react';
+import { applyRegexScripts, frameInput, isInputMode, RegexPlacement, type MessageDTO } from '@everloom/engine';
+import { Compass, PenLine, Bookmark, BookmarkCheck, Brain, ChevronDown, ChevronLeft, ChevronRight, Copy, EyeOff, GitBranch, MoreHorizontal, Pencil, RefreshCw, ScanSearch, Trash2, Volume2 } from 'lucide-react';
 import { animate, motion, useMotionValue } from 'motion/react';
 import { lazy, memo, Suspense, useEffect, useMemo, useState } from 'react';
 import { cx } from '@/lib/format';
@@ -76,7 +76,10 @@ export const Message = memo(function Message({ m, index = 0, depth, avatar, isLa
     [text, rules, streaming, m.role, depth],
   );
   const interactive = !!view?.settings?.renderHtml && !view.safe && !streaming && splitInteractive(shown, view.settings.htmlTag, scriptsOn ? view.renderers.map((r) => r.tag) : []).some((p) => p.type !== 'text');
-  const html = useMemo(() => (interactive ? '' : renderStory(shown)), [shown, interactive]);
+  // Input modes show as what they are: an action in italics, speech in quotes.
+  const inputMode = m.role === 'user' && isInputMode(m.extra?.inputMode) ? m.extra.inputMode : null;
+  const display = inputMode === 'act' || inputMode === 'say' ? frameInput(inputMode, shown) : shown;
+  const html = useMemo(() => (interactive ? '' : renderStory(display)), [display, interactive]);
   const isUser = m.role === 'user';
   const isNarrator = m.role === 'system';
   const canSwipe = m.role === 'assistant' && (isLast || m.swipes.length > 1);
@@ -136,6 +139,31 @@ export const Message = memo(function Message({ m, index = 0, depth, avatar, isLa
   ) : (
     <div className={cx('ev-message-text story', streaming && 'is-streaming')} dangerouslySetInnerHTML={{ __html: html }} />
   );
+
+  if (isUser && (inputMode === 'story' || inputMode === 'direct')) {
+    // The player's own narration reads like the story; a direction is a quiet note outside it.
+    return (
+      <div id={`msg-${m.id}`} data-mode={inputMode} className={cx('ev-message ev-message-user group py-2', arrived && 'ev-arrive', m.hidden && 'opacity-50', highlight && 'rounded-md bg-accent-soft')} onClick={editing ? undefined : reveal}>
+        {inputMode === 'story' ? (
+          <div className="border-l-2 border-accent pl-3">
+            <span className="mb-1 flex items-center gap-1.5 text-xs font-medium text-fg-3">
+              <Icon icon={PenLine} size={13} /> Your narration
+            </span>
+            {body}
+          </div>
+        ) : (
+          <div className="flex items-start gap-2 rounded-md bg-surface-2 px-3 py-2 text-sm text-fg-2 [&_.story]:text-sm [&_.story]:font-sans">
+            <Icon icon={Compass} size={15} className="mt-0.5 flex-none text-fg-3" />
+            <span className="min-w-0 flex-1">
+              <span className="font-medium text-fg">Direction: </span>
+              {body}
+            </span>
+          </div>
+        )}
+        {!editing ? <div className="mt-0.5">{actionRow}</div> : null}
+      </div>
+    );
+  }
 
   if (isUser) {
     return (

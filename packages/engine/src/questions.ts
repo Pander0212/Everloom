@@ -73,3 +73,21 @@ export function fillQuestions(text: string, answers: Record<string, string>): st
     return a !== undefined && a.trim() ? a.trim() : all;
   });
 }
+
+const CARD_TEXT = ['description', 'personality', 'scenario', 'first_mes', 'mes_example', 'system_prompt', 'post_history_instructions'] as const;
+const CARD_LISTS = ['alternate_greetings', 'group_only_greetings'] as const;
+type CardLike = Partial<Record<(typeof CARD_TEXT)[number], string>> & Partial<Record<(typeof CARD_LISTS)[number], string[]>>;
+
+/** The questions a character card asks (its story fields and greetings). */
+export function cardQuestions(card: CardLike): Question[] {
+  return findQuestions([...CARD_TEXT.map((k) => card[k]), ...CARD_LISTS.flatMap((k) => card[k] ?? [])]);
+}
+
+/** A copy of the card with the answers filled in (the card itself is not changed). */
+export function fillCard<T extends CardLike>(card: T, answers: Record<string, string> | null | undefined): T {
+  if (!answers || !Object.keys(answers).length) return card;
+  const out: T = { ...card };
+  for (const k of CARD_TEXT) if (typeof card[k] === 'string') (out as CardLike)[k] = fillQuestions(card[k]!, answers);
+  for (const k of CARD_LISTS) if (Array.isArray(card[k])) (out as CardLike)[k] = card[k]!.map((g) => fillQuestions(g, answers));
+  return out;
+}

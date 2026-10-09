@@ -36,7 +36,7 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
   app.get('/api/chats', async (req) => chats.listChats(ctx, owner(req), req.query as any));
   app.post('/api/chats', async (req) => {
     const b = parse(
-      z.object({ characterId: z.string().nullable().optional(), groupId: z.string().nullable().optional(), personaId: z.string().nullable().optional(), title: z.string().max(200).optional(), campaign: z.string().max(80).optional(), greeting: z.boolean().optional(), features: z.enum(['classic', 'story', 'full']).nullable().optional() }),
+      z.object({ characterId: z.string().nullable().optional(), groupId: z.string().nullable().optional(), personaId: z.string().nullable().optional(), title: z.string().max(200).optional(), campaign: z.string().max(80).optional(), greeting: z.boolean().optional(), features: z.enum(['classic', 'story', 'full']).nullable().optional(), answers: z.record(z.string().max(300), z.string().max(2000)).optional() }),
       req.body,
     );
     const chat = chats.createChat(ctx, owner(req), b);
@@ -89,7 +89,7 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
   });
   app.post('/api/chats/:id/generate', async (req, reply) => {
     const b = parse(
-      z.object({ type: z.enum(['normal', 'swipe', 'regenerate', 'continue', 'impersonate']).default('normal'), text: z.string().max(100_000).optional(), characterId: z.string().nullable().optional(), target: z.string().max(120).nullable().optional() }),
+      z.object({ type: z.enum(['normal', 'swipe', 'regenerate', 'continue', 'impersonate']).default('normal'), text: z.string().max(100_000).optional(), characterId: z.string().nullable().optional(), target: z.string().max(120).nullable().optional(), mode: z.enum(['act', 'say', 'story', 'direct']).nullable().optional() }),
       req.body,
     );
     const chatId = (req.params as any).id;

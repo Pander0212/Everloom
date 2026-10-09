@@ -2,7 +2,7 @@
  * Chat generation: builds the prompt, streams tokens to the caller and to other devices,
  * saves the result as a message/swipe, then runs the tracker pass and memory upkeep.
  */
-import { AI_OP_TYPES, allowedOpTypes, applyRegexScripts, detectEmotion, extractInlineOps, RegexPlacement, stripInlineTags, turnTick, type GenerateEvent, type MacroContext, type MessageDTO, type SwipeDTO, type TickResult } from '@everloom/engine';
+import { AI_OP_TYPES, allowedOpTypes, applyRegexScripts, detectEmotion, extractInlineOps, RegexPlacement, stripInlineTags, turnTick, type GenerateEvent, type InputMode, type MacroContext, type MessageDTO, type SwipeDTO, type TickResult } from '@everloom/engine';
 import { HttpError, type AppContext } from '../context.js';
 import { streamChat, type ResolvedConnection } from '../llm/providers.js';
 import { appendOps, deleteEntriesFor, getState, rebuildCampaign, realtimeTick } from './campaigns.js';
@@ -52,6 +52,8 @@ export interface GenerateInput {
   target?: string | null;
   /** Extra one-off instruction for this reply (e.g. write the opening scene). */
   instruction?: string | null;
+  /** What the player's text is (Act, Say, Story, Direct); stored on the message, framed in the prompt. */
+  mode?: InputMode | null;
   origin?: string;
 }
 
@@ -110,7 +112,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       const pcTmp = loadPromptContext(ctx, owner, chatId);
       const rules = regexForChat(ctx, owner, chatId);
       const userText = rules.length ? applyRegexScripts(input.text.trim(), rules, { placement: RegexPlacement.userInput, target: 'stored', macros: { user: pcTmp.userName, char: pcTmp.character.name } }) : input.text.trim();
-      const userMsg = insertMessage(ctx, owner, chatId, { role: 'user', name: pcTmp.userName, swipes: [{ text: userText, createdAt: Date.now() }] });
+      const userMsg = insertMessage(ctx, owner, chatId, { role: 'user', name: pcTmp.userName, swipes: [{ text: userText, createdAt: Date.now() }], ...(input.mode ? { extra: { inputMode: input.mode } } : {}) });
       emit({ type: 'user', message: userMsg });
       pub('message.created', { chatId, message: userMsg });
     }
