@@ -71,6 +71,18 @@ test.describe('Unity packages', () => {
     const after = await api(page, 'GET', `/api/avatars/${id}`);
     expect(after.config.garments.map((g: { name: string; items: string[] }) => [g.name, g.items])).toEqual([['Shirt', ['Shirt']]]);
     expect(after.config.outfits.map((o: { name: string }) => o.name)).toEqual(['Shirt']);
+
+    // From the avatar's own wardrobe: the outfit goes into the editor's draft and is saved with it.
+    await page.goto(`/characters/avatars/${id}`);
+    await page.getByRole('tab', { name: 'Wardrobe' }).click();
+    chooser = page.waitForEvent('filechooser');
+    await page.getByTestId('unity-outfit-drop').getByRole('button', { name: 'Choose files' }).click();
+    await (await chooser).setFiles(path.join(DIR, 'AvaShirt.unitypackage'));
+    await expect(sheet.getByRole('radio', { name: /Shirt/ })).toHaveAttribute('aria-checked', 'true', { timeout: 30_000 });
+    await sheet.getByRole('button', { name: 'Import the outfit' }).click();
+    await sheet.getByRole('button', { name: 'Done' }).click({ timeout: 90_000 });
+    await page.getByTestId('avatar-save').click();
+    await expect.poll(async () => (await api(page, 'GET', `/api/avatars/${id}`)).config.garments.length).toBe(2);
     if (process.env.EVIDENCE_3D) {
       await saveOutfitShot(page, id);
     }

@@ -27,13 +27,20 @@ async function waitReady(id: string): Promise<AvatarDetail> {
   throw new Error('The server is still preparing the model. Open it from the list in a moment.');
 }
 
-export function UnityImport({ files, onClose }: { files: File[] | null; onClose: () => void }) {
+type NewGarment = AvatarConfig['garments'][number];
+type NewOutfit = AvatarConfig['outfits'][number];
+
+/**
+ * `target` + `onOutfit`: opened from an avatar's wardrobe; the outfit is added to the editor's draft
+ * (saved with the avatar's other changes) instead of being saved here.
+ */
+export function UnityImport({ files, onClose, target: fixed, onOutfit }: { files: File[] | null; onClose: () => void; target?: string; onOutfit?: (g: NewGarment, o: NewOutfit) => void }) {
   const navigate = useNavigate();
   const avatars = useAvatars();
   const [project, setProject] = useState<UnityProject | null>(null);
   const [summary, setSummary] = useState<PackageSummary | null>(null);
   const [pick, setPick] = useState<Pick | null>(null);
-  const [target, setTarget] = useState('');
+  const [target, setTarget] = useState(fixed ?? '');
   const [step, setStep] = useState('');
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -56,7 +63,9 @@ export function UnityImport({ files, onClose }: { files: File[] | null; onClose:
         const s = summarize(p);
         setProject(p);
         setSummary(s);
-        const first = s.avatars[0] ? { guid: s.avatars[0].guid, as: 'avatar' as const } : s.outfits[0] ? { guid: s.outfits[0].guid, as: 'outfit' as const } : null;
+        // From a wardrobe: an outfit first (a bare FBX or prefab without a descriptor counts as one).
+        const outfitFirst = fixed ? (s.outfits[0] ?? s.avatars[0]) : null;
+        const first = outfitFirst ? { guid: outfitFirst.guid, as: 'outfit' as const } : s.avatars[0] ? { guid: s.avatars[0].guid, as: 'avatar' as const } : s.outfits[0] ? { guid: s.outfits[0].guid, as: 'outfit' as const } : null;
         setPick(first);
         if (!first) setError('Nothing to import was found: no prefab with a model, and no FBX.');
       } catch (e) {
@@ -132,12 +141,19 @@ export function UnityImport({ files, onClose }: { files: File[] | null; onClose:
         const id = `g_${Date.now().toString(36)}`.slice(0, 40);
         const name = build.plan.name.slice(0, 60);
         const cfg = fresh.config;
+        const garment: NewGarment = { id, name, model: saved.model, modelLow: saved.modelLow ?? null, slot: 'full', layer: 2, hides: [], hidesSlots: [], variants: [], variant: null, springs: true, family: cfg.family, on: true, items: [name] };
+        const outfit: NewOutfit = { id: `o_${id}`.slice(0, 40), name, model: null, modelLow: null, parts: [], garments: [{ id, variant: null }], items: [name] };
+        if (onOutfit) {
+          onOutfit(garment, outfit);
+          setDone({ build, id: target });
+          return;
+        }
         await saveAvatar(target, {
           config: {
             ...cfg,
-            garments: [...cfg.garments, { id, name, model: saved.model, modelLow: saved.modelLow ?? null, slot: 'full', layer: 2, hides: [], hidesSlots: [], variants: [], variant: null, springs: true, family: cfg.family, on: true, items: [name] }],
+            garments: [...cfg.garments, garment],
             // An outfit is also an outfit preset, so the story and the inventory can put it on.
-            outfits: [...cfg.outfits, { id: `o_${id}`.slice(0, 40), name, model: null, modelLow: null, parts: [], garments: [{ id, variant: null }], items: [name] }].slice(0, 32),
+            outfits: [...cfg.outfits, outfit].slice(0, 32),
             importReport: cfg.importReport ? { ...cfg.importReport, imported: [...cfg.importReport.imported, { what: 'Outfit', detail: `${name} (${build.report.source})` }].slice(0, 60) } : { ...build.report, at: stamp },
           } as AvatarConfig,
         });
@@ -179,8 +195,8 @@ export function UnityImport({ files, onClose }: { files: File[] | null; onClose:
       help="Unity packages (.unitypackage) from BOOTH or Gumroad, a zip of an extracted folder, or the files themselves. Everloom reads them without Unity: models, materials, textures, blendshape presets, PhysBones, visemes and outfits. Scripts and shaders can't run outside Unity; the report lists them."
       footer={
         done ? (
-          <Button variant="primary" onClick={() => navigate(`/characters/avatars/${done.id}`)}>
-            Open the avatar
+          <Button variant="primary" onClick={() => (onOutfit ? onClose() : navigate(`/characters/avatars/${done.id}`))}>
+            {onOutfit ? 'Done' : 'Open the avatar'}
           </Button>
         ) : (
           <Button variant="primary" loading={busy} disabled={!pick || busy || (pick.as === 'outfit' && !target)} onClick={() => void run()}>
@@ -220,7 +236,7 @@ export function UnityImport({ files, onClose }: { files: File[] | null; onClose:
                 <ul role="radiogroup" aria-label="Outfits" className="flex flex-col gap-2">{summary.outfits.map((c) => option(c, 'outfit'))}</ul>
               </section>
             ) : null}
-            {pick?.as === 'outfit' ? (
+            {pick?.as === 'outfit' && !fixed ? (
               <Field label="For which avatar" htmlFor="unity-target" hint="Its bones are matched to the avatar's by name (Modular Avatar's Merge Armature, or the same names).">
                 <Select id="unity-target" value={target} onChange={(e) => setTarget(e.target.value)}>
                   {own.length ? own.map((a) => <option key={a.id} value={a.id}>{a.name}</option>) : <option value="">Import the avatar first</option>}

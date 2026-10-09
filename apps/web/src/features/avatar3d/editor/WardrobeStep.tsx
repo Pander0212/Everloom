@@ -3,6 +3,7 @@
  * regions they cover and the items that put them on), named outfits (a set of parts, or a whole
  * other model with the same skeleton), and accessories attached to bones. Tap an outfit to try it on.
  */
+import { UnityImport } from '@/features/avatars/UnityImport';
 import { BODY_REGIONS, GARMENT_SLOTS, HUMANOID_BONES, type AvatarAccessory, type AvatarConfig, type AvatarOutfit, type AvatarPart, type Garment, type GarmentSlot } from '@everloom/engine';
 import { useQuery } from '@tanstack/react-query';
 import { get } from '@/lib/api';
@@ -64,10 +65,16 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn, handle }: {
     }
   };
 
+  const [unity, setUnity] = useState<File[] | null>(null);
   return (
     <div className="flex flex-col gap-2" data-testid="wardrobe">
       <GarmentFitter avatar={avatar} config={config} set={set} handle={handle ?? null} />
       <DonorParts avatar={avatar} config={config} set={set} handle={handle ?? null} />
+      <div className="rounded-md border border-dashed border-line p-3 text-sm text-fg-2" data-testid="unity-outfit-drop" onDragOver={(e) => e.preventDefault()} onDrop={(e) => { e.preventDefault(); setUnity(Array.from(e.dataTransfer.files)); }}>
+        Drop a Unity outfit here: a .unitypackage, or the outfit’s .prefab with its FBX, materials and textures.{' '}
+        <FileButton size="sm" variant="ghost" multiple onFiles={setUnity}>Choose files</FileButton>
+      </div>
+      <UnityImport files={unity} onClose={() => setUnity(null)} target={avatar.id} onOutfit={(g, o) => set({ garments: [...config.garments, g], outfits: [...config.outfits, o].slice(0, 32) })} />
       <SectionTitle>Outfits</SectionTitle>
       <p className="text-sm text-fg-2">Tap one to try it on. The story can change outfits (it rolls back with swipes), and equipped items can pick one.</p>
       {config.makehuman ? <Button variant="secondary" onClick={() => { const id = newId('outfit', config.outfits.map(outfit => outfit.id)); set({ outfits: [...config.outfits, { id, name: 'MakeHuman outfit', model: null, modelLow: null, parts: [], garments: [], items: [], makehumanProxies: [...config.makehuman!.proxies] }] }); setOpen(id); }}>Save native clothes as an outfit</Button> : null}
