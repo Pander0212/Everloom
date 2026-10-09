@@ -27,3 +27,4 @@ docs/3d-base-evidence/private/
 # Puppets built locally for the lab (/lab/puppets?puppet=/puppets/local/<id>/puppet.json)
 apps/web/public/puppets/local/
 docs/art/.ledger.lock/
+tests/ux/.artifacts/
