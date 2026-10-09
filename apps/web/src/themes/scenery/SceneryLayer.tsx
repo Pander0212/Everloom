@@ -46,6 +46,8 @@ export function SceneryLayer({ lookId, column, band, hour, still, fpsCap, minMar
       if (disposed || !make) return;
       const scene = make();
       if (fpsCap) scene.fps = Math.min(scene.fps, fpsCap);
+      // The phone's band is small and slow-moving: ten frames a second is plenty.
+      if (band) scene.fps = Math.min(scene.fps, 10);
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const areas = (): Rect[] => {
         const box = cv.getBoundingClientRect();

@@ -77,7 +77,8 @@ export function run(canvas: HTMLCanvasElement, scene: Scene, env0: Env): Runner 
     if (!w || !h) return;
     const t0 = performance.now();
     ctx.setTransform(env.dpr, 0, 0, env.dpr, 0, 0);
-    ctx.clearRect(0, 0, w, h);
+    // Only the margins are ever drawn in, so only they are cleared.
+    for (const a of env.areas) ctx.clearRect(a.x, a.y, a.w, a.h);
     ctx.save();
     ctx.beginPath();
     for (const a of env.areas) ctx.rect(a.x, a.y, a.w, a.h);

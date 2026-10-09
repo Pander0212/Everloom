@@ -1,5 +1,6 @@
 import { FEATURE_PRESETS, PRESET_INFO } from '@everloom/engine';
 import { entry } from '@/lib/registry';
+import { LOOKS } from '@/themes/looks';
 import type { ChatDTO, MessageDTO } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { BookmarkCheck, ChevronDown, Copy, Download, GitBranch, Pin, RefreshCw, Search, Trash2, Upload } from 'lucide-react';
@@ -267,6 +268,16 @@ export function ChatInfoSheet({ chat, open, onOpenChange }: { chat: ChatDTO; ope
             {FEATURE_PRESETS.map((p) => (
               <option key={p} value={p}>
                 {PRESET_INFO[p].label}
+              </option>
+            ))}
+          </Select>
+        </Field>
+        <Field label="Theme for this world" htmlFor="clook" hint="This chat always wears this theme, on every device that allows world themes (Settings › Appearance & themes).">
+          <Select id="clook" value={(chat.metadata.look as string | null | undefined) ?? ''} onChange={(e) => update({ metadata: { look: e.target.value || null } })}>
+            <option value="">My theme</option>
+            {LOOKS.map((l) => (
+              <option key={l.id} value={l.id}>
+                {l.name}
               </option>
             ))}
           </Select>

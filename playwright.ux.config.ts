@@ -36,7 +36,7 @@ export default defineConfig({
     { name: 'setup', testMatch: /setup\.ts/ },
     { name: 'phone', testMatch: /\.spec\.ts/, dependencies: ['setup'], use: { ...devices['Desktop Chrome'], ...phone, colorScheme: 'dark', storageState: AUTH } },
     { name: 'phone-light', testMatch: /screens\.spec\.ts/, dependencies: ['setup'], use: { ...devices['Desktop Chrome'], ...phone, colorScheme: 'light', storageState: AUTH } },
-    { name: 'desktop', testMatch: /screens\.spec\.ts/, dependencies: ['setup'], use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 }, colorScheme: 'dark', storageState: AUTH } },
+    { name: 'desktop', testMatch: /(screens|themes|scenery)\.spec\.ts/, dependencies: ['setup'], use: { ...devices['Desktop Chrome'], viewport: { width: 1280, height: 800 }, colorScheme: 'dark', storageState: AUTH } },
   ],
   webServer: [
     { command: `npx tsx tests/mock-llm/server.ts ${MOCK}`, port: MOCK, reuseExistingServer: false },

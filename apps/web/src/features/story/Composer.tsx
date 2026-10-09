@@ -29,8 +29,16 @@ export function Composer({ busy, enterToSend, onSwipeKey, stt, placeholder, onSe
   useEffect(() => {
     const el = ref.current;
     if (!el) return;
-    el.style.height = 'auto';
-    el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+    const fit = () => {
+      // Empty: one line (measuring a placeholder before layout settles can give two).
+      if (!el.value) return void (el.style.height = '');
+      el.style.height = 'auto';
+      el.style.height = `${Math.min(el.scrollHeight, 180)}px`;
+    };
+    fit();
+    const ro = new ResizeObserver(() => el.value && fit());
+    ro.observe(el);
+    return () => ro.disconnect();
   }, [value]);
   const submit = () => {
     if (busy) return;

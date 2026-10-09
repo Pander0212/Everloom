@@ -1205,3 +1205,28 @@ The owner: the tools and actions were "way too overfilled". Audit, maps and numb
   `metadata.connectionId`; there was no control for it.
 - **Measured** on a phone with Playwright (`playwright.ux.config.ts`): nine tasks went from 32
   taps and 2 scrolls to 25 taps and none; the play screen from 20 visible controls to 15.
+
+## Design and UX: themes with scenery (October 2026)
+
+Details in [docs/ux/themes.md](ux/themes.md).
+
+- **Themes are data** (`apps/web/src/themes/looks.ts`), turned into one scoped stylesheet at
+  start-up. Scoping by `[data-look]` and `[data-theme]` attributes (not only `:root`) is what lets
+  the gallery show real, live previews side by side; the same change made `app.css`'s light and
+  dark tokens apply to any element with `data-theme`. Fonts, radii and motion became variables
+  (`--font-ui/story/heading`, `--r-*`, `--ui-dur/ease`, `--press`) so a theme changes them all.
+- **Eleven themes**: Everloom (unchanged default, the accent palettes and genre tint stay with it)
+  and the owner's ten examples, all Everloom's own designs. Hakawati (GPL-3.0) was read for the idea
+  only. A test holds every theme/scheme to WCAG AA.
+- **Which theme**: a world's own (This chat › Theme for this world) > this device's override > the
+  account's. A device can turn world themes off. The last theme is cached for the first paint.
+- **Scenery** is canvas 2D in the margins (clipped away from the text) or a 40 px band on phones,
+  capped at 15 fps (10 on phones), paused when hidden, off screen or typing on a phone, still under
+  reduced motion; per device animated/still/off. Not WebGL: the scenes are small and canvas 2D keeps
+  them cheap and simple. Measured: 0.5–1% of a 4×-slowed core for the scenes' script on the phone
+  profile, 3–6% for all main-thread work there including software compositing (no GPU here).
+- **Reading settings** (line spacing, column width, paragraph spacing, story and interface fonts,
+  a fourth text size) are page variables every theme follows.
+- **Micro-interactions** per theme (typing indicators, arrival, buttons, switches, a level-up
+  burst): transform and opacity, the theme's own 140–220 ms; the pushable button is adapted from
+  uiverse.io (Voxybuns, MIT, credited), the rest written for Everloom.

@@ -42,7 +42,7 @@ const lantern: SceneFactory = () => {
   let light: HTMLCanvasElement | null = null;
   const dot = glow(16, 'rgba(255,214,150,0.9)');
   return {
-    fps: 24,
+    fps: 15,
     resize(_w, _h, env) {
       motes = scatter(env.areas, env.band ? 14 : 46, 3);
       light = glow(256, 'rgba(255,196,110,0.32)');
@@ -73,7 +73,7 @@ const night: SceneFactory = () => {
   const starDot = glow(12, 'rgba(235,240,255,1)');
   const halo = glow(200, 'rgba(210,220,255,0.18)');
   return {
-    fps: 30,
+    fps: 15,
     resize(_w, _h, env) {
       stars = scatter(env.areas, env.band ? 30 : 140, 11);
       // The moon's face: a strip of craters twice as wide as the disc, scrolled to turn it.
@@ -156,7 +156,7 @@ const terminal: SceneFactory = () => {
     resize(_w, _h, env) {
       cols = [];
       for (const a of env.areas) {
-        const step = env.band ? 18 : 22;
+        const step = env.band ? 26 : 34;
         for (let x = a.x + 8; x < a.x + a.w - 8; x += step) cols.push({ x, a, speed: 6 + ((x * 7) % 9), seed: Math.floor(x) });
       }
     },
@@ -170,7 +170,7 @@ const terminal: SceneFactory = () => {
         for (let i = 0; i < rows; i++) {
           const n = Math.floor(t * col.speed / line) - i;
           const r = rng(col.seed * 977 + n)();
-          if (r > 0.42) continue;
+          if (r > 0.3) continue;
           c.fillStyle = `rgba(110,245,140,${0.06 + r * 0.22})`;
           c.fillText(glyphs[Math.floor(r * 1000) % glyphs.length]!, col.x, col.a.y + i * line + shift - line);
         }
@@ -195,6 +195,11 @@ function skyFor(hour: number) {
   while (i < stops.length - 2 && hour >= stops[i + 1]![0]) i++;
   return [stops[i]![1], stops[i]![2]] as const;
 }
+function mix(a: string, b: string, f: number) {
+  const pa = parseInt(a.slice(1), 16), pb = parseInt(b.slice(1), 16);
+  const ch = (sh: number) => Math.round(((pa >> sh) & 255) * (1 - f) + ((pb >> sh) & 255) * f);
+  return `rgb(${ch(16)},${ch(8)},${ch(0)})`;
+}
 const pixel: SceneFactory = () => {
   const P = 4; // one 8-bit pixel, in CSS pixels
   return {
@@ -204,14 +209,13 @@ const pixel: SceneFactory = () => {
       const [top, bottom] = skyFor(env.hour);
       const night = env.hour < 5.5 || env.hour > 20.5;
       for (const a of env.areas) {
-        const bands = 6;
+        // The sky in eight flat steps from top to bottom, like an 8-bit gradient.
+        const bands = 8;
+        const bh = Math.ceil(a.h / bands / P) * P;
         for (let i = 0; i < bands; i++) {
-          c.fillStyle = i < bands / 2 ? top : bottom;
-          c.globalAlpha = 0.55 + (i / bands) * 0.3;
-          const y = a.y + Math.floor(((a.h * i) / bands) / P) * P;
-          c.fillRect(a.x, y, a.w, Math.ceil(a.h / bands / P) * P + P);
+          c.fillStyle = mix(top, bottom, i / (bands - 1));
+          c.fillRect(a.x, a.y + i * bh, a.w, bh);
         }
-        c.globalAlpha = 1;
         // Sun or moon on an arc across the day.
         const d = ((env.hour - 6 + 24) % 24) / 12; // 0..2
         const up = d <= 1 ? d : d - 1;
@@ -258,7 +262,7 @@ const rain: SceneFactory = () => {
   let city: HTMLCanvasElement | null = null;
   let drops: Array<{ x: number; y: number; v: number; r: number; a: Rect; stick: number }> = [];
   return {
-    fps: 30,
+    fps: 15,
     resize(w, h, env) {
       // City lights: soft circles, drawn once.
       city = document.createElement('canvas');
@@ -282,8 +286,8 @@ const rain: SceneFactory = () => {
       drops = [];
       for (const a of env.areas) for (let i = 0; i < (env.band ? 10 : 30); i++) drops.push({ x: a.x + r2() * a.w, y: a.y + r2() * a.h, v: 8 + r2() * 40, r: 1.2 + r2() * 2.6, a, stick: r2() * 4 });
     },
-    draw(c, t, _w, _h) {
-      if (city) c.drawImage(city, 0, 0);
+    draw(c, t, _w, _h, _env) {
+      if (city) for (const a of _env.areas) c.drawImage(city, a.x, a.y, a.w, a.h, a.x, a.y, a.w, a.h);
       for (const d of drops) {
         // Stick, then slide: drops on glass move in jerks.
         const phase = (t + d.stick) % 4;
@@ -321,7 +325,7 @@ const DOODLES: Array<Array<[number, number]>> = [
   }),
 ];
 const sketch: SceneFactory = () => ({
-  fps: 30,
+  fps: 15,
   draw(c, t, _w, _h, env) {
     c.strokeStyle = 'rgba(40,36,30,0.55)';
     c.lineWidth = 1.6;
@@ -373,7 +377,7 @@ const sakura: SceneFactory = () => {
     c.fill();
   });
   return {
-    fps: 30,
+    fps: 15,
     resize(_w, _h, env) {
       petals = scatter(env.areas, env.band ? 9 : 28, 29).map((p) => ({ x: p.x, y: p.y, a: p.a, s: p.s, r: p.r }));
     },
@@ -398,7 +402,7 @@ const sakura: SceneFactory = () => {
 
 // ------------------------------------------------------------------ Neon City: tubes, a slow sweep of light, wet reflections
 const neon: SceneFactory = () => ({
-  fps: 24,
+  fps: 15,
   draw(c, t, _w, _h, env) {
     const tubes: Array<[string, number]> = [['255,90,168', 0], ['90,220,255', 0.5]];
     for (const a of env.areas) {
@@ -447,7 +451,7 @@ const neon: SceneFactory = () => ({
 const parchment: SceneFactory = () => {
   let map: HTMLCanvasElement | null = null;
   return {
-    fps: 20,
+    fps: 15,
     resize(w, h, env) {
       map = document.createElement('canvas');
       map.width = Math.max(1, Math.round(w));
@@ -492,7 +496,7 @@ const parchment: SceneFactory = () => {
       }
     },
     draw(c, t, _w, _h, env) {
-      if (map) c.drawImage(map, 0, 0);
+      if (map) for (const a of env.areas) c.drawImage(map, a.x, a.y, a.w, a.h, a.x, a.y, a.w, a.h);
       const a = biggest(env.areas);
       if (!a) return;
       const r = env.band ? a.h * 0.38 : Math.min(a.w * 0.3, 52);

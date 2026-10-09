@@ -2,6 +2,7 @@ import { useSyncExternalStore } from 'react';
 import type { Settings } from '@everloom/engine';
 import { FONTS, look, looksCss, schemeFor, tokensOf } from '@/themes/looks';
 import '@/themes/fonts';
+import '@/themes/interactions.css';
 
 /**
  * What the page looks like: light or dark, the theme ("look") and the reading settings. The look in

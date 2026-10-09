@@ -64,6 +64,8 @@ export const Message = memo(function Message({ m, index = 0, depth, avatar, isLa
   const text = streamText ?? swipe?.text ?? '';
   const reasoning = streamReasoning ?? swipe?.reasoning ?? '';
   const [editing, setEditing] = useState(false);
+  // A message that just arrived comes in with the theme's motion; older ones simply appear.
+  const [arrived] = useState(() => Date.now() - m.createdAt < 6000);
   const [draft, setDraft] = useState(text);
   // Display-only regex rules change what is shown (never what is stored); interactive blocks render in frames.
   const view = useScriptView();
@@ -137,7 +139,7 @@ export const Message = memo(function Message({ m, index = 0, depth, avatar, isLa
 
   if (isUser) {
     return (
-      <div id={`msg-${m.id}`} className={cx('ev-message ev-message-user group flex flex-col items-end py-2', m.hidden && 'opacity-50', highlight && 'rounded-md bg-accent-soft')} onClick={editing ? undefined : reveal}>
+      <div id={`msg-${m.id}`} className={cx('ev-message ev-message-user group', arrived && 'ev-arrive', ' flex flex-col items-end py-2', m.hidden && 'opacity-50', highlight && 'rounded-md bg-accent-soft')} onClick={editing ? undefined : reveal}>
         <div className="flex max-w-[88%] items-start gap-1 sm:max-w-[75%]">
           {m.hidden ? <Icon icon={EyeOff} size={14} className="mt-3 text-fg-3" aria-label="Hidden from the AI" /> : null}
           <div className="ev-bubble min-w-0 rounded-lg rounded-tr-sm bg-surface-2 px-4 py-2.5 [&_.story]:text-[16px]">{body}</div>
@@ -187,7 +189,7 @@ export const Message = memo(function Message({ m, index = 0, depth, avatar, isLa
   return (
     <motion.div
       id={`msg-${m.id}`}
-      className={cx('ev-message', isNarrator ? 'ev-message-system' : 'ev-message-assistant', 'group relative flex gap-3 py-3', m.hidden && 'opacity-50', highlight && '-mx-2 rounded-md bg-accent-soft px-2', isNarrator && 'pl-0')}
+      className={cx('ev-message', arrived && 'ev-arrive', isNarrator ? 'ev-message-system' : 'ev-message-assistant', 'group relative flex gap-3 py-3', m.hidden && 'opacity-50', highlight && '-mx-2 rounded-md bg-accent-soft px-2', isNarrator && 'pl-0')}
       style={canSwipe && !editing ? { x } : undefined}
       drag={canSwipe && !editing && !busy ? 'x' : false}
       dragDirectionLock

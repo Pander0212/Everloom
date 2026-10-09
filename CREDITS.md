@@ -24,11 +24,47 @@ Each of these was adapted — restyled to Everloom's tokens and limited to trans
 | Text field focus | [AtharvaMistry](https://uiverse.io/AtharvaMistry) | `kind-treefrog-34` |
 | Press state | [Custyyyy](https://uiverse.io/Custyyyy) and [ZiyadOuamna](https://uiverse.io/ZiyadOuamna) | `fuzzy-fireant-2`, `hungry-penguin-18` |
 | Toast slide-in | [guilhermeyohan](https://uiverse.io/guilhermeyohan) | `white-cat-52` |
+| Pushable button (Pixel Quest and Sketchbook primary buttons) | [Voxybuns](https://uiverse.io/Voxybuns) | `lucky-fireant-71` |
+
+The themes' other micro-interactions (per-theme typing indicators, message arrival, the success
+burst, scenery) are Everloom's own, written for the themes after looking through the
+[uiverse.io galaxy](https://github.com/uiverse-io/galaxy) for the kinds of interaction worth having.
+
+The uiverse.io galaxy is distributed under the MIT License:
+
+> Copyright (c) 2023 Uiverse.io
+>
+> Permission is hereby granted, free of charge, to any person obtaining a copy of this software and
+> associated documentation files (the "Software"), to deal in the Software without restriction,
+> including without limitation the rights to use, copy, modify, merge, publish, distribute,
+> sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is
+> furnished to do so, subject to the following conditions: The above copyright notice and this
+> permission notice shall be included in all copies or substantial portions of the Software.
+> THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT
+> NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND
+> NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+> DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT
+> OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+## Themes
+
+The theme system and its eleven themes (colors, scenery, typing indicators) are Everloom's own
+design. [Hakawati](https://github.com/rakanssh/hakawati) (GPL-3.0) showed the idea of complete
+themes with animated scenery chosen from a gallery of live previews; it was read for ideas only, and
+none of its code, CSS or art is in Everloom.
 
 ## Fonts and icons
 
 - [Inter](https://rsms.me/inter/) by Rasmus Andersson — SIL Open Font License 1.1
 - [Source Serif 4](https://github.com/adobe-fonts/source-serif) by Adobe — SIL Open Font License 1.1
+- Theme fonts, self-hosted through [Fontsource](https://fontsource.org) (checked October 2026):
+  [EB Garamond](https://github.com/octaviopardo/EBGaramond12) (Georg Duffner, Octavio Pardo),
+  [Cormorant Garamond](https://github.com/CatharsisFonts/Cormorant) (Christian Thalmann),
+  [IBM Plex Mono](https://github.com/IBM/plex) (IBM), [VT323](https://fonts.google.com/specimen/VT323) (Peter Hull),
+  [Pixelify Sans](https://github.com/eifetx/Pixelify-Sans) (Stefie Justprince),
+  [Caveat](https://github.com/googlefonts/caveat) (Impallari Type), [Cinzel](https://github.com/NDISCOVER/Cinzel) (Natanael Gama),
+  [IM Fell English](https://fonts.google.com/specimen/IM+Fell+English) (Igino Marini) — all SIL Open Font
+  License 1.1; [Special Elite](https://fonts.google.com/specimen/Special+Elite) (Astigmatic) — Apache License 2.0.
 - [Lucide](https://lucide.dev) icons — ISC License
 
 ## Libraries
