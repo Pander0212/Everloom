@@ -1,4 +1,4 @@
-import { api, expect, isPhone, mockControl, test, uid } from './fixtures';
+import { api, expect, mockControl, test, uid } from './fixtures';
 import type { Page } from '@playwright/test';
 
 /** Input modes, scenario questions, Quickstart, scenarios, story cards, undo/redo, scaling (docs/ux/hakawati.md). */
@@ -107,8 +107,10 @@ test.describe('features from Hakawati', () => {
     await page.getByRole('button', { name: 'Add 2 cards' }).click();
     await expect(page.getByRole('list', { name: 'Story cards' })).toContainText('The Lantern');
     await expect(page.getByRole('list', { name: 'Story cards' })).toContainText('Tobias');
-    if (await isPhone(page)) await page.getByRole('button', { name: 'Close', exact: true }).last().click();
-    else await page.getByRole('button', { name: 'Close the story panel' }).click();
+    // Beside the story on a wide screen, a sheet otherwise.
+    const side = page.getByRole('button', { name: 'Close the story panel' });
+    if (await side.isVisible()) await side.click();
+    else await page.getByRole('button', { name: 'Close', exact: true }).last().click();
     // Undo the turn, then redo it.
     await tool(page, 'Undo last turn');
     await expect(page.getByText('Something cold, please.')).toHaveCount(0);

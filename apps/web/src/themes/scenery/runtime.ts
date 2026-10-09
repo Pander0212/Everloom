@@ -74,7 +74,7 @@ export function run(canvas: HTMLCanvasElement, scene: Scene, env0: Env): Runner 
   const stats = (window.__scenery ??= { frames: 0, ms: 0, since: performance.now() });
 
   const frame = (t: number) => {
-    if (!w || !h) return;
+    if (!w || !h || !env.areas.length) return;
     const t0 = performance.now();
     ctx.setTransform(env.dpr, 0, 0, env.dpr, 0, 0);
     // Only the margins are ever drawn in, so only they are cleared.
@@ -83,8 +83,11 @@ export function run(canvas: HTMLCanvasElement, scene: Scene, env0: Env): Runner 
     ctx.beginPath();
     for (const a of env.areas) ctx.rect(a.x, a.y, a.w, a.h);
     ctx.clip();
-    scene.draw(ctx, t, w, h, env);
-    ctx.restore();
+    try {
+      scene.draw(ctx, t, w, h, env);
+    } finally {
+      ctx.restore();
+    }
     stats.frames++;
     stats.ms += performance.now() - t0;
   };
@@ -93,7 +96,8 @@ export function run(canvas: HTMLCanvasElement, scene: Scene, env0: Env): Runner 
     if (disposed || paused || still || document.hidden) return;
     if (now - last >= 1000 / scene.fps - 1) {
       last = now;
-      frame((now - start) / 1000);
+      // A frame's timestamp can be a little earlier than the runner's start; scenes expect t ≥ 0.
+      frame(Math.max(0, (now - start) / 1000));
     }
     raf = requestAnimationFrame(tick);
   };

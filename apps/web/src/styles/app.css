@@ -704,6 +704,11 @@
 [data-vaul-drawer][data-vaul-drawer-direction='bottom'] {
   transition: transform 380ms cubic-bezier(0.32, 0.72, 0, 1);
 }
+/* A closing sheet's backdrop fades out; taps go through it to the page meanwhile (Vaul sets
+   pointer-events inline, hence !important). */
+[data-vaul-overlay][data-state='closed'] {
+  pointer-events: none !important;
+}
 
 /* Atmosphere particles (transform-only) */
 .atmo-rain,
