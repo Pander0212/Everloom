@@ -131,6 +131,8 @@ export const ImportReportSchema = z.object({
   license: z.array(z.object({ path: z.string().max(300), text: z.string().max(6000) })).max(6).default([]),
   /** Bought or downloaded content: personal use; never exported, bundled or shared unless the owner confirms the right to. */
   thirdParty: z.boolean().default(false),
+  /** The owner confirmed they may share it (then it can go into exports, bundles and packs). */
+  rightsConfirmed: z.boolean().default(false),
   guessed: z.array(z.object({ from: z.string().max(300), to: z.string().max(300), how: z.string().max(120) })).max(200).default([]),
   at: z.string().max(40).optional(),
 });

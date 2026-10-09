@@ -6,12 +6,14 @@ import { clone } from 'three/examples/jsm/utils/SkeletonUtils.js';
 import type { AvatarDetail } from '@/features/avatars/api';
 import { apiFetch, exportHeaders } from '@/lib/api';
 import { toastError } from '@/lib/store';
-import { Button } from '@/ui';
+import { Button, ToggleRow } from '@/ui';
+import { ImportReportView } from '@/features/avatars/ImportReportView';
 import type { PreviewHandle } from '../Preview3D';
 import { buildHuman } from '../runtime/makehuman';
 import { configureMaterials } from '../runtime/materials';
 
-export function ExportStep({ avatar, config, handle }: { avatar: AvatarDetail; config: AvatarConfig; handle: PreviewHandle | null }) {
+export function ExportStep({ avatar, config, set, handle }: { avatar: AvatarDetail; config: AvatarConfig; set?: (patch: Partial<AvatarConfig>) => void; handle: PreviewHandle | null }) {
+  const origin = config.importReport;
   const [busy, setBusy] = useState(false);
   const run = async (format: 'glb' | 'vrm') => {
     if (!handle) return;
@@ -42,5 +44,14 @@ export function ExportStep({ avatar, config, handle }: { avatar: AvatarDetail; c
       document.body.append(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(url), 5000);
     } catch (e) { toastError(e); } finally { setBusy(false); }
   };
-  return <div className="flex flex-col gap-3"><p className="text-sm text-fg-2">Export the current geometry, fitted clothes, rig and textures. Native MakeHuman is exported in its rest pose. Imported models use the preview pose. VRM export requires a mapped humanoid; original VRM 1.0 author and license metadata is kept.</p><div className="flex gap-2"><Button loading={busy} disabled={!handle} onClick={() => void run('glb')}>Export GLB</Button><Button loading={busy} disabled={!handle} variant="secondary" onClick={() => void run('vrm')}>Export VRM</Button></div></div>;
+  return <div className="flex flex-col gap-3">{origin?.thirdParty ? (
+    <div role="note" className="rounded-md border border-warning/50 bg-surface-2 p-3 text-sm" data-testid="third-party">
+      <p className="font-medium">Third-party asset, personal use</p>
+      <p className="mt-1 text-fg-2">This avatar came from a {origin.source.toLowerCase()} you bought or downloaded. An export keeps its original license; sharing it may not be allowed. It stays out of bundles, library exports and packs unless you confirm below.</p>
+      {origin.license.length ? <details className="mt-2"><summary className="cursor-pointer">The package’s license</summary>{origin.license.map(l => <pre key={l.path} className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap text-xs text-fg-2">{l.text}</pre>)}</details> : null}
+      {set ? <ToggleRow label="I have the right to share this avatar" description="Lets it go into bundles, library exports and packs." checked={origin.rightsConfirmed} onChange={v => set({ importReport: { ...origin, rightsConfirmed: v } })} /> : null}
+    </div>
+  ) : null}
+  {origin ? <details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-sm font-medium">Import report</summary><div className="mt-2"><ImportReportView report={origin} /></div></details> : null}
+  <p className="text-sm text-fg-2">Export the current geometry, fitted clothes, rig and textures. Native MakeHuman is exported in its rest pose. Imported models use the preview pose. VRM export requires a mapped humanoid; original VRM 1.0 author and license metadata is kept.</p><div className="flex gap-2"><Button loading={busy} disabled={!handle} onClick={() => void run('glb')}>Export GLB</Button><Button loading={busy} disabled={!handle} variant="secondary" onClick={() => void run('vrm')}>Export VRM</Button></div></div>;
 }

@@ -6,6 +6,7 @@
  *   avatars/<slug>/avatar.json      name, kind, settings, which file is which
  *   avatars/<slug>/<file>           the source model and the other files
  */
+import { shareable } from './third-party.js';
 import { AvatarConfigSchema, type AvatarConfig, type AvatarKind } from '@everloom/engine';
 import type { Zippable } from 'fflate';
 import { strToU8 } from 'fflate';
@@ -48,6 +49,8 @@ export function exportAvatar3d(ctx: AppContext, owner: string, avatarId: string,
     return null;
   }
   const cfg = parseConfig(row.config);
+  // Third-party avatars (bought or downloaded) are left out unless the owner confirmed the right to share.
+  if (!shareable(cfg)) return null;
   const dir = `avatars/${slug}`;
   const entry: Avatar3dEntry = { id: row.id, name: row.name, kind: row.kind, config: cfg, source: null, sourceName: null, media: [] };
   if (row.source_media) {

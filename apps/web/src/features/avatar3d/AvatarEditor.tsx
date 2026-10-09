@@ -250,7 +250,7 @@ function ImportedEditor() {
               <DetailsStep avatar={a} name={name} setName={setName} handle={handle} />
             </TabPanel>
             <TabPanel value="content"><ContentStep config={draft} set={set} /></TabPanel>
-            <TabPanel value="export"><ExportStep avatar={a} config={draft} handle={handle} /></TabPanel>
+            <TabPanel value="export"><ExportStep avatar={a} config={draft} set={set} handle={handle} /></TabPanel>
           </div>
         </Tabs>
       </div>
