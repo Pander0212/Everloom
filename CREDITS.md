@@ -232,3 +232,6 @@ Licenses checked by reading each project's LICENSE file; details in
 - Read for ideas only, nothing copied: VRMConverterForVRChat (MPL-2.0), Cats Blender Plugin forks
   by teamneoneko (GPL-3 LICENSE file), Avatar-Toolkit (GPL-3), BoneForge (GPL-2.0+),
   clipdecode (LGPL-2.1), PhysBone-to-DynamicBone and ShinuToki's extractor (no license).
+- **ag-psd** (MIT, Copyright (c) 2016 Agamnentzar), https://github.com/Agamnentzar/ag-psd: reads
+  Photoshop textures in Unity packages (flattened); loaded only when a package has one.
+- **fflate** (MIT, Copyright (c) 2023 Arjun Barrett): unzips extracted Unity folders in the browser.

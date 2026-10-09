@@ -134,7 +134,13 @@ async function texture(project: UnityProject, guid: string, srgb: boolean, urls:
     const url = URL.createObjectURL(blob);
     urls.push(url);
     t = await new THREE.TextureLoader().loadAsync(url);
-  } else return null; // PSD and other formats: reported, the material keeps its colour
+  } else if (ext === 'psd') {
+    // Photoshop files: the flattened image (ag-psd, MIT; loaded only when a package has one).
+    const { readPsd } = await import('ag-psd');
+    const psd = readPsd(a.data.buffer.slice(a.data.byteOffset, a.data.byteOffset + a.data.byteLength) as ArrayBuffer, { skipLayerImageData: true, skipThumbnail: true });
+    if (!psd.canvas) return null;
+    t = new THREE.CanvasTexture(psd.canvas as HTMLCanvasElement);
+  } else return null; // other formats: reported, the material keeps its colour
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   t.name = a.path.split('/').pop()!;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
@@ -280,7 +286,9 @@ export async function buildUnity(project: UnityProject, guid: string, opts: { as
     }
     if (missingMats.size) report.approximated.push({ what: 'Materials', detail: `No Unity material for ${[...missingMats].slice(0, 6).join(', ')}${missingMats.size > 6 ? '…' : ''}: the FBX’s own material is used.` });
     const psd = Object.values(plan.textures).filter((t) => /\.psd$/i.test(t.path)).length;
-    if (psd) report.approximated.push({ what: 'Textures', detail: `${psd} Photoshop textures: their materials show their colour until a PNG is linked.` });
+    if (psd) report.approximated.push({ what: 'Textures', detail: `${psd} Photoshop textures, used flattened (their layers merged).` });
+    const odd = Object.values(plan.textures).filter((t) => !/\.(png|jpe?g|webp|gif|bmp|tga|psd)$/i.test(t.path));
+    if (odd.length) report.skipped.push({ what: 'Textures', detail: `${odd.map((t) => t.path.split('/').pop()).slice(0, 4).join(', ')}: a format Everloom can’t read here; those materials show their colour.` });
 
     // Hidden objects and toggles become wardrobe parts.
     const parts: AvatarPart[] = [];
