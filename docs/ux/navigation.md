@@ -33,8 +33,8 @@ a chat (pages, settings, feature switches, characters).
 | Each message | ⋯ menu with 9 entries, always visible on phones | nothing until tapped; then Edit · More · Copy · Delete |
 | Newest reply | ‹ n/m › ⟳ and its ⋯ | › New version · Edit · More (‹ n/m only once there are two versions) |
 | Above the box | person present · @ Everyone · Emote · Suggest | person present · Talk to (only when someone is here) · Suggest — **customizable** (Settings › Chat › Quick actions) |
-| Message box | + · box · mic · send | **Tools** · box · mic (only with Voice on) · send |
-| **Visible controls** | **20** | **15** |
+| Message box | + · box · mic · send | **Tools** · input mode (Chat, Act, Say, Story, Direct) · box · mic (only with Voice on) · send |
+| **Visible controls** | **20** | **16** |
 
 What moved where:
 

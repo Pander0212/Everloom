@@ -1204,7 +1204,7 @@ The owner: the tools and actions were "way too overfilled". Audit, maps and numb
 - **A chat's model** is chosen in This chat (tap the title). The server already honoured
   `metadata.connectionId`; there was no control for it.
 - **Measured** on a phone with Playwright (`playwright.ux.config.ts`): nine tasks went from 32
-  taps and 2 scrolls to 25 taps and none; the play screen from 20 visible controls to 15.
+  taps and 2 scrolls to 25 taps and none; the play screen from 20 visible controls to 15 (16 once Part 3's input-mode switch joined the message box).
 
 ## Design and UX: themes with scenery (October 2026)
 

@@ -391,7 +391,7 @@ export default function StoryView() {
       enterToSend={!!settings.data?.chat.enterToSend}
       stt={!!settings.data?.chat.stt && features.on.voice}
       sttEngine={settings.data?.chat.sttEngine ?? 'browser'}
-      placeholder={`Message ${group ? 'the group' : title}`}
+      placeholder={`Message ${group ? 'the group' : title.split(' ')[0]}`}
       onSend={(text) => {
         setComposer('');
         // "/command …" runs a command; "//text" sends text starting with a slash.

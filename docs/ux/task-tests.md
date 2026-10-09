@@ -36,28 +36,31 @@ Seven of nine tasks take one or two fewer taps; none takes more; nothing needs a
 
 | Time (ms, automated) | Before | After |
 |---|---|---|
-| Send a message and swipe | 1129 | 1252 |
-| Edit a message | 915 | 679 |
-| Change the character's outfit | 2631 | 2030 |
-| Open the map and travel | 2787 | 2039 |
-| Check the inventory | 1345 | 1420 |
-| Change the model | 1289 | 886 |
-| Turn a feature off | 1804 | 1242 |
-| Find the memory screen | 527 | 1114 |
-| Start a new chat with a character | 1631 | 1819 |
-| **Total** | **14 058** | **12 481** |
+| Send a message and swipe | 1129 | 1381 |
+| Edit a message | 915 | 655 |
+| Change the character's outfit | 2631 | 2010 |
+| Open the map and travel | 2787 | 2092 |
+| Check the inventory | 1345 | 1400 |
+| Change the model | 1289 | 980 |
+| Turn a feature off | 1804 | 1316 |
+| Find the memory screen | 527 | 1292 |
+| Start a new chat with a character | 1631 | 1861 |
+| **Total** | **14 058** | **12 987** |
 
 The two slower ones open the Tools drawer (a slide-up animation) where the old path opened a small
 menu; the old Memory path was two menu taps with no animation.
 
 ## Visible controls on the play screen
 
+(Measured after Part 3, which added the input-mode switch beside the message box; before it the
+count was 15.)
+
 Counted on the same phone after one turn: buttons, links and fields inside the screen that are
 visible and not covered.
 
-| Before (20) | After (15) |
+| Before (20) | After (16) |
 |---|---|
-| Back, title, Find in chat, Switch to stage mode, Chat menu, Status bar, Message actions ×3, Previous swipe, New swipe, Regenerate, Tobias, Everyone, Emote, Suggest, Actions and tools, Message, Dictate, Let the story continue | Back, title, Switch to stage view, the place (map), Status bar, New version, Edit, More actions, Tobias, Everyone, Suggest, Tools, Message, Dictate, Continue the story |
+| Back, title, Find in chat, Switch to stage mode, Chat menu, Status bar, Message actions ×3, Previous swipe, New swipe, Regenerate, Tobias, Everyone, Emote, Suggest, Actions and tools, Message, Dictate, Let the story continue | Back, title, Switch to stage view, the place (map), Status bar, New version, Edit, More actions, Tobias, Everyone, Suggest, Tools, Input mode, Message, Dictate, Continue the story |
 
 ## Notes on the method
 

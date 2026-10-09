@@ -11,7 +11,7 @@ setup('first run, sign in, mock model', async ({ page }) => {
   await page.getByLabel('Confirm password').fill('correct horse battery');
   await page.getByRole('button', { name: 'Create account' }).click();
   await expect(page.getByRole('heading', { name: 'How will you use Everloom?' })).toBeVisible();
-  await page.getByRole('listitem').filter({ hasText: preset }).click();
+  await page.getByRole('listitem').filter({ has: page.getByText(preset, { exact: true }) }).click();
   await expect(page.getByRole('heading', { name: 'Chats' })).toBeVisible();
   const r = await page.evaluate(async (endpoint) => {
     const s = await (await fetch('/api/auth/status')).json();
