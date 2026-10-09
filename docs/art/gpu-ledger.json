@@ -151,14 +151,29 @@
    "gpu": "RTX 4090",
    "pricePerHr": 0.34,
    "start": "2026-10-08T23:51:33.337Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-09T00:21:53.082Z",
+   "seconds": 1820,
+   "costUsd": 0.172,
    "balanceBefore": 4.4227566702,
    "balanceAfter": null,
    "images": [],
-   "result": "started",
+   "result": "stopped by a signal",
    "note": "4 generated characters: nude A-pose bases + 9 outfits each (fifth try)"
+  },
+  {
+   "date": "2026-10-09",
+   "provider": "RunPod",
+   "gpu": "RTX A5000",
+   "pricePerHr": 0.27,
+   "start": "2026-10-09T00:22:08.371Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 4.250713587,
+   "balanceAfter": null,
+   "images": [],
+   "result": "started",
+   "note": "4 generated characters: nude A-pose bases + 9 outfits each (sixth try, secure cloud)"
   }
  ]
 }

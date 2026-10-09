@@ -29,7 +29,8 @@ const NAME = 'everloom-see-through';
 // Secure-cloud prices per hour (October 2026), to skip the dear ones.
 const PRICES = { 'NVIDIA RTX A5000': 0.27, 'NVIDIA GeForce RTX 3090': 0.5, 'NVIDIA GeForce RTX 3090 Ti': 0.46, 'NVIDIA RTX A6000': 0.59, 'NVIDIA A40': 0.59, 'NVIDIA GeForce RTX 4090': 0.89 };
 
-const { values: a, positionals } = parseArgs({ allowPositionals: true, options: { out: { type: 'string' }, 'max-minutes': { type: 'string', default: '60' }, note: { type: 'string', default: '' }, budget: { type: 'string' }, gpus: { type: 'string' }, 'wait-dir': { type: 'string' }, expect: { type: 'string' }, 'wait-community': { type: 'string' }, 'min-download': { type: 'string' }, 'min-upload': { type: 'string' } } });
+const { values: a, positionals } = parseArgs({ allowPositionals: true, options: { out: { type: 'string' }, 'max-minutes': { type: 'string', default: '60' }, note: { type: 'string', default: '' }, budget: { type: 'string' }, gpus: { type: 'string' }, 'wait-dir': { type: 'string' }, expect: { type: 'string' }, 'wait-community': { type: 'string' }, 'min-download': { type: 'string' }, 'min-upload': { type: 'string' }, cloud: { type: 'string' } } });
+// --cloud secure|community: only that cloud (community hosts vary a lot; secure is RunPod's own).
 // --wait-community N: retry the community cards every two minutes for up to N minutes before
 // taking a (dearer) secure one.
 // --wait-dir/--expect: the inputs are still being made; once the worker is ready, wait (at most
@@ -111,7 +112,7 @@ async function run(images) {
   try {
     // Community first (cheaper), then secure; as small a machine as See-through needs.
     const waitCommunity = Date.now() + Number(a['wait-community'] ?? 0) * 60_000;
-    const tries = () => [...gpuOrder.map((g) => ['COMMUNITY', g]), ...(Date.now() >= waitCommunity ? gpuOrder.map((g) => ['SECURE', g]) : [])];
+    const tries = () => a.cloud === 'secure' ? gpuOrder.map((g) => ['SECURE', g]) : a.cloud === 'community' ? gpuOrder.map((g) => ['COMMUNITY', g]) : [...gpuOrder.map((g) => ['COMMUNITY', g]), ...(Date.now() >= waitCommunity ? gpuOrder.map((g) => ['SECURE', g]) : [])];
     for (let round = 0; !pod?.id; round++) {
     if (round > 0) { if (Date.now() >= waitCommunity) break; console.log('no community card free; trying again in 2 minutes'); await sleep(120_000); }
     for (const [cloud, gpu] of tries()) {
