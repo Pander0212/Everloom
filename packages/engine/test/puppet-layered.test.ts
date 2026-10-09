@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTemplateRig, checkPuppet, keyBackground, mapLayers, rectMesh, type LayerImage } from '../src/index.js';
+import { buildTemplateRig, checkPuppet, keyBackground, mapLayers, parsePuppet, rectMesh, type LayerImage } from '../src/index.js';
 
 const W = 200, H = 400;
 /** A full-canvas layer with filled ellipses of one colour. */
@@ -49,6 +49,8 @@ describe('a layered picture to puppet parts', () => {
     const parts = m.parts.map((p, i) => ({ id: p.id, slot: p.slot, texture: 0, mesh: rectMesh(i, i, 10, 10), z: p.z }));
     const model = buildTemplateRig(m.landmarks, parts, { id: 't', name: 'T', template: 'everloom-f', textures: ['page0.png'], colors: m.colors });
     expect(checkPuppet(model).ok).toBe(true);
+    // And within the format's own limits (the chest warp once came out 32 rows tall).
+    expect(() => parsePuppet(JSON.parse(JSON.stringify(model)))).not.toThrow();
   });
 });
 

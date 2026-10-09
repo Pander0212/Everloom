@@ -5,7 +5,7 @@
  * Reads `<name>/layers.json` and its layer PNGs (written by the worker next to its PSD) and, when
  * present, `<name>/topwear_depth.png` (the torso layer's depth, for the chest).
  */
-import { buildTemplateRig, checkPuppet, mapLayers, type LayerImage, type PuppetModel } from '@everloom/engine';
+import { buildTemplateRig, checkPuppet, mapLayers, parsePuppet, type LayerImage, type PuppetModel } from '@everloom/engine';
 import sharp from 'sharp';
 import { packAtlas, puppetJson, trimRgba, type PartImage } from './atlas.js';
 
@@ -55,5 +55,6 @@ export async function puppetFromLayers(read: (p: string) => Buffer | null, name:
   const model = buildTemplateRig(mapped.landmarks, parts.map((p) => ({ ...p, z: zOf.get(p.id) })), { id: o.id, name: o.title, template: 'everloom-f', rating: o.rating ?? 'all-ages', textures: pages.map((_, i) => `page${i}.png`), colors: mapped.colors, bounce: o.bounce });
   const c = checkPuppet(model);
   if (!c.ok) throw new Error(`The puppet didn't check out: ${c.errors.slice(0, 3).join('; ')}`);
+  parsePuppet(JSON.parse(puppetJson(model))); // the format's own limits, as the player will read it
   return { model, json: puppetJson(model), pages, tags: mapped.tags };
 }

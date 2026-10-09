@@ -13,7 +13,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { parseArgs } from 'node:util';
 import sharp from 'sharp';
-import { buildTemplateRig, checkPuppet, type TemplateLandmarks } from '../../packages/engine/src/index.js';
+import { buildTemplateRig, checkPuppet, parsePuppet, type TemplateLandmarks } from '../../packages/engine/src/index.js';
 import { packAtlas, puppetJson, trimRgba, type PartImage } from '../../apps/server/src/services/puppets/atlas.js';
 
 const { values: o, positionals: [src, dst] } = parseArgs({ allowPositionals: true, options: { id: { type: 'string' }, name: { type: 'string' }, template: { type: 'string', default: 'everloom-f' }, rating: { type: 'string', default: 'all-ages' }, bounce: { type: 'string' } } });
@@ -37,6 +37,7 @@ async function main() {
   const model = buildTemplateRig(L, parts.map((p) => ({ ...p, z: zOf.get(p.id) })), { id, name: o.name ?? id, template: o.template!, rating: o.rating === '18+' ? '18+' : 'all-ages', textures: pages.map((_, i) => `page${i}.png`), colors: spec.colors, bounce: o.bounce ? Number(o.bounce) : undefined });
   const c = checkPuppet(model);
   if (!c.ok) throw new Error(c.errors.join('\n'));
+  parsePuppet(JSON.parse(puppetJson(model))); // the format's own limits (grid sizes, counts)
   mkdirSync(dst!, { recursive: true });
   writeFileSync(path.join(dst!, 'puppet.json'), puppetJson(model));
   pages.forEach((p, i) => writeFileSync(path.join(dst!, `page${i}.png`), p));

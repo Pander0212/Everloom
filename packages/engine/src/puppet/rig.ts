@@ -143,7 +143,7 @@ export function buildTemplateRig(L: TemplateLandmarks, parts: RigPart[], o: RigO
     const x1 = Math.max(...busts.map((b) => b.cx + b.rx * 1.3), ...boxes.map((b) => b[0] + b[2])) + 4, y1 = Math.max(...busts.map((b) => b.cy + b.ry * 1.3), ...boxes.map((b) => b[1] + b[3])) + 4;
     const rect: [number, number, number, number] = [x0, y0, x1 - x0, y1 - y0];
     const cell = Math.max(8, Math.min(...busts.map((b) => b.ry)) * 0.35);
-    const cols = Math.max(4, Math.min(24, Math.round(rect[2] / cell))), rows = Math.max(4, Math.min(32, Math.round(rect[3] / cell)));
+    const cols = Math.max(4, Math.min(16, Math.round(rect[2] / cell))), rows = Math.max(4, Math.min(16, Math.round(rect[3] / cell)));
     deformers.push({ kind: 'warp', id: 'chest', parent: 'body', rect, cols, rows });
     const pts = gridPoints(rect, cols, rows);
     const soft = (r: number) => (r >= 1 ? 0 : 0.5 + 0.5 * Math.cos(Math.PI * r));
