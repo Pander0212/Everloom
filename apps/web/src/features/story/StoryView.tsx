@@ -13,6 +13,7 @@ import { qk, upsertMessage, useCampaign, useCharacter, useChat, useGroups, useMe
 import { toast, toastError } from '@/lib/store';
 import { Avatar, Button, confirm, IconButton, Spinner, useMedia } from '@/ui';
 import { Composer } from './Composer';
+import { StoryPanel } from './StoryPanel';
 import { applyWorldLook, useLookId } from '@/lib/theme';
 import { useDeviceLook } from '@/themes/device';
 import { look } from '@/themes/looks';
@@ -94,6 +95,23 @@ export default function StoryView() {
   const [highlight, setHighlight] = useState<string | null>(null);
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // The story panel: remembered open or closed on this device.
+  const [panelOpen, setPanelState] = useState(() => {
+    try {
+      return localStorage.getItem('everloom.storyPanelOpen') === '1' && window.matchMedia('(min-width: 768px)').matches;
+    } catch {
+      return false;
+    }
+  });
+  const [panelTab, setPanelTab] = useState<{ tab: 'cards'; n: number } | null>(null);
+  const setPanel = (o: boolean) => {
+    setPanelState(o);
+    try {
+      localStorage.setItem('everloom.storyPanelOpen', o ? '1' : '0');
+    } catch {
+      /* private mode */
+    }
+  };
   const [target, setTarget] = useState<string | null>(null);
   // The input mode, remembered on this device (plain chat until the player picks one).
   const [inputMode, setInputModeState] = useState<InputMode | null>(() => {
@@ -412,6 +430,11 @@ export default function StoryView() {
       else if (tg.action === 'stage') void setMode(mode === 'stage' ? 'chat' : 'stage');
       else if (tg.action === 'new-chat-same') setSheet('newchat');
       else if (tg.action === 'tour') openTour(features);
+      else if (tg.action === 'panel') setPanel(true);
+      else if (tg.action === 'panel-cards') {
+        setPanelTab({ tab: 'cards', n: Date.now() });
+        setPanel(true);
+      }
     }
   };
 
@@ -454,11 +477,14 @@ export default function StoryView() {
             <span className="block truncate text-xs text-fg-2">{busy ? 'writing…' : c.title}</span>
           </span>
         </button>
+        <IconButton icon={PanelRight} label="Story panel" active={panelOpen} className="max-md:hidden" onClick={() => setPanel(!panelOpen)} />
         {features.on.stage ? <IconButton icon={BookText} label={mode === 'stage' ? 'Switch to chat view' : 'Switch to stage view'} active={mode === 'stage'} onClick={() => setMode(mode === 'stage' ? 'chat' : 'stage')} /> : null}
       </header>
 
       <ScriptViewContext.Provider value={scriptView}>
       <FeaturesContext.Provider value={features}>
+      <div className="flex min-h-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
       <GameLayer chat={c} campaign={campaign.data ?? null} busy={busy} onRun={run} setComposer={setComposer} menuOpen={menuOpen} setMenuOpen={setMenuOpen} onEntry={onEntry} extra={extra}>
         {mode === 'stage' ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center"><Spinner /></div>}>
@@ -523,6 +549,9 @@ export default function StoryView() {
           </>
         )}
       </GameLayer>
+      </div>
+      <StoryPanel chat={c} want={panelTab} open={panelOpen} onOpenChange={setPanel} onOpenSheet={(x) => setSheet(x)} />
+      </div>
       </FeaturesContext.Provider>
       </ScriptViewContext.Provider>
       {scripts.on && scripts.settings && (scripts.runnable.length || scripts.extensions.some((e) => e.background)) ? (

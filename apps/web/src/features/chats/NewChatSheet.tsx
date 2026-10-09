@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Search, Users } from 'lucide-react';
+import { Search, Sparkles, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { post } from '@/lib/api';
@@ -8,7 +8,7 @@ import { cardQuestions, FEATURE_PRESETS, PRESET_INFO, validAnswer, type FeatureP
 import { toastError } from '@/lib/store';
 import { Avatar, Button, EmptyState, Field, Icon, Input, ListRow, Segmented, Select, Sheet } from '@/ui';
 
-export function NewChatSheet({ open, onOpenChange, characterId }: { open: boolean; onOpenChange: (o: boolean) => void; characterId?: string }) {
+export function NewChatSheet({ open, onOpenChange, characterId, onQuickstart }: { open: boolean; onOpenChange: (o: boolean) => void; characterId?: string; onQuickstart?: () => void }) {
   const chars = useCharacters();
   const groups = useGroups();
   const personas = usePersonas();
@@ -63,6 +63,15 @@ export function NewChatSheet({ open, onOpenChange, characterId }: { open: boolea
       }
     >
       <div className="flex flex-col gap-4">
+        {onQuickstart && !characterId ? (
+          <button onClick={onQuickstart} className="pressable flex items-center gap-3 rounded-md border border-dashed border-line-strong p-3 text-left hover:bg-surface-2">
+            <Icon icon={Sparkles} className="flex-none text-accent-text" />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">Quickstart</span>
+              <span className="block text-xs text-fg-2">A new character, opening scene and world from a short idea.</span>
+            </span>
+          </button>
+        ) : null}
         {!characterId ? (
           <Segmented
             label="Chat type"

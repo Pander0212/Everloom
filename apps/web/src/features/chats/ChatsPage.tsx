@@ -17,6 +17,7 @@ import { Avatar, Button, EmptyState, Icon, IconButton, Input, Segmented, Sheet, 
 import { VirtualGrid } from '../library/VirtualGrid';
 import { useSettingsPatch } from '../settings/common';
 import { NewChatSheet } from './NewChatSheet';
+import { QuickstartSheet } from './QuickstartSheet';
 
 type ChatSort = 'recent' | 'oldest' | 'longest' | 'name';
 type Kind = 'all' | 'game' | 'plain' | 'group';
@@ -48,11 +49,15 @@ export default function ChatsPage() {
   const [view, setView] = useState<View>(load);
   const [debounced, setDebounced] = useState(view.q);
   const [newOpen, setNewOpen] = useState(false);
+  const [quick, setQuick] = useState(false);
   // The palette's "New chat" lands here with ?new=1.
   const [params, setParams] = useSearchParams();
   useEffect(() => {
     if (params.get('new') === '1') {
       setNewOpen(true);
+      setParams({}, { replace: true });
+    } else if (params.get('quickstart') === '1') {
+      setQuick(true);
       setParams({}, { replace: true });
     }
   }, [params, setParams]);
@@ -218,7 +223,8 @@ export default function ChatsPage() {
           </section>
         </div>
       </Sheet>
-      <NewChatSheet open={newOpen} onOpenChange={setNewOpen} />
+      <NewChatSheet open={newOpen} onOpenChange={setNewOpen} onQuickstart={() => { setNewOpen(false); setQuick(true); }} />
+      <QuickstartSheet open={quick} onOpenChange={setQuick} />
     </Page>
   );
 }
