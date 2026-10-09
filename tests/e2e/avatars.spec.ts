@@ -74,7 +74,7 @@ test.describe('3D characters', () => {
     await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 45_000 });
     for (const pose of ['T-pose', 'Arms up', 'Squat', 'Right hand up', 'Idle']) await page.getByRole('radio', { name: pose }).click();
     await page.getByRole('tab', { name: 'Bones' }).click();
-    await expect(page.getByText('All main bones are mapped')).toBeVisible();
+    await expect(page.getByText('Main bones mapped')).toBeVisible();
     await page.getByRole('tab', { name: 'Fit' }).click();
     const toon = page.getByRole('radio', { name: 'Anime (toon)' });
     await toon.evaluate((e) => e.scrollIntoView({ block: 'center' }));

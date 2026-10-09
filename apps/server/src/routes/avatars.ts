@@ -2,7 +2,7 @@
 import type { FastifyInstance } from 'fastify';
 import { unzipSync } from 'fflate';
 import { z } from 'zod';
-import { AvatarConfigSchema, BoneMapSchema, BUILTIN_EMOTES, BUILTIN_PAIRED, ClipSchema, EMOTE_CATEGORIES, EMOTE_ID, GARMENT_SLOTS, PAIRED_ID, PairedClipSchema } from '@everloom/engine';
+import { AvatarConfigSchema, BoneMapSchema, RigMappingSchema, BUILTIN_EMOTES, BUILTIN_PAIRED, ClipSchema, EMOTE_CATEGORIES, EMOTE_ID, GARMENT_SLOTS, PAIRED_ID, PairedClipSchema } from '@everloom/engine';
 import { parseGlb } from '../services/avatars/glb.js';
 import { HttpError, owner, type AppContext } from '../context.js';
 import { blenderJobs, findBlender, runBlenderJob, setBlenderPath } from '../services/blender.js';
@@ -174,7 +174,7 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     getAvatarRow(ctx, who, id);
     const input = parse(z.object({ kind: z.enum(['character', 'rig']), config: AvatarConfigSchema }), req.body);
     assertAdultAvatar(ctx, who, input.config, id);
-    const data = input.kind === 'rig' ? { format: 'everloom-rig-map', version: 1, boneMap: input.config.boneMap, physics: input.config.physics } : { format: 'everloom-character-preset', version: 1, family: input.config.family, config: input.config };
+    const data = input.kind === 'rig' ? { format: 'everloom-rig-map', version: 1, boneMap: input.config.boneMap, physics: input.config.physics, ...(input.config.rig ? { rig: input.config.rig } : {}) } : { format: 'everloom-character-preset', version: 1, family: input.config.family, config: input.config };
     return reply.type('application/json').header('content-disposition', `attachment; filename="${input.kind}-preset.json"`).send(Buffer.from(JSON.stringify(data, null, 2)));
   });
   app.post('/api/avatars/:id/preset-import', { bodyLimit: 1024 * 1024 }, async req => {
@@ -182,7 +182,7 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     let value: unknown = req.body;
     if (Buffer.isBuffer(value)) { try { value = JSON.parse(value.toString('utf8')); } catch { throw new HttpError(400, 'The preset is not valid JSON.'); } }
     const preset = parse(z.discriminatedUnion('format', [
-      z.object({ format: z.literal('everloom-rig-map'), version: z.literal(1), boneMap: BoneMapSchema, physics: AvatarConfigSchema.shape.physics.optional() }),
+      z.object({ format: z.literal('everloom-rig-map'), version: z.literal(1), boneMap: BoneMapSchema, physics: AvatarConfigSchema.shape.physics.optional(), rig: RigMappingSchema.optional() }),
       z.object({ format: z.literal('everloom-character-preset'), version: z.literal(1), family: z.string().max(40).nullable(), config: AvatarConfigSchema }),
     ]), value);
     if (preset.format === 'everloom-character-preset') {

@@ -74,7 +74,7 @@ const ROLE_NAMES: [RigRole, RegExp, number][] = [
   ['eyelid', /^(eyelids?|lids?|mabuta)$/, 0.9],
   ['tongue', /^(tongue|shita)$/, 0.9],
   ['teeth', /^(teeth|tooth|fangs?)$/, 0.9],
-  ['accessory', /^(acc|accessory|accessories|hat|cap|glasses|earrings?|necklace|bag|bags|backpack|bagpack|weapon|sword|ribbon|bow|choker|hairpin|ornament|prop|halo|horns?|crown|bell)$/, 0.7],
+  ['accessory', /^(acc|accessory|accessories|hat|cap|glasses|earrings?|necklace|bracelets?|bangles?|bag|bags|backpack|bagpack|weapon|sword|ribbon|bow|choker|hairpin|ornament|prop|halo|horns?|crown|bell)$/, 0.7],
 ];
 const HELPER = /^(twist|roll|helper|adj|sub|corrective|correct|aux|support|bulge|volume|fix|dummy|share|leaf|socket)$/;
 const IGNORE = /^(end|nub|tip|palm|ik|ctrl|control|target|pole|null|locator|marker|root|parent|center|groove|waistcancel|viewcenter|grip|weapon_?r|armature)$/;
