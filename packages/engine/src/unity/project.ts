@@ -37,13 +37,44 @@ export function kindOf(path: string): UnityKind {
 export class UnityProject {
   readonly byGuid = new Map<string, UnityAsset>();
   readonly byPath = new Map<string, UnityAsset>();
+  /** Links made by name because a .meta was missing (shown in the report; the owner can change them). */
+  readonly guessed: { from: string; to: string; how: string }[] = [];
+  /** Links the owner set by hand in "Link missing files": missing GUID → asset GUID. */
+  readonly links = new Map<string, string>();
 
   add(a: UnityAsset) {
     this.byGuid.set(a.guid, a);
     this.byPath.set(normPath(a.path), a);
   }
   get(guid: string | undefined) {
-    return guid ? this.byGuid.get(guid) : undefined;
+    if (!guid) return undefined;
+    return this.byGuid.get(guid) ?? this.byGuid.get(this.links.get(guid) ?? '');
+  }
+  /**
+   * A referenced file whose GUID isn't known (its .meta is missing): the best match by kind, name and
+   * folder. `hint` is a name to look for (a material's name for its texture, a prefab's for its model).
+   */
+  guess(from: string, kind: UnityKind, hint?: string, slot?: string): UnityAsset | undefined {
+    if (this.exact) return undefined;
+    const dir = dirName(from);
+    const pool = this.all(kind).filter((a) => a.guessed);
+    if (!pool.length) return undefined;
+    const near = (a: UnityAsset) => commonPrefix(dirName(a.path), dir);
+    const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9\u3040-\u9fff]+/g, ' ').trim();
+    const h = hint ? words(hint) : '';
+    const score = (a: UnityAsset) => {
+      const n = words(stem(a.path));
+      let v = near(a) / 100;
+      if (h && n === h) v += 10;
+      else if (h && (n.includes(h) || h.includes(n))) v += 5;
+      if (slot && /bump|normal/i.test(slot)) v += /normal|nrm|_n\b/i.test(a.path) ? 3 : -3;
+      else if (slot && /main|base|albedo|color/i.test(slot)) v += /normal|nrm|mask|emi|matcap|shadow/i.test(a.path) ? -3 : 1;
+      return v;
+    };
+    const best = pool.sort((a, b) => score(b) - score(a))[0];
+    if (!best || (h && score(best) < 1 && pool.length > 1)) return undefined;
+    this.guessed.push({ from, to: best.path, how: hint ? `by the name “${hint}”` : 'the only one in its folder' });
+    return best;
   }
   all(kind?: UnityKind) {
     const out = [...this.byGuid.values()];

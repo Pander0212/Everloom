@@ -85,7 +85,15 @@ describe('importing Everloom’s Unity test packages', () => {
     const p = folder('Ava-extracted-nometa');
     expect(p.exact).toBe(false);
     const s = summarize(p);
-    // The prefab can't reach its model by GUID; the bare FBX is still offered.
-    expect([...s.avatars, ...s.outfits].map((c) => c.path)).toContain('Assets/Ava/Ava.fbx');
+    // The prefab's model is found by name, and the prefab is offered with that caveat.
+    expect(s.avatars.map((c) => c.path)).toEqual(['Assets/Ava/Ava.prefab']);
+    expect(s.avatars[0]!.reason).toMatch(/guessed/);
+    const plan = planImport(p, s.avatars[0]!.guid);
+    expect(plan.models.map((m) => m.path)).toEqual(['Assets/Ava/Ava.fbx']);
+    // The material's texture is found by the material's name, and the guess is reported.
+    expect(Object.values(plan.materials).map((m) => m.name).sort()).toEqual(['Body', 'Hat']);
+    expect(Object.values(plan.textures).map((t) => t.path)).toEqual(['Assets/Ava/Textures/Body.png']);
+    expect(plan.report.guessed.map((g) => g.to)).toContain('Assets/Ava/Ava.fbx');
+    expect(plan.report.approximated.map((l) => l.what)).toContain('Links between files');
   });
 });

@@ -77,8 +77,9 @@ function empty(): Composite {
   return { nodes: new Map(), comps: new Map(), models: new Set(), ids: new Map(), origins: new Map(), notes: [] };
 }
 
-function load(project: UnityProject, guid: string, depth: number, seen: Set<string>): Composite {
-  const asset = project.get(guid);
+function load(project: UnityProject, guid: string, depth: number, seen: Set<string>, from?: { path: string; name: string }): Composite {
+  // Without .meta files a prefab's model is found by name (the prefab's own, then the folder's model).
+  const asset = project.get(guid) ?? (from ? project.guess(from.path, 'model', from.name) : undefined);
   if (!asset) {
     const c = empty();
     c.notes.push(`A referenced asset (${guid}) is not in the package.`);
@@ -89,8 +90,8 @@ function load(project: UnityProject, guid: string, depth: number, seen: Set<stri
     c.notes.push(`${asset.path}: nested too deeply or refers to itself.`);
     return c;
   }
-  if (asset.kind === 'model') return fromModel(project, guid);
-  return fromDocs(project, guid, parseUnityYaml(text(asset.data)), depth, new Set([...seen, guid]));
+  if (asset.kind === 'model') return fromModel(project, asset.guid);
+  return fromDocs(project, asset.guid, parseUnityYaml(text(asset.data)), depth, new Set([...seen, asset.guid]));
 }
 
 // ------------------------------------------------------------------ models (FBX)
@@ -172,7 +173,8 @@ function fromDocs(project: UnityProject, guid: string, docs: UnityDoc[], depth: 
     if (d.classId !== 1001 || d.type !== 'PrefabInstance') continue;
     const src = asRef(d.body.m_SourcePrefab);
     if (!src?.guid) continue;
-    const inner = load(project, src.guid, depth + 1, seen);
+    const selfPath = project.get(guid)?.path ?? '';
+    const inner = load(project, src.guid, depth + 1, seen, { path: selfPath, name: selfPath.split('/').pop()!.replace(/\.[^.]+$/, '').replace(/\s*variant$/i, '') });
     const prefix = `${d.fileId}/`;
     for (const n of inner.nodes.values()) c.nodes.set(prefix + n.key, { ...n, key: prefix + n.key, parent: n.parent ? prefix + n.parent : null, comps: n.comps.map((k) => prefix + k) });
     for (const k of inner.comps.values()) c.comps.set(prefix + k.key, { ...clone(k), key: prefix + k.key, node: prefix + k.node } as SceneComp);

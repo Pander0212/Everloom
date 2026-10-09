@@ -4,7 +4,7 @@
  * materials and textures, blendshape presets, the humanoid map, visemes, physics, toggles) plus a
  * report of what was imported, approximated and skipped.
  */
-import { asStr, type UnityRef } from './yaml';
+import { asMap, asStr, type UnityRef } from './yaml';
 import { baseName, dirName, importer, stem, text, type UnityAsset, type UnityKind, type UnityProject } from './project';
 import { activeInHierarchy, nodePath, resolvePrefab, type ResolvedScene } from './scene';
 import { readMaterial, type MaterialSpec } from './material';
@@ -68,6 +68,7 @@ export function summarize(project: UnityProject): PackageSummary {
     else if (kinds.has('maMergeArmature')) outfits.push({ guid: p.guid, path: p.path, name, kind: 'outfit', reason: 'Has a Modular Avatar Merge Armature.' });
     else if ([...scene.models].some((g) => readHumanoid(project.get(g)?.meta)?.animationType === 3)) avatars.push({ guid: p.guid, path: p.path, name, kind: 'avatar', reason: 'Built on a humanoid model.' });
     else if (scene.models.size && [...scene.comps.values()].some((c) => c.type === 'SkinnedMeshRenderer')) outfits.push({ guid: p.guid, path: p.path, name, kind: 'outfit', reason: 'Skinned meshes without a humanoid: clothing or hair.' });
+    else if (scene.models.size && [...scene.models].every((g) => !project.get(g)?.meta)) avatars.push({ guid: p.guid, path: p.path, name, kind: 'avatar', reason: 'Built on a model whose Unity settings are missing: details are guessed; import it as an avatar or as clothing.' });
   }
   // Models no prefab uses: offered on their own.
   for (const m of project.all('model')) {
@@ -250,11 +251,15 @@ function addMaterial(project: UnityProject, plan: UnityPlan, a: UnityAsset) {
   if (!spec) return;
   plan.materials[a.guid] = { ...spec, path: a.path };
   for (const [slot, t] of Object.entries(spec.raw.textures)) {
-    const tex = project.get(t.ref.guid);
+    const tex = project.get(t.ref.guid) ?? project.guess(a.path, 'texture', spec.name, slot);
+    // Keep the link under the GUID the material asks for, so the browser finds it.
+    if (tex && tex.guid !== t.ref.guid) project.links.set(t.ref.guid!, tex.guid);
     if (!tex) continue;
     const ti = importer(tex.meta, 'TextureImporter');
     const normal = Number(ti.textureType ?? (/bump|normal/i.test(slot) ? 1 : 0)) === 1 || /_BumpMap|_NormalMap/.test(slot);
-    plan.textures[tex.guid] = { guid: tex.guid, path: tex.path, srgb: !normal && Number(asStr(ti.sRGBTexture as never, '1')) !== 0, normal };
+    const srgb = Number(asStr((asMap(ti.mipmaps).sRGBTexture ?? ti.sRGBTexture) as never, '1')) !== 0;
+    // Keyed by the GUID the material uses; `guid` is the file actually found.
+    plan.textures[t.ref.guid!] = { guid: tex.guid, path: tex.path, srgb: !normal && srgb, normal };
   }
 }
 
@@ -283,6 +288,7 @@ function addModelMaterials(project: UnityProject, plan: UnityPlan, model: UnityA
 
 function finishReport(project: UnityProject, plan: UnityPlan) {
   const r = plan.report;
+  r.guessed = [...project.guessed];
   r.imported.unshift({ what: 'Models', detail: plan.models.map((m) => baseName(m.path)).join(', ') || 'none' });
   const mats = Object.values(plan.materials);
   if (mats.length) {
