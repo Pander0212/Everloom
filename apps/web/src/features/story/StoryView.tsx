@@ -14,6 +14,7 @@ import { toast, toastError } from '@/lib/store';
 import { Avatar, Button, confirm, IconButton, Spinner, useMedia } from '@/ui';
 import { Composer } from './Composer';
 import { StoryPanel } from './StoryPanel';
+import { clearRedo, redoTurn, undoTurn } from './turns';
 import { applyWorldLook, useLookId } from '@/lib/theme';
 import { useDeviceLook } from '@/themes/device';
 import { look } from '@/themes/looks';
@@ -209,6 +210,7 @@ export default function StoryView() {
       if (type !== 'impersonate') await scriptBus.beforeGeneration({ chatId: id, type });
       scriptBus.emit('generationStart', { chatId: id, type });
     }
+    if (type === 'normal' || type === 'continue') clearRedo(id);
     const r = await generate(id, type, { text, characterId: speaker, target: type === 'normal' && text ? target : null, mode: type === 'normal' && text ? (mode ?? null) : null });
     if (scripts.runnable.length || scripts.extensions.length) {
       const after = qc.getQueryData<MessageDTO[]>(qk.messages(id)) ?? [];
@@ -229,6 +231,39 @@ export default function StoryView() {
     }
     return r;
   };
+
+  const doUndo = async () => {
+    if (busy) return;
+    try {
+      if (await undoTurn(id)) toast({ title: 'Turn undone', action: { label: 'Redo', run: () => void doRedo() } });
+      else toast('Nothing to undo');
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  const doRedo = async () => {
+    if (busy) return;
+    try {
+      if (!(await redoTurn(id, gameOn))) toast('Nothing to redo');
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  // Ctrl/⌘+Z and Ctrl/⌘+Shift+Z (or Ctrl+Y) undo and redo turns, outside text fields.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const el = e.target as HTMLElement;
+      if (el.closest('input, textarea, select, [contenteditable=true]')) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) void doUndo();
+      else if ((k === 'z' && e.shiftKey) || k === 'y') void doRedo();
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   const actions: MessageActions = useMemo(
     () => ({
@@ -431,6 +466,8 @@ export default function StoryView() {
       else if (tg.action === 'new-chat-same') setSheet('newchat');
       else if (tg.action === 'tour') openTour(features);
       else if (tg.action === 'panel') setPanel(true);
+      else if (tg.action === 'undo') void doUndo();
+      else if (tg.action === 'redo') void doRedo();
       else if (tg.action === 'panel-cards') {
         setPanelTab({ tab: 'cards', n: Date.now() });
         setPanel(true);

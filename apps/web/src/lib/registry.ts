@@ -11,7 +11,7 @@ import {
   ArrowLeftRight, Backpack, Bot, BookMarked, BookOpen, Box, Brain, Brush, CalendarDays, Cat, Clapperboard, CloudSun, Code, Code2, Compass, Contact, Database, Dumbbell, Eye, FileCode2,
   FlaskConical, Flag, Gamepad2, Globe, Hammer, Heart, HelpCircle, History, House, Image, Info, KeyRound, Lightbulb, Map, MessageSquare, MessageSquarePlus, NotebookPen, Palette,
   PersonStanding, Phone, Plug, Puzzle, Save, ScrollText, Search, Shirt, ShieldCheck, Sparkles, Stethoscope, Store, Swords, Telescope, ToggleRight, UserRound, UserRoundPen,
-  Users, UsersRound, Volume2, Wallet, FastForward, Activity, BookText, Undo2, Wand2, PanelRight,
+  Users, UsersRound, Volume2, Wallet, FastForward, Activity, BookText, Undo2, Wand2, PanelRight, Redo2,
 } from 'lucide-react';
 
 export type GroupId = 'scene' | 'me' | 'world' | 'story' | 'create' | 'settings' | 'advanced';
@@ -66,6 +66,8 @@ export const ENTRIES: Entry[] = [
   // ------------------------------------------------------------------ This scene
   { id: 'longer', label: 'Make the reply longer', group: 'scene', icon: FastForward, chat: true, target: action('continue'), keywords: 'continue more go on', description: 'The narrator keeps writing the last reply.', help: 'Adds to the last reply instead of starting a new one. Use it when a reply stops too early, for example in the middle of a fight.' },
   { id: 'write-for-me', label: 'Write my next line', group: 'scene', icon: UserRoundPen, chat: true, target: action('impersonate'), keywords: 'impersonate draft suggest', description: 'The AI drafts your next message in the box.', help: 'The AI writes a message for you and puts it in the message box. Nothing is sent: change it, then send it yourself.' },
+  { id: 'undo-turn', label: 'Undo last turn', group: 'scene', icon: Undo2, chat: true, target: action('undo'), keywords: 'undo take back revert ctrl z', description: 'Take back your last message and its reply.', help: 'Takes the last turn away (your message and the reply to it) and rolls back what it changed in the story. Redo turn puts it back. Also Ctrl/⌘+Z and Ctrl/⌘+Shift+Z.' },
+  { id: 'redo-turn', label: 'Redo turn', group: 'scene', icon: Redo2, chat: true, target: action('redo'), keywords: 'redo again put back ctrl y', description: 'Put back the turn you took back.', help: 'Puts back the last turn you undid, as it was; its story changes are read again.' },
   { id: 'find', label: 'Find in chat', group: 'scene', icon: Search, chat: true, target: sheet('search'), keywords: 'search bookmarks', description: 'Search this chat and its bookmarks.', help: 'Finds words anywhere in this chat, and lists the messages you bookmarked. Tap a result to jump there.' },
   { id: 'new-chat-same', label: 'New chat with this character', group: 'scene', icon: MessageSquarePlus, chat: true, target: action('new-chat-same'), keywords: 'start over restart new story', description: 'Start a fresh chat; this one stays as it is.', help: 'Starts a new chat with the same character (or group). This chat is kept in your list.' },
   { id: 'stage-view', label: 'Stage view', group: 'scene', icon: BookText, chat: true, features: ['stage'], target: action('stage'), keywords: 'visual novel vn chat view mode', description: 'Show the scene as a visual novel, or back as a chat.', help: 'Stage view shows the characters in the scene with one line at a time, like a visual novel. Tap the dialogue box to go on. Switch back to see the chat.' },

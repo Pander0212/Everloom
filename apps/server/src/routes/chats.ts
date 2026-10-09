@@ -171,6 +171,22 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
     pub(req, 'message.updated', { chatId: m.chatId, message: m });
     return m;
   });
+  /** Redo: messages an undo took away come back as they were (their story changes are read again by retrack). */
+  app.post('/api/chats/:id/messages/restore', async (req) => {
+    const chatId = (req.params as any).id;
+    const swipe = z.object({ text: z.string().max(100_000), createdAt: z.number().optional(), reasoning: z.string().max(100_000).optional() }).passthrough();
+    const b = parse(
+      z.object({ messages: z.array(z.object({ role: z.enum(['user', 'assistant', 'system']), name: z.string().max(120), characterId: z.string().nullable().optional(), swipes: z.array(swipe).min(1).max(100), swipeId: z.number().int().min(0).default(0), hidden: z.boolean().optional(), extra: z.record(z.string(), z.any()).optional() })).min(1).max(20) }),
+      req.body,
+    );
+    chats.getChat(ctx, owner(req), chatId);
+    const out = b.messages.map((m) => {
+      const msg = chats.insertMessage(ctx, owner(req), chatId, { ...m, swipeId: Math.min(m.swipeId, m.swipes.length - 1), swipes: m.swipes.map((s) => ({ ...s, createdAt: s.createdAt ?? Date.now() })) as any });
+      pub(req, 'message.created', { chatId, message: msg });
+      return msg;
+    });
+    return { messages: out };
+  });
   app.post('/api/messages/:id/retrack', async (req) => {
     const m = chats.getMessage(ctx, owner(req), (req.params as any).id);
     return runTrackerPass(ctx, owner(req), m.chatId, m.id, req.clientId);

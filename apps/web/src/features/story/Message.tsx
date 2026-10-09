@@ -1,7 +1,7 @@
 import { applyRegexScripts, frameInput, isInputMode, RegexPlacement, type MessageDTO } from '@everloom/engine';
 import { Compass, PenLine, Bookmark, BookmarkCheck, Brain, ChevronDown, ChevronLeft, ChevronRight, Copy, EyeOff, GitBranch, MoreHorizontal, Pencil, RefreshCw, ScanSearch, Trash2, Volume2 } from 'lucide-react';
 import { animate, motion, useMotionValue } from 'motion/react';
-import { lazy, memo, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, memo, Suspense, useEffect, useMemo, useRef, useState } from 'react';
 import { cx } from '@/lib/format';
 import { renderStory } from '@/lib/render';
 import { t } from '@/lib/motion';
@@ -64,6 +64,13 @@ export const Message = memo(function Message({ m, index = 0, depth, avatar, isLa
   const text = streamText ?? swipe?.text ?? '';
   const reasoning = streamReasoning ?? swipe?.reasoning ?? '';
   const [editing, setEditing] = useState(false);
+  // Editing happens in place: the editor opens at the height the text had, so nothing jumps.
+  const textRef = useRef<HTMLDivElement>(null);
+  const [editHeight, setEditHeight] = useState(0);
+  const startEdit = () => {
+    setEditHeight(Math.min(textRef.current?.offsetHeight ?? 0, window.innerHeight * 0.6) + 20);
+    setEditing(true);
+  };
   // A message that just arrived comes in with the theme's motion; older ones simply appear.
   const [arrived] = useState(() => Date.now() - m.createdAt < 6000);
   const [draft, setDraft] = useState(text);
@@ -108,7 +115,7 @@ export const Message = memo(function Message({ m, index = 0, depth, avatar, isLa
   ];
   const actionRow = (
     <div className={cx('ev-msg-actions flex items-center gap-0.5 text-fg-2 transition-opacity', isLast || open ? 'opacity-100' : 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100')}>
-      <IconButton size="sm" icon={Pencil} label="Edit" disabled={busy} onClick={() => setEditing(true)} />
+      <IconButton size="sm" icon={Pencil} label="Edit" disabled={busy} onClick={startEdit} />
       <Menu trigger={<IconButton size="sm" icon={MoreHorizontal} label="More actions" />} items={more} align={isUser ? 'end' : 'start'} />
       {/* On the newest message only Edit and More stay out; Copy and Delete join them on tap or hover. */}
       <span className={cx('flex items-center gap-0.5 transition-opacity', isLast && !open && 'pointer-events-none opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100')}>
@@ -120,7 +127,7 @@ export const Message = memo(function Message({ m, index = 0, depth, avatar, isLa
 
   const body = editing ? (
     <div className="flex flex-col gap-2">
-      <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={4} maxRows={20} autoFocus aria-label="Edit message" className="story !text-[16px]" />
+      <Textarea value={draft} onChange={(e) => setDraft(e.target.value)} rows={2} maxRows={40} autoFocus aria-label="Edit message" className={cx('story', isUser && '!text-[16px]')} style={editHeight ? { minHeight: editHeight } : undefined} />
       <div className="flex justify-end gap-2">
         <Button size="sm" variant="ghost" onClick={() => { setEditing(false); setDraft(text); }}>
           Cancel
@@ -137,7 +144,7 @@ export const Message = memo(function Message({ m, index = 0, depth, avatar, isLa
       <InteractiveMessage m={m} text={shown} index={index} streaming={streaming} />
     </Suspense>
   ) : (
-    <div className={cx('ev-message-text story', streaming && 'is-streaming')} dangerouslySetInnerHTML={{ __html: html }} />
+    <div ref={textRef} className={cx('ev-message-text story', streaming && 'is-streaming')} dangerouslySetInnerHTML={{ __html: html }} />
   );
 
   if (isUser && (inputMode === 'story' || inputMode === 'direct')) {

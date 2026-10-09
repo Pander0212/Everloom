@@ -134,6 +134,8 @@ cd Everloom && bash update.sh
 
 Run it as your normal user; it uses `sudo` for Docker by itself when needed (running the whole script with `sudo` works too). It ends with `Updated: Everloom is running build abc1234`, and **Settings → About** shows the same build. If it stops with an error, nothing was changed.
 
+**If an update fails.** Before the database is upgraded, Everloom writes a copy of it to `data/backups/pre-migration-v<N>-<time>.db` (the three newest are kept), and the upgrade runs as one step: if any part fails, none of it is applied. The error names the step and the copy. To go back, check out the previous version (`git checkout <previous tag or commit>`, then `docker compose build && docker compose up -d`); it opens the database as it was. Only if the database itself is damaged: stop Everloom, replace `data/everloom.db` with the copy, delete `data/everloom.db-wal` and `data/everloom.db-shm`, and start the previous version. The Windows app backs up before installing an update and doesn't install one if that backup fails.
+
 **Backups:**
 
 - The app makes a nightly backup (database + images) into `data/backups/`, keeping the newest 14 by default. Change this in **Settings → Backups & import**, where you can also make a backup right now and download it.
