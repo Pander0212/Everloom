@@ -116,7 +116,7 @@ export function readDescriptor(scene: ResolvedScene, c: MB): AvatarDescriptor {
     if (names[i]) visemes[v] = names[i];
   });
   const eye = asMap(f.customEyeLookSettings);
-  const lids = asList(eye.eyelidsBlendshapes).map((v) => asNum(v, -1));
+  const lids = intList(eye.eyelidsBlendshapes);
   const vp = asMap(f.ViewPosition);
   return {
     node: c.node,
@@ -134,6 +134,19 @@ export function readDescriptor(scene: ResolvedScene, c: MB): AvatarDescriptor {
     menu: asRef(f.expressionsMenu),
     parameters: asRef(f.expressionParameters),
   };
+}
+
+/** Unity writes int arrays as a list or as a hex blob of little-endian int32s ("0c0000000d000000"). */
+export function intList(v: YamlValue | undefined): number[] {
+  if (Array.isArray(v)) return v.map((x) => asNum(x, -1));
+  const s = asStr(v);
+  if (!/^([0-9a-f]{8})+$/i.test(s)) return [];
+  const out: number[] = [];
+  for (let i = 0; i < s.length; i += 8) {
+    const b = s.slice(i, i + 8).match(/../g)!.map((h) => parseInt(h, 16));
+    out.push((b[0]! | (b[1]! << 8) | (b[2]! << 16) | (b[3]! << 24)) >> 0);
+  }
+  return out;
 }
 
 /** VRChat viseme blendshapes onto Everloom's five mouth shapes. */
