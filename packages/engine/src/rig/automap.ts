@@ -74,10 +74,10 @@ const ROLE_NAMES: [RigRole, RegExp, number][] = [
   ['eyelid', /^(eyelids?|lids?|mabuta)$/, 0.9],
   ['tongue', /^(tongue|shita)$/, 0.9],
   ['teeth', /^(teeth|tooth|fangs?)$/, 0.9],
-  ['accessory', /^(acc|accessory|accessories|hat|cap|glasses|earrings?|necklace|bag|weapon|sword|ribbon|bow|choker|hairpin|ornament|prop|halo|horns?|crown|bell)$/, 0.7],
+  ['accessory', /^(acc|accessory|accessories|hat|cap|glasses|earrings?|necklace|bag|bags|backpack|bagpack|weapon|sword|ribbon|bow|choker|hairpin|ornament|prop|halo|horns?|crown|bell)$/, 0.7],
 ];
 const HELPER = /^(twist|roll|helper|adj|sub|corrective|correct|aux|support|bulge|volume|fix|dummy|share|leaf|socket)$/;
-const IGNORE = /^(end|nub|tip|ik|ctrl|control|target|pole|null|locator|marker|root|parent|center|groove|waistcancel|viewcenter|grip|weapon_?r|armature)$/;
+const IGNORE = /^(end|nub|tip|palm|ik|ctrl|control|target|pole|null|locator|marker|root|parent|center|groove|waistcancel|viewcenter|grip|weapon_?r|armature)$/;
 
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 
@@ -110,11 +110,29 @@ export function automap(input: AutomapInput): AutomapResult {
     used.add(a.bone);
     byBone.set(a.bone, { kind: 'humanoid', role: k as HumanBone, confidence: a.confidence, why: a.why });
   }
+  // Fingers a file's own map leaves out: each finger's chain under the hand, by name, fills the free slots.
+  for (const side of ['left', 'right'] as const) {
+    const hand = humanoid[`${side}Hand`]?.bone;
+    if (!hand) continue;
+    const under = (n: string): string[] => (children.get(n) ?? []).flatMap((c) => [c, ...under(c)]);
+    const FINGER: [string, RegExp][] = [['Thumb', /^(thumb|oyayubi)$/], ['Index', /^(index|indexfinger|pointer|hitosashi)$/], ['Middle', /^(middle|middlefinger|naka)$/], ['Ring', /^(ring|ringfinger|kusuri)$/], ['Little', /^(little|littlefinger|pinky|pinkie|ko)$/]];
+    for (const [finger, re] of FINGER) {
+      const chain = under(hand).filter((b) => !used.has(b) && info.get(b)!.words.some((w) => re.test(w))).sort((a, b) => ancestors(a).length - ancestors(b).length);
+      const slots = finger === 'Thumb' ? ['Metacarpal', 'Proximal', 'Distal'] : ['Proximal', 'Intermediate', 'Distal'];
+      chain.slice(0, 3).forEach((b, i) => {
+        const key = `${side}${finger}${slots[i]}` as HumanBone;
+        if (humanoid[key]) return;
+        humanoid[key] = { bone: b, confidence: 0.85, why: `the ${finger.toLowerCase()} chain under the hand` };
+        used.add(b);
+        byBone.set(b, { kind: 'humanoid', role: key, confidence: 0.85, why: humanoid[key]!.why });
+      });
+    }
+  }
   const missing = REQUIRED_BONES.filter((b) => !humanoid[b]);
   for (const m of missing) review.push({ bone: m, why: `No bone found for ${m}.` });
 
   // 3. The spine chain: everything between the hips and the neck (or head), in order.
-  const ancestors = (n: string) => {
+  function ancestors(n: string): string[] {
     const out: string[] = [];
     let p = byName.get(n)?.parent ?? null;
     const guard = new Set<string>();
@@ -124,7 +142,7 @@ export function automap(input: AutomapInput): AutomapResult {
       p = byName.get(p)?.parent ?? null;
     }
     return out;
-  };
+  }
   const hips = humanoid.hips?.bone;
   const top = humanoid.neck?.bone ?? humanoid.head?.bone;
   let spine: string[] = [];
@@ -254,12 +272,13 @@ export function automap(input: AutomapInput): AutomapResult {
   // 4. Chains: every bone not in the core belongs to a chain hanging from somewhere.
   const roles: RoleAssignment[] = [];
   const ignore: string[] = [];
+  const aboveHips = new Set(hips ? ancestors(hips) : []);
   const visit = (n: string, inherited: { role: RigRole; confidence: number; why: string } | null, chain: string[] | null, chainInfo: RoleAssignment | null) => {
     if (used.has(n)) {
       for (const c of children.get(n) ?? []) visit(c, null, null, null);
       return;
     }
-    let cls = classify(n, !!inherited);
+    let cls = aboveHips.has(n) ? { role: 'ignore' as const, confidence: 0.95, why: 'above the hips (a root or control bone)' } : classify(n, !!inherited);
     // A strong name of its own (a ribbon in the hair) starts a new role; otherwise the chain's role holds.
     if (inherited && !(cls.role && cls.role !== inherited.role && cls.confidence >= 0.7)) cls = { ...inherited, why: inherited.why };
     if (cls.role === 'ignore') {

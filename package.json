@@ -24,7 +24,8 @@
     "mock-llm": "tsx tests/mock-llm/server.ts",
     "bench:memory": "tsx tests/memory-bench/cli.ts",
     "prepare": "node -e \"try{require('child_process').execSync('git config core.hooksPath scripts/hooks',{stdio:'ignore'})}catch(e){}\"",
-    "check:secrets": "node scripts/check-secrets.mjs --all"
+    "check:secrets": "node scripts/check-secrets.mjs --all",
+    "bones:automap": "tsx tools/bones/automap.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",

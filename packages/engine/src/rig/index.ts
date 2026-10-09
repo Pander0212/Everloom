@@ -3,3 +3,4 @@ export * from './schema.js';
 export * from './names.js';
 export * from './presets.js';
 export * from './automap.js';
+export * from './gltf.js';
