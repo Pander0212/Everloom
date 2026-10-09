@@ -121,6 +121,23 @@ test.describe('features from Hakawati', () => {
     expect(errors).toEqual([]);
   });
 
+  test('the story panel sets how hard the chat’s model thinks', async ({ page, errors }) => {
+    const ch = await api(page, 'POST', '/api/characters', { card: { name: 'Panel Pell', first_mes: 'Pell nods.' } });
+    const chat = await api(page, 'POST', '/api/chats', { characterId: ch.id, features: 'classic' });
+    const main = (await api(page, 'GET', '/api/settings')).roles.main as string;
+    const params = async () => (await api(page, 'GET', '/api/connections')).find((c: { id: string }) => c.id === main).params;
+    await page.goto(`/chat/${chat.id}`);
+    await tool(page, 'Story panel');
+    await page.getByRole('tab', { name: 'AI', exact: true }).click();
+    const thinking = page.getByRole('radiogroup', { name: 'Thinking' });
+    await thinking.getByRole('radio', { name: 'High' }).click();
+    await expect.poll(async () => (await params()).reasoning_effort).toBe('high');
+    expect((await params()).reasoning).toBe(true);
+    await thinking.getByRole('radio', { name: 'Off' }).click();
+    await expect.poll(async () => (await params()).reasoning).toBe(false);
+    expect(errors).toEqual([]);
+  });
+
   test('interface scaling: Ctrl/⌘ + plus and 0', async ({ page, errors }) => {
     await page.goto('/');
     await expect(page.getByRole('heading', { name: 'Chats' })).toBeVisible();

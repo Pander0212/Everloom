@@ -2,6 +2,40 @@
 
 Snapshot of what's built, what's partial, and how it was tested. Everloom 0.1.0.
 
+## Design & UX (2026-10-09)
+
+Making the app understandable, themes with scenery, and features from Hakawati. Docs:
+[docs/ux/](docs/ux/) (audit, navigation before/after, task tests, glossary, themes, Hakawati);
+acceptance evidence: [docs/ux/evidence/acceptance.md](docs/ux/evidence/acceptance.md).
+
+### Done ✅
+- **Clarity**: Tools grouped by intent (This scene, My character, The world, Story tools, Create,
+  Settings, Advanced) with pins per preset and search (Ctrl/⌘K, phone search); plain names
+  (Auto-tracking, What the AI sees, Story state, …) in one glossary; message actions under the
+  message with More in labelled groups; one send button and an input-mode switch; customizable
+  quick actions; a line and a **What is this?** on every screen; Simple and Advanced settings;
+  a first-run tour per preset; Classic chat shows no game entry anywhere.
+- **Measured**: visible controls on a phone's play screen 20 → 16; nine common tasks 32 → 25 taps,
+  2 → 0 scrolls ([task-tests.md](docs/ux/task-tests.md)).
+- **Themes**: ten themes plus Everloom's own, each with fonts, shapes, motion and scenery around
+  the story (never under the text; a band on phones; paused when hidden, scrolled away or typing;
+  still under reduced motion); live gallery in Settings › Appearance & themes; per world and per
+  device; reading settings; AA contrast tested for every theme in light and dark; scene script
+  0.5–1.0% of a 4× slowed core on the phone profile.
+- **From Hakawati** (ideas only, clean-room): input modes, scenario questions, Quickstart with
+  cancel, scenarios, story cards (merged with lorebooks) with generation, the story panel, undo/redo
+  of turns, thinking levels, dictation through the voice connection, interface scaling, migrations
+  as one step with a recovery message. Researched, not built: Continue with ChatGPT. Skipped:
+  right-to-left (no translations yet). Decisions: [docs/ux/hakawati.md](docs/ux/hakawati.md).
+
+### Tests
+- Typecheck clean; Vitest 106 files, 780 passed, 5 skipped (Blender).
+- Playwright e2e, eight projects: E2E_RESULT.
+- UX suite (`playwright.ux.config.ts`): task tests, screens, themes, scenery CPU, presets (Classic,
+  Story, Full RPG) all passing.
+- Found and fixed by the final runs: a closing sheet's fading backdrop swallowed the next tap; the
+  scenery could draw with a negative clock on its first frame and throw.
+
 ## Phase 5
 
 3D characters: import, rendering, motion, a wardrobe that follows the inventory, four ways to make

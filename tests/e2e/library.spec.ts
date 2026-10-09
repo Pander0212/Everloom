@@ -70,7 +70,7 @@ test.describe('character library', () => {
     for (const n of ['Alpha', 'Beta']) await api(page, 'POST', '/api/characters', { card: { name: `${n} ${tag}`, tags: [tag] } });
     await page.reload();
     await page.getByLabel('Search characters').fill(`tag:${tag}`);
-    await expect(page.getByText(/^2 (of|characters)/)).toBeVisible();
+    await expect(page.getByText(/^2 (of \d+|characters)$/)).toBeVisible();
     await page.getByRole('button', { name: 'Library tools' }).click();
     await page.getByRole('menuitem', { name: 'Select' }).click();
     await page.getByRole('button', { name: new RegExp(`^Alpha ${tag}`) }).click();
@@ -81,7 +81,7 @@ test.describe('character library', () => {
     await expect(page.getByText('2 characters deleted')).toBeVisible();
     await expect(page.getByRole('button', { name: new RegExp(`^Alpha ${tag}`) })).toHaveCount(0);
     await page.getByRole('button', { name: 'Undo' }).click();
-    await expect(page.getByText(/^2 (of|characters)/)).toBeVisible();
+    await expect(page.getByText(/^2 (of \d+|characters)$/)).toBeVisible();
 
     // A plain SillyTavern zip: card + chat folder.
     const png = readFileSync(SERAPHINA);
