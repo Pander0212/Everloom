@@ -235,7 +235,14 @@ export function bodyWeights(cfg: Pick<AvatarConfig, 'morphs' | 'bodyShape'>, opt
 
 /** Body sliders: every mesh with the morph follows (garments included). */
 export function shapeBody(avatar: Avatar, cfg: AvatarConfig, opts: { adultAllowed?: boolean; snap?: boolean } = {}) {
-  avatar.morphs.set(bodyWeights(cfg, opts), opts.snap ?? !avatar.started);
+  const weights = bodyWeights(cfg, opts);
+  // Mapped breast and butt bones take the chest and butt sliders (bone scale) instead of the mesh morphs.
+  if (avatar.rolesShapeBody) {
+    if ((cfg.rig?.roles ?? []).some((r) => r.role === 'breast')) weights.EverloomBody_chest = 0;
+    if ((cfg.rig?.roles ?? []).some((r) => r.role === 'butt')) weights.EverloomBody_buttocks = 0;
+    avatar.shapeRoles(cfg.bodyShape);
+  }
+  avatar.morphs.set(weights, opts.snap ?? !avatar.started);
 }
 
 /** Skin tone, skin layers, hair and eye colours. */

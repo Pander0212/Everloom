@@ -239,7 +239,7 @@ export class Stage3D {
     this.remove(id);
     const L = LEVELS[this.level]!;
     const budget = PHYSICS_BUDGET[this.level] ?? PHYSICS_BUDGET[PHYSICS_BUDGET.length - 1]!;
-    const avatar = new Avatar(model, { look: opts.look ?? 'toon', outlines: (opts.outlines ?? true) && L.outlines && this.opts.outlines, physics: (opts.physics ?? true) && L.physics && this.opts.physics, stiffness: opts.stiffness, gravity: opts.gravity, settings: opts.settings, budget: { points: Math.max(PHYSICS_BUDGET[1].points, budget.points), hz: budget.hz } });
+    const avatar = new Avatar(model, { look: opts.look ?? 'toon', outlines: (opts.outlines ?? true) && L.outlines && this.opts.outlines, physics: (opts.physics ?? true) && L.physics && this.opts.physics, stiffness: opts.stiffness, gravity: opts.gravity, settings: opts.settings, rig: opts.rig, budget: { points: Math.max(PHYSICS_BUDGET[1].points, budget.points), hz: budget.hz } });
     avatar.wantsPhysics = opts.physics ?? true;
     avatar.kick = () => this.kick();
     const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: blob(), transparent: true, depthWrite: false }));

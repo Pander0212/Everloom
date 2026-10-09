@@ -226,7 +226,7 @@ async function processAvatar(ctx: AppContext, owner: string, id: string, opts: P
     if (conversion) info.warnings.push(...blendNotes(conversion));
     const basic = conversion ? saveModelFile(ctx, owner, glb, { kind: 'model', ext: 'glb', meta: { avatar: id, basic: true } }).id : src.row.id;
     const initialConfig = parseConfig(getAvatarRow(ctx, owner, id).config);
-    const mappedConfig = { ...initialConfig, boneMap: Object.keys(initialConfig.boneMap).length ? initialConfig.boneMap : info.boneMap, expressionMap: Object.keys(initialConfig.expressionMap).length ? initialConfig.expressionMap : info.expressionMap };
+    const mappedConfig = { ...initialConfig, rig: initialConfig.rig ?? info.rig, boneMap: Object.keys(initialConfig.boneMap).length ? initialConfig.boneMap : info.boneMap, expressionMap: Object.keys(initialConfig.expressionMap).length ? initialConfig.expressionMap : info.expressionMap };
     // The validated original is usable now. Optional compression never gates the
     // editor or stage, even when encoding takes minutes or another job is busy.
     setStatus(ctx, owner, id, { status: 'ready', error: null, format: info.format, model_media: basic, low_media: basic, config: JSON.stringify(mappedConfig), info: JSON.stringify({ ...info, processingStage: 'Preparing optional optimized copies', conversion }) });
@@ -249,7 +249,7 @@ async function processAvatar(ctx: AppContext, owner: string, id: string, opts: P
     // Settings may be edited while optimization runs. Never replace those edits with the
     // processing job's initial snapshot.
     const currentConfig = parseConfig(getAvatarRow(ctx, owner, id).config);
-    const next: AvatarConfig = { ...currentConfig, boneMap: Object.keys(currentConfig.boneMap).length ? currentConfig.boneMap : info.boneMap, expressionMap: Object.keys(currentConfig.expressionMap).length ? currentConfig.expressionMap : info.expressionMap };
+    const next: AvatarConfig = { ...currentConfig, rig: currentConfig.rig ?? info.rig, boneMap: Object.keys(currentConfig.boneMap).length ? currentConfig.boneMap : info.boneMap, expressionMap: Object.keys(currentConfig.expressionMap).length ? currentConfig.expressionMap : info.expressionMap };
     setStatus(ctx, owner, id, {
       status: 'ready',
       error: null,

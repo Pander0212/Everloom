@@ -185,7 +185,7 @@ export default function StageLayer({ cast, speakerId, scene, onFail, paired = nu
           try { await configureMaterials(model.scene, { ...cfg.materialOverrides, ...dressedRef.current.get(c.id)?.outfit?.materialOverrides }); }
           catch (error) { disposeLoadedModel(model); throw error; }
           if (stage.current !== s || loaded.current.get(c.id) !== stamp) { disposeLoadedModel(model); return; }
-          const a = s.add(c.id, model, { look: recipe ? 'toon' : lookFor(cfg, model), outlines: cfg.outlines, physics: cfg.physics.enabled, stiffness: cfg.physics.stiffness, gravity: cfg.physics.gravity, settings: cfg.physics });
+          const a = s.add(c.id, model, { look: recipe ? 'toon' : lookFor(cfg, model), outlines: cfg.outlines, physics: cfg.physics.enabled, stiffness: cfg.physics.stiffness, gravity: cfg.physics.gravity, settings: cfg.physics, rig: cfg.rig });
           const now = dressedRef.current.get(c.id);
           if (now && !recipe) dress(a, configOfRef.current(c) ?? cfg, s.renderer, now, { low, adultAllowed: adultContentAllowed(cfg.content, adultModeRef.current) });
           s.snapCamera();

@@ -3,6 +3,7 @@
  * skeleton, morph targets and VRM expressions, size and cost, plus the automatic bone and expression
  * mapping. Works on the raw description, so VRM extensions are read as written.
  */
+import { automap, skeletonFromGltf, type GltfJson as RigGltf, type RigMapping } from '@everloom/engine';
 import sharp from 'sharp';
 import { mapBones, mapExpressions, REQUIRED_BONES, type BoneMapResult, type ExpressionMap, type HumanBone, type MorphWeight, type RigBone } from '@everloom/engine';
 import { parseGlb, viewBytes, type Glb, type GltfJson } from './glb.js';
@@ -37,6 +38,9 @@ export interface ModelInfo {
   height: number;
   unitScale: number;
   boneMap: Partial<Record<HumanBone, string>>;
+  /** The auto-mapper's spine chain and secondary roles, and what it wants reviewed. */
+  rig: RigMapping;
+  rigReview: { bone: string; why: string }[];
   missingBones: HumanBone[];
   convention: BoneMapResult['convention'];
   expressionMap: ExpressionMap;
@@ -224,6 +228,8 @@ export async function inspectModel(bytes: Buffer, glb?: Glb): Promise<ModelInfo>
   const dup = bones.length - new Set(bones.map((b) => b.name)).size;
   if (dup) warnings.push({ code: 'duplicate_bones', message: `${dup} bones share a name with another bone; mapping may pick the wrong one`, level: 'problem' });
   const auto = mapBones(bones, humanoid);
+  // Every other bone: the spine chain, breasts, hair, skirts, helpers… (docs/3d-import/bones.md).
+  const rigAuto = automap({ ...skeletonFromGltf(json as unknown as RigGltf), humanoid: { ...auto.map, ...(humanoid ?? {}) }, humanoidSource: humanoid ? 'VRM humanoid' : 'automatic mapping' });
 
   const vrmExpressions = vrmExpressionNames(json);
   const vrmMap: Record<string, MorphWeight[]> | null = vrmExpressions.length ? Object.fromEntries(vrmExpressions.map((e) => [e, [{ morph: `vrm:${e}`, weight: 1 }]])) : null;
@@ -286,6 +292,8 @@ export async function inspectModel(bytes: Buffer, glb?: Glb): Promise<ModelInfo>
     height,
     unitScale,
     boneMap: auto.map,
+    rig: rigAuto.rig,
+    rigReview: rigAuto.review.slice(0, 200),
     missingBones: auto.missing,
     convention: auto.convention,
     expressionMap: ex.map,

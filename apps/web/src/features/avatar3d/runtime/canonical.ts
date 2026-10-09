@@ -44,6 +44,41 @@ export interface RigInfo {
   hipsHeight: number;
   /** The facing frame: identity for +Z, a half turn for -Z. */
   facing: THREE.Quaternion;
+  /**
+   * Unmapped bones in the spine between one mapped bone and the next (Spine1, Spine2 on a five-bone
+   * spine), with their rest rotations: the mapped bone's bend is shared out over them.
+   */
+  spread?: Partial<Record<HumanBone, { bones: THREE.Object3D[]; rest: THREE.Quaternion[] }>>;
+  /** Helper and twist bones that follow a mapped bone's motion by a fraction (setHelpers). */
+  helpers?: { bone: THREE.Object3D; rest: THREE.Quaternion; follow: HumanBone; fraction: number; twistOnly: boolean; axis: THREE.Vector3 }[];
+}
+
+/** The mapped bone each limb's helpers follow: the next joint down the limb. */
+const NEXT: Partial<Record<HumanBone, HumanBone>> = {
+  leftUpperArm: 'leftLowerArm', rightUpperArm: 'rightLowerArm', leftLowerArm: 'leftHand', rightLowerArm: 'rightHand',
+  leftUpperLeg: 'leftLowerLeg', rightUpperLeg: 'rightLowerLeg', leftShoulder: 'leftUpperArm', rightShoulder: 'rightUpperArm', upperChest: 'neck', chest: 'neck',
+};
+
+/**
+ * Helper and twist bones (from the bone mapping): each takes a fraction of the next joint's motion,
+ * twist bones only its twist about the limb (swing-twist split), so forearms and thighs don't
+ * candy-wrap. Bones are matched by name.
+ */
+export function setHelpers(rig: RigInfo, helpers: { name: string; fraction: number }[]) {
+  const byName = new Map<string, THREE.Object3D>();
+  rig.root.traverse((o) => { if (!byName.has(o.name)) byName.set(o.name, o); });
+  const owner = new Map<THREE.Object3D, HumanBone>();
+  for (const [k, o] of Object.entries(rig.bones)) if (o) owner.set(o, k as HumanBone);
+  rig.helpers = [];
+  for (const h of helpers) {
+    const bone = byName.get(h.name) ?? byName.get(THREE.PropertyBinding.sanitizeNodeName(h.name));
+    const parentSlot = bone?.parent ? owner.get(bone.parent) : undefined;
+    const follow = parentSlot ? NEXT[parentSlot] : undefined;
+    const next = follow ? rig.bones[follow] : undefined;
+    if (!bone || !follow || !next) continue;
+    const axis = next.position.clone().normalize();
+    rig.helpers.push({ bone, rest: bone.quaternion.clone(), follow, fraction: h.fraction, twistOnly: /twist|roll|捩|ねじ/i.test(h.name), axis });
+  }
 }
 
 const _v1 = new THREE.Vector3();
@@ -124,6 +159,23 @@ export function prepareRig(root: THREE.Object3D, bones: Partial<Record<HumanBone
     rig.tpose[b] = frameQuat(rig, o, new THREE.Quaternion());
     rig.tlocal[b] = o.quaternion.clone();
   }
+  // Long spines: the bones between hips, spine, chest, upper chest and neck that no slot holds.
+  rig.spread = {};
+  const SPINE: HumanBone[] = ['hips', 'spine', 'chest', 'upperChest', 'neck', 'head'];
+  for (let i = 1; i < SPINE.length; i++) {
+    const child = bones[SPINE[i]!];
+    if (!child) continue;
+    let parentSlot: HumanBone | null = null;
+    for (let j = i - 1; j >= 0 && !parentSlot; j--) if (bones[SPINE[j]!]) parentSlot = SPINE[j]!;
+    const parentBone = parentSlot ? bones[parentSlot] : undefined;
+    if (!parentBone || parentSlot === 'hips') continue;
+    const between: THREE.Object3D[] = [];
+    for (let p = child.parent; p && p !== parentBone; p = p.parent) between.unshift(p);
+    // Only when the parent bone really is an ancestor (not a rigid rig with detached nodes).
+    let ok = false;
+    for (let p = child.parent; p; p = p.parent) if (p === parentBone) ok = true;
+    if (ok && between.length && between.length <= 6) rig.spread[parentSlot!] = { bones: between, rest: between.map((b) => b.quaternion.clone()) };
+  }
   const hips = bones.hips;
   if (hips) {
     rig.hipsRest.copy(hips.position);
@@ -171,6 +223,9 @@ export function readCanonical(rig: RigInfo, out: CanonicalPose = emptyPose()): C
 }
 
 const _N = new Map<HumanBone, THREE.Quaternion>();
+const _d = new THREE.Quaternion();
+const _inv = new THREE.Quaternion();
+const _part = new THREE.Quaternion();
 const _desired = new THREE.Quaternion();
 const _pf = new THREE.Quaternion();
 /**
@@ -196,8 +251,31 @@ export function applyCanonical(rig: RigInfo, pose: CanonicalPose, opts: { hips?:
     if (o.parent) frameQuat(rig, o.parent, _pf);
     else _pf.identity();
     o.quaternion.copy(_pf.invert().multiply(_desired));
+    // A bend over several spine bones: each of them takes an equal share of it.
+    const spread = rig.spread?.[b];
+    if (spread && rig.tlocal[b]) {
+      const share = 1 / (spread.bones.length + 1);
+      _d.copy(o.quaternion).multiply(_inv.copy(rig.tlocal[b]!).invert());
+      _part.identity().slerp(_d, share);
+      o.quaternion.copy(_part).multiply(rig.tlocal[b]!);
+      spread.bones.forEach((x, i) => x.quaternion.copy(_part).multiply(spread.rest[i]!));
+    }
     // Its subtree (including unmapped twist bones before the next mapped one) needs the new matrix.
     o.updateWorldMatrix(false, true);
+  }
+  for (const h of rig.helpers ?? []) {
+    const o = rig.bones[h.follow];
+    const t = rig.tlocal[h.follow];
+    if (!o || !t) continue;
+    _d.copy(o.quaternion).multiply(_inv.copy(t).invert());
+    if (h.twistOnly) {
+      // Twist about the limb: the quaternion's projection onto the axis.
+      const dot = _d.x * h.axis.x + _d.y * h.axis.y + _d.z * h.axis.z;
+      _d.set(h.axis.x * dot, h.axis.y * dot, h.axis.z * dot, _d.w).normalize();
+    }
+    _part.identity().slerp(_d, h.fraction);
+    h.bone.quaternion.copy(h.rest).premultiply(_part);
+    h.bone.updateWorldMatrix(false, true);
   }
   const hips = rig.bones.hips;
   if (hips && opts.hips !== false) {
@@ -213,6 +291,8 @@ export function resetToTPose(rig: RigInfo) {
     const o = rig.bones[b];
     if (o && rig.tlocal[b]) o.quaternion.copy(rig.tlocal[b]!);
   }
+  for (const s of Object.values(rig.spread ?? {})) s!.bones.forEach((x, i) => x.quaternion.copy(s!.rest[i]!));
+  for (const h of rig.helpers ?? []) h.bone.quaternion.copy(h.rest);
   rig.bones.hips?.position.copy(rig.hipsRest);
   rig.root.updateMatrixWorld(true);
 }

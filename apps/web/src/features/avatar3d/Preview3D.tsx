@@ -121,7 +121,7 @@ export default function Preview3D({ src: baseSrc, fallbackSrc, config, framing =
         catch (error) { disposeLoadedModel(model); throw error; }
         if (cancelled) { disposeLoadedModel(model); return; }
         const first = !handle.current;
-        const avatar = s.add('preview', model, { look: lookFor(config, model), outlines: config?.outlines ?? true, physics: config?.physics?.enabled ?? true, stiffness: config?.physics?.stiffness, gravity: config?.physics?.gravity, settings: config?.physics });
+        const avatar = s.add('preview', model, { look: lookFor(config, model), outlines: config?.outlines ?? true, physics: config?.physics?.enabled ?? true, stiffness: config?.physics?.stiffness, gravity: config?.physics?.gravity, settings: config?.physics, rig: config?.rig });
         if (first || !recipe) s.snapCamera();
         handle.current = { stage: s, avatar, model };
         if (!recipe && wardrobeRef.current && fullCfg?.success) dress(avatar, fullCfg.data, s.renderer, wardrobeRef.current, { adultAllowed: adultRef.current });
