@@ -13,7 +13,7 @@
  * A layering result made elsewhere (a See-through zip) can be imported the same way, without the
  * worker: `importPuppetZip`.
  */
-import { keyBackground } from '@everloom/engine';
+import { keyBackground, parsePuppet, type PuppetModel } from '@everloom/engine';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -98,12 +98,44 @@ function resultName(read: (p: string) => Buffer | null, names: string[]): string
   throw new HttpError(400, 'The zip has no <name>/layers.json (a See-through result from tools/see-through-worker)');
 }
 
-export async function importPuppetZip(ctx: AppContext, owner: string, zip: Buffer, o: { title: string; rating: 'all-ages' | '18+'; bounce?: number }): Promise<PuppetMeta> {
+/**
+ * A zip of finished puppets (each folder or the root holding a puppet.json and its pages), or a
+ * layering result (<name>/layers.json), which is mapped and rigged here. Returns what was added.
+ */
+export async function importPuppetZip(ctx: AppContext, owner: string, zip: Buffer, o: { title: string; rating: 'all-ages' | '18+'; bounce?: number }): Promise<PuppetMeta[]> {
   let files: Record<string, Uint8Array>;
   try { files = unzipSync(zip); } catch { throw new HttpError(400, 'That is not a zip file'); }
   const read = (p: string) => (files[p] ? Buffer.from(files[p]!) : null);
+  const finished = Object.keys(files).filter((n) => /(^|\/)puppet\.json$/.test(n));
+  if (finished.length) {
+    if (finished.length > 200) throw new HttpError(400, 'Too many puppets in one zip (200 at most)');
+    const ids: string[] = [];
+    for (const n of finished) ids.push(storeFinished(ctx, owner, read, n.slice(0, n.length - 'puppet.json'.length)));
+    const all = listPuppets(ctx, owner);
+    return ids.map((id) => all.find((p) => p.id === id)!);
+  }
   const id = await store(ctx, owner, read, resultName(read, Object.keys(files)), { ...o, source: 'import' });
-  return listPuppets(ctx, owner).find((p) => p.id === id)!;
+  return [listPuppets(ctx, owner).find((p) => p.id === id)!];
+}
+
+/** A finished puppet (checked against the format; its pages must be PNGs) kept as it is. */
+function storeFinished(ctx: AppContext, owner: string, read: (p: string) => Buffer | null, dir: string): string {
+  let model: PuppetModel;
+  try { model = parsePuppet(JSON.parse(read(`${dir}puppet.json`)!.toString('utf8'))); } catch (e) { throw new HttpError(400, `${dir}puppet.json is not an Everloom puppet: ${(e as Error).message.slice(0, 200)}`); }
+  const pages = model.textures.map((t) => {
+    if (!/^[A-Za-z0-9_.-]{1,80}\.png$/.test(t)) throw new HttpError(400, `${dir}puppet.json names an odd texture (${t.slice(0, 40)})`);
+    const b = read(`${dir}${t}`);
+    if (!b || b.readUInt32BE(0) !== 0x89504e47) throw new HttpError(400, `${dir}${t} is missing or not a PNG`);
+    return b;
+  });
+  const id = randomUUID().replace(/-/g, '').slice(0, 16);
+  const out = puppetsDir(ctx, owner, id);
+  // Pages are stored under the names the puppet uses; the model keeps its own name and rating.
+  writeContentFile(ctx.vault, path.join(out, 'puppet.json'), Buffer.from(JSON.stringify({ ...model, textures: model.textures.map((_, i) => `page${i}.png`) })));
+  pages.forEach((b, i) => writeContentFile(ctx.vault, path.join(out, `page${i}.png`), b));
+  const meta: PuppetMeta = { id, name: model.name, rating: model.rating, createdAt: Date.now(), parts: model.parts.length, source: 'import' };
+  writeContentFile(ctx.vault, path.join(out, 'meta.json'), Buffer.from(JSON.stringify(meta)));
+  return id;
 }
 
 async function worker(conn: ResolvedConnection, p: string, init: { method?: string; body?: Buffer; timeoutMs?: number } = {}) {

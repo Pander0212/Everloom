@@ -73,7 +73,7 @@ export default function PuppetsSection() {
         </div>
       </Section>
 
-      <Section title="Import a layering result" description="A zip from tools/see-through-worker (it holds <name>/layers.json and the layer pictures), for layering done somewhere else.">
+      <Section title="Import puppets" description="A zip of finished puppets (each a puppet.json with its pictures; one zip can hold many), or a layering result from tools/see-through-worker (it holds <name>/layers.json), for layering done somewhere else.">
         <FileButton variant="secondary" icon={Layers} accept=".zip,application/zip" onFiles={importZip} disabled={importing}>{importing ? 'Importing…' : 'Import a zip'}</FileButton>
       </Section>
 
