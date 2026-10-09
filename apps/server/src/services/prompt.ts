@@ -255,6 +255,10 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
 
   const extraRules: string[] = [];
   if (character.game.chatRules?.trim()) extraRules.push(character.game.chatRules.trim());
+  // A story started from a scenario keeps its own copy of the scenario's instructions and plot.
+  const scen = chat.metadata.scenario as { title?: string; instructions?: string; plot?: string } | undefined;
+  if (scen?.instructions?.trim()) extraRules.push(`Scenario "${scen.title ?? ''}": ${scen.instructions.trim()}`);
+  if (scen?.plot?.trim()) extraRules.push(`Where this story is meant to go (for you only; let it unfold, don't announce it): ${scen.plot.trim()}`);
   if (state && features.on.trackers && settings.tracker.mode === 'inline' && opts.type !== 'impersonate') extraRules.push(inlineInstruction(allowedOpTypes(AI_OP_TYPES, features), features.on.avatars3d ? emotesForChat(ctx, owner, chat.groupId ? (getGroup(ctx, owner, chat.groupId).members.map((m) => m.characterId)) : [character.id]) : []));
   if (opts.finalInstruction) extraRules.push(opts.finalInstruction);
 

@@ -10,6 +10,7 @@ import { reconcileLegacyCampaigns } from './services/campaigns.js';
 import { openDb, type DB } from './db/index.js';
 import { lockedDb, openSystemDb, Vault } from './vault/vault.js';
 import { registerQuickstart } from './routes/quickstart.js';
+import { registerScenarios } from './routes/scenarios.js';
 import { registerAuth } from './routes/auth.js';
 import { runWithShield } from './privacy/shield.js';
 import { installShield } from './services/shield.js';
@@ -186,6 +187,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerLive2d(app, ctx);
   registerPuppets(app, ctx);
   registerQuickstart(app, ctx);
+  registerScenarios(app, ctx);
   registerAvatarRoutes(app, ctx);
   registerAssetRoutes(app, ctx);
   registerSystem(app, ctx);

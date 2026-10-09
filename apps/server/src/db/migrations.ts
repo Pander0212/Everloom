@@ -671,4 +671,20 @@ CREATE TABLE avatar_packs (
 );
 `,
   },
+  {
+    version: 12,
+    name: 'scenarios',
+    sql: `
+-- Scenarios: reusable starting points (opening, instructions, plot, note, starting game setup,
+-- story cards, cover). A new story copies what it needs, so editing a scenario never changes one.
+CREATE TABLE scenarios (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  data TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX scenarios_owner ON scenarios(owner_id, updated_at);
+`,
+  },
 ];

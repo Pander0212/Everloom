@@ -1,9 +1,9 @@
 import { FEATURE_PRESETS, PRESET_INFO } from '@everloom/engine';
 import { entry } from '@/lib/registry';
 import { LOOKS } from '@/themes/looks';
-import type { ChatDTO, MessageDTO } from '@everloom/engine';
+import type { ChatDTO, LorebookDTO, MessageDTO } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
-import { BookmarkCheck, ChevronDown, Copy, Download, GitBranch, Pin, RefreshCw, Search, Trash2, Upload } from 'lucide-react';
+import { Map as MapIcon, BookmarkCheck, ChevronDown, Copy, Download, GitBranch, Pin, RefreshCw, Search, Trash2, Upload } from 'lucide-react';
 import { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router';
 import { del, download, get, patch, post, upload } from '@/lib/api';
@@ -333,6 +333,27 @@ export function ChatInfoSheet({ chat, open, onOpenChange }: { chat: ChatDTO; ope
             }}
           >
             Duplicate chat
+          </Button>
+          <Button
+            variant="ghost"
+            icon={MapIcon}
+            className="justify-start"
+            onClick={async () => {
+              // A scenario from this chat: its opening, note, story cards and character.
+              try {
+                const msgs = qc.getQueryData<MessageDTO[]>(qk.messages(chat.id)) ?? [];
+                const first = msgs.find((m) => m.role === 'assistant');
+                const books = await get<LorebookDTO[]>('/api/lorebooks');
+                const own = books.find((b) => b.scope === 'chat' && b.scopeId === chat.id);
+                const cards = Object.values(own?.book.entries ?? {}).map((e) => ({ type: (e.cardType as string) ?? 'concept', title: e.comment || e.key[0] || 'Card', keys: e.key, content: e.content, pinned: e.constant }));
+                await post('/api/scenarios', { title: chat.title, opening: first ? first.swipes[first.swipeId]?.text ?? '' : '', note: chat.metadata.authorsNote?.content ?? '', characterId: chat.characterId, mode: chat.metadata.features ?? null, cards });
+                toast({ title: 'Saved as a scenario', tone: 'success', action: { label: 'Open', run: () => navigate('/scenarios') } });
+              } catch (e) {
+                toastError(e);
+              }
+            }}
+          >
+            Save as a scenario
           </Button>
           <Button
             variant="ghost"
