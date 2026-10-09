@@ -12,6 +12,8 @@ import { readHumanoid, type UnityHumanoid } from './humanoid';
 import { behaviours, readBlendshapeSync, readDescriptor, readDynamicBone, readMergeArmature, readObjectToggle, readPhysBone, visemeExpressions, type AvatarDescriptor, type ChainFromUnity, type ComponentKind } from './vrchat';
 import type { ChainKind, SpringSettings } from '../avatar/physics.js';
 import type { HumanBone } from '../avatar/skeleton.js';
+import { animKind, emotionOf, faceWeights, readAnim, readController, type AnimKind } from './anim';
+import type { Emotion } from '../game/emotion.js';
 
 export interface ReportLine {
   what: string;
@@ -118,6 +120,10 @@ export interface UnityPlan {
   /** For outfits: Merge Armature's settings (bones are matched to the avatar's by name). */
   merge: { root: string[]; prefix: string; suffix: string } | null;
   blendshapeSync: { mesh: string | null; blendshape: string; local: string }[];
+  /** Animation clips in the package: face clips (expressions), body clips (to convert), humanoid ones (need retargeting). */
+  anims: { guid: string; path: string; name: string; kind: AnimKind; loop: boolean; emotion: Emotion | null; states: string[] }[];
+  /** Face clips as expressions: emotion → blendshape weights. */
+  expressions: Partial<Record<Emotion, { morph: string; weight: number }[]>>;
   report: ImportReport;
 }
 
@@ -133,7 +139,7 @@ export function planImport(project: UnityProject, guid: string, source = 'packag
   const asset = project.get(guid);
   if (!asset) throw new Error('That file isn’t in the package.');
   const report: ImportReport = { source, imported: [], approximated: [], skipped: [], license: licenseFiles(project), thirdParty: true, guessed: [] };
-  const plan: UnityPlan = { name: stem(asset.path), models: [], hidden: [], renderers: [], materials: {}, textures: {}, humanoid: null, boneMap: {}, descriptor: null, chains: [], toggles: [], merge: null, blendshapeSync: [], report };
+  const plan: UnityPlan = { name: stem(asset.path), models: [], hidden: [], renderers: [], materials: {}, textures: {}, humanoid: null, boneMap: {}, descriptor: null, chains: [], toggles: [], merge: null, blendshapeSync: [], anims: [], expressions: {}, report };
 
   if (asset.kind === 'model') {
     plan.models.push({ guid, path: asset.path, at: [] });
@@ -304,7 +310,47 @@ function finishReport(project: UnityProject, plan: UnityPlan) {
     const n = project.all(kind as UnityKind).length;
     if (n) r.skipped.push({ what: `${n} ${kind === 'script' ? 'scripts' : kind === 'shader' ? 'shaders' : kind === 'audio' ? 'sounds' : 'scenes'}`, detail: why });
   }
-  const anims = project.all('anim').length;
-  if (anims) r.approximated.push({ what: 'Animations', detail: `${anims} clips: blendshape and transform curves import; humanoid muscle curves need retargeting and are marked so.` });
+  readAnims(project, plan);
+  const by = (k: AnimKind) => plan.anims.filter((a) => a.kind === k);
+  const emos = Object.keys(plan.expressions);
+  if (emos.length) r.imported.push({ what: 'Expressions', detail: `${emos.length} from face animations (${emos.join(', ')}).` });
+  if (by('body').length) r.imported.push({ what: 'Animations', detail: `${by('body').length} body clips, converted to Everloom motions.` });
+  if (by('humanoid').length) r.approximated.push({ what: 'Humanoid animations', detail: `${by('humanoid').length} clips use Unity’s muscle space; they’re listed as “needs retarget” and not played yet.` });
+  const states = [...new Set(plan.anims.flatMap((a) => a.states))];
+  if (states.length) r.imported.push({ what: 'Animator states', detail: `${states.length} listed as emotes and gestures: ${states.slice(0, 8).join(', ')}${states.length > 8 ? '…' : ''}.` });
+  if (by('toggle').length) r.skipped.push({ what: 'Toggle animations', detail: `${by('toggle').length} clips that switch objects or material values in VRChat menus.` });
   if (!project.exact) r.approximated.push({ what: 'Links between files', detail: 'Some .meta files are missing, so materials and textures were matched by name. Check them in “Link missing files”.' });
+}
+
+/** Reads the package's clips (at most 80) and controller states; face clips become expressions. */
+function readAnims(project: UnityProject, plan: UnityPlan) {
+  const states = new Map<string, string[]>();
+  for (const c of project.all('controller').slice(0, 40)) {
+    try {
+      for (const st of readController(text(c.data))) {
+        const g = st.motion?.guid;
+        if (g) states.set(g, [...(states.get(g) ?? []), st.name]);
+      }
+    } catch {
+      /* a controller Everloom can't read: its clips are still listed */
+    }
+  }
+  for (const a of project.all('anim').slice(0, 80)) {
+    let anim;
+    try {
+      anim = readAnim(text(a.data));
+    } catch {
+      anim = null;
+    }
+    if (!anim) continue;
+    const st = states.get(a.guid) ?? [];
+    const kind = animKind(anim);
+    const emotion = emotionOf(anim.name) ?? st.map(emotionOf).find(Boolean) ?? null;
+    plan.anims.push({ guid: a.guid, path: a.path, name: anim.name, kind, loop: anim.loop, emotion, states: st });
+    if (kind === 'face' && emotion && !plan.expressions[emotion]) {
+      const w = faceWeights(anim);
+      const list = Object.entries(w).slice(0, 12).map(([morph, weight]) => ({ morph, weight }));
+      if (list.length) plan.expressions[emotion] = list;
+    }
+  }
 }

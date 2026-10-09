@@ -12,6 +12,9 @@ import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { linearColor, matchOutfitBone, planImport, projectFromFiles, projectFromPackage, summarize, type ImportReport, type MaterialSpec, type PackageSummary, type UnityPlan, type UnityProject } from '@everloom/engine/unity';
 import type { AvatarConfig, AvatarPart } from '@everloom/engine';
 import type { UnpackReply, UnpackRequest } from './worker';
+import { readAnim } from '@everloom/engine/unity';
+import { convertMotion } from '../convert';
+import type { ClipJSON } from '../clip';
 
 export type Progress = (step: string) => void;
 
@@ -60,6 +63,44 @@ export interface UnityBuild {
   report: ImportReport;
   /** Blendshape values set in the prefab, by name (0–1): they become the avatar's slider values. */
   presets: Record<string, number>;
+  /** Body animations converted to Everloom motions (saved to the motion library). */
+  clips: { label: string; clip: ClipJSON; loop: boolean }[];
+}
+
+/**
+ * A Unity clip's transform curves as a three.js clip on the model's bones. Unity is left-handed:
+ * mirroring the X axis turns its rotations (x, y, z, w) into (x, −y, −z, w) and positions into (−x, y, z).
+ */
+function threeClip(text: string, root: THREE.Object3D): THREE.AnimationClip | null {
+  const a = readAnim(text);
+  if (!a) return null;
+  const tracks: THREE.KeyframeTrack[] = [];
+  const bone = (path: string) => {
+    const name = path.split('/').pop() ?? '';
+    const o = root.getObjectByName(name) ?? root.getObjectByName(sanitize(name));
+    return o?.name ?? null;
+  };
+  for (const c of a.rotations) {
+    const b = bone(c.path);
+    if (b && c.keys.length) tracks.push(new THREE.QuaternionKeyframeTrack(`${b}.quaternion`, c.keys.map((k) => k.t), c.keys.flatMap((k) => [k.v[0], -k.v[1], -k.v[2], k.v[3]])));
+  }
+  for (const c of a.eulers) {
+    const b = bone(c.path);
+    if (!b || !c.keys.length) continue;
+    const q = new THREE.Quaternion();
+    const e = new THREE.Euler();
+    // Unity applies Euler angles Z, then X, then Y (degrees).
+    tracks.push(new THREE.QuaternionKeyframeTrack(`${b}.quaternion`, c.keys.map((k) => k.t), c.keys.flatMap((k) => {
+      e.set(THREE.MathUtils.degToRad(k.v[0]), THREE.MathUtils.degToRad(-k.v[1]), THREE.MathUtils.degToRad(-k.v[2]), 'YXZ');
+      q.setFromEuler(e);
+      return [q.x, q.y, q.z, q.w];
+    })));
+  }
+  for (const c of a.positions) {
+    const b = bone(c.path);
+    if (b && c.keys.length) tracks.push(new THREE.VectorKeyframeTrack(`${b}.position`, c.keys.map((k) => k.t), c.keys.flatMap((k) => [-k.v[0], k.v[1], k.v[2]])));
+  }
+  return tracks.length ? new THREE.AnimationClip(a.name, a.length || -1, tracks) : null;
 }
 
 const sanitize = (n: string) => THREE.PropertyBinding.sanitizeNodeName(n);
@@ -308,10 +349,28 @@ export async function buildUnity(project: UnityProject, guid: string, opts: { as
       if (outline?.outline) config.outlineWidth = Math.min(0.02, outline.outline.width);
     }
 
+    if (opts.as === 'avatar' && Object.keys(plan.expressions).length) config.expressionMap = { ...plan.expressions, ...config.expressionMap } as AvatarConfig['expressionMap'];
+
     progress('Writing the model…');
     const glb = (await new GLTFExporter().parseAsync(root, { binary: true, onlyVisible: false, maxTextureSize: 4096 })) as ArrayBuffer;
     const file = new File([glb], `${plan.name}.glb`, { type: 'model/gltf-binary' });
-    return { file, plan, config, report, presets };
+
+    // Body animations, converted on this model's own skeleton (after the export: it poses the rig).
+    const clips: UnityBuild['clips'] = [];
+    if (opts.as === 'avatar') {
+      for (const a of plan.anims.filter((x) => x.kind === 'body').slice(0, 20)) {
+        const data = project.get(a.guid)?.data;
+        const clip = data ? threeClip(new TextDecoder().decode(data), root) : null;
+        if (!clip) continue;
+        try {
+          const id = `unity_${a.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 30) || 'clip'}`;
+          clips.push({ label: a.name.slice(0, 40), loop: a.loop, clip: convertMotion({ scene: root, animations: [clip], humanoid: plan.boneMap }, clip, { id, loop: a.loop, inPlace: true, source: a.path.slice(0, 200), maxSeconds: 60 }) });
+        } catch (e) {
+          report.skipped.push({ what: 'Animation', detail: `${a.name}: ${(e as Error).message}` });
+        }
+      }
+    }
+    return { file, plan, config, report, presets, clips };
   } finally {
     for (const u of urls) URL.revokeObjectURL(u);
   }

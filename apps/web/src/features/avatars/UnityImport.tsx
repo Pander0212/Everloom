@@ -11,7 +11,7 @@ import { get, upload } from '@/lib/api';
 import { cx } from '@/lib/format';
 import { toastError } from '@/lib/store';
 import { Button, Field, Icon, Select, Sheet } from '@/ui';
-import { addOutfitModel, saveAvatar, useAvatars, type AvatarDetail, type AvatarSummary } from './api';
+import { addOutfitModel, saveAvatar, saveClip, useAvatars, type AvatarDetail, type AvatarSummary } from './api';
 import { ImportReportView } from './ImportReportView';
 import type { PackageSummary, UnityBuild } from '@/features/avatar3d/runtime/unity/build';
 import type { UnityProject } from '@everloom/engine/unity';
@@ -112,6 +112,14 @@ export function UnityImport({ files, onClose }: { files: File[] | null; onClose:
           importReport: { ...build.report, at: stamp },
         } as AvatarConfig;
         await saveAvatar(a.id, { config: next });
+        // Body animations go to the motion library (Settings › 3D characters › Motion clips).
+        for (const c of build.clips) {
+          try {
+            await saveClip(c.clip.id, { label: c.label, category: c.loop ? 'idle' : 'social', clip: c.clip, source: c.clip.source });
+          } catch (e) {
+            build.report.skipped.push({ what: 'Animation', detail: `${c.label}: ${(e as Error).message}` });
+          }
+        }
         setDone({ build, id: a.id });
       } else {
         if (!target) throw new Error('Choose the avatar this outfit is for.');

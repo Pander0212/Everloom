@@ -49,6 +49,9 @@ test.describe('Unity packages', () => {
     expect(ava.config.parts.map((p: { name: string; on: boolean }) => `${p.name}:${p.on}`)).toEqual(['Hat:false']);
     expect(ava.config.look).toBe('toon');
     expect(ava.config.importReport.thirdParty).toBe(true);
+    // A face animation became the "joy" expression; a body animation became a motion clip.
+    expect(ava.config.expressionMap.joy.map((m: { morph: string }) => m.morph)).toEqual(['mouthSmileLeft', 'mouthSmileRight']);
+    expect((await api(page, 'GET', '/api/avatar-clips')).map((c: { id: string }) => c.id)).toContain('unity_wave');
     await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
     // Evidence for docs/3d-import/evidence (EVIDENCE_3D=1).
     if (process.env.EVIDENCE_3D) {

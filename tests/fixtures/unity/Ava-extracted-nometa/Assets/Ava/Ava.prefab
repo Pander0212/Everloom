@@ -116,7 +116,12 @@ MonoBehaviour:
     eyelidsSkinnedMesh: {fileID: 6000000000000000008}
     eyelidsBlendshapes: 11000000ffffffffffffffff
   customizeAnimationLayers: 0
-  baseAnimationLayers: []
+  baseAnimationLayers:
+  - isEnabled: 0
+    type: 5
+    animatorController: {fileID: 9100000, guid: 1a0e0000000000000000000000000024, type: 2}
+    mask: {fileID: 0}
+    isDefault: 0
   specialAnimationLayers: []
   expressionsMenu: {fileID: 0}
   expressionParameters: {fileID: 0}

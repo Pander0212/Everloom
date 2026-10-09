@@ -64,6 +64,12 @@ describe('importing Everloom’s Unity test packages', () => {
     expect(lines(plan.report.imported)).toMatch(/Blendshape presets: 2 values/);
     expect(lines(plan.report.skipped)).toMatch(/1 scripts: Scripts \(C#, DLLs\)/);
     expect(plan.report.thirdParty).toBe(true);
+    // Animations: the smile face clip is an expression (also a "Fist" gesture), the wave a body
+    // clip, the dance needs Unity's muscle space.
+    expect(plan.anims.map((a) => [a.name, a.kind]).sort()).toEqual([['Dance', 'humanoid'], ['Smile', 'face'], ['Wave', 'body']]);
+    expect(plan.anims.find((a) => a.name === 'Smile')?.states).toEqual(['Fist']);
+    expect(plan.expressions.joy).toEqual([{ morph: 'mouthSmileLeft', weight: 1 }, { morph: 'mouthSmileRight', weight: 1 }]);
+    expect(lines(plan.report.approximated)).toMatch(/1 clips use Unity’s muscle space/);
   });
 
   it('plans the shirt as an outfit merged by bone names', () => {

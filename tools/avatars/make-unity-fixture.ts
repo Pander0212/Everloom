@@ -27,6 +27,10 @@ const G = {
   readme: '1a0e0000000000000000000000000006',
   script: '1a0e0000000000000000000000000007',
   folder: '1a0e0000000000000000000000000008',
+  smile: '1a0e0000000000000000000000000021',
+  wave: '1a0e0000000000000000000000000022',
+  muscle: '1a0e0000000000000000000000000023',
+  fx: '1a0e0000000000000000000000000024',
   shirtFbx: '1a0e0000000000000000000000000011',
   shirtPrefab: '1a0e0000000000000000000000000012',
   shirtMat: '1a0e0000000000000000000000000013',
@@ -276,7 +280,12 @@ ${visemes.map((v) => `  - ${v}`).join('\n')}
     eyelidsSkinnedMesh: {fileID: 6000000000000000008}
     eyelidsBlendshapes: 11000000ffffffffffffffff
   customizeAnimationLayers: 0
-  baseAnimationLayers: []
+  baseAnimationLayers:
+  - isEnabled: 0
+    type: 5
+    animatorController: {fileID: 9100000, guid: ${G.fx}, type: 2}
+    mask: {fileID: 0}
+    isDefault: 0
   specialAnimationLayers: []
   expressionsMenu: {fileID: 0}
   expressionParameters: {fileID: 0}
@@ -330,6 +339,48 @@ MonoBehaviour:
   mangleNames: 1
 `;
 
+const anim = (name: string, body: string) => `%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!74 &7400000
+AnimationClip:
+  m_Name: ${name}
+  serializedVersion: 7
+  m_SampleRate: 60
+${['m_RotationCurves', 'm_EulerCurves', 'm_PositionCurves', 'm_ScaleCurves', 'm_FloatCurves', 'm_PPtrCurves'].filter((k) => !body.includes(`  ${k}:`)).map((k) => `  ${k}: []\n`).join('')}${body}  m_AnimationClipSettings:
+    serializedVersion: 2
+    m_StopTime: 1
+    m_LoopTime: 1
+`;
+const key = (t: number, v: string) => `      - serializedVersion: 3\n        time: ${t}\n        value: ${v}\n        inSlope: 0\n        outSlope: 0\n        tangentMode: 0`;
+const floatCurve = (attr: string, path: string, cls: number, vals: [number, number][]) => `  - curve:\n      serializedVersion: 2\n      m_Curve:\n${vals.map(([t, v]) => key(t, String(v))).join('\n')}\n    attribute: ${attr}\n    path: ${path}\n    classID: ${cls}\n    script: {fileID: 0}\n`;
+const SMILE = anim('Smile', `  m_FloatCurves:\n${floatCurve('blendShape.mouthSmileLeft', 'Body', 137, [[0, 0], [0.1, 100]])}${floatCurve('blendShape.mouthSmileRight', 'Body', 137, [[0, 0], [0.1, 100]])}`);
+const ARM = 'Armature/pelvis/上半身/spine_02/spine_03/clavicle_r/upperarm_r';
+const WAVE = anim('Wave', `  m_RotationCurves:\n  - curve:\n      serializedVersion: 2\n      m_Curve:\n${[[0, '{x: 0, y: 0, z: 0, w: 1}'], [0.5, '{x: 0, y: 0, z: 0.5, w: 0.866}'], [1, '{x: 0, y: 0, z: 0, w: 1}']].map(([t, v]) => key(t as number, v as string)).join('\n')}\n    path: ${ARM}\n`);
+const MUSCLE = anim('Dance', `  m_FloatCurves:\n${floatCurve('Left Arm Down-Up', '', 95, [[0, 0], [1, 0.6]])}`);
+const FX = `%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!91 &9100000
+AnimatorController:
+  m_Name: FX
+  m_AnimatorParameters: []
+  m_AnimatorLayers:
+  - serializedVersion: 5
+    m_Name: Gesture
+    m_StateMachine: {fileID: 110700001}
+--- !u!1107 &110700001
+AnimatorStateMachine:
+  m_Name: Gesture
+  m_ChildStates:
+  - serializedVersion: 1
+    m_State: {fileID: 110200001}
+    m_Position: {x: 0, y: 0, z: 0}
+  m_ChildStateMachines: []
+--- !u!1102 &110200001
+AnimatorState:
+  m_Name: Fist
+  m_Motion: {fileID: 7400000, guid: ${G.smile}, type: 2}
+`;
+
 const README = `Ava test avatar (Everloom test fixture)
 
 Made by Everloom from its own CC0 test models. CC0 1.0: no rights reserved.
@@ -346,6 +397,10 @@ async function main() {
     { path: 'Assets/Ava/Materials/Body.mat', guid: G.bodyMat, data: enc.encode(lilMat('Body', G.bodyTex, '{r: 1, g: 0.92, b: 0.88, a: 1}', '{r: 0.82, g: 0.7, b: 0.78, a: 1}')), meta: simpleMeta(G.bodyMat, 'NativeFormatImporter', '  mainObjectFileID: 2100000\n') },
     { path: 'Assets/Ava/Materials/Hat.mat', guid: G.hatMat, data: enc.encode(plainMat('Hat', '{r: 0.3, g: 0.2, b: 0.5, a: 1}')), meta: simpleMeta(G.hatMat, 'NativeFormatImporter', '  mainObjectFileID: 2100000\n') },
     { path: 'Assets/Ava/Textures/Body.png', guid: G.bodyTex, data: await png(236, 200, 186), meta: textureMeta(G.bodyTex) },
+    { path: 'Assets/Ava/Animations/Smile.anim', guid: G.smile, data: enc.encode(SMILE), meta: simpleMeta(G.smile, 'NativeFormatImporter', '  mainObjectFileID: 7400000\n') },
+    { path: 'Assets/Ava/Animations/Wave.anim', guid: G.wave, data: enc.encode(WAVE), meta: simpleMeta(G.wave, 'NativeFormatImporter', '  mainObjectFileID: 7400000\n') },
+    { path: 'Assets/Ava/Animations/Dance.anim', guid: G.muscle, data: enc.encode(MUSCLE), meta: simpleMeta(G.muscle, 'NativeFormatImporter', '  mainObjectFileID: 7400000\n') },
+    { path: 'Assets/Ava/Animations/FX.controller', guid: G.fx, data: enc.encode(FX), meta: simpleMeta(G.fx, 'NativeFormatImporter', '  mainObjectFileID: 9100000\n') },
     { path: 'Assets/Ava/README.txt', guid: G.readme, data: enc.encode(README), meta: simpleMeta(G.readme, 'TextScriptImporter') },
     { path: 'Assets/Ava/Scripts/AvaHelper.cs', guid: G.script, data: enc.encode('// A script: Everloom lists it and skips it.\npublic class AvaHelper {}\n'), meta: simpleMeta(G.script, 'MonoImporter') },
   ];
