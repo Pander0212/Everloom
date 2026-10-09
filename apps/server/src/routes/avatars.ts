@@ -1,4 +1,5 @@
 /** 3D avatars: import, settings, outfits, thumbnails; motion clips; the Blender worker's status. */
+import { BLENDER_VERSION, installCheck, installState, startInstall, uninstall } from '../services/blender-install.js';
 import type { FastifyInstance } from 'fastify';
 import { unzipSync } from 'fflate';
 import { z } from 'zod';
@@ -348,6 +349,11 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     setBlenderPath(ctx, owner(req), b.path);
     return findBlender(ctx, owner(req), { refresh: true });
   });
+
+  // The optional headless Blender converter: what this server can run, and a one-click install.
+  app.get('/api/blender/install', async (req) => (owner(req), { check: installCheck(ctx), state: installState(), version: BLENDER_VERSION }));
+  app.post('/api/blender/install', async (req) => startInstall(ctx, owner(req)));
+  app.delete('/api/blender/install', async (req) => uninstall(ctx, owner(req)));
 
   // ---- 3D in the asset library ------------------------------------------------------------------
 

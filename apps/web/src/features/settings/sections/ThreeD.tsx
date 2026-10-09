@@ -1,8 +1,8 @@
 /** Settings › 3D characters: this device's quality and effects, Blender, and the avatar library. */
 import { Box, Plus, RefreshCw, Shirt, Trash2, Upload } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { lazy, Suspense, useState } from 'react';
-import { del, get } from '@/lib/api';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { del, get, post } from '@/lib/api';
 import { useNavigate } from 'react-router';
 import { deleteClip, refreshBlender, setBlenderPath, useAvatarClips, useAvatarPaired, useAvatars, useBlender, useBlenderJobs, useMpfb } from '@/features/avatars/api';
 import { MpfbSetup } from '@/features/avatars/Realistic';
@@ -267,6 +267,7 @@ export default function ThreeDSection() {
         <p className="text-sm" data-testid="blender-status">
           {blender.isLoading ? 'Looking for Blender…' : blender.data?.found ? `Found Blender ${blender.data.version ?? ''} at ${blender.data.path}.${blender.data.mmd ? ' MMD Tools is installed (PMX/VMD work).' : ' For PMX and VMD files, add the MMD Tools extension in Blender.'}` : 'Blender was not found. Install it from blender.org, or enter where it is below.'}
         </p>
+        {!blender.data?.found ? <BlenderInstall /> : null}
         <Field label="Blender program" hint="Leave empty to look in the usual places.">
           <div className="flex gap-2">
             <Input aria-label="Blender path" placeholder="/usr/bin/blender" value={path ?? (blender.data?.source === 'setting' ? (blender.data.path ?? '') : '')} onChange={(e) => setPath(e.target.value)} />
@@ -311,5 +312,42 @@ export default function ThreeDSection() {
         </Section>
       ) : null}
     </>
+  );
+}
+
+/** One-click headless Blender converter on the server, with what it needs and whether this server has it. */
+function BlenderInstall() {
+  const [info, setInfo] = useState<{ check: { ok: boolean; reasons: string[]; freeDiskGb: number; freeMemoryGb: number; arch: string; installed: boolean }; state: { state: string; progress: number; error: string | null }; version: string } | null>(null);
+  const load = () => get<NonNullable<typeof info>>('/api/blender/install').then(setInfo).catch(toastError);
+  useEffect(() => {
+    void load();
+  }, []);
+  const busy = !!info && ['downloading', 'checking', 'unpacking'].includes(info.state.state);
+  useEffect(() => {
+    if (!busy) return;
+    const t = setInterval(() => {
+      void get<NonNullable<typeof info>>('/api/blender/install').then((i) => {
+        setInfo(i);
+        if (i.state.state === 'done') void refreshBlender();
+      });
+    }, 1500);
+    return () => clearInterval(t);
+  }, [busy]);
+  if (!info) return null;
+  return (
+    <div className="mb-3 rounded-md border border-line p-3 text-sm" data-testid="blender-install">
+      <p className="font-medium">Install the headless Blender converter</p>
+      <p className="mt-1 text-fg-2">
+        Blender {info.version} without a screen, only for converting files (no graphics card needed). It needs an x86-64 Linux server, about 2 GB of memory and 1.5 GB of disk; this server has {info.check.freeMemoryGb} GB of memory free and {info.check.freeDiskGb} GB of disk ({info.check.arch}). Downloaded from blender.org and checked against its published checksum.
+      </p>
+      {info.check.reasons.length ? <p className="mt-1 text-warning">{info.check.reasons.join(' ')}</p> : null}
+      {info.state.error ? <p className="mt-1 text-danger">{info.state.error}</p> : null}
+      <div className="mt-2 flex items-center gap-2">
+        <Button size="sm" variant="secondary" disabled={!info.check.ok || busy} loading={busy} onClick={() => void post('/api/blender/install', {}).then(load).catch(toastError)}>
+          {busy ? `${info.state.state === 'downloading' ? `Downloading ${info.state.progress}%` : info.state.state === 'checking' ? 'Checking' : 'Unpacking'}…` : 'Install'}
+        </Button>
+        <span className="text-xs text-fg-3">Other ways: the Windows app uses a Blender you installed; or export GLB from Blender.</span>
+      </div>
+    </div>
   );
 }
