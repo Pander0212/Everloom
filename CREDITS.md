@@ -234,4 +234,4 @@ Licenses checked by reading each project's LICENSE file; details in
   clipdecode (LGPL-2.1), PhysBone-to-DynamicBone and ShinuToki's extractor (no license).
 - **ag-psd** (MIT, Copyright (c) 2016 Agamnentzar), https://github.com/Agamnentzar/ag-psd: reads
   Photoshop textures in Unity packages (flattened); loaded only when a package has one.
-- **fflate** (MIT, Copyright (c) 2023 Arjun Barrett): unzips extracted Unity folders in the browser.
+- **fflate** (MIT, Copyright (c) 2026 Arjun Barrett): unzips extracted Unity folders in the browser.
