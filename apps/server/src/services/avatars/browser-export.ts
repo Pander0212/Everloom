@@ -23,7 +23,10 @@ export async function exportBrowserModel(ctx: AppContext, owner: string, id: str
     const nodes = glb.json.nodes ?? [];
     const humanBones: Record<string, { node: number }> = {};
     for (const [bone, name] of Object.entries({ ...info.boneMap, ...config.boneMap })) {
-      const node = nodes.findIndex(n => n.name === name); if (node >= 0) humanBones[bone] = { node };
+      // three.js renames nodes on load (spaces to "_", no ". : / [ ]"), so the browser's GLB may carry the cleaned name.
+      let node = nodes.findIndex(n => n.name === name);
+      if (node < 0) node = nodes.findIndex(n => n.name === threeName(name));
+      if (node >= 0) humanBones[bone] = { node };
     }
     if (REQUIRED_BONES.some(b => !humanBones[b])) throw new HttpError(400, 'The saved mapping contains bone names missing from the exported mesh. Fix the mapping before exporting VRM.');
     if (originalVrm0) {
@@ -37,6 +40,9 @@ export async function exportBrowserModel(ctx: AppContext, owner: string, id: str
   }
   return writeGlb(glb);
 }
+
+/** A node name as three.js's GLTFLoader keeps it (PropertyBinding.sanitizeNodeName). */
+const threeName = (name: string) => name.replace(/\s/g, '_').replace(/[[\].:/]/g, '');
 
 /** VRM 1.0 metadata for the owner's own character: what they filled in (Export step), else private defaults. */
 function ownMeta(name: string, config: AvatarConfig) {
