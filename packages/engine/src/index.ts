@@ -61,6 +61,7 @@ export * from './avatar/emotes.js';
 export * from './avatar/config.js';
 export * from './avatar/wardrobe.js';
 export * from './avatar/recipe.js';
+export * from './avatar/character.js';
 export * from './avatar/packs.js';
 export * from './avatar/realistic.js';
 export * from './avatar/makehuman-data.js';

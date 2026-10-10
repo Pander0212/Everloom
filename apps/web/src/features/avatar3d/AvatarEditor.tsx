@@ -194,6 +194,7 @@ function ImportedEditor() {
       back={back}
       actions={
         <>
+          {a.config.character ? <Button variant="secondary" onClick={() => navigate(`/characters/creator/${a.id}`)}>Edit in creator</Button> : null}
           <Button onClick={() => void save()} loading={saving} disabled={!dirty} data-testid="avatar-save">
             Save
           </Button>

@@ -20,6 +20,7 @@ import { readMedia, saveModelFile } from '../services/media.js';
 import { ownerForToken } from '../services/bridge.js';
 import { parse } from '../util/validate.js';
 import { installMakeHuman, makeHumanStatus, importHumanAssets } from '../services/avatars/makehuman.js';
+import { anatomyPackStatus, installAnatomyPack, removeAnatomyPack } from '../services/avatars/anatomy.js';
 import { exportBrowserModel } from '../services/avatars/browser-export.js';
 import { replaceNativeBody } from '../services/avatars/service.js';
 import { checkAvatarContent } from '../services/avatars/service.js';
@@ -28,6 +29,12 @@ const MOTION_TYPES: Record<string, string> = { fbx: 'fbx', bvh: 'bvh', vmd: 'vmd
 
 export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
   app.get('/api/makehuman', async req => makeHumanStatus(ctx, owner(req)));
+  app.get('/api/anatomy-pack', async req => anatomyPackStatus(ctx, owner(req)));
+  app.post('/api/anatomy-pack', { bodyLimit: 300 * 1024 * 1024 }, async req => {
+    if (!Buffer.isBuffer(req.body)) throw new HttpError(400, 'Send the anatomy pack zip as binary data.');
+    return installAnatomyPack(ctx, owner(req), req.body);
+  });
+  app.delete('/api/anatomy-pack', async req => removeAnatomyPack(ctx, owner(req)));
   app.post('/api/makehuman/assets', { bodyLimit: 100 * 1024 * 1024 }, async req => {
     if (!Buffer.isBuffer(req.body)) throw new HttpError(400, 'Send an asset ZIP as binary data.');
     const options = parse(z.object({ kind: z.enum(['clothes', 'hair', 'targets', 'rigs', 'skins', 'eyes', 'eyebrows', 'eyelashes', 'teeth', 'tongue']), label: z.string().min(1).max(80), adult: z.enum(['true', 'false']).transform(v => v === 'true'), rightsConfirmed: z.enum(['true', 'false']).transform(v => v === 'true') }), req.query);
@@ -38,9 +45,11 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     const glb = parseGlb(req.body);
     const input = (glb.json.nodes ?? []).map(node => (node as { extras?: { everloom?: { config?: unknown } } }).extras?.everloom?.config).find(Boolean);
     const config = parse(AvatarConfigSchema, input);
-    if (!config.makehuman) throw new HttpError(400, 'The native model is missing its MakeHuman recipe.');
+    // Built in the browser from a recipe: MakeHuman (native) or the character creator.
+    if (!config.makehuman && !config.character) throw new HttpError(400, 'The browser-built model is missing its recipe.');
     const q = parse(z.object({ name: z.string().max(80).optional() }), req.query);
-    return createAvatar(ctx, owner(req), req.body, { name: q.name, filename: 'makehuman.glb', kind: 'makehuman', config });
+    const kind = config.character ? 'character' : 'makehuman';
+    return createAvatar(ctx, owner(req), req.body, { name: q.name, filename: `${kind}.glb`, kind, config });
   });
   app.post('/api/makehuman/install', async req => {
     const b = parse(z.object({ pack: z.enum(['core', 'system']) }), req.body ?? {});

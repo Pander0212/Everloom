@@ -1,0 +1,8 @@
+Everloom character bases (anime-f.glb, anime-m.glb)
+
+Made by tools/avatars/build-character-bases.ts from MakeHuman / MPFB data: the base mesh, its
+targets and the game-engine rig with weights (CC0 1.0, the MakeHuman team), and the Face Units 01
+expression targets (CC0 1.0, Mika Suominen). Everloom's changes (the anime reshaping, the butt
+bones and their weights, the skin texture) are also CC0 1.0.
+
+https://creativecommons.org/publicdomain/zero/1.0/

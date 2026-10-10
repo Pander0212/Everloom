@@ -350,12 +350,12 @@ export async function replaceNativeBody(ctx: AppContext, owner: string, id: stri
   const glb = parseGlb(bytes);
   const input = (glb.json.nodes ?? []).map(node => (node as { extras?: { everloom?: { config?: unknown } } }).extras?.everloom?.config).find(Boolean);
   const parsed = AvatarConfigSchema.safeParse(input);
-  if (!parsed.success || !parsed.data.makehuman) throw new HttpError(400, 'The native model is missing its MakeHuman recipe.');
+  if (!parsed.success || (!parsed.data.makehuman && !parsed.data.character)) throw new HttpError(400, 'The browser-built model is missing its recipe.');
   checkAvatarContent(ctx, owner, parsed.data, id);
   assertConfigMedia(ctx, owner, parsed.data, id);
   await inspectModel(bytes, glb);
   const source = saveModelFile(ctx, owner, bytes, { kind: 'model-source', ext: 'glb', meta: { avatar: id, native: true } });
-  setStatus(ctx, owner, id, { source_media: source.id, config: JSON.stringify(parsed.data), kind: 'makehuman', status: 'processing', error: null });
+  setStatus(ctx, owner, id, { source_media: source.id, config: JSON.stringify(parsed.data), kind: parsed.data.character ? 'character' : 'makehuman', status: 'processing', error: null });
   enqueue(ctx, owner, id);
   if (row.source_media) deleteMedia(ctx, owner, row.source_media);
   return avatarDetail(getAvatarRow(ctx, owner, id));

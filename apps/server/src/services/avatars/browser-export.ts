@@ -1,5 +1,5 @@
 /** Browser-built geometry returns through the normal authenticated/password-protected export. */
-import { AvatarConfigSchema, REQUIRED_BONES } from '@everloom/engine';
+import { type AvatarConfig, AvatarConfigSchema, REQUIRED_BONES } from '@everloom/engine';
 import { HttpError, type AppContext } from '../../context.js';
 import { readMedia } from '../media.js';
 import { parseGlb, writeGlb } from './glb.js';
@@ -32,8 +32,29 @@ export async function exportBrowserModel(ctx: AppContext, owner: string, id: str
       glb.json.extensions = { ...glb.json.extensions, VRM: { exporterVersion: 'Everloom', specVersion: '0.0', meta, humanoid: { humanBones: Object.entries(humanBones).map(([bone, joint]) => ({ bone, node: joint.node, useDefaultValues: true })) } } };
     } else {
       glb.json.extensionsUsed = [...new Set([...(glb.json.extensionsUsed ?? []), 'VRMC_vrm'])];
-      glb.json.extensions = { ...glb.json.extensions, VRMC_vrm: { specVersion: '1.0', meta: originalMeta ?? { name: row.name, authors: ['Everloom owner'], licenseUrl: 'https://vrm.dev/licenses/1.0/', avatarPermission: 'onlyAuthor', commercialUsage: 'personalNonProfit', allowRedistribution: false, modification: 'prohibited', violentUsage: false, sexualUsage: config.content.adult, creditNotation: 'required' }, humanoid: { humanBones } } };
+      glb.json.extensions = { ...glb.json.extensions, VRMC_vrm: { specVersion: '1.0', meta: originalMeta ?? ownMeta(row.name, config), humanoid: { humanBones } } };
     }
   }
   return writeGlb(glb);
+}
+
+/** VRM 1.0 metadata for the owner's own character: what they filled in (Export step), else private defaults. */
+function ownMeta(name: string, config: AvatarConfig) {
+  const m = config.vrmMeta;
+  return {
+    name: m?.name || name,
+    version: '1',
+    authors: m?.authors.length ? m.authors : ['Everloom owner'],
+    licenseUrl: m?.licenseUrl || 'https://vrm.dev/licenses/1.0/',
+    avatarPermission: m?.avatarPermission ?? 'onlyAuthor',
+    commercialUsage: m?.commercialUsage ?? 'personalNonProfit',
+    allowRedistribution: m?.allowRedistribution ?? false,
+    modification: m?.modification ?? 'prohibited',
+    allowExcessivelySexualUsage: m?.allowExcessivelySexualUsage ?? config.content.adult,
+    allowExcessivelyViolentUsage: m?.allowExcessivelyViolentUsage ?? false,
+    allowPoliticalOrReligiousUsage: false,
+    allowAntisocialOrHateUsage: false,
+    creditNotation: m?.creditNotation ?? 'required',
+    ...(config.character ? { copyrightInformation: 'Built in Everloom on its CC0 base (MakeHuman data, CC0 1.0)' } : {}),
+  };
 }

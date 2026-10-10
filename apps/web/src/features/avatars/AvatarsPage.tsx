@@ -1,6 +1,6 @@
 /** The 3D avatar library: import models, see what's being prepared, open one to edit. */
 import { AvatarRecipeSchema } from '@everloom/engine';
-import { ArrowLeft, Box, Shapes, Shirt, Upload, UserRound } from 'lucide-react';
+import { ArrowLeft, Box, Shapes, Shirt, Sparkles, Upload, UserRound } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
 import { useBlurAdult } from '@/lib/queries';
 import { useNavigate } from 'react-router';
@@ -96,6 +96,7 @@ export default function AvatarsPage() {
               </Button>
             }
             items={[
+              { label: 'Character creator (anime)', icon: Sparkles, onSelect: () => navigate('/characters/creator') },
               { label: 'MakeHuman (in your browser)', icon: UserRound, onSelect: () => setNative(true) },
               { label: 'From parts (bring your own pack)', icon: Shirt, onSelect: () => navigate('/characters/maker') },
               ...(experimental ? [{ label: 'Experimental code-made character', icon: Shapes, onSelect: () => void newCode() }] : []),

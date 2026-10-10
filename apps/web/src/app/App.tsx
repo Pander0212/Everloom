@@ -36,6 +36,7 @@ const Lab3D = lazy(() => import('@/features/avatar3d/Lab3D'));
 const PuppetLab = lazy(() => import('@/features/puppets/PuppetLab'));
 const AvatarsPage = lazy(() => import('@/features/avatars/AvatarsPage'));
 const AvatarEditor = lazy(() => import('@/features/avatar3d/AvatarEditor'));
+const CharacterCreator = lazy(() => import('@/features/avatar3d/creator/CreatorPage'));
 const PartsMaker = lazy(() => import('@/features/avatar3d/Maker').then((m) => ({ default: m.MakerRoute })));
 
 export function PageFallback() {
@@ -98,6 +99,8 @@ function AuthedApp() {
           <Route path="characters/avatars" element={<AvatarsPage />} />
           <Route path="characters/avatars/:id" element={<AvatarEditor />} />
           <Route path="characters/maker" element={<PartsMaker />} />
+          <Route path="characters/creator" element={<CharacterCreator />} />
+          <Route path="characters/creator/:id" element={<CharacterCreator />} />
           <Route path="characters/:id" element={<CharacterEditor />} />
           <Route path="personas" element={<PersonasPage />} />
           <Route path="scenarios" element={<ScenariosPage />} />

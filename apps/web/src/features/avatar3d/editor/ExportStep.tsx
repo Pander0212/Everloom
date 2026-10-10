@@ -11,6 +11,7 @@ import { ImportReportView } from '@/features/avatars/ImportReportView';
 import type { PreviewHandle } from '../Preview3D';
 import { buildHuman } from '../runtime/makehuman';
 import { configureMaterials } from '../runtime/materials';
+import { VrmLicenseForm, VrmLicensePanel } from './VrmLicense';
 
 export function ExportStep({ avatar, config, set, handle }: { avatar: AvatarDetail; config: AvatarConfig; set?: (patch: Partial<AvatarConfig>) => void; handle: PreviewHandle | null }) {
   const origin = config.importReport;
@@ -20,7 +21,7 @@ export function ExportStep({ avatar, config, set, handle }: { avatar: AvatarDeta
     const headers = await exportHeaders(); if (!headers) return;
     setBusy(true);
     try {
-      const scene = config.makehuman ? await buildHuman(config.makehuman, undefined, config.content) : clone(handle.model.scene);
+      const scene = config.makehuman && !config.character ? await buildHuman(config.makehuman, undefined, config.content) : clone(handle.model.scene);
       scene.userData = { ...scene.userData, everloom: { config } };
       await configureMaterials(scene, config.materialOverrides);
       scene.traverse(o => {
@@ -52,6 +53,7 @@ export function ExportStep({ avatar, config, set, handle }: { avatar: AvatarDeta
       {set ? <ToggleRow label="I have the right to share this avatar" description="Lets it go into bundles, library exports and packs." checked={origin.rightsConfirmed} onChange={v => set({ importReport: { ...origin, rightsConfirmed: v } })} /> : null}
     </div>
   ) : null}
+  {handle?.model.vrm?.meta ? <VrmLicensePanel meta={handle.model.vrm.meta} exporting /> : set ? <VrmLicenseForm value={config.vrmMeta} onChange={(vrmMeta) => set({ vrmMeta })} /> : null}
   {origin ? <details className="rounded-md border border-line p-3"><summary className="cursor-pointer text-sm font-medium">Import report</summary><div className="mt-2"><ImportReportView report={origin} /></div></details> : null}
-  <p className="text-sm text-fg-2">Export the current geometry, fitted clothes, rig and textures. Native MakeHuman is exported in its rest pose. Imported models use the preview pose. VRM export requires a mapped humanoid; original VRM 1.0 author and license metadata is kept.</p><div className="flex gap-2"><Button loading={busy} disabled={!handle} onClick={() => void run('glb')}>Export GLB</Button><Button loading={busy} disabled={!handle} variant="secondary" onClick={() => void run('vrm')}>Export VRM</Button></div></div>;
+  <p className="text-sm text-fg-2">Export the current geometry, fitted clothes, rig and textures. Native MakeHuman is exported in its rest pose. Imported models use the preview pose. VRM export requires a mapped humanoid; a VRM's original author and license metadata is kept; your own characters carry the license set above.</p><div className="flex gap-2"><Button loading={busy} disabled={!handle} onClick={() => void run('glb')}>Export GLB</Button><Button loading={busy} disabled={!handle} variant="secondary" onClick={() => void run('vrm')}>Export VRM</Button></div></div>;
 }

@@ -35,8 +35,7 @@ export function describesMinor(text: string): boolean {
 export function hasExplicitContent(config: AvatarConfig): boolean {
   if (config.skinLayers.some((l) => l.adult)) return true;
   if ((config.morphs?.sliders ?? []).some((s) => s.adult && (config.morphs!.values[s.id] ?? 0) !== 0)) return true;
-  const anatomy = (config as AvatarConfig & { anatomy?: { enabled?: boolean } }).anatomy;
-  if (anatomy?.enabled) return true;
+  if (config.character?.anatomy.enabled) return true;
   return false;
 }
 
@@ -46,8 +45,8 @@ function avatarMinorReason(config: AvatarConfig): string | null {
   if (describesMinor(config.content.description)) return 'description';
   if (config.makehuman && (ageYears(config.makehuman.macro.age) < 18 || config.makehuman.macro.proportions < 0.25)) return 'body';
   if (config.recipe && (config.recipe.body.age === 'child' || config.recipe.body.age === 'teen')) return 'body';
-  const editor = (config as AvatarConfig & { character?: { body?: { age?: number } } }).character;
-  if (editor?.body?.age != null && editor.body.age < 18) return 'body';
+  // The creator's age slider stays in the adult range (its schema starts at 18); checked anyway.
+  if (config.character && config.character.body.age < 18) return 'body';
   return null;
 }
 

@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { CANONICAL_EXPRESSIONS } from './expressions.js';
 import { BODY_REGIONS, HUMANOID_BONES } from './skeleton.js';
 import { AvatarRecipeSchema } from './recipe.js';
+import { CharacterSpecSchema } from './character.js';
 import { MakerSelectionSchema } from './packs.js';
 import { RealisticSpecSchema } from './realistic.js';
 import { MorphSettingsSchema } from './morphs.js';
@@ -180,6 +181,21 @@ export const AvatarConfigSchema = z.object({
   tints: z.record(z.string().max(80), z.string().regex(/^#[0-9a-fA-F]{6}$/)).default({}),
   /** Code-made avatars: the recipe the model is built from (no model file). */
   recipe: AvatarRecipeSchema.optional(),
+  /** VRM 1.0 license metadata the owner fills in for VRM exports of their own characters (a VRM's original metadata always wins). */
+  vrmMeta: z.object({
+    name: z.string().max(120).default(''),
+    authors: z.array(z.string().max(80)).max(8).default([]),
+    licenseUrl: z.string().max(300).default('https://vrm.dev/licenses/1.0/'),
+    avatarPermission: z.enum(['onlyAuthor', 'onlySeparatelyLicensedPerson', 'everyone']).default('onlyAuthor'),
+    commercialUsage: z.enum(['personalNonProfit', 'personalProfit', 'corporation']).default('personalNonProfit'),
+    allowRedistribution: z.boolean().default(false),
+    modification: z.enum(['prohibited', 'allowModification', 'allowModificationRedistribution']).default('prohibited'),
+    allowExcessivelySexualUsage: z.boolean().default(false),
+    allowExcessivelyViolentUsage: z.boolean().default(false),
+    creditNotation: z.enum(['required', 'unnecessary']).default('required'),
+  }).optional(),
+  /** Character creator avatars: the recipe the model was built from (it can be edited again). */
+  character: CharacterSpecSchema.optional(),
   /** Parts-made avatars: the pack and the parts chosen in the maker (stays editable). */
   maker: MakerSelectionSchema.optional(),
   /** Realistic (MPFB) avatars: the sliders and assets it was made from (to make it again). */
@@ -202,7 +218,7 @@ export type AvatarPart = z.infer<typeof AvatarPartSchema>;
 export type AvatarOutfit = z.infer<typeof AvatarOutfitSchema>;
 export type AvatarAccessory = z.infer<typeof AvatarAccessorySchema>;
 
-export const AVATAR_KINDS = ['imported', 'parts', 'code', 'realistic', 'makehuman'] as const;
+export const AVATAR_KINDS = ['imported', 'parts', 'code', 'realistic', 'makehuman', 'character'] as const;
 export type AvatarKind = (typeof AVATAR_KINDS)[number];
 
 /** How a character is shown on the stage. 'auto' picks the richest one available. */

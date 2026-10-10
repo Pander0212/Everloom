@@ -35,7 +35,7 @@ export function DisplayFields({ game, setGame, characterId }: { game: CharacterG
   const current: Choice = display === 'live2d' ? 'live2d' : display === 'sprite' ? 'sprite' : display === '3d' ? (chosen ? kindOf(chosen.kind) : 'imported') : 'auto';
   const choice = picked ?? current;
   const kind: AvatarKind | null = choice === 'imported' ? 'imported' : choice === 'parts' ? 'parts' : choice === 'code' ? 'code' : null;
-  const options = kind ? ready.filter((a) => (kind === 'imported' ? a.kind === 'imported' || a.kind === 'realistic' || a.kind === 'makehuman' : a.kind === kind)) : [];
+  const options = kind ? ready.filter((a) => (kind === 'imported' ? a.kind === 'imported' || a.kind === 'realistic' || a.kind === 'makehuman' || a.kind === 'character' : a.kind === kind)) : [];
 
   const pick = (c: Choice) => {
     setPicked(c);
