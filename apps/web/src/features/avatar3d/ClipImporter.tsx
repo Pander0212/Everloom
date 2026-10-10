@@ -1,6 +1,7 @@
 /**
- * Import a motion as an emote: GLB/glTF, VRMA, FBX and BVH are read here; FBX files this browser
- * can't read, and VMD (with its PMX model), go through Blender on the server. The motion is
+ * Import a motion as an emote: GLB/glTF, VRMA, FBX, BVH, VMD and VPD (MMD motion and pose, with or
+ * without their PMX model) are read here; FBX files this browser can't read and .blend files go
+ * through Blender on the server. The motion is
  * retargeted to the canonical skeleton, previewed on the mannequin, and saved under an emote name.
  */
 import { BUILTIN_EMOTES, EMOTE_CATEGORIES, EMOTE_ID, type EmoteCategory, type HumanBone } from '@everloom/engine';
@@ -10,7 +11,6 @@ import * as THREE from 'three';
 import { BVHLoader } from 'three/examples/jsm/loaders/BVHLoader.js';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
 import { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
-import { zipSync } from 'three/examples/jsm/libs/fflate.module.js';
 import { saveClip } from '@/features/avatars/api';
 import { apiFetch } from '@/lib/api';
 import { toast, toastError } from '@/lib/store';
@@ -34,28 +34,18 @@ async function gltfSource(buf: ArrayBuffer): Promise<MotionSource> {
   return { scene: gltf.scene, animations: gltf.animations, humanoid };
 }
 
-/** Through Blender on the server: FBX this browser can't read, VMD with its model, and .blend files. */
+/** Through Blender on the server: FBX this browser can't read, and .blend files. */
 async function viaServer(files: File[]): Promise<ArrayBuffer> {
-  const vmd = files.find((f) => ext(f) === 'vmd');
-  let body: Blob;
-  let filename: string;
-  if (vmd) {
-    const model = files.find((f) => ['pmx', 'pmd'].includes(ext(f)));
-    if (!model) throw new Error('A VMD motion needs the PMX model it was made for: choose both files together.');
-    body = new Blob([zipSync({ [vmd.name]: new Uint8Array(await vmd.arrayBuffer()), [model.name]: new Uint8Array(await model.arrayBuffer()) }) as Uint8Array<ArrayBuffer>]);
-    filename = 'motion.zip';
-  } else {
-    body = files[0]!;
-    filename = files[0]!.name;
-  }
-  const res = await apiFetch('/api/avatar-clips/convert', { method: 'POST', raw: body, query: { filename } });
+  const res = await apiFetch('/api/avatar-clips/convert', { method: 'POST', raw: files[0]!, query: { filename: files[0]!.name } });
   return res.arrayBuffer();
 }
 
-/** Reads a motion file (or a VMD with its model) and lists the animations in it. */
+/** Reads a motion file (or a VMD/VPD with its model) and lists the animations in it. */
 export async function load(files: File[]): Promise<Loaded> {
-  const main = files.find((f) => ['glb', 'gltf', 'vrma', 'fbx', 'bvh', 'vmd', 'blend'].includes(ext(f)));
-  if (!main) throw new Error('Choose a GLB, VRMA, FBX, BVH, VMD or .blend file.');
+  const anim = files.find((f) => ext(f) === 'anim');
+  if (anim && !files.some((f) => ['glb', 'gltf', 'vrma', 'fbx', 'bvh', 'vmd', 'vpd', 'blend'].includes(ext(f)))) throw new Error(`${anim.name} is a Unity animation: it only plays on the avatar it was made for. Import it with that avatar's .unitypackage (its animations come in with it), or export it from Unity as FBX.`);
+  const main = files.find((f) => ['glb', 'gltf', 'vrma', 'fbx', 'bvh', 'vmd', 'vpd', 'blend'].includes(ext(f)));
+  if (!main) throw new Error('Choose a GLB, VRMA, FBX, BVH, VMD, VPD or .blend file.');
   const kind = ext(main);
   let read: () => Promise<MotionSource>;
   if (kind === 'bvh') {
@@ -81,9 +71,13 @@ export async function load(files: File[]): Promise<Loaded> {
       }
       return gltfSource(viaBlender);
     };
-  } else if (kind === 'vmd' || kind === 'blend') {
+  } else if (kind === 'vmd' || kind === 'vpd') {
+    // In this browser, on the model's skeleton (or a standard MMD one).
+    const { mmdSource } = await import('./runtime/mmd');
+    read = () => mmdSource(files);
+  } else if (kind === 'blend') {
     let glb: ArrayBuffer | null = null;
-    read = async () => gltfSource((glb ??= await viaServer(kind === 'blend' ? [main] : files)));
+    read = async () => gltfSource((glb ??= await viaServer([main])));
   } else {
     const buf = await main.arrayBuffer();
     read = () => gltfSource(buf);
@@ -121,7 +115,8 @@ export default function ClipImporter({ onDone, initial }: { onDone: () => void; 
       const name = l.names[0]!;
       setLabel(name.replace(/[_|]+/g, ' ').trim().slice(0, 40));
       setId(slug(name));
-      setLoop(/loop|idle|dance|walk|run/i.test(name));
+      // A pose (VPD) holds; motions named like loops loop.
+      setLoop(files.some((f) => ext(f) === 'vpd') || /loop|idle|dance|walk|run/i.test(name));
       setCategory(/dance/i.test(name) ? 'dance' : /idle/i.test(name) ? 'idle' : /attack|punch|kick|block|hit|cast/i.test(name) ? 'battle' : 'social');
     } catch (e) {
       setError((e as Error).message);
@@ -180,7 +175,7 @@ export default function ClipImporter({ onDone, initial }: { onDone: () => void; 
       <FileButton multiple onFiles={pick} icon={Upload} variant="secondary" loading={busy && !loaded}>
         Choose a motion file
       </FileButton>
-      <p className="text-xs text-fg-2">GLB, VRMA, FBX and BVH are read here. A VMD needs its PMX model (choose both); VMD and some FBX files need Blender.</p>
+      <p className="text-xs text-fg-2">GLB, VRMA, FBX, BVH and MMD motions (VMD) and poses (VPD) are read here; add the PMX model with a VMD/VPD for the closest match. Some old FBX files and .blend files need Blender.</p>
       {error ? <p className="rounded-md bg-danger-soft p-2 text-sm text-danger" role="alert">{error}</p> : null}
       {loaded ? (
         <>

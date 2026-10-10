@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import path from 'node:path';
 import { unzipSync } from 'fflate';
-import { expect, test } from './fixtures';
+import { api, expect, test } from './fixtures';
 
 // Software WebGL so the 3D preview renders headless.
 test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } });
@@ -50,4 +50,41 @@ test('password-protected archives and unsupported formats say what to do', async
     await pick(page, [file]);
     await expect(page.getByRole('alert')).toContainText(message, { timeout: 30_000 });
   }
+});
+
+// MMD motion and pose without their model: a standard MMD skeleton stands in.
+for (const [file, label, tracks] of [
+  ['wave.vmd', 'VMD motion', ['leftUpperArm', 'leftLowerArm']],
+  ['hands-up.vpd', 'VPD pose', ['leftUpperArm', 'rightUpperArm', 'leftLowerArm']],
+] as const) {
+  test(`imports a ${label} as an emote in this browser`, async ({ page, errors }) => {
+    let converts = 0;
+    page.on('request', (r) => { if (/avatar-clips\/convert/.test(r.url())) converts++; });
+    await page.goto('/settings/3d');
+    await page.getByTestId('clip-import').click();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Choose a motion file' }).click();
+    await (await chooser).setFiles(path.resolve('tests/fixtures/avatars/motions', file));
+    await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+    await page.waitForTimeout(file.endsWith('.vmd') ? 700 : 1500);
+    await page.getByTestId('avatar-preview').screenshot({ path: `docs/3d-import/evidence/format-${file.replace(/\W+/g, '-')}-${test.info().project.name}.png` });
+    const id = `${file.split('.')[0]!.replace(/-/g, '_')}_${test.info().project.name.replace(/[^a-z0-9]/g, '_')}`.slice(0, 40);
+    await page.getByLabel('Emote id').fill(id);
+    await page.getByTestId('clip-save').click();
+    await expect(page.getByTestId('clip-list')).toContainText(id.slice(0, 12));
+    const clip = await api(page, 'GET', `/api/avatar-clips/${id}`);
+    expect(Object.keys(clip.tracks)).toEqual(expect.arrayContaining([...tracks]));
+    await api(page, 'DELETE', `/api/avatar-clips/${id}`);
+    expect(converts).toBe(0);
+    expect(errors).toEqual([]);
+  });
+}
+
+test('a lone Unity .anim says how to bring it in', async ({ page }) => {
+  await page.goto('/settings/3d');
+  await page.getByTestId('clip-import').click();
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: 'Choose a motion file' }).click();
+  await (await chooser).setFiles({ name: 'Wave.anim', mimeType: 'text/plain', buffer: Buffer.from('%YAML 1.1\n--- !u!74 &7400000\nAnimationClip:\n  m_Name: Wave\n') });
+  await expect(page.getByText(/Wave\.anim is a Unity animation/)).toBeVisible();
 });
