@@ -1,7 +1,7 @@
 /**
  * Everloom's own Unity test packages (CC0, built from Everloom's test models): an avatar package
  * laid out like a BOOTH VRChat avatar (FBX with a humanoid .meta, lilToon materials, a prefab with
- * a VRChat descriptor, PhysBones, a blendshape preset, a hidden hat with a Modular Avatar toggle)
+ * a VRChat descriptor, PhysBones on hair, breast and butt bones, a blendshape preset, a hidden hat with a Modular Avatar toggle)
  * and a clothing package made for it (Merge Armature with a bone prefix). Also the avatar as an
  * extracted folder, with and without its .meta files.
  *
@@ -54,11 +54,15 @@ const AVA_IDS: [number, string, string][] = [
   [1, '100005', 'breast_l'],
   [1, '100006', 'breast_r'],
   [1, '100007', 'head'],
+  [1, '100008', 'Butt_L'],
+  [1, '100009', 'Butt_R'],
   [1, '100010', 'Eyes'],
   [4, '400004', 'Hair_Back_1'],
   [4, '400005', 'breast_l'],
   [4, '400006', 'breast_r'],
   [4, '400007', 'head'],
+  [4, '400008', 'Butt_L'],
+  [4, '400009', 'Butt_R'],
   [137, '13700001', 'Body'],
   [137, '13700002', 'Hat'],
 ];
@@ -252,7 +256,7 @@ PrefabInstance:
     m_AddedGameObjects: []
     m_AddedComponents: []
   m_SourcePrefab: {fileID: 100100000, guid: ${G.avaFbx}, type: 3}
-${stripped(1, 'GameObject', '6000000000000000001', '919132149155446097', G.avaFbx, '5000000000000000001')}${stripped(1, 'GameObject', '6000000000000000002', '100004', G.avaFbx, '5000000000000000001')}${stripped(4, 'Transform', '6000000000000000003', '400004', G.avaFbx, '5000000000000000001')}${stripped(1, 'GameObject', '6000000000000000004', '100005', G.avaFbx, '5000000000000000001')}${stripped(4, 'Transform', '6000000000000000005', '400005', G.avaFbx, '5000000000000000001')}${stripped(1, 'GameObject', '6000000000000000006', '100006', G.avaFbx, '5000000000000000001')}${stripped(4, 'Transform', '6000000000000000007', '400006', G.avaFbx, '5000000000000000001')}${stripped(137, 'SkinnedMeshRenderer', '6000000000000000008', '13700001', G.avaFbx, '5000000000000000001')}${stripped(1, 'GameObject', '6000000000000000009', '100002', G.avaFbx, '5000000000000000001')}--- !u!114 &7000000000000000001
+${stripped(1, 'GameObject', '6000000000000000001', '919132149155446097', G.avaFbx, '5000000000000000001')}${stripped(1, 'GameObject', '6000000000000000002', '100004', G.avaFbx, '5000000000000000001')}${stripped(4, 'Transform', '6000000000000000003', '400004', G.avaFbx, '5000000000000000001')}${stripped(1, 'GameObject', '6000000000000000004', '100005', G.avaFbx, '5000000000000000001')}${stripped(4, 'Transform', '6000000000000000005', '400005', G.avaFbx, '5000000000000000001')}${stripped(1, 'GameObject', '6000000000000000006', '100006', G.avaFbx, '5000000000000000001')}${stripped(4, 'Transform', '6000000000000000007', '400006', G.avaFbx, '5000000000000000001')}${stripped(137, 'SkinnedMeshRenderer', '6000000000000000008', '13700001', G.avaFbx, '5000000000000000001')}${stripped(1, 'GameObject', '6000000000000000009', '100002', G.avaFbx, '5000000000000000001')}${stripped(1, 'GameObject', '6000000000000000010', '100008', G.avaFbx, '5000000000000000001')}${stripped(4, 'Transform', '6000000000000000011', '400008', G.avaFbx, '5000000000000000001')}${stripped(1, 'GameObject', '6000000000000000012', '100009', G.avaFbx, '5000000000000000001')}${stripped(4, 'Transform', '6000000000000000013', '400009', G.avaFbx, '5000000000000000001')}--- !u!114 &7000000000000000001
 MonoBehaviour:
   m_ObjectHideFlags: 0
   m_GameObject: {fileID: 6000000000000000001}
@@ -289,7 +293,7 @@ ${visemes.map((v) => `  - ${v}`).join('\n')}
   specialAnimationLayers: []
   expressionsMenu: {fileID: 0}
   expressionParameters: {fileID: 0}
-${physBone('7000000000000000002', '6000000000000000002', '6000000000000000003', 0.2, 0.4, 0.1)}${physBone('7000000000000000003', '6000000000000000004', '6000000000000000005', 0.15, 0.6, 0.05)}${physBone('7000000000000000004', '6000000000000000006', '6000000000000000007', 0.15, 0.6, 0.05)}--- !u!114 &7000000000000000005
+${physBone('7000000000000000002', '6000000000000000002', '6000000000000000003', 0.2, 0.4, 0.1)}${physBone('7000000000000000003', '6000000000000000004', '6000000000000000005', 0.15, 0.6, 0.05)}${physBone('7000000000000000004', '6000000000000000006', '6000000000000000007', 0.15, 0.6, 0.05)}${physBone('7000000000000000007', '6000000000000000010', '6000000000000000011', 0.2, 0.5, 0.03)}${physBone('7000000000000000008', '6000000000000000012', '6000000000000000013', 0.2, 0.5, 0.03)}--- !u!114 &7000000000000000005
 MonoBehaviour:
   m_GameObject: {fileID: 6000000000000000009}
   m_Enabled: 1
@@ -434,7 +438,7 @@ async function main() {
       if (withMeta) writeFileSync(p + '.meta', f.meta);
     }
   }
-  writeFileSync(join(OUT, 'README.md'), `# Unity test packages\n\nEvery one of these files was made by Everloom from its own CC0 test models (\`tests/fixtures/avatars/models\`), with\n\`tools/avatars/unity-fixture.py\` and \`tools/avatars/make-unity-fixture.ts\`. CC0 1.0.\n\n- \`Ava.unitypackage\`: an avatar laid out like a VRChat one (humanoid .meta, lilToon materials, descriptor, PhysBones, a blendshape preset, a hidden hat with a toggle, a script).\n- \`AvaShirt.unitypackage\`: a shirt made for it (Modular Avatar Merge Armature, bones prefixed \`Outfit_\`).\n- \`Ava-extracted/\`, \`Ava-extracted-nometa/\`: the avatar as loose files, with and without .meta files.\n`);
+  writeFileSync(join(OUT, 'README.md'), `# Unity test packages\n\nEvery one of these files was made by Everloom from its own CC0 test models (\`tests/fixtures/avatars/models\`), with\n\`tools/avatars/unity-fixture.py\` and \`tools/avatars/make-unity-fixture.ts\`. CC0 1.0.\n\n- \`Ava.unitypackage\`: an avatar laid out like a VRChat one (humanoid .meta, lilToon materials, descriptor, PhysBones on hair, breast and butt bones, a blendshape preset, a hidden hat with a toggle, a script).\n- \`AvaShirt.unitypackage\`: a shirt made for it (Modular Avatar Merge Armature, bones prefixed \`Outfit_\`).\n- \`Ava-extracted/\`, \`Ava-extracted-nometa/\`: the avatar as loose files, with and without .meta files.\n`);
   console.log('ok');
 }
 void main();

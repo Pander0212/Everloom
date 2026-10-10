@@ -10,7 +10,7 @@ import type { PreviewHandle } from '../Preview3D';
 import { ColliderOverlay } from '../runtime/physics/colliders';
 
 const COLLIDER_LABEL: Partial<Record<HumanBone, string>> = { head: 'Head', spine: 'Back and belly', upperChest: 'Shoulders', hips: 'Hips', leftUpperLeg: 'Left thigh', rightUpperLeg: 'Right thigh', leftLowerLeg: 'Left shin', rightLowerLeg: 'Right shin', leftUpperArm: 'Left upper arm', rightUpperArm: 'Right upper arm' };
-const CHAIN_LABEL: Record<ChainKind, string> = { hair: 'Hair', tail: 'Tail', cloth: 'Cloth', chest: 'Chest', accessory: 'Accessory' };
+const CHAIN_LABEL: Record<ChainKind, string> = { hair: 'Hair', tail: 'Tail', cloth: 'Cloth', chest: 'Chest', butt: 'Butt', accessory: 'Accessory' };
 
 export function PhysicsEditor({ config, set, handle }: { config: AvatarConfig; set: (p: Partial<AvatarConfig>) => void; handle: PreviewHandle | null }) {
   const physics = config.physics;

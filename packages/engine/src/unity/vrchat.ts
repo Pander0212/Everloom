@@ -181,6 +181,7 @@ export function chainKindFromName(name: string): ChainKind {
   const n = name.normalize('NFKC').toLowerCase();
   if (/breast|bust|boob|oppai|chest_?(l|r)|胸|乳|おっぱい|バスト/.test(n)) return 'chest';
   if (/tail|しっぽ|尻尾|尾/.test(n)) return 'tail';
+  if (/butt|glute|oshiri|hip_?cheek|お尻|ケツ|尻/.test(n)) return 'butt';
   if (/hair|bang|ahoge|ponytail|twintail|髪|前髪|後髪|横髪|もみあげ|アホ毛/.test(n)) return 'hair';
   if (/skirt|dress|coat|cape|cloak|ribbon|sleeve|hood|frill|スカート|袖|リボン|マント|コート/.test(n)) return 'cloth';
   return 'accessory';

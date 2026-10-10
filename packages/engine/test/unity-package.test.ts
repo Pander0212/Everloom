@@ -51,6 +51,8 @@ describe('importing Everloom’s Unity test packages', () => {
     expect(plan.descriptor?.eyelids.blink).toBe(17);
     expect(plan.descriptor?.eyelids.mesh?.at(-1)).toBe('Body');
     expect(plan.chains.map((c) => [c.path.at(-1), c.kind]).sort()).toEqual([
+      ['Butt_L', 'butt'],
+      ['Butt_R', 'butt'],
       ['Hair_Back_1', 'hair'],
       ['breast_l', 'chest'],
       ['breast_r', 'chest'],
@@ -60,7 +62,7 @@ describe('importing Everloom’s Unity test packages', () => {
     // The report says what came in, what was approximated, and what was skipped.
     const lines = (l: { what: string; detail?: string }[]) => l.map((x) => `${x.what}: ${x.detail}`).join('\n');
     expect(lines(plan.report.imported)).toMatch(/VRChat avatar descriptor: 5 mouth shapes for lip-sync, blink/);
-    expect(lines(plan.report.imported)).toMatch(/Physics: 3 PhysBones/);
+    expect(lines(plan.report.imported)).toMatch(/Physics: 5 PhysBones/);
     expect(lines(plan.report.imported)).toMatch(/Blendshape presets: 2 values/);
     expect(lines(plan.report.skipped)).toMatch(/1 scripts: Scripts \(C#, DLLs\)/);
     expect(plan.report.thirdParty).toBe(true);
@@ -83,7 +85,7 @@ describe('importing Everloom’s Unity test packages', () => {
     const p = folder('Ava-extracted');
     expect(p.exact).toBe(true);
     const plan = planImport(p, summarize(p).avatars[0]!.guid);
-    expect(plan.chains).toHaveLength(3);
+    expect(plan.chains).toHaveLength(5);
     expect(plan.boneMap.spine).toBe('上半身');
   });
 

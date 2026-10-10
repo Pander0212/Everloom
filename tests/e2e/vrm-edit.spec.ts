@@ -31,7 +31,7 @@ test('an exported VRM: textures, hair colour and sliders edited, its license sho
   const media = (await (await posted).json()).id as string;
   // A body slider.
   await page.getByRole('tab', { name: 'Body', exact: true }).click();
-  const butt = page.getByLabel(/^Butt size (generated )?value$/);
+  const butt = page.getByLabel(/^Butt size (generated |bones )?value$/);
   await butt.fill('0.2');
   await butt.blur();
   await saveAvatar(page);

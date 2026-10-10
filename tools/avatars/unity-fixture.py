@@ -50,10 +50,35 @@ for i in range(3):
     b.parent = prev
     b.use_connect = i > 0
     prev = b
+# Butt bones (one each side, behind and below the hips), as many VRChat bases have for PhysBones.
+pelvis = eb['pelvis']
+butt_at = {}
+for side, x in (('L', 1), ('R', -1)):
+    b = eb.new(f'Butt_{side}')
+    b.head = pelvis.head + Vector((0.07 * x, 0.04, -0.07))
+    b.tail = b.head + Vector((0, 0.07, 0))
+    b.parent = pelvis
+    butt_at[b.name] = (arm.matrix_world @ b.head).copy()
 # Some bones under Japanese names, as on many VRChat bases.
 eb['spine_01'].name = '上半身'
 eb['neck_01'].name = '首'
 bpy.ops.object.mode_set(mode='OBJECT')
+
+# The butt bones take the skin behind the hips (fading out over 9 cm); the rest keeps its weights.
+inv = body.matrix_world.inverted()
+for name, at in butt_at.items():
+    g = body.vertex_groups.new(name=name)
+    c = inv @ at
+    for v in body.data.vertices:
+        if (v.co.x > 0) != (c.x > 0) or v.co.y < c.y - 0.04:
+            continue
+        d = (v.co - c).length
+        if d >= 0.09:
+            continue
+        w = 0.85 * (1 - d / 0.09) ** 2
+        for ge in v.groups:
+            ge.weight *= 1 - w
+        g.add([v.index], w, 'REPLACE')
 
 # VRChat viseme shape keys (small jaw and lip moves), next to the body's own.
 basis = body.data.shape_keys.key_blocks['Basis']

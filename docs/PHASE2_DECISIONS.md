@@ -1285,3 +1285,31 @@ Research with licenses: [docs/3d-import/research.md](3d-import/research.md).
   files reliably). Blender can run on the server (one-click install of the official 4.2 LTS build,
   checksum-verified), on the owner's PC through the Windows app, or for a batch on a rented RunPod
   CPU machine under the GPU budget rules. Details: [3d-import/blend.md](3d-import/blend.md).
+
+## 3D import: the character creator, anatomy pack, minor guard (October 2026)
+
+- **Own bases, not VRoid's.** VRoid Studio's bases can't be redistributed, so the creator builds on
+  MakeHuman's CC0 data, reshaped toward anime proportions by a script. The base, its shape keys
+  (one pair per slider) and its skeleton (with breast and butt bones) are a 1.8 MB GLB per sex;
+  hair, clothes and textures are generated in the browser from a small recipe
+  (`config.character`), so a saved character is its recipe plus the built GLB, and can be edited
+  again. Details: [3d-import/creator.md](3d-import/creator.md).
+- **Clothes are body shells** (a copy of the body's faces, pushed out, with the body's shape keys),
+  so they follow every slider without fitting; skirts are separate cones that follow the body's
+  outline per ring. Hair is ribbons on bone chains the existing physics already moves. No cloth
+  simulation.
+- **Anatomy is a separate pack.** The repository and GitHub stay safe for work: the bases are
+  smooth, and the anatomy shape keys and layers come from a zip the owner installs (Settings › 3D
+  characters › Anatomy pack). There is no unlock: installing it is the choice. The pack tool
+  refuses to write inside the repository and `.gitignore` covers pack files.
+- **The minor guard is the only gate**, in one file (`apps/server/src/services/minor-guard.ts`):
+  anatomy and other explicit content are refused for anyone under 18, described as a child, or with
+  a child-range body, on the server for every save, import and export, so the UI cannot be
+  bypassed. The creator's age slider starts at 18; a save that the guard refuses (for example a
+  character linked to a card that describes a child) gives the guard's one plain refusal, with no
+  way to override it.
+- **VRM license:** an imported VRM's license is shown, never enforced (the owner runs their own
+  server); the export keeps it and warns when it forbids redistribution. Own characters export as
+  VRM 1.0 with the license the owner fills in, private by default.
+- **Bone sliders:** when the bone mapping has breast or butt bones, the chest and butt sliders scale
+  those bones (so their springs keep working), even if the file also has shape keys for them.

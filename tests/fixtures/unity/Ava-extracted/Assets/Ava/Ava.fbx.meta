@@ -28,6 +28,12 @@ ModelImporter:
       1: 100007
     second: head
   - first:
+      1: 100008
+    second: Butt_L
+  - first:
+      1: 100009
+    second: Butt_R
+  - first:
       1: 100010
     second: Eyes
   - first:
@@ -42,6 +48,12 @@ ModelImporter:
   - first:
       4: 400007
     second: head
+  - first:
+      4: 400008
+    second: Butt_L
+  - first:
+      4: 400009
+    second: Butt_R
   - first:
       137: 13700001
     second: Body

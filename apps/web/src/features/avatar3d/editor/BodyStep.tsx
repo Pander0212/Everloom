@@ -64,7 +64,10 @@ export function BodyStep({ config, set, handle }: { config: AvatarConfig; set: (
   const counts = Object.fromEntries(MORPH_GROUPS.map((g) => [g, visibleSliders(morphs.sliders, { adultAllowed, showHidden: editing }).filter((s) => s.group === g).length]));
   const shape = config.bodyShape ?? zero;
   // Generated adjusters stand in for body kinds the file has no morph for.
-  const fallback = SHAPE_KEYS.filter((k) => !report?.bodyKinds.some((kind) => FALLBACK_FOR_KIND[kind as keyof typeof FALLBACK_FOR_KIND] === k));
+  // Mapped breast and butt bones (Bones tab roles) take those two sliders as a bone scale, file morph or not.
+  const roles = config.rig?.roles ?? [];
+  const boneKinds = (['chest', 'buttocks'] as const).filter((k) => roles.some((r) => r.role === (k === 'chest' ? 'breast' : 'butt')));
+  const fallback = SHAPE_KEYS.filter((k) => !(boneKinds as readonly string[]).includes(k) && !report?.bodyKinds.some((kind) => FALLBACK_FOR_KIND[kind as keyof typeof FALLBACK_FOR_KIND] === k));
 
   return (
     <div className="flex flex-col gap-4" data-testid="body-step">
@@ -91,6 +94,21 @@ export function BodyStep({ config, set, handle }: { config: AvatarConfig; set: (
             ))}
           </div>
         </>
+      ) : null}
+
+      {(group === 'body' || !morphs.sliders.length) && boneKinds.length ? (
+        <section className="flex flex-col gap-3">
+          <SectionTitle>Bone sliders</SectionTitle>
+          <p className="text-sm text-fg-2">These scale the {boneKinds.length === 2 ? 'breast and butt' : boneKinds[0] === 'chest' ? 'breast' : 'butt'} bones from the bone mapping, so the swinging physics stays on them.</p>
+          {boneKinds.map((k) => (
+            <Field key={k} label={<span className="flex items-center gap-2">{GENERATED_LABEL[k]}<Badge>Bones</Badge></span>}>
+              <div className="flex items-center gap-3" onDoubleClick={() => set({ bodyShape: { ...shape, [k]: 0 } })}>
+                <Slider label={`${GENERATED_LABEL[k]} (bones)`} min={-0.35} max={0.35} step={0.01} value={shape[k]} onChange={(value) => set({ bodyShape: { ...shape, [k]: value } })} />
+                <Input aria-label={`${GENERATED_LABEL[k]} bones value`} className="w-20 flex-none" type="number" min={-0.35} max={0.35} step={0.01} value={shape[k]} onChange={(e) => { const value = Number(e.target.value); if (Number.isFinite(value)) set({ bodyShape: { ...shape, [k]: Math.min(0.35, Math.max(-0.35, value)) } }); }} />
+              </div>
+            </Field>
+          ))}
+        </section>
       ) : null}
 
       {group === 'body' || !morphs.sliders.length ? (

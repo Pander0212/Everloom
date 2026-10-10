@@ -49,8 +49,8 @@ test.describe('custom base models', () => {
     const plain = await upload(page, path.join(F, 'models/plain-base.glb'), 'Plain base');
     await open(page, plain, 'Body');
     await expect(page.getByTestId('base-check')).toContainText('No morph targets');
-    await expect(page.getByLabel('Breast / chest size (generated)')).toBeVisible();
-    await page.getByLabel('Breast / chest size generated value').fill('0.3');
+    await expect(page.getByLabel(/^Breast \/ chest size \((generated|bones)\)$/)).toBeVisible();
+    await page.getByLabel(/^Breast \/ chest size (generated|bones) value$/).fill('0.3');
     await page.getByLabel('Hip width generated value').fill('0.3');
     await settle(page);
     await ev(page, '2-no-morphs-fallback');

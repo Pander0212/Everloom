@@ -8,7 +8,7 @@ import { HUMANOID_BONES } from './skeleton.js';
 const bone = z.string().max(200);
 const vec3 = z.tuple([z.number().min(-10).max(10), z.number().min(-10).max(10), z.number().min(-10).max(10)]);
 
-export const CHAIN_KINDS = ['hair', 'tail', 'cloth', 'chest', 'accessory'] as const;
+export const CHAIN_KINDS = ['hair', 'tail', 'cloth', 'chest', 'butt', 'accessory'] as const;
 export type ChainKind = (typeof CHAIN_KINDS)[number];
 
 export const SpringSettingsSchema = z.object({

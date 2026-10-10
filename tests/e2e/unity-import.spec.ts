@@ -35,7 +35,7 @@ test.describe('Unity packages', () => {
     const report = sheet.getByTestId('import-report');
     await expect(report).toBeVisible({ timeout: 90_000 });
     await expect(report.getByRole('region', { name: 'Imported' })).toContainText('VRChat avatar descriptor');
-    await expect(report.getByRole('region', { name: 'Imported' })).toContainText('3 PhysBones');
+    await expect(report.getByRole('region', { name: 'Imported' })).toContainText('5 PhysBones');
     await expect(report.getByRole('region', { name: 'Skipped' })).toContainText('scripts');
     await sheet.getByRole('button', { name: 'Open the avatar' }).click();
     await expect(page).toHaveURL(/\/characters\/avatars\/av_/);
@@ -45,7 +45,7 @@ test.describe('Unity packages', () => {
     expect(ava.config.boneMap).toMatchObject({ hips: 'pelvis', spine: '上半身', neck: '首' });
     expect(ava.config.expressionMap.aa[0].morph).toBe('vrc.v_aa');
     expect(ava.config.expressionMap.blink[0].morph).toBe('eyeBlinkLeft');
-    expect(ava.config.physics.chains.map((c: { bone: string; kind: string }) => `${c.bone}:${c.kind}`).sort()).toEqual(['Hair_Back_1:hair', 'breast_l:chest', 'breast_r:chest']);
+    expect(ava.config.physics.chains.map((c: { bone: string; kind: string }) => `${c.bone}:${c.kind}`).sort()).toEqual(['Butt_L:butt', 'Butt_R:butt', 'Hair_Back_1:hair', 'breast_l:chest', 'breast_r:chest']);
     expect(ava.config.parts.map((p: { name: string; on: boolean }) => `${p.name}:${p.on}`)).toEqual(['Hat:false']);
     expect(ava.config.look).toBe('toon');
     expect(ava.config.importReport.thirdParty).toBe(true);
@@ -86,6 +86,56 @@ test.describe('Unity packages', () => {
     if (process.env.EVIDENCE_3D) {
       await saveOutfitShot(page, id);
     }
+    expect(errors).toEqual([]);
+  });
+
+  test('breast and butt physics and the body sliders work through the bone roles (acceptance item 7)', async ({ page, errors }) => {
+    test.slow();
+    await page.addInitScript(() => localStorage.setItem('everloom:debug3d', '1'));
+    await page.goto('/characters/avatars');
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByTestId('avatar-import').click();
+    await (await chooser).setFiles(path.join(DIR, 'Ava.unitypackage'));
+    const sheet = page.getByRole('dialog', { name: 'Import from Unity' });
+    await sheet.getByRole('button', { name: 'Import the avatar' }).click({ timeout: 30_000 });
+    await sheet.getByRole('button', { name: 'Open the avatar' }).click({ timeout: 90_000 });
+    await expect(page).toHaveURL(/\/characters\/avatars\/av_/);
+    const id = page.url().split('/').pop()!;
+    const ava = await api(page, 'GET', `/api/avatars/${id}`);
+    // The mapping gave the breast and butt bones their secondary roles.
+    const roles = (ava.config.rig.roles as { role: string; bones: string[] }[]).filter((r) => r.role === 'breast' || r.role === 'butt').map((r) => `${r.role}:${r.bones[0]}`).sort();
+    expect(roles).toEqual(['breast:breast_l', 'breast:breast_r', 'butt:Butt_L', 'butt:Butt_R']);
+    await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
+    // Two breast springs and two butt springs.
+    expect(await page.evaluate(() => (window as unknown as { __everloomPreview: { avatar: { bodySpringCount: number } } }).__everloomPreview.avatar.bodySpringCount)).toBe(4);
+    // They swing: moving the avatar from side to side turns the butt and breast bones away from rest.
+    const swing = await page.evaluate(async () => {
+      type Q = { angleTo(q: Q): number; clone(): Q };
+      const scene = (window as unknown as { __everloomPreview: { model: { scene: { position: { x: number }; getObjectByName(n: string): { quaternion: Q } | undefined } } } }).__everloomPreview.model.scene;
+      const bones = ['Butt_L', 'breast_l'].map((n) => scene.getObjectByName(n)!);
+      const rest = bones.map((b) => b.quaternion.clone());
+      let max = [0, 0];
+      for (let i = 0; i < 20; i++) {
+        scene.position.x = i % 2 ? 0.25 : -0.25;
+        await new Promise((r) => setTimeout(r, 60));
+        max = bones.map((b, j) => Math.max(max[j]!, b.quaternion.angleTo(rest[j]!)));
+      }
+      scene.position.x = 0;
+      return max;
+    });
+    expect(swing[0]).toBeGreaterThan(0.005);
+    expect(swing[1]).toBeGreaterThan(0.005);
+    // The butt slider scales the mapped butt bones.
+    await page.getByRole('tab', { name: 'Body', exact: true }).click();
+    const butt = page.getByLabel('Butt size bones value');
+    await butt.fill('0.35');
+    await butt.blur();
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __everloomPreview: { model: { scene: { getObjectByName(n: string): { scale: { x: number } } | undefined } } } }).__everloomPreview.model.scene.getObjectByName('Butt_L')?.scale.x ?? 0), { timeout: 15_000 }).toBeGreaterThan(1.2);
+    await page.getByTestId('avatar-preview').screenshot({ path: `docs/3d-import/evidence/unity-body-roles-${test.info().project.name}.png` });
+    // Exporting a bought avatar shows its license warning (acceptance item 13).
+    await page.getByRole('tab', { name: 'Export' }).click();
+    await expect(page.getByTestId('third-party')).toContainText('Third-party asset, personal use');
+    await page.getByTestId('third-party').screenshot({ path: `docs/3d-import/evidence/unity-license-warning-${test.info().project.name}.png` });
     expect(errors).toEqual([]);
   });
 

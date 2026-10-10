@@ -16,6 +16,8 @@ import { autoLook, configureMaterials } from './runtime/materials';
 import { canRender3D, Stage3D, type Framing } from './runtime/stage';
 import { dress, paintSkin, shapeBody } from './runtime/wardrobe';
 
+const debug3d = () => { try { return localStorage.getItem('everloom:debug3d') === '1'; } catch { return false; } };
+
 /**
  * 18+ content shows on any character not recorded as a minor (no setting or confirmation). The
  * server's minor guard (apps/server/src/services/minor-guard.ts) refuses to save it on a minor.
@@ -127,6 +129,8 @@ export default function Preview3D({ src: baseSrc, fallbackSrc, config, framing =
         const avatar = s.add('preview', model, { look: lookFor(config, model), outlines: config?.outlines ?? true, physics: config?.physics?.enabled ?? true, stiffness: config?.physics?.stiffness, gravity: config?.physics?.gravity, settings: config?.physics, rig: config?.rig });
         if (first || !recipe) s.snapCamera();
         handle.current = { stage: s, avatar, model };
+        // For tests and debugging (dev builds, or `everloom:debug3d` set in this browser), like the stage's stats.
+        if (import.meta.env.DEV || debug3d()) Object.assign(window, { __everloomPreview: handle.current });
         if (!recipe && wardrobeRef.current && fullCfg?.success) dress(avatar, fullCfg.data, s.renderer, wardrobeRef.current, { adultAllowed: adultRef.current });
         modelLoading.current = false;
         loadedCb.current?.(handle.current);

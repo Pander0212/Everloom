@@ -265,6 +265,39 @@ full spec, with a checklist for model makers, is [docs/avatars.md](docs/avatars.
 - **Realistic:** if Blender 4.2+ is on your server, MPFB (MakeHuman) makes realistic humans from
   sliders, with clothes you can take off (one button installs MPFB and its CC0 assets).
 
+**Which files work.** GLB and VRM (0.x and 1.0) load in the browser. So do OBJ (with its `.mtl`
+and textures), DAE, FBX, PMX/PMD with VMD/VPD motions, BVH and VRMA motions, and textures in PNG,
+JPEG, WebP, TGA, PSD, DDS and KTX2. Zip, 7z and RAR archives are unpacked first (a password-protected
+one has to be unpacked on your PC). `.blend` files go through Blender on your server (one-click install in
+Settings › 3D characters › Blender) or on your PC. A Clip Studio `.clip` or a layered `.psd`
+becomes a 2D puppet. Unity's own `.anim` and scripts can't play outside Unity; Everloom says so and
+lists what it skipped. Details: [docs/3d-import/formats.md](docs/3d-import/formats.md).
+
+**A BOOTH avatar and its outfits, without Unity.** Drop the avatar's `.unitypackage` (or the folder
+you extracted, with or without its `.meta` files) on Characters › 3D avatars. Everloom reads the
+prefab like Unity would: the humanoid mapping from the `.fbx.meta`, lilToon and Poiyomi materials
+turned into toon materials, the prefab's blendshape values, PhysBones as swinging bones (hair,
+skirt, breasts, butt), the VRChat visemes for lip-sync and blink, and Modular Avatar toggles as
+wardrobe parts. An import report lists what came in, what was approximated and what was skipped.
+Then drop an outfit package made for that avatar and pick the avatar: the outfit's bones join the
+avatar's, and it becomes a wardrobe outfit that the inventory puts on (and takes off again if the
+message is swiped away). The package's license stays with it; exporting or sharing it shows a
+warning. More: [docs/3d-import/unity.md](docs/3d-import/unity.md).
+
+**Bone mapping.** Every model is mapped to a standard humanoid skeleton automatically, from the
+file's own map, known bases (VRoid, VRChat bases, MMD, Mixamo, Rigify, …), the bone names in
+several languages, and the shape of the skeleton. Extra bones get roles (breast, butt, belly, hair,
+skirt, tail, ears, twist helpers…), which give them physics and body sliders. The **Bones** tab
+shows the mapping as a tree you can fix, with how sure each guess was; a mapping can be saved and
+applied to another avatar with the same bones. More: [docs/3d-import/bones.md](docs/3d-import/bones.md).
+
+**The character creator.** Make › Character creator (anime) builds a new character on Everloom's own
+CC0 bases, VRoid-style: body and face sliders, eyes, 32 hair presets you combine by part, skin and
+makeup, 19 clothing templates with patterns or your own painted textures. Save it, edit it again,
+or export it as GLB or VRM 1.0 with the license you choose. An imported VRM's own license is shown
+in its Export tab. Anatomy is a separate download, never part of Everloom; it works for adult
+characters only. More: [docs/3d-import/creator.md](docs/3d-import/creator.md).
+
 **Where to get good models:** [VRoid Studio](https://vroid.com/en/studio) (free, makes anime VRMs
 in minutes), [VRoid Hub](https://hub.vroid.com) and [Booth](https://booth.pm) (check each model's
 terms), [Quaternius](https://quaternius.com) and [Kenney](https://kenney.nl) (CC0), Ready Player

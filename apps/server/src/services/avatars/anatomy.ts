@@ -10,7 +10,8 @@
  *                     "shapeKeys": { "<name>": "<file>.bin" },      // Float32 xyz per body vertex
  *                     "layers": { "<name>": "<file>.png" } } } }   // in the body's UV layout
  *   the .bin and .png files it names.
- * tools/anatomy/build-pack.ts makes one from the CC0 MakeHuman data (written outside the repo).
+ * `npx tsx tools/avatars/build-character-bases.ts --anatomy-pack <zip>` makes one from the CC0 MakeHuman
+ * data (it refuses to write inside the repository).
  */
 import { unzipSync } from 'fflate';
 import { z } from 'zod';

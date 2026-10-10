@@ -506,10 +506,12 @@ export class Avatar {
     // Chains the owner picked in the editor.
     for (const pick of s.chains ?? []) {
       const start = byName.get(pick.bone);
-      if (!pick.on || !start || this.model.secondaryChains.some((c) => c[0] === start)) continue;
+      // A bone the mapping already gave a role (breast, butt, hair…) moves with that role's preset.
+      if (!pick.on || !start || roleBones.has(start) || this.model.secondaryChains.some((c) => c[0] === start)) continue;
       const chain: THREE.Object3D[] = [start];
       for (let cur: THREE.Object3D = start; chain.length < 12;) { const next = cur.children.find((c) => (c as THREE.Bone).isBone); if (!next) break; chain.push(next); cur = next; }
-      this.addSpringChains([chain], jointSettings(pick.settings, this.options.stiffness, this.options.gravity, pick.kind === 'chest' ? 'chest' : pick.kind === 'cloth' ? 'cloth' : pick.kind === 'tail' ? 'tail' : 'hair'));
+      const id = this.addSpringChains([chain], jointSettings(pick.settings, this.options.stiffness, this.options.gravity, pick.kind === 'accessory' ? 'hair' : pick.kind))[0];
+      if (id !== undefined && pick.kind === 'butt') this.chestChains.push(id);
     }
     this.setupChest();
   }
@@ -613,6 +615,8 @@ export class Avatar {
   }
 
   get hasChestBones() { return this.chestChains.length > 0; }
+  /** How many body springs (breast, butt, belly) move. */
+  get bodySpringCount() { return this.chestChains.length; }
 
   /** Makes bone chains swing (hair, skirts, capes); returns ids so they can be removed. */
   addSpringChains(chains: THREE.Object3D[][], settings?: Partial<JointSettings>): number[] {

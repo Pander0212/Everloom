@@ -234,7 +234,7 @@ export function automap(input: AutomapInput): AutomapResult {
     }
     if (!nameRole && (i.words.some((w) => IGNORE.test(w)) || /_end$|\.end$|end$/i.test(n)) && !(children.get(n)?.length)) return { role: 'ignore', confidence: 0.9, why: 'an end, IK or control bone' };
     // PhysBone kinds.
-    const physRole: RigRole | null = pk === 'chest' ? 'breast' : pk === 'hair' ? 'hair' : pk === 'tail' ? 'tail' : pk === 'cloth' ? 'skirt' : null;
+    const physRole: RigRole | null = pk === 'chest' ? 'breast' : pk === 'butt' ? 'butt' : pk === 'hair' ? 'hair' : pk === 'tail' ? 'tail' : pk === 'cloth' ? 'skirt' : null;
     // Geometry.
     let geo: [RigRole, number, string] | null = null;
     const p = P(n);
