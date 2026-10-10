@@ -30,4 +30,5 @@ docs/art/.ledger.lock/
 tests/ux/.artifacts/
 
 # The anatomy pack is a separate download, never committed.
-*anatomy-pack*
+*anatomy-pack*.zip
+everloom-anatomy-pack/
