@@ -56,4 +56,14 @@ describe('the auto-mapper on fixture rigs', () => {
     const r = automap({ bones: f.bones, humanoid: { hips: 'Hips', spine: 'Spine1' }, humanoidSource: 'Unity humanoid' });
     expect(r.humanoid.spine).toMatchObject({ bone: 'Spine1', confidence: 1 });
   });
+
+  it('copes with the same bone names more than once and with names that loop back', () => {
+    const f = FIXTURES[0]!();
+    // Three copies of the skeleton (an avatar with two outfit armatures), and a bone named like its own parent.
+    const bones = [...f.bones, ...f.bones, ...f.bones, { name: 'Loop', parent: 'Loop' }];
+    const r = automap({ bones });
+    const once = automap({ bones: f.bones });
+    expect(r.humanoid.hips?.bone).toBe(once.humanoid.hips?.bone);
+    expect(r.humanoid.leftHand?.bone).toBe(once.humanoid.leftHand?.bone);
+  });
 });

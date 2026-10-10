@@ -13,6 +13,7 @@ import { spawn } from 'node:child_process';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import { HttpError, type AppContext } from '../context.js';
+import { safeFetch } from '../util/fetch.js';
 import { findBlender } from './blender.js';
 
 export const BLENDER_VERSION = '4.2.3';
@@ -76,10 +77,10 @@ async function run(ctx: AppContext, owner: string) {
   mkdirSync(dir, { recursive: true, mode: 0o700 });
   const tmp = path.join(dir, `${FILE}.part`);
   try {
-    const sums = await (await fetch(`${BASE}/blender-${BLENDER_VERSION}.sha256`)).text();
+    const sums = await (await safeFetch(`${BASE}/blender-${BLENDER_VERSION}.sha256`, { timeoutMs: 60_000, shield: false })).text();
     const want = sums.split('\n').find((l) => l.trim().endsWith(FILE))?.split(/\s+/)[0];
     if (!want || !/^[0-9a-f]{64}$/.test(want)) throw new Error('Could not read the published checksum from blender.org.');
-    const res = await fetch(`${BASE}/${FILE}`);
+    const res = await safeFetch(`${BASE}/${FILE}`, { timeoutMs: 60 * 60_000, shield: false });
     if (!res.ok || !res.body) throw new Error(`Download failed (${res.status}).`);
     const total = Number(res.headers.get('content-length') ?? 0);
     const hash = createHash('sha256');

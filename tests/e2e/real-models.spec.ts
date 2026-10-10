@@ -26,8 +26,8 @@ for (const model of models) for (const flow of ['picker', 'drop'] as const) {
     mkdirSync(evidence, { recursive: true });
     copyFileSync(info.outputPath('editor-wave.png'), path.join(evidence, 'editor-wave.png'));
     await page.getByRole('tab', { name: 'Body', exact: true }).click();
-    if (model === 'knight.fbx') await expect.poll(async () => await page.getByLabel('Butt size value').isVisible() || await page.getByText('This model has too many vertices for live body adjusters.', { exact: false }).isVisible()).toBe(true);
-    else await expect(page.getByLabel('Butt size value')).toBeVisible();
+    if (model === 'knight.fbx') await expect.poll(async () => await page.getByLabel(/^Butt size (generated )?value$/).isVisible() || await page.getByText('This model has too many vertices for live body adjusters.', { exact: false }).isVisible()).toBe(true);
+    else await expect(page.getByLabel(/^Butt size (generated )?value$/)).toBeVisible();
     const avatarId = page.url().split('/').pop()!;
     const who = `Fixture ${model} ${flow} ${info.project.name}`;
     const character = await api(page, 'POST', '/api/characters', { card: { name: who, first_mes: 'Hello.' } });
@@ -56,7 +56,7 @@ test('unsupported and broken files explain the correction', async ({ page }) => 
   await page.goto('/characters/avatars');
   for (const [name, buffer, message] of [
     ['unexported.blend', Buffer.from('BLENDER'), /needs Blender, and none was found/],
-    ['project.vroid', Buffer.from('PK'), /export a .vrm/],
+    ['project.vroid', Buffer.from('PK'), /export it as VRM/],
     ['broken.glb', Buffer.from('not a model'.repeat(8)), /glTF|GLB|magic|model/i],
   ] as const) {
     const chooser = page.waitForEvent('filechooser'); await page.getByTestId('avatar-import').click();

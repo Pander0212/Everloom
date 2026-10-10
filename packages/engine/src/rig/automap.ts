@@ -81,8 +81,26 @@ const IGNORE = /^(end|nub|tip|palm|ik|ctrl|control|target|pole|null|locator|mark
 
 const sub = (a: Vec3, b: Vec3): Vec3 => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
 
+/**
+ * Bones are keyed by name: a model with the same names more than once (several armatures, an
+ * outfit's copy of the skeleton) keeps the first of each, and a parent link that would loop back
+ * (a bone named like one of its descendants) is cut.
+ */
+function uniqueTree(list: AutomapBone[]): AutomapBone[] {
+  const first = new Map<string, AutomapBone>();
+  for (const b of list) if (!first.has(b.name)) first.set(b.name, { ...b, parent: b.parent === b.name ? null : b.parent });
+  for (const b of first.values()) {
+    const seen = new Set([b.name]);
+    for (let p = b.parent; p; p = first.get(p)?.parent ?? null) {
+      if (seen.has(p)) { b.parent = null; break; }
+      seen.add(p);
+    }
+  }
+  return [...first.values()];
+}
+
 export function automap(input: AutomapInput): AutomapResult {
-  const bones = input.bones;
+  const bones = uniqueTree(input.bones);
   const byName = new Map(bones.map((b) => [b.name, b]));
   const children = new Map<string, string[]>();
   for (const b of bones) if (b.parent) children.set(b.parent, [...(children.get(b.parent) ?? []), b.name]);

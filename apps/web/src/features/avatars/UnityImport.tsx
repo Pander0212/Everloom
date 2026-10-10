@@ -21,6 +21,7 @@ type Pick = { guid: string; as: 'avatar' | 'outfit' };
 async function waitReady(id: string): Promise<AvatarDetail> {
   for (let i = 0; i < 600; i++) {
     const a = await get<AvatarDetail>(`/api/avatars/${id}`);
+    if (a.status === 'failed') throw new Error(a.error ?? 'The server could not prepare the model.');
     if (a.status !== 'processing' && !a.processingStage) return a;
     await new Promise((r) => setTimeout(r, 1000));
   }

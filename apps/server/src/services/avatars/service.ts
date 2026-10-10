@@ -278,7 +278,12 @@ async function processAvatar(ctx: AppContext, owner: string, id: string, opts: P
         const preserved = safeJson<Record<string, unknown>>(current.info, {});
         delete preserved.processingStage;
         setStatus(ctx, owner, id, { info: JSON.stringify({ ...preserved, preparationError: `${step}: ${msg}`.slice(0, 400) }) });
-      } else setStatus(ctx, owner, id, { status: 'failed', error: `${step}: ${msg}`.slice(0, 400) });
+      } else {
+        // A failed model isn't being prepared any more: clients waiting on the stage stop.
+        const info = safeJson<Record<string, unknown>>(current.info, {});
+        delete info.processingStage;
+        setStatus(ctx, owner, id, { status: 'failed', error: `${step}: ${msg}`.slice(0, 400), info: JSON.stringify(info) });
+      }
     } catch {
       /* deleted */
     }
