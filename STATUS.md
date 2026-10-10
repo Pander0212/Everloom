@@ -2,6 +2,45 @@
 
 Snapshot of what's built, what's partial, and how it was tested. Everloom 0.1.0.
 
+## 3D import and editor (2026-10-10)
+
+Unity packages without Unity, bone mapping, more formats, `.blend` through Blender, a VRoid-style
+character creator, and the adult switch removed (the minor guard stays). Docs:
+[docs/3d-import/](docs/3d-import/) (research, formats, Unity tables, bones and presets, `.blend`,
+creator); acceptance: [docs/3d-import/evidence/acceptance.md](docs/3d-import/evidence/acceptance.md).
+
+### Done ✅
+- **Unity**: `.unitypackage` and extracted folders (with or without `.meta`) import in the browser:
+  humanoid from `.fbx.meta`, lilToon/Poiyomi/Standard materials, prefab variants and blendshape
+  values, PhysBones and Dynamic Bones as springs (hair, cloth, chest, butt), VRChat visemes and
+  blink, Modular Avatar toggles and outfits (Merge Armature), face and body animations; an import
+  report; the package's license kept, with a warning on export and sharing.
+- **Bones**: one mapping model (humanoid plus roles: spine chains, breast, butt, belly, hair,
+  skirt, tail, helpers…), an auto-mapper (file maps, base presets, Japanese/Chinese/Korean names,
+  geometry) measured at 100% on the fixture rigs, a Bones tab that works on a phone with 250 bones,
+  mapping presets. Roles drive physics and the breast and butt bone sliders.
+- **Formats**: OBJ+MTL, DAE, PMX/PMD with VMD/VPD, BVH, VRMA, zip/7z/rar, TGA/PSD/DDS/KTX2
+  textures; `.clip` and `.psd` drawings become puppets; clear messages for Unity `.anim` and the rest.
+- **`.blend`**: converted by Blender on the server (one-click verified install), the Windows app, or
+  a RunPod CPU session; the old failure was the web app refusing the file before upload.
+- **Creator**: own CC0 bases (anime woman and man), 44 body and many face sliders, eyes, 32 hair
+  presets by part, skin and makeup, 19 clothing templates with patterns and a UV template, save and
+  re-edit, GLB and VRM 1.0 export with the owner's license; VRM license panel for imported VRMs.
+- **Anatomy** from a separate pack (never in the repo), no unlock; the **minor guard**
+  (`apps/server/src/services/minor-guard.ts`) refuses it and other explicit content for minors on
+  the server. The adult-mode switch and its confirmations are gone; "Blur 18+ pictures in lists"
+  is the one privacy option, off by default.
+
+### Partial or not built
+- RAR and ASCII FBX are untested with real files (no free RAR writer, no CC0 ASCII FBX here).
+- The texture library is code-made; image-model textures need an image connection key.
+- Genital shapes for the anatomy pack need sculpted art; the pack tool makes the chest only.
+- On-screen fps can't be measured here (software WebGL); CPU time per frame is (item 11).
+- The RunPod Blender session has not run against RunPod (no key during this work).
+
+### Tests
+- Full suite run in progress; results follow in the next update.
+
 ## Design & UX (2026-10-09)
 
 Making the app understandable, themes with scenery, and features from Hakawati. Docs:
