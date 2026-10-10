@@ -82,3 +82,19 @@ it('adult textures need only the provider’s permission, and never go on a mino
   expect((await c.req('POST', '/api/avatars/texture', request)).status).toBe(403);
   expect(generate).toHaveBeenCalledTimes(1);
 }, 30000);
+
+it('creator anatomy needs no unlock for an adult and is refused for a minor, however it is sent', async () => {
+  c = await createClient();
+  const id = (await c.req('POST', '/api/avatars/code', { name: 'Anatomy guard', recipe: {} })).json.id;
+  const withAnatomy = (content: Record<string, unknown>, body: Record<string, unknown> = {}) => AvatarConfigSchema.parse({ content, character: { body, anatomy: { enabled: true } } });
+  expect((await c.req('PATCH', `/api/avatars/${id}`, { config: withAnatomy({}) })).status).toBe(200);
+  expect((await c.req('PATCH', `/api/avatars/${id}`, { config: withAnatomy({ age: 25 }, { age: 25 }) })).status).toBe(200);
+  for (const content of [{ age: 16 }, { description: 'She is a 15-year-old.' }]) {
+    const r = await c.req('PATCH', `/api/avatars/${id}`, { config: withAnatomy(content) });
+    expect(r.status).toBe(400);
+    expect(r.json.error).toBe(REFUSED);
+  }
+  // The creator's own age slider can't go below 18: such a request isn't valid at all.
+  const raw = { content: {}, character: { body: { age: 15 }, anatomy: { enabled: true } } };
+  expect((await c.req('PATCH', `/api/avatars/${id}`, { config: raw })).status).toBe(400);
+}, 30000);

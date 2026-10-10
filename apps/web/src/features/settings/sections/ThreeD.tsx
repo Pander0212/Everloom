@@ -2,7 +2,7 @@
 import { Box, Plus, RefreshCw, Shirt, Trash2, Upload } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
 import { lazy, Suspense, useEffect, useState } from 'react';
-import { del, get, post } from '@/lib/api';
+import { del, get, post, upload } from '@/lib/api';
 import { useNavigate } from 'react-router';
 import { deleteClip, refreshBlender, setBlenderPath, useAvatarClips, useAvatarPaired, useAvatars, useBlender, useBlenderJobs, useMpfb } from '@/features/avatars/api';
 import { MpfbSetup } from '@/features/avatars/Realistic';
@@ -40,6 +40,8 @@ export default function ThreeDSection() {
           Open the avatar library{avatars.data ? ` (${avatars.data.length})` : ''}
         </Button>
       </Section>
+
+      <AnatomyPackSection />
 
       <Section title="Diagnostics" description="Check importing on this server and device.">
         {diagnostics ? <Suspense fallback={<Spinner />}><ImportDiagnostics /></Suspense> : <Button variant="secondary" onClick={() => setDiagnostics(true)}>Open import diagnostics</Button>}
@@ -349,5 +351,26 @@ function BlenderInstall() {
         <span className="text-xs text-fg-3">Other ways: the Windows app uses a Blender you installed; or export GLB from Blender.</span>
       </div>
     </div>
+  );
+}
+
+/** The anatomy pack (a separate download): installs like any pack, no unlock; the creator's Anatomy tab uses it. */
+function AnatomyPackSection() {
+  const q = useQuery({ queryKey: ['anatomy-pack'], queryFn: () => get<{ installed: boolean; name?: string; license?: string }>('/api/anatomy-pack') });
+  const [busy, setBusy] = useState(false);
+  const install = async (files: File[]) => {
+    const f = files[0];
+    if (!f) return;
+    setBusy(true);
+    try { await upload('/api/anatomy-pack', f); await q.refetch(); } catch (e) { toastError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Section title="Anatomy pack" description="Shape keys and texture layers for the character creator's Anatomy tab. A separate download (it isn't part of Everloom); install the zip here. Never applied to a character under 18.">
+      {q.data?.installed ? (
+        <ListRow title={q.data.name ?? 'Anatomy pack'} subtitle={q.data.license ?? ''} trailing={<IconButton icon={Trash2} label="Remove the anatomy pack" onClick={async () => { if (await confirm({ title: 'Remove the anatomy pack?', confirmLabel: 'Remove', danger: true })) { try { await del('/api/anatomy-pack'); await q.refetch(); } catch (e) { toastError(e); } } }} />} />
+      ) : (
+        <FileButton variant="secondary" icon={Upload} accept=".zip,application/zip" loading={busy} onFiles={(f) => void install(f)} data-testid="anatomy-pack-install">Install the anatomy pack</FileButton>
+      )}
+    </Section>
   );
 }

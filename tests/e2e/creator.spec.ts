@@ -82,3 +82,31 @@ test('the character creator: own base, sliders, hair, eyes, makeup, clothes; sav
   await page.getByTestId('avatar-preview').screenshot({ path: `docs/3d-import/evidence/creator-vrm-reloaded-${info.project.name}.png` });
   expect(errors).toEqual([]);
 });
+
+test('anatomy: the pack installs like any pack and the Anatomy tab works with no unlock step', async ({ page, errors }) => {
+  const { strToU8, zipSync } = await import('fflate');
+  const sharp = (await import('sharp')).default;
+  // A tiny stand-in pack (no imagery): one shape key the creator skips (wrong size), a grey layer.
+  const png = new Uint8Array(await sharp({ create: { width: 16, height: 16, channels: 4, background: '#202020' } }).png().toBuffer());
+  const zip = Buffer.from(zipSync({ 'anatomy.json': strToU8(JSON.stringify({ format: 'everloom-anatomy', version: 1, name: 'Test anatomy pack', license: 'CC0', bases: { 'anime-f': { vertices: 4, shapeKeys: { Nipples: 'n.bin' }, layers: { areolaDistance: 'a.png' } } } })), 'n.bin': new Uint8Array(48), 'a.png': png }));
+  await page.goto('/settings/3d');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByTestId('anatomy-pack-install').click();
+  await (await chooser).setFiles({ name: 'anatomy-pack.zip', mimeType: 'application/zip', buffer: zip });
+  await expect(page.getByText('Test anatomy pack')).toBeVisible();
+  await page.goto('/characters/creator');
+  await ready(page);
+  await page.getByRole('tab', { name: 'Anatomy' }).click();
+  // No confirmation, no setting: the switch is simply there.
+  await page.getByRole('switch', { name: 'Anatomy' }).click({ force: true });
+  await expect(page.getByRole('slider').first()).toBeVisible();
+  await ready(page);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await page.getByTestId('creator-save').click();
+  await expect(page).toHaveURL(/\/characters\/avatars\/av_/, { timeout: 120_000 });
+  const saved = await (await page.request.get(`/api/avatars/${page.url().split('/').pop()}`)).json();
+  expect(saved.config.character.anatomy.enabled).toBe(true);
+  expect(saved.adult).toBe(true);
+  await page.request.delete('/api/anatomy-pack', { headers: { 'x-csrf-token': (await (await page.request.get('/api/auth/status')).json()).csrf } });
+  expect(errors).toEqual([]);
+});

@@ -26,7 +26,7 @@ const ManifestSchema = z.object({
   version: z.literal(1),
   name: z.string().max(80).default('Anatomy pack'),
   license: z.string().max(200).default(''),
-  bases: z.record(z.enum(['anime-f', 'anime-m']), z.object({
+  bases: z.partialRecord(z.enum(['anime-f', 'anime-m']), z.object({
     vertices: z.number().int().positive().max(100000),
     shapeKeys: z.record(z.string().regex(SAFE), z.string().regex(SAFE)).default({}),
     layers: z.record(z.string().regex(SAFE), z.string().regex(SAFE)).default({}),

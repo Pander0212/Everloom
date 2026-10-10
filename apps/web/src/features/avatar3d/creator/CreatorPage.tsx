@@ -17,7 +17,7 @@ import { Button, Field, FileButton, IconButton, Input, Segmented, Select, Slider
 import type { AvatarDetail } from '@/features/avatars/api';
 import { applyLook } from '../runtime/materials';
 import { webTexture } from '../runtime/textures';
-import { createCharacter, type CharacterModel } from './build';
+import { createCharacter, loadAnatomy, type CharacterModel } from './build';
 import { uvTemplate } from './clothes';
 
 const TABS = [
@@ -133,19 +133,25 @@ export default function CreatorPage() {
   }, [id]);
   useEffect(() => { void get<{ installed: boolean }>('/api/anatomy-pack').then((r) => setAnatomyPack(r.installed)).catch(() => setAnatomyPack(false)); }, []);
 
-  // A new model when the base changes; otherwise the live one is updated in place.
+  // A new model when the base changes (or the anatomy pack's shape keys are first wanted);
+  // otherwise the live one is updated in place.
   const baseRef = useRef<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    if (model && baseRef.current === spec.base) {
+    const want = `${spec.base}:${spec.anatomy.enabled && anatomyPack ? 'anatomy' : ''}`;
+    if (model && (baseRef.current === want || (!spec.anatomy.enabled && baseRef.current?.startsWith(`${spec.base}:`)))) {
       try { model.apply(spec); bump((n) => n + 1); } catch (e) { setError((e as Error).message); }
       return;
     }
-    baseRef.current = spec.base;
+    baseRef.current = want;
     setModel(null);
-    void createCharacter(spec, textures.current).then((m) => { if (cancelled) m.dispose(); else { setModel(m); setError(null); } }).catch((e: Error) => setError(e.message));
+    void (async () => {
+      const anatomy = spec.anatomy.enabled && anatomyPack ? await loadAnatomy(spec.base) : null;
+      const m = await createCharacter(spec, textures.current, anatomy);
+      if (cancelled) m.dispose(); else { setModel(m); setError(null); }
+    })().catch((e: Error) => setError(e.message));
     return () => { cancelled = true; };
-  }, [spec]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [spec, anatomyPack]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const set = (patch: (s: CharacterSpec) => CharacterSpec) => setSpec((s) => CharacterSpecSchema.parse(patch(structuredClone(s))));
   const slider = (group: 'body' | 'face', sid: string, v: number) => set((s) => { s[group].sliders[sid] = v; return s; });
@@ -316,7 +322,7 @@ export default function CreatorPage() {
                     ) : null}
                   </>
                 ) : (
-                  <p className="text-sm text-fg-2">Anatomy editing comes from the anatomy pack, installed like any other pack (Settings › 3D characters › Packs). It isn't part of Everloom's download. Once installed it works here directly.</p>
+                  <p className="text-sm text-fg-2">Anatomy editing comes from the anatomy pack, installed like any other pack (Settings › 3D characters › Anatomy pack). It isn't part of Everloom's download. Once installed it works here directly.</p>
                 )}
               </div>
             </TabPanel>

@@ -28,3 +28,6 @@ docs/3d-base-evidence/private/
 apps/web/public/puppets/local/
 docs/art/.ledger.lock/
 tests/ux/.artifacts/
+
+# The anatomy pack is a separate download, never committed.
+*anatomy-pack*

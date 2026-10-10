@@ -18,7 +18,8 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { NodeIO } from '@gltf-transform/core';
 import { ALL_EXTENSIONS, EXTMeshoptCompression } from '@gltf-transform/extensions';
 import { dedup, prune, sparse } from '@gltf-transform/functions';
-import { gunzipSync, strFromU8, unzipSync } from 'fflate';
+import path from 'node:path';
+import { gunzipSync, strFromU8, unzipSync, zipSync } from 'fflate';
 import { MeshoptDecoder, MeshoptEncoder } from 'meshoptimizer';
 import sharp from 'sharp';
 import { blendTargets, parseHumanObj, parseHumanRig, parseTarget, type HumanObj, type Target } from '../../packages/engine/src/avatar/makehuman-data.js';
@@ -160,6 +161,8 @@ async function build(sex: Sex) {
   order.forEach((name, bi) => { for (const [v, w] of weightsJson[name] ?? []) perVertex[v]?.push([bi, w]); });
   const bones: GlbBone[] = order.map((name) => ({ name, parent: rig.bones[name]!.parent || null, at: head(name) }));
 
+  const unsmoothed = body0.slice();
+  const tips: number[] = [];
   // Mannequin-smooth chest: the base mesh's nipples are smoothed away (anatomy comes from a
   // separate pack, never this repo). Around the front-most point of each breast, a few passes of
   // neighbour averaging, fading out over 3.5 cm.
@@ -174,6 +177,7 @@ async function build(sex: Sex) {
         if (w > 0.5 && (tip < 0 || body0[v * 3 + 2]! > body0[tip * 3 + 2]!)) tip = v;
       }
       if (tip < 0) continue;
+      tips.push(tip);
       // Taubin smoothing (a shrink step, then an inflate step) removes the small bump and keeps the
       // breast's volume. Full strength within 1.2 cm of the tip, fading out by 2.6 cm.
       // The whole breast (weighted to its bone), fading in from the edge.
@@ -244,7 +248,8 @@ async function build(sex: Sex) {
       top.forEach(([b, w], kk) => { skinIndex[i * 4 + kk] = b; skinWeight[i * 4 + kk] = w / s; });
       if (!top.length) skinWeight[i * 4] = 1;
     });
-    const out: GlbMesh = { name, positions, normals, indices, skinIndex, skinWeight, uvs: Float32Array.from(uv), color, roughness: 0.6, ...(opts.texture ? { texture: opts.texture } : {}) };
+    const out: GlbMesh & { src?: number[] } = { name, positions, normals, indices, skinIndex, skinWeight, uvs: Float32Array.from(uv), color, roughness: 0.6, ...(opts.texture ? { texture: opts.texture } : {}) };
+    out.src = src;
     if (opts.morphs) {
       out.morphs = {};
       for (const [k, d] of Object.entries(keys)) {
@@ -276,6 +281,7 @@ async function build(sex: Sex) {
     mesh('Eyes', isEye, '#f6f4f0', { bone: headBone }),
     mesh('Iris', (f) => isEye(f) && forward(f), '#4a6fb0', { bone: headBone, offset: 0.0004 }),
   ];
+  if (PACK) await anatomyPack(sex, meshes[0] as GlbMesh & { src: number[] }, unsmoothed, body0, tips);
   const raw = writeGlb(bones, meshes, { generator: 'Everloom character base (MakeHuman CC0 data)', extras: { license: 'CC0-1.0', source: 'MakeHuman / MPFB base mesh, targets and game-engine rig (CC0); Face Units 01 by Mika Suominen (CC0)', everloomBase: `anime-${sex === 'female' ? 'f' : 'm'}` } });
   // Sparse morphs and meshopt compression keep the file small.
   await MeshoptEncoder.ready;
@@ -291,9 +297,67 @@ async function build(sex: Sex) {
   console.log(`${file}: ${(out.length / 1048576).toFixed(1)} MB (${(raw.length / 1048576).toFixed(1)} MB before), ${Object.keys(keys).length} shape keys, ${bones.length} bones`);
 }
 
+/**
+ * `--anatomy-pack <file.zip>`: also writes the anatomy pack for these bases (the format in
+ * apps/server/src/services/avatars/anatomy.ts), outside the repository only. Its shape keys:
+ * Nipples (what the base's smoothing took away: MakeHuman's own CC0 shape) and Puffiness (a soft
+ * bulge); its layer: the distance from each nipple in the body's UV layout, so the creator can draw
+ * an areola of any size and colour. Genital shapes need sculpted art and are not made here; the
+ * format takes them as further shape keys or layers.
+ */
+const packArg = process.argv.indexOf('--anatomy-pack');
+const PACK = packArg >= 0 ? path.resolve(process.argv[packArg + 1] ?? '') : null;
+if (PACK && (PACK + path.sep).startsWith(path.resolve('.') + path.sep)) throw new Error('Write the anatomy pack outside the Everloom repository (it is never committed).');
+const packFiles: Record<string, Uint8Array> = {};
+const packBases: Record<string, unknown> = {};
+async function anatomyPack(sex: Sex, body: GlbMesh & { src: number[] }, before: Float32Array, after: Float32Array, tipsV: number[]) {
+  const id = `anime-${sex === 'female' ? 'f' : 'm'}`;
+  const n = body.src.length;
+  const nipples = new Float32Array(n * 3), puffy = new Float32Array(n * 3), dist = new Float32Array(n);
+  const R = 0.045, RP = 0.022;
+  body.src.forEach((v, i) => {
+    for (let a = 0; a < 3; a++) nipples[i * 3 + a] = (before[v * 3 + a]! - after[v * 3 + a]!) * 0.1;
+    let d = Infinity;
+    for (const t of tipsV) d = Math.min(d, Math.hypot(after[v * 3]! - after[t * 3]!, after[v * 3 + 1]! - after[t * 3 + 1]!, after[v * 3 + 2]! - after[t * 3 + 2]!) * 0.1);
+    dist[i] = Math.max(0, 1 - d / R);
+    const k = d < RP ? (1 - d / RP) ** 2 * 0.0035 : 0;
+    for (let a = 0; a < 3; a++) puffy[i * 3 + a] = body.normals[i * 3 + a]! * k;
+  });
+  // The distance layer: rasterised in UV space (1024²), grey = closeness to the nipple.
+  const S = 1024, img = Buffer.alloc(S * S * 4);
+  const uv = body.uvs!, idx = body.indices;
+  for (let t = 0; t < idx.length; t += 3) {
+    const tri = [idx[t]!, idx[t + 1]!, idx[t + 2]!];
+    if (tri.every((i) => dist[i]! <= 0)) continue;
+    const P = tri.map((i) => [uv[i * 2]! * S, uv[i * 2 + 1]! * S]) as [number, number][];
+    const minX = Math.max(0, Math.floor(Math.min(...P.map((q) => q[0])))), maxX = Math.min(S - 1, Math.ceil(Math.max(...P.map((q) => q[0]))));
+    const minY = Math.max(0, Math.floor(Math.min(...P.map((q) => q[1])))), maxY = Math.min(S - 1, Math.ceil(Math.max(...P.map((q) => q[1]))));
+    const det = (P[1]![1] - P[2]![1]) * (P[0]![0] - P[2]![0]) + (P[2]![0] - P[1]![0]) * (P[0]![1] - P[2]![1]);
+    if (Math.abs(det) < 1e-9) continue;
+    for (let y = minY; y <= maxY; y++) for (let x = minX; x <= maxX; x++) {
+      const w0 = ((P[1]![1] - P[2]![1]) * (x + 0.5 - P[2]![0]) + (P[2]![0] - P[1]![0]) * (y + 0.5 - P[2]![1])) / det;
+      const w1 = ((P[2]![1] - P[0]![1]) * (x + 0.5 - P[2]![0]) + (P[0]![0] - P[2]![0]) * (y + 0.5 - P[2]![1])) / det;
+      const w2 = 1 - w0 - w1;
+      if (w0 < -0.01 || w1 < -0.01 || w2 < -0.01) continue;
+      const g = Math.round(255 * Math.max(0, dist[tri[0]!]! * w0 + dist[tri[1]!]! * w1 + dist[tri[2]!]! * w2));
+      const o = (y * S + x) * 4;
+      if (g > img[o]!) { img[o] = img[o + 1] = img[o + 2] = g; img[o + 3] = 255; }
+    }
+  }
+  packFiles[`${id}-nipples.bin`] = new Uint8Array(nipples.buffer);
+  packFiles[`${id}-puffiness.bin`] = new Uint8Array(puffy.buffer);
+  packFiles[`${id}-areola-distance.png`] = new Uint8Array(await sharp(img, { raw: { width: S, height: S, channels: 4 } }).png().toBuffer());
+  packBases[id] = { vertices: n, shapeKeys: { Nipples: `${id}-nipples.bin`, Puffiness: `${id}-puffiness.bin` }, layers: { areolaDistance: `${id}-areola-distance.png` } };
+}
+
 mkdirSync(OUT, { recursive: true });
 await build('female');
 await build('male');
+if (PACK) {
+  packFiles['anatomy.json'] = new TextEncoder().encode(JSON.stringify({ format: 'everloom-anatomy', version: 1, name: 'Everloom anatomy pack', license: 'CC0 1.0 (made from MakeHuman CC0 data by tools/avatars/build-character-bases.ts)', bases: packBases }, null, 1));
+  writeFileSync(PACK, zipSync(packFiles));
+  console.log(`anatomy pack: ${PACK}`);
+}
 writeFileSync(`${OUT}/LICENSE.txt`, `Everloom character bases (anime-f.glb, anime-m.glb)
 
 Made by tools/avatars/build-character-bases.ts from MakeHuman / MPFB data: the base mesh, its

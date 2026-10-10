@@ -11,7 +11,7 @@ import { MeshoptDecoder } from 'three/examples/jsm/libs/meshopt_decoder.module.j
 import { CHARACTER_BASES, sliderWeights, type AvatarConfig, type CharacterSpec } from '@everloom/engine';
 import { buildClothes } from './clothes';
 import { buildHair, fitHead, type HeadShape } from './hair';
-import { canvasTexture, eyeUVs, measure, paintEye, paintSkin, type Landmarks } from './paint';
+import { canvasTexture, eyeUVs, measure, paintAreola, paintEye, paintSkin, type Landmarks } from './paint';
 
 const baseBytes = new Map<string, Promise<ArrayBuffer>>();
 function fetchBase(id: CharacterSpec['base']): Promise<ArrayBuffer> {
@@ -38,7 +38,27 @@ export interface CharacterModel {
 
 const key = (x: unknown) => JSON.stringify(x);
 
-export async function createCharacter(first: CharacterSpec, textures: Map<string, THREE.Texture> = new Map()): Promise<CharacterModel> {
+/** What the anatomy pack adds to a base: shape keys (per body vertex) and its distance layer. */
+export interface AnatomyData { shapeKeys: Record<string, Float32Array>; areolaDistance: ImageData | null }
+
+/** Loads the installed anatomy pack's files for a base (null when it has none for it). */
+export async function loadAnatomy(base: CharacterSpec['base']): Promise<AnatomyData | null> {
+  const r = await fetch('/api/anatomy-pack').then((x) => x.json()).catch(() => null) as { installed: boolean; bases?: Record<string, { shapeKeys: Record<string, string>; layers: Record<string, string> }> } | null;
+  const b = r?.installed ? r.bases?.[base] : undefined;
+  if (!b) return null;
+  const shapeKeys: Record<string, Float32Array> = {};
+  for (const [k, url] of Object.entries(b.shapeKeys)) shapeKeys[k] = new Float32Array(await (await fetch(url)).arrayBuffer());
+  let areolaDistance: ImageData | null = null;
+  if (b.layers.areolaDistance) {
+    const bmp = await createImageBitmap(await (await fetch(b.layers.areolaDistance)).blob());
+    const c = new OffscreenCanvas(bmp.width, bmp.height), g = c.getContext('2d')!;
+    g.drawImage(bmp, 0, 0);
+    areolaDistance = g.getImageData(0, 0, bmp.width, bmp.height);
+  }
+  return { shapeKeys, areolaDistance };
+}
+
+export async function createCharacter(first: CharacterSpec, textures: Map<string, THREE.Texture> = new Map(), anatomy: AnatomyData | null = null): Promise<CharacterModel> {
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
   const gltf = await loader.parseAsync(await fetchBase(first.base), '');
   const root = new THREE.Group();
@@ -54,6 +74,18 @@ export async function createCharacter(first: CharacterSpec, textures: Map<string
   iris?.removeFromParent();
   if (!body || !eyes) throw new Error('The base is missing its body or eyes.');
   const B = body as THREE.SkinnedMesh, E = eyes as THREE.Mesh;
+  // The anatomy pack's shape keys join the body's own (only when the pack is installed).
+  if (anatomy) {
+    const n = B.geometry.attributes.position!.count;
+    const morphs = B.geometry.morphAttributes.position ?? [];
+    for (const [name, delta] of Object.entries(anatomy.shapeKeys)) {
+      if (delta.length !== n * 3) continue;
+      B.morphTargetDictionary![name] = morphs.length;
+      morphs.push(new THREE.BufferAttribute(delta, 3));
+      B.morphTargetInfluences!.push(0);
+    }
+    B.geometry.morphAttributes.position = morphs;
+  }
   B.frustumCulled = E.frustumCulled = false;
   const lm: Landmarks = measure(B, E);
   eyeUVs(E, lm);
@@ -78,22 +110,28 @@ export async function createCharacter(first: CharacterSpec, textures: Map<string
   const apply = (spec: CharacterSpec) => {
     if (spec.base !== first.base) throw new Error('A different base needs a new character.');
     // Shape keys (body, face) and the clothes that carry them.
-    const k = key([spec.body.sliders, spec.face.sliders]);
+    const k = key([spec.body.sliders, spec.face.sliders, spec.anatomy]);
     if (k !== last.shape) {
       last.shape = k;
       const w = sliderWeights({ ...spec.body.sliders, ...spec.face.sliders }, spec.base);
       const dict = B.morphTargetDictionary ?? {};
       const inf = B.morphTargetInfluences!;
       for (const name of Object.keys(dict)) if (!/^(eye|jaw|mouth|brow)[A-Z]/.test(name)) inf[dict[name]!] = w[name] ?? 0;
+      // Anatomy (pack shape keys): only when turned on; the server's minor guard decides on saving.
+      const a = spec.anatomy;
+      if (dict.Nipples !== undefined) inf[dict.Nipples] = a.enabled ? a.nippleSize * 2 : 0;
+      if (dict.Puffiness !== undefined) inf[dict.Puffiness] = a.enabled ? a.puffiness : 0;
       for (const c of clothes) if (c.morphTargetInfluences) c.morphTargetInfluences.splice(0, inf.length, ...inf);
     }
     root.scale.setScalar(spec.body.height / baseHeight);
     headBone.scale.setScalar(spec.body.head);
     // Skin and makeup, and the eyes.
-    const sk = key([spec.skin, spec.eyes.lashes, spec.eyes.style, spec.hair.color]);
+    const sk = key([spec.skin, spec.eyes.lashes, spec.eyes.style, spec.hair.color, spec.anatomy]);
     if (sk !== last.skin) {
       last.skin = sk;
-      setMaterial(B, new THREE.MeshStandardMaterial({ name: 'Skin', map: canvasTexture(paintSkin(B, lm, spec, spec.hair.color)), roughness: 0.62 }));
+      const canvas = paintSkin(B, lm, spec, spec.hair.color);
+      if (spec.anatomy.enabled && anatomy?.areolaDistance) paintAreola(canvas, anatomy.areolaDistance, spec.anatomy);
+      setMaterial(B, new THREE.MeshStandardMaterial({ name: 'Skin', map: canvasTexture(canvas), roughness: 0.62 }));
     }
     const ek = key(spec.eyes);
     if (ek !== last.eyes) {

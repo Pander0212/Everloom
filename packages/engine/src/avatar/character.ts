@@ -307,12 +307,12 @@ export const CharacterSpecSchema = z.object({
     .object({
       enabled: z.boolean().default(false),
       areolaSize: unit.default(0.5),
-      areolaColor: hex.default('#c98a7a'),
+      areolaColor: hex.default('#d9a090'),
       nippleSize: unit.default(0.5),
       puffiness: unit.default(0),
       genitalPreset: z.string().max(40).nullable().default(null),
       genitalShape: z.record(z.string().max(40), signed).default({}),
     })
-    .default({ enabled: false, areolaSize: 0.5, areolaColor: '#c98a7a', nippleSize: 0.5, puffiness: 0, genitalPreset: null, genitalShape: {} }),
+    .default({ enabled: false, areolaSize: 0.5, areolaColor: '#d9a090', nippleSize: 0.5, puffiness: 0, genitalPreset: null, genitalShape: {} }),
 });
 export type CharacterSpec = z.infer<typeof CharacterSpecSchema>;

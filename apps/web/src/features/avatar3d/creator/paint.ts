@@ -230,3 +230,21 @@ export function paintPattern(pattern: string, color: string, accent: string): HT
   }
   return c;
 }
+
+/** The anatomy pack's areola: drawn where the distance layer is close enough to the nipple (size), in its colour, with a soft edge. */
+export function paintAreola(canvas: HTMLCanvasElement, distance: ImageData, a: CharacterSpec['anatomy']) {
+  const g = canvas.getContext('2d', { willReadFrequently: true })!;
+  const img = g.getImageData(0, 0, canvas.width, canvas.height);
+  const c = new THREE.Color(a.areolaColor);
+  const R = c.r * 255, G = c.g * 255, B = c.b * 255;
+  const edge = 1 - (0.25 + a.areolaSize * 0.55);
+  const sx = distance.width / canvas.width, sy = distance.height / canvas.height;
+  for (let y = 0; y < canvas.height; y++) for (let x = 0; x < canvas.width; x++) {
+    const d = distance.data[(Math.floor(y * sy) * distance.width + Math.floor(x * sx)) * 4]! / 255;
+    if (d <= edge) continue;
+    const k = Math.min(1, (d - edge) / 0.06) * 0.75;
+    const o = (y * canvas.width + x) * 4;
+    img.data[o] = img.data[o]! + (R - img.data[o]!) * k; img.data[o + 1] = img.data[o + 1]! + (G - img.data[o + 1]!) * k; img.data[o + 2] = img.data[o + 2]! + (B - img.data[o + 2]!) * k;
+  }
+  g.putImageData(img, 0, 0);
+}
