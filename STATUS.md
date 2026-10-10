@@ -39,7 +39,9 @@ creator); acceptance: [docs/3d-import/evidence/acceptance.md](docs/3d-import/evi
 - The RunPod Blender session has not run against RunPod (no key during this work).
 
 ### Tests
-- Full suite run in progress; results follow in the next update.
+- Typecheck clean; Vitest 117 files, 825 passed, 8 skipped (Blender and real-file tests without their env vars; the `.blend` tests pass 3/3 with Blender 4.2).
+- Playwright e2e, all eight projects: 539 passed, 170 skipped (heavy 3D specs run on two projects), 0 failed (1.5 h).
+- Measurement specs (`MEASURE_3D=1`): `perf-250.spec.ts`, results in `docs/3d-import/evidence/perf-250.json`.
 
 ## Design & UX (2026-10-09)
 
