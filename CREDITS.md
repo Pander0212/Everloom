@@ -235,6 +235,11 @@ Licenses checked by reading each project's LICENSE file; details in
 - **ag-psd** (MIT, Copyright (c) 2016 Agamnentzar), https://github.com/Agamnentzar/ag-psd: reads
   Photoshop textures in Unity packages (flattened); loaded only when a package has one.
 - **fflate** (MIT, Copyright (c) 2026 Arjun Barrett): unzips extracted Unity folders in the browser.
+- **libarchive.js** 2.0.2 (MIT, Copyright (c) 2018 ნიკა / nika-begiashvili),
+  https://github.com/nika-begiashvili/libarchivejs, with **libarchive** compiled to WebAssembly
+  (BSD-2-Clause, Copyright (c) 2003-2018 Tim Kientzle and contributors): unpacks .zip, .7z and
+  .rar archives in the browser. Its worker and WASM are copied to `apps/web/public/archive/`
+  with the license.
 - **Cats Blender Plugin** (MIT, Copyright (c) 2017 GiveMeAllYourCats),
   https://github.com/absolute-quantum/cats-blender-plugin: its Japanese-to-English dictionary
   (`resources/dictionary.json`) is copied unchanged to `packages/engine/src/rig/data/cats-ja-en.json`

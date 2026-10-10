@@ -12,10 +12,9 @@ import { usePrefs3D } from './prefs';
 import { UnityImport } from './UnityImport';
 const NativeHuman = lazy(() => import('@/features/avatar3d/NativeHuman'));
 
-export const MODEL_ACCEPT = '.glb,.gltf,.vrm,.blend,.vroid,.vroidcustomitem,.fbx,.pmx,.pmd,.obj,.mtl,.png,.jpg,.jpeg,.webp,.tga,.bin,.unitypackage,.zip,.prefab,.mat,.meta';
+export const MODEL_ACCEPT = '.glb,.gltf,.vrm,.blend,.vroid,.vroidcustomitem,.fbx,.pmx,.pmd,.obj,.mtl,.png,.jpg,.jpeg,.webp,.tga,.bin,.unitypackage,.zip,.7z,.rar,.prefab,.mat,.meta,.dae,.bvh,.vrma,.vmd';
 
-/** A Unity package, a zip (often an extracted Unity folder) or loose Unity files go to the Unity import. */
-const unityInput = (files: File[]) => files.some((f) => /\.(unitypackage|zip|prefab|meta)$/i.test(f.name));
+
 
 export default function AvatarsPage() {
   const navigate = useNavigate();
@@ -28,19 +27,42 @@ export default function AvatarsPage() {
   const [progress, setProgress] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [unity, setUnity] = useState<File[] | null>(null);
-  const importFile = async (files: File[]) => {
-    const f = files[0];
-    if (!f) return;
-    // A zip with a .blend inside goes to Blender; other zips and Unity files to the Unity import.
-    const blendZip = files.length === 1 && /\.zip$/i.test(f.name) && (await (await import('@/features/avatar3d/runtime/import')).zipHasBlend(f));
-    if (unityInput(files) && !blendZip) {
-      setUnity(files);
-      return;
-    }
+  const importFile = async (input: File[]) => {
+    if (!input[0]) return;
     setBusy(true);
     setError(null);
     try {
-      const a = await uploadAvatar(files, undefined, setProgress);
+      const { ARCHIVE, unpackArchive, unsupportedMessage } = await import('@/features/avatar3d/runtime/archive');
+      // Formats that can't come in, with what to do instead.
+      for (const f of input) {
+        const why = unsupportedMessage(f.name, new Uint8Array(await f.slice(0, 16).arrayBuffer()));
+        if (why) throw new Error(why);
+      }
+      // Archives (.zip, .7z, .rar) are opened here; their files are routed like dropped ones.
+      let files = input;
+      const archives = input.filter((f) => ARCHIVE.test(f.name));
+      if (archives.length) {
+        files = input.filter((f) => !ARCHIVE.test(f.name));
+        for (const a of archives) {
+          const inner = await unpackArchive(a, setProgress);
+          for (const e of inner) {
+            const why = unsupportedMessage(e.path);
+            if (why && inner.length === 1) throw new Error(why);
+          }
+          const blends = inner.filter((e) => /\.blend$/i.test(e.path));
+          // A zip with a .blend keeps its texture folders: the server's Blender gets the zip itself.
+          if (blends.length && /\.zip$/i.test(a.name)) files.push(a);
+          else files.push(...inner.map((e) => Object.assign(new File([e.file], e.path.split('/').pop()!, { type: e.file.type }), { relPath: e.path })));
+        }
+        if (!files.length) throw new Error('Nothing Everloom can import was found in the archive.');
+      }
+      const unityFiles = files.some((f) => /\.(unitypackage|prefab|meta)$/i.test(f.name));
+      if (unityFiles) {
+        setUnity(files);
+        return;
+      }
+      const blend = files.find((f) => /\.(blend|zip)$/i.test(f.name));
+      const a = await uploadAvatar(blend ? [blend] : files, undefined, setProgress);
       navigate(`/characters/avatars/${a.id}`);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

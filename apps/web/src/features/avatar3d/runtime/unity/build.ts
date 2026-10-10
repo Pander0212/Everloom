@@ -33,7 +33,7 @@ export async function readUnity(files: File[], progress: Progress = () => {}): P
         else resolve(e.data);
       };
       worker.onerror = (e) => resolve({ ok: false, error: e.message || 'The unpacker stopped.' });
-      const req: UnpackRequest = { files: files.map((f) => ({ name: f.name, path: (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name, file: f })) };
+      const req: UnpackRequest = { files: files.map((f) => ({ name: f.name, path: (f as File & { relPath?: string }).relPath || (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name, file: f })) };
       worker.postMessage(req);
     });
     if (!reply.ok) throw new Error(reply.error);

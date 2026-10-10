@@ -43,7 +43,7 @@ export async function zipHasBlend(f: File): Promise<boolean> {
 export async function browserModel(files: File[], progress: ImportProgress = () => {}): Promise<File> {
   if (!files.length) throw new Error('Choose a model file.');
   if (files.some(f => f.size > MAX_IMPORT_BYTES) || files.reduce((n, f) => n + f.size, 0) > MAX_IMPORT_BYTES) throw new Error('The upload is larger than 200 MB. Choose a smaller export.');
-  const main = files.find(f => /\.(vrm|glb|gltf|fbx|pmx|pmd|obj|blend|zip|vroid|vroidcustomitem)$/i.test(f.name)) ?? files[0]!;
+  const main = files.find(f => /\.(vrm|glb|gltf|fbx|pmx|pmd|obj|dae|blend|zip|vroid|vroidcustomitem)$/i.test(f.name)) ?? files[0]!;
   const ext = main.name.split('.').pop()!.toLowerCase();
   // The common upload helper and server open password-protected Everloom exports.
   if (ext === 'evlt') return main;
@@ -56,12 +56,12 @@ export async function browserModel(files: File[], progress: ImportProgress = () 
   }
   if (ext === 'vroid' || ext === 'vroidcustomitem') throw new Error(VROID_HELP);
   if (ext === 'glb' || ext === 'vrm') return main;
-  if (!['gltf', 'fbx', 'pmx', 'pmd', 'obj'].includes(ext)) throw new Error('Unsupported model. Choose VRM, GLB, glTF, FBX, PMX, PMD or OBJ. Select any textures and companion files together.');
+  if (!['gltf', 'fbx', 'pmx', 'pmd', 'obj', 'dae'].includes(ext)) throw new Error('Unsupported model. Choose VRM, GLB, glTF, FBX, PMX, PMD, OBJ, DAE or .blend, a Unity package, or an archive (.zip, .7z, .rar) of them. Select any textures and companion files together.');
   progress(`Reading ${ext.toUpperCase()} in this browser…`);
   const urls: string[] = [];
   const byPath = new Map<string, File>();
   const normalize = (s: string) => decodeURIComponent(s).replace(/\\/g, '/').replace(/^\.\//, '').toLowerCase();
-  for (const f of files) { byPath.set(normalize(f.webkitRelativePath || f.name), f); byPath.set(normalize(f.name), f); }
+  for (const f of files) { byPath.set(normalize((f as File & { relPath?: string }).relPath || f.webkitRelativePath || f.name), f); byPath.set(normalize(f.name), f); }
   const manager = new THREE.LoadingManager();
   let started = false;
   let resourceError: string | null = null;
@@ -95,6 +95,13 @@ export async function browserModel(files: File[], progress: ImportProgress = () 
         // In Blender and Unity a connected colour texture replaces the diffuse colour; FBX files often
         // keep a dark leftover colour that would otherwise multiply the texture.
         group.traverse(o => { const m = o as THREE.Mesh; if (!m.isMesh) return; for (const mat of (Array.isArray(m.material) ? m.material : [m.material]) as THREE.MeshPhongMaterial[]) if (mat.map && mat.color) mat.color.setRGB(1, 1, 1); });
+      }
+      else if (ext === 'dae') {
+        // Collada: three's ColladaLoader, with textures from the files dropped together.
+        const { ColladaLoader } = await import('three/examples/jsm/loaders/ColladaLoader.js');
+        const c = new ColladaLoader(manager).parse(await main.text(), '');
+        if (!c?.scene) throw new Error('This .dae file could not be read.');
+        scene = c.scene; animations = c.scene.animations ?? [];
       }
       else if (ext === 'obj') {
         const loader = new OBJLoader(manager);

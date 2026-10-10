@@ -33,6 +33,7 @@
     "ag-psd": "^31.0.3",
     "dompurify": "^3.4.16",
     "fflate": "^0.8.3",
+    "libarchive.js": "^2.0.2",
     "lucide-react": "^1.48.0",
     "marked": "^18.0.14",
     "motion": "^13.4.6",
