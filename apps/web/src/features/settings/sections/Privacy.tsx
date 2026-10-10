@@ -46,6 +46,9 @@ export default function PrivacySection() {
     <>
       <VaultSection />
       <ExportPasswordSection />
+      <Section title="Screen sharing">
+        <ToggleRow label="Blur 18+ pictures in lists" description="Off by default. Blurs the pictures of characters, 3D avatars and online characters marked 18+ in lists and grids, for when you share your screen. Opening one shows it as usual." checked={settings?.library.blurAdult === true} onChange={(v) => update({ library: { blurAdult: v } } as never)} />
+      </Section>
       <Section title="Name shield" description="Names you list here never reach the AI provider. It gets a stand-in name instead, and Everloom puts the real name back in the reply before anything is saved or shown.">
         <div className="flex flex-col gap-4">
           <ToggleRow label="Use the name shield" description="Off, everything is sent as written." checked={sh.enabled} onChange={(v) => update({ privacy: { shield: { enabled: v } } } as never)} />

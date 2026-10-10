@@ -2,6 +2,7 @@
 import { AvatarRecipeSchema } from '@everloom/engine';
 import { ArrowLeft, Box, Shapes, Shirt, Upload, UserRound } from 'lucide-react';
 import { lazy, Suspense, useState } from 'react';
+import { useBlurAdult } from '@/lib/queries';
 import { useNavigate } from 'react-router';
 import { Page } from '@/app/Shell';
 import { toastError } from '@/lib/store';
@@ -18,6 +19,7 @@ export const MODEL_ACCEPT = '.glb,.gltf,.vrm,.blend,.vroid,.vroidcustomitem,.fbx
 
 export default function AvatarsPage() {
   const navigate = useNavigate();
+  const blurAdult = useBlurAdult();
   const list = useAvatars();
   const blender = useBlender();
   const [busy, setBusy] = useState(false);
@@ -126,7 +128,7 @@ export default function AvatarsPage() {
             <li key={a.id}>
               <button type="button" onClick={() => navigate(`/characters/avatars/${a.id}`)} className="pressable flex w-full flex-col overflow-hidden rounded-lg border border-line bg-surface text-left hover:border-line-strong">
                 <div className="grid aspect-square place-items-center bg-surface-2">
-                  {a.thumb ? <img src={a.thumb} alt="" className={`h-full w-full object-cover ${a.adult ? 'blur-lg' : ''}`} /> : a.status === 'processing' ? <Spinner /> : <Icon icon={Box} size={32} className="text-fg-3" />}
+                  {a.thumb ? <img src={a.thumb} alt="" className={`h-full w-full object-cover ${a.adult && blurAdult ? 'blur-lg' : ''}`} /> : a.status === 'processing' ? <Spinner /> : <Icon icon={Box} size={32} className="text-fg-3" />}
                 </div>
                 <div className="flex flex-col gap-1 p-2">
                   <span className="truncate text-sm font-medium">{a.name}</span>

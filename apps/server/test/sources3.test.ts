@@ -56,8 +56,8 @@ describe('more sources', () => {
     ['risu', 'clock', '1f2e3d4c-0000-4000-8000-00000000a001', 'Sable'],
     ['pygmalion', 'map', '7a7a7a7a-1111-4222-8333-444455556666', 'Juniper'],
     ['wyvern', 'bees', '_fixtureWyvernOpen01', 'Bram the Beekeeper'],
-  ])('%s: search hides adult cards, then imports with its picture and a link', async (provider, q, key, name) => {
-    const s = (await c.req('GET', `/api/sources/${provider}/search?q=${q}`)).json;
+  ])('%s: the 18+ filter off hides adult cards, then imports with its picture and a link', async (provider, q, key, name) => {
+    const s = (await c.req('GET', `/api/sources/${provider}/search?q=${q}&nsfw=0`)).json;
     expect(s.items.some((i: any) => i.nsfw)).toBe(false);
     expect(s.items.map((i: any) => i.key)).toContain(key);
     const ch = await c.req('POST', `/api/sources/${provider}/import`, { key });

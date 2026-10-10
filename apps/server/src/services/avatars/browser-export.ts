@@ -2,10 +2,9 @@
 import { AvatarConfigSchema, REQUIRED_BONES } from '@everloom/engine';
 import { HttpError, type AppContext } from '../../context.js';
 import { readMedia } from '../media.js';
-import { assertAdultAvatar } from './adult.js';
 import { parseGlb, writeGlb } from './glb.js';
 import { inspectModel } from './inspect.js';
-import { getAvatarRow, parseConfig } from './service.js';
+import { checkAvatarContent, getAvatarRow, parseConfig } from './service.js';
 
 export async function exportBrowserModel(ctx: AppContext, owner: string, id: string, bytes: Buffer, format: 'glb' | 'vrm') {
   const row = getAvatarRow(ctx, owner, id), saved = parseConfig(row.config), glb = parseGlb(bytes);
@@ -13,7 +12,7 @@ export async function exportBrowserModel(ctx: AppContext, owner: string, id: str
   const parsed = AvatarConfigSchema.safeParse(input ?? saved);
   if (!parsed.success) throw new HttpError(400, 'Invalid character settings in the browser export.');
   const config = parsed.data;
-  assertAdultAvatar(ctx, owner, saved, id); assertAdultAvatar(ctx, owner, config, id);
+  checkAvatarContent(ctx, owner, saved, id); checkAvatarContent(ctx, owner, config, id);
   glb.json.extras = { everloom: { adult: saved.content.adult || config.content.adult, age: config.content.age, formatVersion: 1 } };
   const info = await inspectModel(bytes, glb);
   if (format === 'vrm') {

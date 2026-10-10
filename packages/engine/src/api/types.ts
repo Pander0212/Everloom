@@ -325,9 +325,10 @@ export interface LibrarySettings {
   prevNext: boolean;
   /** Card info on hover / long-press. */
   cardInfo: boolean;
-  /** Online sources: show adult content. Off by default. */
-  nsfw: boolean;
-  /** One-time owner confirmation shared by sources and the 3D editor. */
+  /** Privacy for screen sharing: blur 18+ pictures in lists (characters, avatars, sources). Off by default. */
+  blurAdult: boolean;
+  /** Older settings (the removed 18+ switch); kept so saved settings still load, never read. */
+  nsfw?: boolean;
   adultConfirmed?: boolean;
 }
 

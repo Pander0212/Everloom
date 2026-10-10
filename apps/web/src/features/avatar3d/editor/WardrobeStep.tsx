@@ -290,7 +290,7 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn, handle }: {
             </Field>
             <TextureMaker
               avatarId={avatar.id}
-              adultCharacter={config.content.adult}
+              adultCharacter={!(config.content.age != null && config.content.age < 18)}
               onMade={(tex, name) => {
                 const id = newId('t', g.variants.map((v) => v.id));
                 setGarment(g.id, { variants: [...g.variants, { id, name, tint: null, texture: tex, repeat: 4 }].slice(0, 16), variant: id });

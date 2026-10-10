@@ -155,7 +155,7 @@ export async function buildHuman(profile: HumanProfile, library?: HumanLibrary, 
     if (kind === 'skin') skinDetail(result, scene.userData.disposables as THREE.Texture[]);
     return result;
   };
-  const adult = lib.adultEnabled === true && content?.adult === true && content.confirmedAdult && (content.age ?? 0) >= 18;
+  const adult = lib.adultEnabled === true && !(content?.age != null && content.age < 18);
   if (!adult && !profile.proxies.some(path => /casualsuit|sportsuit|worksuit|elegantsuit/.test(path))) throw new Error('Choose a starter suit to keep the native character clothed.');
   for (const path of profile.proxies) {
     const proxy = parseProxy(await read(path), base.vertices.length / 3);

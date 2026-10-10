@@ -55,7 +55,7 @@ export const SkinLayerSchema = z.object({
   /** Clothing layers: the slot they stand for, and the inventory items that put them on. */
   slot: z.enum(GARMENT_SLOTS).nullable().default(null),
   items: z.array(z.string().max(120)).max(16).default([]),
-  /** Adult-rated image: only shown for adult characters in adult mode. */
+  /** 18+ image: never shown on, or saved for, a minor (the server's minor guard). */
   adult: z.boolean().default(false),
 });
 export type SkinLayer = z.infer<typeof SkinLayerSchema>;

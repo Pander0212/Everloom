@@ -15,7 +15,7 @@ import { getMedia, mediaUrl, saveImage } from './media.js';
 import { indexDoc, removeDoc } from './search.js';
 import { countTokens } from './tokens.js';
 import { autoSnapshot } from './versions.js';
-import { assertAdultLink } from './avatars/adult.js';
+import { assertLinkAllowed } from './minor-guard.js';
 
 function summary(r: any): CharacterSummary {
   const card: CardData = json(r.card, emptyCardData(r.name));
@@ -92,7 +92,7 @@ export function characterRow(ctx: AppContext, owner: string, id: string): any {
 }
 
 export function createCharacter(ctx: AppContext, owner: string, card: CardData, opts: { avatar?: string | null; game?: CharacterGame; topExtras?: Record<string, unknown> } = {}): CharacterDTO {
-  if (opts.game?.avatar3d) assertAdultLink(ctx, owner, opts.game.avatar3d, card, opts.game);
+  if (opts.game?.avatar3d) assertLinkAllowed(ctx, owner, opts.game.avatar3d, card, opts.game);
   const id = newId('ch_');
   const now = Date.now();
   const { character_book, ...rest } = card;
@@ -116,7 +116,7 @@ export function updateCharacter(ctx: AppContext, owner: string, id: string, patc
   delete (card as any).character_book;
   if (patch.fav !== undefined) card.extensions = { ...card.extensions, fav: patch.fav };
   const game = patch.game ? { ...cur.game, ...patch.game } : cur.game;
-  if (game.avatar3d) assertAdultLink(ctx, owner, game.avatar3d, card, game);
+  if (game.avatar3d) assertLinkAllowed(ctx, owner, game.avatar3d, card, game);
   ctx.db
     .prepare('UPDATE characters SET name = ?, card = ?, tags = ?, fav = ?, game = ?, avatar = COALESCE(?, avatar), updated_at = ? WHERE id = ? AND owner_id = ?')
     .run(card.name, JSON.stringify(card), JSON.stringify(card.tags ?? []), (patch.fav ?? cur.fav) ? 1 : 0, JSON.stringify(game), patch.avatar ?? null, Date.now(), id, owner);

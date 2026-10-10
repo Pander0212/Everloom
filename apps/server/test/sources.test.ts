@@ -41,16 +41,21 @@ afterEach(async () => {
 const search = async (qs = '') => (await c.req('GET', `/api/sources/chub/search?q=lighthouse${qs}`)).json;
 
 describe('online sources', () => {
-  it('lists Chub; adult content is off by default and the server enforces it', async () => {
-    expect((await c.req('GET', '/api/sources')).json).toMatchObject({ nsfwAllowed: false, providers: expect.arrayContaining([expect.objectContaining({ id: 'chub', name: 'Chub', hasToken: false })]) });
-    const r = await search('&nsfw=1'); // asking isn't enough
-    expect(r.nsfw).toBe(false);
-    expect(r.items.map((i: any) => i.key)).not.toContain('nightowl/velvet-room');
-    expect(new URL(calls[0]!.url).searchParams.get('nsfw')).toBe('false');
-    expect((await c.req('GET', '/api/sources/chub/item?key=nightowl/velvet-room')).status).toBe(403);
-    expect((await c.req('POST', '/api/sources/chub/import', { key: 'nightowl/velvet-room' })).status).toBe(403);
-    await c.req('PATCH', '/api/settings', { library: { nsfw: true } });
-    expect((await search('&nsfw=1')).items.map((i: any) => i.key)).toContain('nightowl/velvet-room');
+  it('lists Chub; 18+ cards need no setting, and the search filter can leave them out', async () => {
+    expect((await c.req('GET', '/api/sources')).json).toMatchObject({ nsfwAllowed: true, providers: expect.arrayContaining([expect.objectContaining({ id: 'chub', name: 'Chub', hasToken: false })]) });
+    // By default 18+ cards are included.
+    const all = await search();
+    expect(all.nsfw).toBe(true);
+    expect(all.items.map((i: any) => i.key)).toContain('nightowl/velvet-room');
+    expect(new URL(calls[0]!.url).searchParams.get('nsfw')).toBe('true');
+    // The "Include 18+" filter off leaves them out, at the site and in the final check.
+    const sfw = await search('&nsfw=0&page=2');
+    expect(sfw.nsfw).toBe(false);
+    expect(sfw.items.map((i: any) => i.key)).not.toContain('nightowl/velvet-room');
+    expect(new URL(calls.at(-1)!.url).searchParams.get('nsfw')).toBe('false');
+    // Nothing is locked: an 18+ card opens and imports.
+    expect((await c.req('GET', '/api/sources/chub/item?key=nightowl/velvet-room')).status).toBe(200);
+    expect((await c.req('POST', '/api/sources/chub/import', { key: 'nightowl/velvet-room' })).status).toBe(200);
   });
 
   it('caches responses and paces requests', async () => {

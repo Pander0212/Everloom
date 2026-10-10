@@ -160,7 +160,7 @@ export default function PairedImporter({ onDone }: { onDone: () => void }) {
       </label>
       {adultMode ? (
         <label className="flex items-center justify-between gap-3 text-sm">
-          <span>Adults only (plays only for adult characters, with adult content on)</span>
+          <span>Adults only (never plays for a character under 18)</span>
           <Switch checked={adult} onChange={setAdult} label="Adults only" />
         </label>
       ) : null}

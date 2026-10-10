@@ -69,7 +69,7 @@ for a slot; the first is the resting one.
 | `hair.back` | 0 | hairBack | −0.55 | | hair | Hair behind the head and body |
 | `acc.back` | 2 | body | | | | Capes, wings |
 | `body` | 10 | body | | | skin | Body and neck (the 18+ pack swaps it) |
-| `underwear` | 11 | body | | | | Removable only in adult mode |
+| `underwear` | 11 | body | | | | Removable (never on a minor) |
 | `legwear`, `shoes` | 12–13 | body | | | cloth3 | |
 | `bottom` | 14 | body | | | cloth2 | Trousers, skirts |
 | `top` | 16 | body | | | cloth1 | Shirts, blouses, dresses |

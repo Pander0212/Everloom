@@ -139,8 +139,8 @@ export function SkinStep({ config, set, handle }: { config: AvatarConfig; set: (
                 <Field label="Put on by these items"><Input aria-label="Layer items" defaultValue={l.items.join(', ')} onBlur={(e) => setLayer(l.id, { items: list(e.target.value) })} /></Field>
               </div>
             ) : null}
-            {config.content.adult ? <Checkbox label="Adult-rated image (shown only in adult mode)" checked={l.adult} onChange={(v) => setLayer(l.id, { adult: v })} /> : null}
-            {l.adult && !adultAllowed ? <p className="text-xs text-fg-2">Hidden here: adult mode is off or this character isn't confirmed as an adult.</p> : null}
+            <Checkbox label="18+ picture" checked={l.adult} onChange={(v) => setLayer(l.id, { adult: v })} />
+            {l.adult && !adultAllowed ? <p className="text-xs text-fg-2">Hidden: this character is recorded as under 18.</p> : null}
             <div className="flex justify-end"><IconButton icon={Trash2} label={`Delete ${l.name}`} tone="danger" onClick={() => { if (placing === l.id) setPlacing(null); set({ skinLayers: layers.filter((x) => x.id !== l.id), outfits: config.outfits.map((o) => ({ ...o, layers: o.layers?.filter((x) => x !== l.id) })) }); }} /></div>
           </div>
         </details>

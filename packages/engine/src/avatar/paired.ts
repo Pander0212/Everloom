@@ -72,7 +72,7 @@ export function resolvePaired(installed: readonly PairedInfo[], name: string | n
   return installed.find((x) => x.id === k) ?? installed.find((x) => key(x.label) === k) ?? installed.find((x) => x.aliases.some((a) => key(a) === k)) ?? null;
 }
 
-/** Clips a set of participants may play: adult clips only in adult mode with every participant an adult. */
+/** Clips a set of participants may play: adult clips only when every participant is an adult. */
 export function allowedPaired(installed: readonly PairedInfo[], opts: { adultMode: boolean; everyoneAdult: boolean }): PairedInfo[] {
   return installed.filter((p) => !p.adult || (opts.adultMode && opts.everyoneAdult));
 }

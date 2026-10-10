@@ -19,8 +19,8 @@ it('round-trips protected rig and character presets and refuses adult or incompa
   }
   const incompatible = { format: 'everloom-character-preset', version: 1, family: 'different', config: detail.config };
   expect((await client.req('POST', `/api/avatars/${id}/preset-import`, incompatible)).status).toBe(400);
-  const adult = { ...detail.config, content: { adult: true, age: 20, confirmedAdult: true, description: '' } };
-  // An adult preset of a recorded adult exports without any setting; a minor's never does.
+  const adult = { ...detail.config, content: { adult: true, age: 20, confirmedAdult: false, description: '' }, morphs: { sliders: [{ id: 'anatomy', label: 'Anatomy', group: 'other', plus: ['anatomy'], minus: [], adult: true }], values: { anatomy: 0.5 }, base: null } };
+  // An explicit preset exports without any setting; a minor's never does (the minor guard).
   expect((await client.req('POST', `/api/avatars/${id}/preset-export`, { kind: 'character', config: adult })).status).toBe(200);
   expect((await client.req('POST', `/api/avatars/${id}/preset-export`, { kind: 'character', config: { ...adult, content: { ...adult.content, age: 16 } } })).status).toBe(400);
 }, 30000);

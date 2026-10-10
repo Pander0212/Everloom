@@ -67,7 +67,7 @@ export function baseReport(f: BaseFacts): BaseReport {
     if (body.length && missingKinds.length) lines.push({ tone: 'info', title: `Not in the file: ${missingKinds.map(label).join(', ')}`, detail: 'Generated adjusters can stand in for these (marked "generated").' });
     if (face.length || expressionMorphs.length) lines.push({ tone: 'ok', title: `Face: ${plural(face.length + expressionMorphs.length, 'shape')}`, detail: `${expressionMorphs.length} drive expressions, blinking or lip-sync; ${face.length} are face sliders.` });
     else lines.push({ tone: 'info', title: 'No face shapes', detail: 'Expressions, blinking and lip-sync are off; talking moves the jaw bone if there is one.' });
-    if (adult.length) lines.push({ tone: 'warn', title: `${plural(adult.length, 'explicit shape')}: adults only`, detail: `${adult.map((s) => s.label).join(', ')}. These sliders show only for adult characters in adult mode; the model must be rated adult to use them.` });
+    if (adult.length) lines.push({ tone: 'warn', title: `${plural(adult.length, 'explicit shape')}: adults only`, detail: `${adult.map((s) => s.label).join(', ')}. These sliders are never applied to a character under 18.` });
   }
   // Meshes and skinning.
   if (!f.skinnedMeshes) lines.push({ tone: 'off', title: 'No skinned mesh', detail: 'Nothing is weighted to the skeleton, so the model can\'t move and clothes can\'t be rigged to it. Export with skinning (armature modifier) on.' });

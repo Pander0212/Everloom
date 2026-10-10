@@ -293,7 +293,7 @@ export function ConnectionSheet({ open, onOpenChange, connection, group }: { ope
         ) : null}
         {group === 'image' ? (
           <>
-            <ToggleRow label="Allows adult content" description="Only enable this if your provider permits adult image generation. Adult textures also require an eligible adult character and Adult content enabled in Features." checked={d.params.allowAdult === true} onChange={value => setP({ allowAdult: value })} />
+            <ToggleRow label="Allows adult content" description="Only turn this on if your provider's terms allow adult image generation. 18+ textures are never made for a character under 18 or described as a child." checked={d.params.allowAdult === true} onChange={value => setP({ allowAdult: value })} />
             {d.provider !== 'img-comfyui' ? (
               <Field label="Size" htmlFor="c-size">
                 <Input id="c-size" value={d.params.image_size ?? '1024x1024'} onChange={(e) => setP({ image_size: e.target.value })} />

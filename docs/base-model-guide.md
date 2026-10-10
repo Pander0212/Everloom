@@ -36,8 +36,8 @@ keys" on). Name them plainly; Everloom reads common conventions:
   the Face group and also drive expressions and lip-sync.
 - Anything else lands in **Other**, where you can rename, regroup, pair or hide it. The mapping is
   saved with the model and comes back when the same file is read again.
-- Shapes that are explicit by name are marked adults-only and show only in adult mode, for adult
-  characters.
+- Shapes that are explicit by name are marked adults-only: no setting needed, never applied to a
+  minor.
 
 Keep morphs **sculpted on the rest pose** and moderate at 1.0: fitted clothes copy the body's offset
 at each point, so a garment follows a morph exactly as far as the skin under it does.

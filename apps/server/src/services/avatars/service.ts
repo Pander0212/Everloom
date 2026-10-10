@@ -8,7 +8,8 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Worker } from 'node:worker_threads';
 import { allowedPaired, AvatarConfigSchema, BUILTIN_PAIRED, installedEmotes, modelUrl, PairedClipSchema, regionOfBone, type AvatarConfig, type AvatarKind, type GarmentSlot, type HumanBone, type PairedInfo } from '@everloom/engine';
-import { assertAdultAvatar } from './adult.js';
+import { assertAvatarAllowed, hasExplicitContent, isMinorAvatar, REFUSED } from '../minor-guard.js';
+import { assertHumanAssets } from './makehuman.js';
 import { HttpError, type AppContext } from '../../context.js';
 import { newId } from '../../security/crypto.js';
 import { deleteMedia, mediaUrl, readMedia, saveImage, saveModelFile } from '../media.js';
@@ -308,7 +309,7 @@ export function createAvatar(ctx: AppContext, owner: string, bytes: Buffer, opts
   const ext = type === 'glb' ? (/\.vrm$/i.test(opts.filename ?? '') ? 'vrm' : 'glb') : type;
   const config = AvatarConfigSchema.parse(opts.config ?? {});
   if (config.makehuman && !config.family) config.family = `makehuman:${config.makehuman.rig.split('/').pop()!.replace(/^rig\.|\.json$/g, '')}`.slice(0, 40);
-  assertAdultAvatar(ctx, owner, config);
+  checkAvatarContent(ctx, owner, config);
   assertConfigMedia(ctx, owner, config);
   const src = saveModelFile(ctx, owner, bytes, { kind: 'model-source', ext, meta: { filename: (opts.filename ?? '').slice(0, 200) } });
   const id = opts.id ?? newId('av_');
@@ -331,14 +332,14 @@ export function reprocessAvatar(ctx: AppContext, owner: string, id: string, opts
 }
 
 /** Save a browser-built native body and its recipe together, so bundles carry the latest shape. */
-function assertConfigMedia(ctx: AppContext, owner: string, config: AvatarConfig) {
+function assertConfigMedia(ctx: AppContext, owner: string, config: AvatarConfig, avatarId?: string) {
   const textures = new Set<string>();
   for (const overrides of [config.materialOverrides, ...config.outfits.map(o => o.materialOverrides ?? {})]) for (const value of Object.values(overrides)) for (const texture of [value.texture, value.shadeTexture]) if (texture) textures.add(texture);
   for (const garment of config.garments) for (const variant of garment.variants) if (variant.texture) textures.add(variant.texture);
   for (const texture of textures) {
     const media = ctx.db.prepare("SELECT meta FROM media WHERE id = ? AND owner_id = ? AND mime LIKE 'image/%'").get(texture, owner) as { meta: string } | undefined;
     if (!media) throw new HttpError(400, 'A material texture is missing or belongs to another account.');
-    if (safeJson<{ adult?: boolean }>(media.meta, {}).adult === true && !config.content.adult) throw new HttpError(403, 'Adult textures can only be applied to an eligible adult character.');
+    if (safeJson<{ adult?: boolean }>(media.meta, {}).adult === true && isMinorAvatar(ctx, owner, config, avatarId)) throw new HttpError(403, REFUSED);
   }
   for (const outfit of config.outfits) for (const media of [outfit.model, outfit.modelLow]) if (media && !ctx.db.prepare("SELECT 1 FROM media WHERE id = ? AND owner_id = ? AND kind LIKE 'model%'").get(media, owner)) throw new HttpError(400, 'An outfit points at a missing model file');
 }
@@ -350,8 +351,8 @@ export async function replaceNativeBody(ctx: AppContext, owner: string, id: stri
   const input = (glb.json.nodes ?? []).map(node => (node as { extras?: { everloom?: { config?: unknown } } }).extras?.everloom?.config).find(Boolean);
   const parsed = AvatarConfigSchema.safeParse(input);
   if (!parsed.success || !parsed.data.makehuman) throw new HttpError(400, 'The native model is missing its MakeHuman recipe.');
-  assertAdultAvatar(ctx, owner, parsed.data, id);
-  assertConfigMedia(ctx, owner, parsed.data);
+  checkAvatarContent(ctx, owner, parsed.data, id);
+  assertConfigMedia(ctx, owner, parsed.data, id);
   await inspectModel(bytes, glb);
   const source = saveModelFile(ctx, owner, bytes, { kind: 'model-source', ext: 'glb', meta: { avatar: id, native: true } });
   setStatus(ctx, owner, id, { source_media: source.id, config: JSON.stringify(parsed.data), kind: 'makehuman', status: 'processing', error: null });
@@ -367,8 +368,8 @@ export function updateAvatar(ctx: AppContext, owner: string, id: string, patch: 
   if (patch.config !== undefined) {
     const r = AvatarConfigSchema.safeParse(patch.config);
     if (!r.success) throw new HttpError(400, `Invalid avatar settings: ${r.error.issues[0]?.path.join('.')} ${r.error.issues[0]?.message}`);
-    assertAdultAvatar(ctx, owner, r.data, id);
-    assertConfigMedia(ctx, owner, r.data);
+    checkAvatarContent(ctx, owner, r.data, id);
+    assertConfigMedia(ctx, owner, r.data, id);
     set.config = JSON.stringify(r.data);
     if (r.data.makehuman) set.kind = 'makehuman';
   }
@@ -434,7 +435,7 @@ export function emotesFor(ctx: AppContext, owner: string) {
 
 /**
  * Paired animations the story may use: built-in plus the owner's imported ones. Adult-rated ones only
- * with adult content on and confirmed; the stage still plays them only for adult characters.
+ * with no setting; the stage plays them only for adult characters.
  */
 export function pairedFor(ctx: AppContext, owner: string): PairedInfo[] {
   const rows = ctx.db.prepare("SELECT emote AS id, label, data FROM avatar_clips WHERE owner_id = ? AND category = 'paired'").all(owner) as Array<{ id: string; label: string; data: string }>;
@@ -563,4 +564,15 @@ export async function renderTurntable(ctx: AppContext, owner: string, id: string
     .toBuffer();
   const img = await saveImage(ctx, owner, strip, { kind: 'avatar-turntable', maxDim: 4096, meta: { avatar: id } });
   return { url: mediaUrl(img.id), frames: frames.length };
+}
+
+/**
+ * The checks every saved avatar passes: MakeHuman assets are the owner's, and explicit content is
+ * never on a minor (services/minor-guard.ts). An avatar with explicit content is rated adult (for
+ * VRM metadata and the optional thumbnail blur); a rating already set stays.
+ */
+export function checkAvatarContent(ctx: AppContext, owner: string, config: AvatarConfig, avatarId?: string): void {
+  assertHumanAssets(ctx, owner, config, avatarId);
+  assertAvatarAllowed(ctx, owner, config, avatarId);
+  if (hasExplicitContent(config)) config.content.adult = true;
 }

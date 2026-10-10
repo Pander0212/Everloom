@@ -104,7 +104,7 @@ export const useAvatar = (id?: string | null) =>
   });
 
 export const useAvatarClips = (enabled = true) => useQuery({ queryKey: avatarKeys.clips, queryFn: () => get<ClipSummary[]>('/api/avatar-clips'), enabled });
-/** Paired animations this owner may play (built in and imported; adult ones only in adult mode). */
+/** Paired animations this owner may play (built in and imported; adult ones only for adult characters). */
 export const useAvatarPaired = (enabled = true) => useQuery({ queryKey: ['avatar-paired'], queryFn: () => get<PairedInfo[]>('/api/avatar-paired'), enabled, staleTime: 60_000 });
 export const useBlender =(enabled = true) => useQuery({ queryKey: avatarKeys.blender, queryFn: () => get<BlenderInfo>('/api/blender'), enabled, staleTime: 5 * 60_000 });
 

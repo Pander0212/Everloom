@@ -1,5 +1,5 @@
 /**
- * Settings › Character sources: adult content, site accounts (stored encrypted on the server and
+ * Settings › Character sources: site accounts (stored encrypted on the server and
  * never sent back), site notices, the self-test and fixture recorder, and the browser bridge.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -10,7 +10,6 @@ import { toast, toastError } from '@/lib/store';
 import { Badge, Button, Checkbox, confirm, EmptyState, Field, IconButton, Input, Select, Spinner, ToggleRow } from '@/ui';
 import type { ProviderInfo, Providers } from '../../sources/BrowsePage';
 import { Section, useSettingsPatch } from '../common';
-import AdultToggle from '../AdultToggle';
 
 export default function SourcesSection() {
   const { settings, update } = useSettingsPatch();
@@ -20,9 +19,7 @@ export default function SourcesSection() {
   if (!settings) return null;
   return (
     <>
-      <Section title="Online sources" description="Browse and import characters from public sites. Everything is fetched by your Everloom server, only when you ask.">
-        <AdultToggle />
-      </Section>
+      <Section title="Online sources" description="Browse and import characters from public sites. Everything is fetched by your Everloom server, only when you ask. The search has an 18+ filter; to blur 18+ pictures when you share your screen, see Settings › Privacy.">{null}</Section>
       <section id="accounts">
         <Section title="Accounts" description="Some sites show more to members. Your sign-in is stored encrypted on your server and is never sent back to this page.">
           {sources.data ? (

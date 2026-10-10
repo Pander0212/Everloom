@@ -16,9 +16,12 @@ import { autoLook, configureMaterials } from './runtime/materials';
 import { canRender3D, Stage3D, type Framing } from './runtime/stage';
 import { dress, paintSkin, shapeBody } from './runtime/wardrobe';
 
-/** Explicit content (sliders, layers, clips) shows only for a confirmed adult character in adult mode. */
-export function adultContentAllowed(content: Partial<AvatarConfig['content']> | undefined, adultMode: boolean) {
-  return adultMode && content?.adult === true && content.confirmedAdult === true && (content.age ?? 0) >= 18;
+/**
+ * 18+ content shows on any character not recorded as a minor (no setting or confirmation). The
+ * server's minor guard (apps/server/src/services/minor-guard.ts) refuses to save it on a minor.
+ */
+export function adultContentAllowed(content: Partial<AvatarConfig['content']> | undefined, _adultMode = true) {
+  return !(content?.age != null && content.age < 18);
 }
 
 export interface PreviewHandle {
@@ -65,7 +68,7 @@ export default function Preview3D({ src: baseSrc, fallbackSrc, config, framing =
   const settings = useSettings();
   // Adult content is never hidden (no setting; only the online character browser has an 18+ switch).
   const adultHidden = false;
-  /** Explicit sliders and layers: an adult character, confirmed, in adult mode. */
+  /** Explicit sliders and layers: any character not recorded as a minor. */
   const adultAllowed = adultContentAllowed(config?.content, true);
   const adultRef = useRef(adultAllowed);
   adultRef.current = adultAllowed;

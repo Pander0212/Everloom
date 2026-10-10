@@ -24,7 +24,7 @@ export const SLOTS: Record<string, SlotDef> = {
   'hair.back': { z: 0, deformer: 'hairBack', depth: -0.55, color: 'hair', about: 'Hair behind the head and body', swappable: 'hair' },
   'acc.back': { z: 2, deformer: 'body', about: 'Behind the body (a cape, wings)', swappable: 'accessory' },
   body: { z: 10, deformer: 'body', color: 'skin', about: 'The body and neck (adult; the 18+ pack swaps it)', swappable: 'body' },
-  underwear: { z: 11, deformer: 'body', about: 'The underwear layer (removable only in adult mode)', swappable: 'body' },
+  underwear: { z: 11, deformer: 'body', about: 'The underwear layer (removable, never on a minor)', swappable: 'body' },
   legwear: { z: 12, deformer: 'body', color: 'cloth3', about: 'Stockings, socks', swappable: 'outfit' },
   shoes: { z: 13, deformer: 'body', color: 'cloth3', about: 'Shoes (seen when framed lower)', swappable: 'outfit' },
   bottom: { z: 14, deformer: 'body', color: 'cloth2', about: 'Trousers, skirts', swappable: 'outfit' },

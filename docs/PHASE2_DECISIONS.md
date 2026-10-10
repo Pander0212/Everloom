@@ -1158,10 +1158,19 @@ ledger); the second attempt needs the owner's approval to run in this environmen
 The owner removed the app-wide "Adult content (18+)" switch (it was on Settings › Features and
 hard to find, and adult characters stayed hidden): the people using Everloom are responsible for
 themselves, so adult characters, 3D avatars, puppets, packs, paired animations and bridge imports
-are shown and allowed without enabling anything. The one 18+ switch left is for the online
-character browser (Settings › Character sources: browsing and importing from public sites). What
-stays everywhere: an avatar or preset rated adult still needs a recorded age of 18+ and an adult
-confirmation, and anything that describes a minor is refused (services/avatars/adult.ts).
+are shown and allowed without enabling anything.
+
+**Update (3D import and editor work):** the last 18+ switch (online character sources) and the
+adult rating with its confirmation on 3D avatars are gone too. Online search has an "Include 18+"
+filter, on by default; an avatar is rated adult automatically when it carries explicit content.
+What stays, everywhere and on the server only: the **minor guard**
+(`apps/server/src/services/minor-guard.ts`, tested in `apps/server/test/minor-guard.test.ts`).
+Explicit content (18+ skin layers, explicit sliders, anatomy settings, 18+ MakeHuman assets and
+textures) is refused for a character whose recorded age is under 18, who is described as a child,
+whose body is in the child range, or who is linked to a character card that says so. Adults never
+see it. The one remaining privacy option is Settings › Privacy › "Blur 18+ pictures in lists",
+off by default. Migration: saved settings keep loading (the old `library.nsfw` and
+`adultConfirmed` are kept and ignored), saved avatars keep their rating, nothing becomes hidden.
 
 ## Design and UX: simpler tools (October 2026)
 

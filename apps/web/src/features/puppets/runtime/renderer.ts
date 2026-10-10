@@ -74,7 +74,7 @@ export interface DrawInstance {
   shifts: Map<string, ColorShift>;
   /** Multiplied into every pixel (lighting to match the background), and overall opacity. */
   tint: [number, number, number, number];
-  /** Parts to leave out (hidden by an outfit, or the underwear layer outside adult mode…). */
+  /** Parts to leave out (hidden by an outfit, or the underwear layer when the outfit keeps it…). */
   hidden?: Set<string>;
 }
 

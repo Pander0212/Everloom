@@ -228,8 +228,8 @@ has 3D characters), the emote picker's **Together** row (the selected character 
 **Importing** (Settings › 3D characters › Paired animations › Import): one motion per participant,
 from separate files or one file holding an animation for each (GLB, VRMA, FBX, BVH; retargeted like
 single emotes), then how far apart they stand and what meets (right hands, right-to-left, both
-hands, a hug). Adult-rated paired clips can only be saved and played in adult mode, and only when
-every participant is a confirmed adult character.
+hands, a hug). Adult-rated paired clips play only when no participant is recorded as under 18 (no
+setting needed).
 
 ## Wardrobe
 
@@ -267,7 +267,8 @@ support are switched off with the reason given (no UVs: no skin layers; no skin 
   goes both ways; left and right twins move together unless unlinked;
 - the mapping can be edited (label, group, range, twin, hidden) and is saved with the model, keyed by
   the base's fingerprint, so it comes back when the same file is read again;
-- explicit shapes are marked adults-only and shown only in adult mode for adult characters;
+- explicit shapes are marked adults-only: no setting is needed, and the server's minor guard never
+  applies them to a character under 18 or described as a child;
 - values change smoothly (no pops), and garments fitted to the base carry the same morphs, so clothes
   follow the sliders.
 
@@ -368,8 +369,8 @@ Not built: a decal is cut where it crosses a UV seam (it isn't projected onto th
 garment can't be baked into a skin layer (a painted-on top is made as an image layer).
 
 Colours change at once: skin tone (a multiplied wash, so the skin's detail stays), eyes, hair (base,
-tips gradient, highlight). Uploaded images go through the usual upload checks; adult-rated layers
-show only for adult characters in adult mode.
+tips gradient, highlight). Uploaded images go through the usual upload checks; 18+ layers
+need no setting and are never applied to a minor (the minor guard).
 
 ## Parts maker
 

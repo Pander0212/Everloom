@@ -3,19 +3,22 @@ import { api, BASE, expect, test } from './fixtures';
 // The e2e server answers Chub requests from tests/fixtures/sources/chub (EVERLOOM_SOURCE_FIXTURES).
 test.describe('online sources', () => {
   test.afterEach(async ({ page }) => {
-    await api(page, 'PATCH', '/api/settings', { library: { nsfw: false } });
+    await api(page, 'PATCH', '/api/settings', { library: { blurAdult: false } });
   });
 
-  test('browse, preview, import with "In library"; hidden definitions labelled, adult content stays out', async ({ page, errors }) => {
+  test('browse, preview, import with "In library"; hidden definitions labelled; 18+ is a filter, not a setting', async ({ page, errors }) => {
     await page.goto('/characters');
     for (const c of await api(page, 'GET', '/api/characters')) if (c.linked) await api(page, 'DELETE', `/api/characters/${c.id}`);
     await page.getByLabel('Create', { exact: true }).click();
     await page.getByRole('menuitem', { name: 'Browse online' }).click();
     await expect(page.getByRole('heading', { name: 'Browse Chub' })).toBeVisible();
     const grid = page.getByRole('list', { name: 'Online characters' });
-    await expect(grid.getByRole('button')).toHaveCount(3); // the adult one is hidden
+    // 18+ cards are included with no setting; the filter can leave them out.
+    await expect(grid.getByText('Velvet Room')).toBeVisible();
+    await expect(grid.getByRole('button')).toHaveCount(4);
+    await page.getByLabel('Include 18+').uncheck();
+    await expect(grid.getByRole('button')).toHaveCount(3);
     await expect(grid.getByText('Velvet Room')).toHaveCount(0);
-    await expect(page.getByLabel('Adult')).toHaveCount(0);
 
     // A hidden definition: only the public profile can come across, and it says so.
     await grid.getByRole('button', { name: /The Secret Sister/ }).click();
@@ -37,16 +40,20 @@ test.describe('online sources', () => {
     const mine = (await api(page, 'GET', '/api/characters')).find((c: any) => c.linked === 'tidewriter/maren-holt');
     expect(mine).toMatchObject({ name: 'Maren Holt', hasLorebook: true });
 
-    // Adult content only after turning it on in Settings.
+    // There is no 18+ switch in Settings; the optional privacy blur (off by default) blurs 18+ pictures in lists.
     await page.goto('/settings/sources');
-    await page.getByRole('switch', { name: 'Adult content (18+)' }).click({ force: true });
-    // The first time on this server it asks for an 18+ confirmation (remembered after that).
-    const adult = page.getByRole('button', { name: 'I am 18 or older' });
-    if (await adult.waitFor({ timeout: 3_000 }).then(() => true, () => false)) await adult.click();
-    await expect.poll(async () => (await api(page, 'GET', '/api/settings')).library.nsfw).toBe(true);
+    await expect(page.getByRole('switch', { name: /Adult content/ })).toHaveCount(0);
+    await page.goto('/settings/privacy');
+    const blur = page.getByRole('switch', { name: 'Blur 18+ pictures in lists' });
+    await expect(blur).not.toBeChecked();
+    await blur.click({ force: true });
+    await expect.poll(async () => (await api(page, 'GET', '/api/settings')).library.blurAdult).toBe(true);
     await page.goto('/characters/browse');
-    await page.getByLabel('Adult').check();
-    await expect(page.getByRole('list', { name: 'Online characters' }).getByText('Velvet Room')).toBeVisible();
+    await page.getByLabel('Include 18+').check();
+    const velvet = page.getByRole('list', { name: 'Online characters' }).getByRole('button', { name: /Velvet Room/ });
+    await expect(velvet).toBeVisible();
+    await expect(velvet.locator('img.blur-lg')).toHaveCount(1);
+    await expect(page.getByRole('list', { name: 'Online characters' }).locator('img.blur-lg')).toHaveCount(1);
     expect(errors).toEqual([]);
   });
 
@@ -66,7 +73,8 @@ test.describe('online sources', () => {
     await expect(sortGroup.getByRole('radio', { name: 'New' })).toHaveAttribute('aria-checked', 'true');
     await sortGroup.getByRole('radio', { name: 'Popular' }).click();
     const grid = page.getByRole('list', { name: 'Online characters' });
-    await expect(grid.getByRole('button')).toHaveCount(2); // the adult card stays out
+    await page.getByLabel('Include 18+').uncheck();
+    await expect(grid.getByRole('button')).toHaveCount(2); // the 18+ filter is off: the adult card stays out
     await grid.getByRole('button', { name: /Wren of the Lantern Archive/ }).click();
     await page.getByRole('button', { name: 'Import', exact: true }).click();
     await expect(page.getByText('Wren added to your library')).toBeVisible();
@@ -124,7 +132,8 @@ test.describe('online sources', () => {
       await expect(notice).toContainText('robots.txt');
       await notice.getByRole('button', { name: 'I understand, continue' }).click();
     }
-    await expect(grid.getByRole('button')).toHaveCount(2); // the adult post stays out
+    await page.getByLabel('Include 18+').uncheck();
+    await expect(grid.getByRole('button')).toHaveCount(2); // the 18+ filter is off: the adult post stays out
     // The filter bar: a tag chip narrows the results; tapping it turns it into an exclusion.
     // Filters are remembered per source on this device; start from none.
     const toggle = page.getByRole('button', { name: /^Filters/ });

@@ -9,7 +9,7 @@ import { generateImage } from '../../media/imagegen.js';
 import { connectionForRole } from '../connections.js';
 import { mediaUrl, readMedia, saveImage } from '../media.js';
 import { getAvatarRow, parseConfig } from './service.js';
-import { assertAdultAvatar } from './adult.js';
+import { isMinorAvatar, REFUSED } from '../minor-guard.js';
 
 /**
  * Makes a tile repeat cleanly: a copy shifted by half (whose edges are the original's middle, so
@@ -54,12 +54,8 @@ const TILE = 'Seamless tileable texture filling the whole frame edge to edge, se
 export async function generateTexture(ctx: AppContext, owner: string, input: { prompt: string; base?: string | null; adult?: boolean; avatarId?: string }) {
   const reference = input.base ? readMedia(ctx, owner, input.base) : undefined;
   const adult = input.adult === true || (reference && JSON.parse(reference.row.meta).adult === true);
-  if (adult) {
-    if (!input.avatarId) throw new HttpError(400, 'Choose a saved adult character for adult texture generation.');
-    const config = parseConfig(getAvatarRow(ctx, owner, input.avatarId).config);
-    if (!config.content.adult) throw new HttpError(403, 'Save this character with adult mode enabled before generating an adult texture.');
-    assertAdultAvatar(ctx, owner, config, input.avatarId);
-  }
+  // Adult textures for a character: never for a minor (services/minor-guard.ts).
+  if (adult && input.avatarId && isMinorAvatar(ctx, owner, parseConfig(getAvatarRow(ctx, owner, input.avatarId).config), input.avatarId)) throw new HttpError(403, REFUSED);
   const conn = connectionForRole(ctx, owner, 'image');
   if (!conn) throw new HttpError(400, 'Add an image connection first (Settings › Connections › Images)', 'no_connection');
   if (adult && conn.params.allowAdult !== true) throw new HttpError(403, 'This image connection is not marked as allowing adult content. Check its provider terms and connection settings.');

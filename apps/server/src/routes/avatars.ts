@@ -22,7 +22,7 @@ import { parse } from '../util/validate.js';
 import { installMakeHuman, makeHumanStatus, importHumanAssets } from '../services/avatars/makehuman.js';
 import { exportBrowserModel } from '../services/avatars/browser-export.js';
 import { replaceNativeBody } from '../services/avatars/service.js';
-import { assertAdultAvatar } from '../services/avatars/adult.js';
+import { checkAvatarContent } from '../services/avatars/service.js';
 
 const MOTION_TYPES: Record<string, string> = { fbx: 'fbx', bvh: 'bvh', vmd: 'vmd', glb: 'glb', gltf: 'glb', vrma: 'glb', blend: 'blend' };
 
@@ -174,7 +174,7 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     const who = owner(req), id = (req.params as { id: string }).id;
     getAvatarRow(ctx, who, id);
     const input = parse(z.object({ kind: z.enum(['character', 'rig']), config: AvatarConfigSchema }), req.body);
-    assertAdultAvatar(ctx, who, input.config, id);
+    checkAvatarContent(ctx, who, input.config, id);
     const data = input.kind === 'rig' ? { format: 'everloom-rig-map', version: 1, boneMap: input.config.boneMap, physics: input.config.physics, ...(input.config.rig ? { rig: input.config.rig } : {}) } : { format: 'everloom-character-preset', version: 1, family: input.config.family, config: input.config };
     return reply.type('application/json').header('content-disposition', `attachment; filename="${input.kind}-preset.json"`).send(Buffer.from(JSON.stringify(data, null, 2)));
   });
@@ -188,7 +188,7 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     ]), value);
     if (preset.format === 'everloom-character-preset') {
       if (preset.family !== avatar.config.family || !!preset.config.makehuman !== !!avatar.config.makehuman) throw new HttpError(400, 'Choose a preset for the same character kind and body family.');
-      assertAdultAvatar(ctx, who, preset.config, id);
+      checkAvatarContent(ctx, who, preset.config, id);
     }
     return preset;
   });

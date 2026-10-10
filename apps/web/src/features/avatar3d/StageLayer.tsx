@@ -253,7 +253,7 @@ export default function StageLayer({ cast, speakerId, scene, onFail, paired = nu
         if (!def) throw new Error(`The paired animation could not be loaded: ${paired.clip}`);
         // A one-shot from before the stage opened is over; a loop is still going.
         if (!def.loop && paired.cue === pairedAtOpen.current) return;
-        if (def.adult && !who.every((id) => { const c = cast.find((x) => x.id === id); const cfg = c && configOfRef.current(c); return !!cfg && adultContentAllowed(cfg.content, adultModeRef.current); })) throw new Error(`${def.label} is for adult characters, with adult content on`);
+        if (def.adult && !who.every((id) => { const c = cast.find((x) => x.id === id); const cfg = c && configOfRef.current(c); return !!cfg && adultContentAllowed(cfg.content, adultModeRef.current); })) throw new Error(`${def.label} is for adult characters only`);
         return d.play(def.id, who).then((ok) => { if (ok && canvas.current) canvas.current.dataset.paired = `playing:${def.id}`; });
       })
       .catch(toastError);

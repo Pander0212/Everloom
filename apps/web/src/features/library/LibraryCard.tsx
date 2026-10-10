@@ -2,6 +2,7 @@ import type { CharacterSummary } from '@everloom/engine';
 import { Check, MessageSquare, Star } from 'lucide-react';
 import { memo } from 'react';
 import { cx } from '@/lib/format';
+import { useBlurAdult } from '@/lib/queries';
 import { Avatar, Icon } from '@/ui';
 import { useLongPress } from './useLongPress';
 
@@ -23,6 +24,7 @@ export interface CardProps {
 }
 
 export const LibraryCard = memo(function LibraryCard({ c, mode, selecting, selected, showInfo, onOpen, onToggle, onMenu }: CardProps) {
+  const blurAdult = useBlurAdult();
   const lp = useLongPress((at) => onMenu(c, at));
   const name = c.displayName || c.name;
   const click = () => {
@@ -52,7 +54,7 @@ export const LibraryCard = memo(function LibraryCard({ c, mode, selecting, selec
     return (
       <button {...common} className={cx('ev-card pressable flex h-full w-full select-none items-center gap-3 rounded-md px-2 text-left hover:bg-surface-2', selected && 'bg-accent-soft')}>
         <span className="relative flex-none">
-          <Avatar src={c.avatar} name={name} size="md" shape="rounded" className={c.adult ? 'blur-lg' : undefined} />
+          <Avatar src={c.avatar} name={name} size="md" shape="rounded" className={c.adult && blurAdult ? 'blur-lg' : undefined} />
           {selecting ? <span className="absolute -left-1 -top-1 scale-75">{check}</span> : null}
         </span>
         <span className="min-w-0 flex-1">
@@ -73,7 +75,7 @@ export const LibraryCard = memo(function LibraryCard({ c, mode, selecting, selec
   return (
     <button {...common} className="ev-card pressable group flex h-full w-full select-none flex-col text-left [-webkit-touch-callout:none]">
       <span className={cx('relative block w-full flex-1 overflow-hidden rounded-md bg-surface-2 transition-[box-shadow] duration-150', selected && 'ring-2 ring-accent ring-offset-2 ring-offset-bg')}>
-        {c.avatar ? <img src={c.avatar} alt="" loading="lazy" decoding="async" draggable={false} className={cx('h-full w-full object-cover object-top motion-safe:transition-transform motion-safe:duration-300 group-hover:scale-[1.02]', c.adult && 'blur-lg')} /> : <Avatar name={name} size="xl" shape="rounded" className="absolute inset-0 m-auto" />}
+        {c.avatar ? <img src={c.avatar} alt="" loading="lazy" decoding="async" draggable={false} className={cx('h-full w-full object-cover object-top motion-safe:transition-transform motion-safe:duration-300 group-hover:scale-[1.02]', c.adult && blurAdult && 'blur-lg')} /> : <Avatar name={name} size="xl" shape="rounded" className="absolute inset-0 m-auto" />}
         {c.fav ? <Icon icon={Star} size={16} className="absolute right-2 top-2 fill-current text-accent drop-shadow" /> : null}
         {check}
         {showInfo && !selecting ? (

@@ -38,6 +38,5 @@ export function HumanAssets({ library, profile, set, content }: { library: Human
     <FileButton multiple loading={busy} onFiles={files => void install(files)}>Install from files</FileButton>
     {error ? <div role="alert"><p className="text-sm text-danger">{error}</p><Button variant="ghost" onClick={() => void navigator.clipboard.writeText(error)}>Copy details</Button></div> : null}
     {choices.length ? <><Input aria-label="Search your MakeHuman assets" value={search} onChange={event => setSearch(event.target.value)} placeholder="Search installed assets" />{choices.slice(0, 30).map(path => <Button key={path} variant="secondary" onClick={() => apply(path)}>{path.split('/').pop()}</Button>)}</> : null}
-    {adult && !content?.adult ? <p className="text-sm text-fg-2">18+ assets can only be saved on a confirmed adult character.</p> : null}
   </div>;
 }

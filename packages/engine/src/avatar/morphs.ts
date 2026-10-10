@@ -39,7 +39,7 @@ export const MorphSliderSchema = z.object({
   hidden: z.boolean().default(false),
   /** The left/right twin slider: moving one moves both while they are linked. */
   pair: sliderId.nullable().default(null),
-  /** Explicit anatomy: only offered for adult characters in adult mode. */
+  /** Explicit anatomy: never applied to a minor (the server's minor guard). */
   adult: z.boolean().default(false),
   /** Driven by the expression system (blinks, visemes): hidden from sliders by default. */
   expression: z.boolean().default(false),
@@ -205,7 +205,7 @@ export function morphWeights(sliders: readonly MorphSlider[], values: Readonly<R
   return out;
 }
 
-/** Sliders the current character may use (explicit anatomy only for adults in adult mode). */
+/** Sliders the current character may use (explicit anatomy never for a minor). */
 export function visibleSliders(sliders: readonly MorphSlider[], opts: { adultAllowed: boolean; showHidden?: boolean }): MorphSlider[] {
   return sliders.filter((s) => (opts.showHidden || !s.hidden) && (!s.adult || opts.adultAllowed));
 }

@@ -6,6 +6,7 @@ import { Unzip, UnzipInflate, unzipSync } from 'fflate';
 import { parseHumanObj, parseProxy, parseTarget, parseHumanMaterial, parseHumanRig, resolveHumanPath, type AvatarConfig } from '@everloom/engine';
 import sharp from 'sharp';
 import { gunzipSync } from 'node:zlib';
+import { isMinorAvatar, REFUSED } from '../minor-guard.js';
 import { HttpError, type AppContext } from '../../context.js';
 import { safeFetch } from '../../util/fetch.js';
 import { deleteMedia, mediaUrl, saveModelFile } from '../media.js';
@@ -52,7 +53,7 @@ export async function importHumanAssets(ctx: AppContext, owner: string, bytes: B
   for (const [raw, value] of Object.entries(entries)) {
     const name = raw.replace(/\\/g, '/');
     if (name.startsWith('/') || name.includes(':') || name.split('/').some(p => p === '..' || !p) || name.length > 160) throw new HttpError(400, 'Unsafe or overly long asset path in the ZIP.');
-    if (!options.adult && explicit.test(name)) throw new HttpError(400, 'Anatomy assets must be tagged 18+ and installed with adult content enabled.');
+    if (!options.adult && explicit.test(name)) throw new HttpError(400, 'Anatomy assets must be in a pack tagged 18+.');
     const text = () => Buffer.from(value).toString('utf8');
     try {
       if (/\.obj$/i.test(name)) { const mesh = parseHumanObj(text()); if (mesh.vertices.length / 3 > 200000) throw new Error('OBJ has more than 200,000 vertices'); }
@@ -91,13 +92,13 @@ export async function importHumanAssets(ctx: AppContext, owner: string, bytes: B
   return makeHumanStatus(ctx, owner);
 }
 
-export function assertHumanAssets(ctx: AppContext, owner: string, config: AvatarConfig) {
+/** MakeHuman assets on an avatar: the starter suit stays and 18+ packs stay off for a minor (services/minor-guard.ts). */
+export function assertHumanAssets(ctx: AppContext, owner: string, config: AvatarConfig, avatarId?: string) {
   if (!config.makehuman) return;
-  if (!config.content.adult) for (const proxies of [config.makehuman.proxies, ...config.outfits.flatMap(outfit => outfit.makehumanProxies ? [outfit.makehumanProxies] : [])]) {
-    if (!proxies.some(path => /casualsuit|sportsuit|worksuit|elegantsuit/.test(path))) throw new HttpError(400, 'An all-ages native character or outfit must keep its starter suit.');
-  }
   const selected = new Set([config.makehuman.skin, config.makehuman.rig, ...config.makehuman.proxies, ...Object.keys(config.makehuman.targets), ...config.outfits.flatMap(outfit => outfit.makehumanProxies ?? [])]);
-  for (const pack of getKv<OwnerPack[]>(ctx, owner, ownerKey, [])) if (pack.adult && Object.keys(pack.files).some(path => selected.has(path)) && !config.content.adult) throw new HttpError(400, 'An 18+ asset can only be assigned to a confirmed adult character.');
+  const adultAssets = getKv<OwnerPack[]>(ctx, owner, ownerKey, []).some(pack => pack.adult && Object.keys(pack.files).some(path => selected.has(path)));
+  const suitless = [config.makehuman.proxies, ...config.outfits.flatMap(outfit => outfit.makehumanProxies ? [outfit.makehumanProxies] : [])].some(proxies => !proxies.some(path => /casualsuit|sportsuit|worksuit|elegantsuit/.test(path)));
+  if ((adultAssets || suitless) && isMinorAvatar(ctx, owner, config, avatarId)) throw new HttpError(400, REFUSED);
 }
 
 export function installMakeHuman(ctx: AppContext, owner: string, pack: Pack) {

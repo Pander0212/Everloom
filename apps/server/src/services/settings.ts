@@ -26,7 +26,7 @@ export const DEFAULT_SETTINGS: Settings = {
   art: { enabled: true },
   css: { snippets: [] },
   studio: { presets: [], preset: 'balanced', connection: null },
-  library: { view: 'grid', presets: [], defaultPreset: null, versionRetention: 30, debug: false, prevNext: true, cardInfo: true, nsfw: false, adultConfirmed: false },
+  library: { view: 'grid', presets: [], defaultPreset: null, versionRetention: 30, debug: false, prevNext: true, cardInfo: true, blurAdult: false },
   world: { profile: 'balanced', recallLimit: 6, sceneBudget: 1100, ...WORLD_PROFILES.balanced },
   // Existing installs keep everything on; first-run setup offers the presets.
   features: defaultFeatureSettings(),
