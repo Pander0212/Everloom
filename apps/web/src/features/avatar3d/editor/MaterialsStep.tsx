@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { upload } from '@/lib/api';
 import { toastError } from '@/lib/store';
 import { Button, Field, FileButton, Input, Select } from '@/ui';
+import { TEXTURE, webTexture } from '../runtime/textures';
 import type { PreviewHandle } from '../Preview3D';
 
 const slot = (name: string) => /hair/i.test(name) ? 'Hair' : /eye|iris/i.test(name) ? 'Eyes' : /skin|body/i.test(name) ? 'Skin / body template' : /shoe|boot/i.test(name) ? 'Shoes' : /pants|bottom|skirt/i.test(name) ? 'Bottoms' : /onepiece|dress/i.test(name) ? 'One-piece' : /cloth|top|shirt|coat/i.test(name) ? 'Clothing' : 'Choose manually';
@@ -24,12 +25,12 @@ export function MaterialsStep({ config, set, handle }: { config: AvatarConfig; s
     if (!target) throw new Error('Choose the material slot first.');
     const tex = spec.map ? p.get(spec.map.ref.guid) ?? p.guess(asset.path, 'texture', spec.name, '_MainTex') : undefined;
     let texture: string | undefined;
-    if (tex?.data && /\.(png|jpe?g|webp)$/i.test(tex.path)) texture = (await upload<{ id: string }>('/api/media', new File([tex.data as BlobPart], tex.path.split('/').pop()!), { kind: 'model-texture' })).id;
+    if (tex?.data && TEXTURE.test(tex.path)) texture = (await upload<{ id: string }>('/api/media', await webTexture(new File([tex.data as BlobPart], tex.path.split('/').pop()!)), { kind: 'model-texture' })).id;
     const hex = '#' + spec.color.slice(0, 3).map(c => Math.round(Math.max(0, Math.min(1, c)) * 255).toString(16).padStart(2, '0')).join('');
     const prev = config.materialOverrides[target] ?? {};
     set({ materialOverrides: { ...config.materialOverrides, [target]: { ...prev, ...(texture ? { texture } : {}), color: hex, alpha: spec.alpha === 'cutout' ? 'mask' : spec.alpha === 'transparent' ? 'blend' : 'opaque' } } });
     setMaterial(target);
-    if (spec.map && !texture) setError(`Applied ${spec.name}'s colour and transparency. Drop its texture (PNG, JPEG or WebP) together with the .mat to apply that too.`);
+    if (spec.map && !texture) setError(`Applied ${spec.name}'s colour and transparency. Drop its texture (PNG, JPEG, WebP, TGA, PSD, DDS or KTX2) together with the .mat to apply that too.`);
   };
   const image = async (files: File[], shade = false) => {
     if (files.some(f => /\.mat$/i.test(f.name))) {
@@ -40,8 +41,12 @@ export function MaterialsStep({ config, set, handle }: { config: AvatarConfig; s
     const file = files[0]; if (!file || !material) return;
     setBusy(true); setError(null);
     try {
-      if (file.size > 20 * 1024 * 1024 || !/\.(png|jpe?g|webp)$/i.test(file.name)) throw new Error('Choose a PNG, JPEG or WebP texture smaller than 20 MB. Export VRoid custom items as texture images first.');
-      const media = await upload<{ id: string }>('/api/media', file, { kind: 'model-texture' });
+      if (!TEXTURE.test(file.name)) throw new Error('Choose a PNG, JPEG, WebP, TGA, PSD, DDS or KTX2 texture. Export VRoid custom items as texture images first.');
+      if (file.size > 200 * 1024 * 1024) throw new Error('That texture file is larger than 200 MB.');
+      // TGA, PSD, DDS and KTX2 become PNG here.
+      const web = await webTexture(file);
+      if (web.size > 20 * 1024 * 1024) throw new Error('The texture is larger than 20 MB as an image. Make it smaller (4096 pixels is plenty) and try again.');
+      const media = await upload<{ id: string }>('/api/media', web, { kind: 'model-texture' });
       change(shade ? { shadeTexture: media.id } : { texture: media.id, alpha: 'mask' });
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   };

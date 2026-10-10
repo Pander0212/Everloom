@@ -122,13 +122,16 @@ function withFileWorker(loader: KTX2Loader): KTX2Loader {
     }));
   return loader;
 }
+/** The shared KTX2 (Basis) loader for this renderer's capabilities. */
+export function ktx2Loader(renderer: THREE.WebGLRenderer): KTX2Loader {
+  return (ktx2 ??= withFileWorker(new KTX2Loader().setTranscoderPath('/three/basis/').detectSupport(renderer)));
+}
 export function loaderFor(renderer: THREE.WebGLRenderer | null, manager?: THREE.LoadingManager): GLTFLoader {
   const l = new GLTFLoader(manager);
   l.setDRACOLoader(dracoLoader());
   l.setMeshoptDecoder(MeshoptDecoder);
   if (renderer) {
-    ktx2 ??= withFileWorker(new KTX2Loader().setTranscoderPath('/three/basis/').detectSupport(renderer));
-    l.setKTX2Loader(ktx2);
+    l.setKTX2Loader(ktx2Loader(renderer));
   }
   // We pose the raw bones ourselves and update springs and expressions directly (never vrm.update()).
   l.register((parser) => new VRMLoaderPlugin(parser));

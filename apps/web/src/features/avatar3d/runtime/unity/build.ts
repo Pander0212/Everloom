@@ -7,6 +7,7 @@
  */
 import * as THREE from 'three';
 import { FBXLoader } from 'three/examples/jsm/loaders/FBXLoader.js';
+import { mergeFbxSubBones } from '../import';
 import { TGALoader } from 'three/examples/jsm/loaders/TGALoader.js';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { linearColor, matchOutfitBone, planImport, projectFromFiles, projectFromPackage, summarize, type ImportReport, type MaterialSpec, type PackageSummary, type UnityPlan, type UnityProject } from '@everloom/engine/unity';
@@ -140,6 +141,11 @@ async function texture(project: UnityProject, guid: string, srgb: boolean, urls:
     const psd = readPsd(a.data.buffer.slice(a.data.byteOffset, a.data.byteOffset + a.data.byteLength) as ArrayBuffer, { skipLayerImageData: true, skipThumbnail: true });
     if (!psd.canvas) return null;
     t = new THREE.CanvasTexture(psd.canvas as HTMLCanvasElement);
+  } else if (ext === 'dds' || ext === 'ktx2') {
+    const { webTexture } = await import('../textures');
+    const url = URL.createObjectURL(await webTexture(new File([blob], a.path.split('/').pop()!)));
+    urls.push(url);
+    t = await new THREE.TextureLoader().loadAsync(url);
   } else return null; // other formats: reported, the material keeps its colour
   t.colorSpace = srgb ? THREE.SRGBColorSpace : THREE.NoColorSpace;
   t.name = a.path.split('/').pop()!;
@@ -218,6 +224,7 @@ export async function buildUnity(project: UnityProject, guid: string, opts: { as
       return u;
     });
     const root = new FBXLoader(manager).parse(bodyAsset.data.buffer.slice(bodyAsset.data.byteOffset, bodyAsset.data.byteOffset + bodyAsset.data.byteLength) as ArrayBuffer, '');
+    mergeFbxSubBones(root);
     root.name = sanitize(body.path.split('/').pop()!.replace(/\.[^.]+$/, ''));
     // Accessory models (a hair FBX, a prop) placed in the prefab.
     for (const extra of plan.models.slice(1)) {
@@ -227,6 +234,7 @@ export async function buildUnity(project: UnityProject, guid: string, opts: { as
         continue;
       }
       const sub = new FBXLoader(manager).parse(a.data.buffer.slice(a.data.byteOffset, a.data.byteOffset + a.data.byteLength) as ArrayBuffer, '');
+      mergeFbxSubBones(sub);
       sub.name = sanitize(a.path.split('/').pop()!.replace(/\.[^.]+$/, ''));
       (find(root, [root.name, ...extra.at.slice(1)]) ?? root).add(sub);
     }
@@ -287,7 +295,7 @@ export async function buildUnity(project: UnityProject, guid: string, opts: { as
     if (missingMats.size) report.approximated.push({ what: 'Materials', detail: `No Unity material for ${[...missingMats].slice(0, 6).join(', ')}${missingMats.size > 6 ? '…' : ''}: the FBX’s own material is used.` });
     const psd = Object.values(plan.textures).filter((t) => /\.psd$/i.test(t.path)).length;
     if (psd) report.approximated.push({ what: 'Textures', detail: `${psd} Photoshop textures, used flattened (their layers merged).` });
-    const odd = Object.values(plan.textures).filter((t) => !/\.(png|jpe?g|webp|gif|bmp|tga|psd)$/i.test(t.path));
+    const odd = Object.values(plan.textures).filter((t) => !/\.(png|jpe?g|webp|gif|bmp|tga|psd|dds|ktx2)$/i.test(t.path));
     if (odd.length) report.skipped.push({ what: 'Textures', detail: `${odd.map((t) => t.path.split('/').pop()).slice(0, 4).join(', ')}: a format Everloom can’t read here; those materials show their colour.` });
 
     // Hidden objects and toggles become wardrobe parts.

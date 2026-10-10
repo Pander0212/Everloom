@@ -40,6 +40,57 @@ export async function zipHasBlend(f: File): Promise<boolean> {
   return found;
 }
 
+/**
+ * three's FBXLoader gives every extra mesh sharing a skeleton its own copy of each bone, nested
+ * under the first with the same name and FBX id at no offset (Root › Root › Root). Each mesh is
+ * bound to the outer bone again and the copies removed: same pose, one skeleton, unique names.
+ */
+export function mergeFbxSubBones(root: THREE.Object3D): void {
+  type FbxBone = THREE.Bone & { ID?: number };
+  const outer = (b: FbxBone): FbxBone => {
+    let o = b;
+    while ((o.parent as FbxBone | null)?.isBone && (o.parent as FbxBone).ID === b.ID && o.parent!.name === b.name) o = o.parent as FbxBone;
+    return o;
+  };
+  const copies = new Set<THREE.Object3D>();
+  root.traverse((o) => {
+    const m = o as THREE.SkinnedMesh;
+    if (!m.isSkinnedMesh) return;
+    m.skeleton.bones = m.skeleton.bones.map((b) => {
+      const top = (b as FbxBone).ID === undefined ? b : outer(b as FbxBone);
+      if (top !== b) copies.add(b);
+      return top;
+    });
+  });
+  for (const c of copies) if (c.children.every((k) => copies.has(k))) c.removeFromParent();
+}
+
+/** A texture loader that converts formats the browser can't show to PNG first. */
+class WebTextureLoader extends THREE.Loader<THREE.Texture> {
+  override load(url: string, onLoad?: (t: THREE.Texture) => void, _p?: unknown, onError?: (e: unknown) => void): THREE.Texture {
+    const texture = new THREE.Texture();
+    const resolved = this.manager.resolveURL(url);
+    this.manager.itemStart(resolved);
+    void (async () => {
+      // A texture that wasn't selected comes back as the placeholder image.
+      if (resolved.startsWith('data:')) { texture.image = await new THREE.ImageLoader().loadAsync(resolved); texture.needsUpdate = true; onLoad?.(texture); return; }
+      const { webTexture } = await import('./textures');
+      const blob = await (await fetch(resolved)).blob();
+      const local = URL.createObjectURL(await webTexture(new File([blob], url.split(/[\\/]/).pop()!)));
+      try {
+        texture.image = await new THREE.ImageLoader().loadAsync(local);
+        texture.needsUpdate = true;
+      } finally {
+        URL.revokeObjectURL(local);
+      }
+      onLoad?.(texture);
+    })()
+      .catch((e) => { onError?.(e); this.manager.itemError(resolved); })
+      .finally(() => this.manager.itemEnd(resolved));
+    return texture;
+  }
+}
+
 export async function browserModel(files: File[], progress: ImportProgress = () => {}): Promise<File> {
   if (!files.length) throw new Error('Choose a model file.');
   if (files.some(f => f.size > MAX_IMPORT_BYTES) || files.reduce((n, f) => n + f.size, 0) > MAX_IMPORT_BYTES) throw new Error('The upload is larger than 200 MB. Choose a smaller export.');
@@ -84,6 +135,8 @@ export async function browserModel(files: File[], progress: ImportProgress = () 
     }
     const local = URL.createObjectURL(f); urls.push(local); return local;
   });
+  // Textures the browser can't show (TGA, PSD, DDS, KTX2) are turned into PNG as they load.
+  manager.addHandler(/\.(tga|psd|dds|ktx2)$/i, new WebTextureLoader(manager));
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     const work = async () => {
@@ -91,7 +144,7 @@ export async function browserModel(files: File[], progress: ImportProgress = () 
       let scene: THREE.Object3D;
       let animations: THREE.AnimationClip[] = [];
       if (ext === 'fbx') {
-        const group = new FBXLoader(manager).parse(bytes, ''); scene = group; animations = group.animations;
+        const group = new FBXLoader(manager).parse(bytes, ''); mergeFbxSubBones(group); scene = group; animations = group.animations;
         // In Blender and Unity a connected colour texture replaces the diffuse colour; FBX files often
         // keep a dark leftover colour that would otherwise multiply the texture.
         group.traverse(o => { const m = o as THREE.Mesh; if (!m.isMesh) return; for (const mat of (Array.isArray(m.material) ? m.material : [m.material]) as THREE.MeshPhongMaterial[]) if (mat.map && mat.color) mat.color.setRGB(1, 1, 1); });
