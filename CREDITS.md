@@ -233,7 +233,13 @@ Licenses checked by reading each project's LICENSE file; details in
   by teamneoneko (GPL-3 LICENSE file), Avatar-Toolkit (GPL-3), BoneForge (GPL-2.0+),
   clipdecode (LGPL-2.1), PhysBone-to-DynamicBone and ShinuToki's extractor (no license).
 - **ag-psd** (MIT, Copyright (c) 2016 Agamnentzar), https://github.com/Agamnentzar/ag-psd: reads
-  Photoshop textures in Unity packages (flattened); loaded only when a package has one.
+  Photoshop textures in Unity packages and the Materials step (flattened), and layered Photoshop
+  drawings for puppets on the server; loaded only when a file needs it.
+- **Clip Studio `.clip` format notes** from clipfile-rs (MIT, Copyright (c) 2026 Aodaruma,
+  https://github.com/Aodaruma/clipfile-rs, `docs/format-analysis.md`) and clip_to_psd (MIT,
+  Copyright (c) 2024, https://github.com/dobrokot/clip_to_psd): Everloom's `.clip` reader
+  (`apps/server/src/services/puppets/clipfile.ts`) was written from them; no code copied.
+  clipdecode (LGPL-2.1) was read for ideas only.
 - **fflate** (MIT, Copyright (c) 2026 Arjun Barrett): unzips extracted Unity folders in the browser.
 - **libarchive.js** 2.0.2 (MIT, Copyright (c) 2018 ნიკა / nika-begiashvili),
   https://github.com/nika-begiashvili/libarchivejs, with **libarchive** compiled to WebAssembly

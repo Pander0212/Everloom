@@ -24,9 +24,9 @@ export function registerPuppets(app: FastifyInstance, ctx: AppContext) {
     return startPuppetJob(ctx, owner(req), { image: req.body as Buffer, title: o.name, rating: o.rating, bounce: o.bounce });
   });
   app.get('/api/puppets/make/:job', async (req) => getPuppetJob(owner(req), (req.params as { job: string }).job));
-  /** A layering result (a zip with <name>/layers.json) as the body, with ?name=&rating=&bounce=. */
+  /** A layering result (a zip with <name>/layers.json), or a layered .clip or .psd drawing, as the body, with ?name=&rating=&bounce=. */
   app.post('/api/puppets/import', { bodyLimit: 400 * 1024 * 1024 }, async (req) => {
-    if (!Buffer.isBuffer(req.body)) throw new HttpError(400, 'Send the zip as the request body');
+    if (!Buffer.isBuffer(req.body)) throw new HttpError(400, 'Send the zip or drawing as the request body');
     const o = parse(opts, req.query ?? {});
     return importPuppetZip(ctx, owner(req), req.body as Buffer, { title: o.name, rating: o.rating, bounce: o.bounce });
   });

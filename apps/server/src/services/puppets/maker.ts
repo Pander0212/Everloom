@@ -13,7 +13,7 @@
  * A layering result made elsewhere (a See-through zip) can be imported the same way, without the
  * worker: `importPuppetZip`.
  */
-import { keyBackground, parsePuppet, type PuppetModel } from '@everloom/engine';
+import { keyBackground, parsePuppet, tagForLayerName, type PuppetModel } from '@everloom/engine';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -24,7 +24,8 @@ import type { ResolvedConnection } from '../../llm/providers.js';
 import { readCapped, safeFetch } from '../../util/fetch.js';
 import { readContentFile, writeContentFile } from '../../vault/vault.js';
 import { connectionForRole } from '../connections.js';
-import { puppetFromLayers } from './build.js';
+import { puppetFromLayers, type LayersIndex } from './build.js';
+import { clipToLayers, isClip } from './clipfile.js';
 
 export interface PuppetJob {
   id: string;
@@ -103,6 +104,19 @@ function resultName(read: (p: string) => Buffer | null, names: string[]): string
  * layering result (<name>/layers.json), which is mapped and rigged here. Returns what was added.
  */
 export async function importPuppetZip(ctx: AppContext, owner: string, zip: Buffer, o: { title: string; rating: 'all-ages' | '18+'; bounce?: number }): Promise<PuppetMeta[]> {
+  // A layered drawing (Clip Studio .clip or Photoshop .psd) is a layering result of its own.
+  const drawn = isClip(zip) ? await clipToLayers(zip) : isPsd(zip) ? await psdToLayers(zip) : null;
+  if (drawn) {
+    // The artist's layer names become the part tags the mapper knows (Face, 前髪, Hair/Back…).
+    const layers = drawn.index.layers.map((l) => ({ ...l, name: tagForLayerName(l.name) ?? l.name }));
+    if (!layers.some((l) => l.name === 'face')) {
+      throw new HttpError(400, `No face layer was found among ${layers.length} layers (${drawn.index.layers.slice(0, 6).map((l) => l.name).join(', ')}${layers.length > 6 ? '…' : ''}). Name the layers by part: Face, Front hair, Back hair, Eye white, Iris, Eyelash, Eyebrow, Mouth, Nose, Ears, Neck, Arms, Top, Bottom, Legs, Shoes (English or Japanese: 顔, 前髪, 後ろ髪, 白目, 瞳, まつげ, 眉, 口…).`);
+    }
+    const files = new Map([...drawn.files].map(([k, v]) => [`drawing/${k}`, v]));
+    files.set('drawing/layers.json', Buffer.from(JSON.stringify({ ...drawn.index, layers })));
+    const id = await store(ctx, owner, (p) => files.get(p) ?? null, 'drawing', { ...o, source: 'import' });
+    return [listPuppets(ctx, owner).find((p) => p.id === id)!];
+  }
   let files: Record<string, Uint8Array>;
   try { files = unzipSync(zip); } catch { throw new HttpError(400, 'That is not a zip file'); }
   const read = (p: string) => (files[p] ? Buffer.from(files[p]!) : null);
@@ -213,4 +227,38 @@ export function startPuppetJob(ctx: AppContext, owner: string, input: { image: B
     }
   })();
   return job;
+}
+
+const isPsd = (b: Buffer) => b.length > 26 && b.subarray(0, 4).toString('latin1') === '8BPS';
+
+/** A layered Photoshop file: its visible pixel layers (bottom first, groups joined with "/"). */
+async function psdToLayers(b: Buffer): Promise<{ index: LayersIndex; files: Map<string, Buffer> }> {
+  const { readPsd, initializeCanvas } = await import('ag-psd');
+  // No canvas on the server: plain pixel arrays are all the reader needs with useImageData.
+  initializeCanvas(() => { throw new Error('no canvas on the server'); }, (width, height) => ({ width, height, data: new Uint8ClampedArray(width * height * 4), colorSpace: 'srgb' }) as ImageData);
+  type L = { name?: string; hidden?: boolean; left?: number; top?: number; opacity?: number; imageData?: { width: number; height: number; data: Uint8ClampedArray }; children?: L[] };
+  let psd: L & { width: number; height: number };
+  try { psd = readPsd(b, { useImageData: true, skipThumbnail: true, skipCompositeImageData: true }) as never; } catch (e) { throw new HttpError(400, `This .psd file could not be read: ${(e as Error).message}`); }
+  if (!(psd.width > 0 && psd.height > 0 && psd.width <= 8192 && psd.height <= 8192)) throw new HttpError(400, 'The drawing is larger than 8192 pixels on a side.');
+  const files = new Map<string, Buffer>();
+  const layers: LayersIndex['layers'] = [];
+  const walk = async (list: L[], path: string, opacity: number) => {
+    for (const l of list) {
+      if (l.hidden) continue;
+      const name = (l.name ?? '').trim() || `Layer ${layers.length + 1}`;
+      const full = path ? `${path}/${name}` : name;
+      const k = opacity * (l.opacity ?? 1);
+      if (l.children) { await walk(l.children, full, k); continue; }
+      const img = l.imageData;
+      if (!img?.width || !img.height || layers.length >= 300) continue;
+      const data = Buffer.from(img.data.buffer, img.data.byteOffset, img.data.byteLength);
+      if (k < 1) for (let i = 3; i < data.length; i += 4) data[i] = Math.round(data[i]! * k);
+      const file = `layers/${String(layers.length).padStart(2, '0')}.png`;
+      files.set(file, await sharp(data, { raw: { width: img.width, height: img.height, channels: 4 } }).png().toBuffer());
+      layers.push({ name: full, file, left: l.left ?? 0, top: l.top ?? 0, width: img.width, height: img.height });
+    }
+  };
+  await walk(psd.children ?? [], '', 1);
+  if (!layers.length) throw new HttpError(400, 'The drawing has no visible layers with pixels on them.');
+  return { index: { width: psd.width, height: psd.height, layers }, files };
 }

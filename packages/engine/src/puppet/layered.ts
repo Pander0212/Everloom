@@ -51,6 +51,48 @@ export function baseTag(name: string): string {
   return ALIAS[n] ?? n;
 }
 
+/**
+ * A drawing's own layer name (Clip Studio, Photoshop; English or Japanese) → the tag the mapper
+ * uses, or null. The layer's name is tried first, then the folders it is in (nearest first), so
+ * "Hair/Front" and "前髪" both become `front hair`. Sides come from the picture, not the name.
+ */
+const NAMED: [RegExp, string][] = [
+  [/front ?hair|bangs|fringe|前髪/, 'front hair'],
+  [/back ?hair|hair ?back|後ろ?髪|後髪/, 'back hair'],
+  [/eye ?whites?|sclera|白目/, 'eyewhite'],
+  [/iris|irides|pupils?|瞳|黒目/, 'irides'],
+  [/lash|まつ毛|まつげ|睫毛/, 'eyelash'],
+  [/brow|眉/, 'eyebrow'],
+  [/necklace|scarf|tie|choker|collar|ネクタイ|首輪|マフラー/, 'neckwear'],
+  [/glasses|goggles|眼鏡|メガネ/, 'eyewear'],
+  [/earrings?|イヤリング|ピアス/, 'earwear'],
+  [/hat|cap|helmet|ribbon|headband|hair ?(pin|clip)|帽子|リボン|カチューシャ/, 'headwear'],
+  [/^(face|face ?skin|head ?skin|skin)$|顔|かお/, 'face'],
+  [/^ears?$|^ear[ _.-]?[lr]$|耳/, 'ears'],
+  [/mouth|lips?|口|唇/, 'mouth'],
+  [/nose|鼻/, 'nose'],
+  [/^neck|首/, 'neck'],
+  [/gloves?|arms?|hands?|sleeves?|腕|手|袖/, 'handwear'],
+  [/skirt|pants|shorts|trousers|jeans|bottom|スカート|ズボン|パンツ/, 'bottomwear'],
+  [/socks|stockings|tights|legs?|thighs?|靴下|タイツ|脚/, 'legwear'],
+  [/shoes?|boots?|feet|foot|sandals|靴|足/, 'footwear'],
+  [/^hair$|髪/, 'front hair'],
+  [/top|shirt|blouse|jacket|coat|dress|sweater|hoodie|uniform|vest|body|torso|chest|服|上着|シャツ|体|胴|胸/, 'topwear'],
+  [/tail|尻尾|しっぽ/, 'tail'],
+  [/wings?|羽|翼/, 'wings'],
+];
+const KNOWN = new Set(['face', 'front hair', 'back hair', 'eyewhite', 'irides', 'eyelash', 'eyebrow', 'ears', 'mouth', 'nose', 'neck', 'handwear', 'topwear', 'bottomwear', 'legwear', 'footwear', 'headwear', 'earwear', 'eyewear', 'neckwear', 'objects', 'tail', 'wings']);
+export function tagForLayerName(path: string): string | null {
+  const parts = path.split('/').map((p) => p.toLowerCase().replace(/[_]+/g, ' ').replace(/\s*(copy|コピー)\s*\d*$/, '').replace(/(?:\s*[-.]\s*|\s+)(?:l|r|left|right)$|\s*(?:左|右|\d+)$/, '').trim()).reverse();
+  // The layer, then the layer with its folder ("Hair/Back" → "back hair"), then the folders.
+  const tries = parts.length > 1 ? [parts[0]!, `${parts[0]} ${parts[1]}`, `${parts[1]} ${parts[0]}`, ...parts.slice(1)] : parts;
+  for (const n of tries) {
+    if (KNOWN.has(baseTag(n))) return baseTag(n);
+    for (const [re, tag] of NAMED) if (re.test(n)) return tag;
+  }
+  return null;
+}
+
 /** Bounding box of pixels with alpha above `thr`: [x0, y0, x1, y1) or null. */
 export function alphaBox(rgba: Uint8Array, W: number, H: number, thr = 24): Box | null {
   let x0 = W, y0 = H, x1 = -1, y1 = -1;

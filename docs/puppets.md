@@ -149,6 +149,10 @@ Settings › Puppets (with the Puppets feature on):
 - **Import a layering result**: a zip with `<name>/layers.json` and its layer PNGs (the worker writes
   them next to its PSD; `tools/puppets/export-layers.py` does it for older results), for layering
   done elsewhere. No GPU needed in the app.
+- **Import a layered drawing**: a Clip Studio Paint `.clip` or a Photoshop `.psd` drawn with one
+  layer per part. Layer and folder names (English or Japanese) become the part tags `mapLayers`
+  knows; no layering connection or GPU needed. Details and limits:
+  [3d-import/formats.md](3d-import/formats.md#2d-drawings-for-puppets-clip-studio-paint-clip-and-photoshop-psd).
 - Each puppet opens in the lab; 18+ puppets are marked and move their chest more (`bounce` 1.3).
 
 What still takes AI: the layering itself (See-through, a GPU model). Drawing a character from a

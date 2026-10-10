@@ -1,4 +1,4 @@
-/** Settings › Puppets: make an animated puppet from a picture (through the layering connection), import a layering result, and the owner's puppets. */
+/** Settings › Puppets: make an animated puppet from a picture (through the layering connection), import a layered drawing (.clip, .psd) or a layering result, and the owner's puppets. */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ExternalLink, Layers, Trash2, Upload } from 'lucide-react';
 import { useEffect, useState } from 'react';
@@ -73,8 +73,8 @@ export default function PuppetsSection() {
         </div>
       </Section>
 
-      <Section title="Import puppets" description="A zip of finished puppets (each a puppet.json with its pictures; one zip can hold many), or a layering result from tools/see-through-worker (it holds <name>/layers.json), for layering done somewhere else.">
-        <FileButton variant="secondary" icon={Layers} accept=".zip,application/zip" onFiles={importZip} disabled={importing}>{importing ? 'Importing…' : 'Import a zip'}</FileButton>
+      <Section title="Import puppets" description="A layered drawing from Clip Studio Paint (.clip) or Photoshop (.psd), with the character facing you and one layer per part named like Face, Front hair, Back hair, Eye white, Iris, Eyelash, Eyebrow, Mouth, Arms, Top, Bottom, Legs (English or Japanese: 顔, 前髪, 後ろ髪…; folders count, so Hair › Back works). Or a zip of finished puppets (each a puppet.json with its pictures; one zip can hold many), or a layering result from tools/see-through-worker (it holds <name>/layers.json).">
+        <FileButton variant="secondary" icon={Layers} accept=".clip,.psd,.zip,application/zip" onFiles={importZip} disabled={importing}>{importing ? 'Importing…' : 'Import a drawing or zip'}</FileButton>
       </Section>
 
       <Section title="Your puppets">

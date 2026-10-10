@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildTemplateRig, checkPuppet, keyBackground, mapLayers, parsePuppet, rectMesh, type LayerImage } from '../src/index.js';
+import { buildTemplateRig, checkPuppet, keyBackground, mapLayers, parsePuppet, rectMesh, tagForLayerName, type LayerImage } from '../src/index.js';
 
 const W = 200, H = 400;
 /** A full-canvas layer with filled ellipses of one colour. */
@@ -90,5 +90,17 @@ describe('background removal', () => {
     const t = make(false);
     for (let i = 3; i < t.length; i += 8) t[i] = 0;
     expect(keyBackground(t, W, H)).toBe(t);
+  });
+});
+
+describe('layer names from drawing programs', () => {
+  it('maps English and Japanese part names, folders and copies to the mapper’s tags', () => {
+    const cases: Record<string, string | null> = {
+      'Hair/Front': 'front hair', 'Hair/Back': 'back hair', '前髪': 'front hair', '後ろ髪': 'back hair', Hair: 'front hair',
+      Face: 'face', '顔': 'face', 'eye white L': 'eyewhite', Iris_R: 'irides', 'まつげ 左': 'eyelash', '眉': 'eyebrow',
+      'Body/Shirt Copy 2': 'topwear', Skirt: 'bottomwear', necklace: 'neckwear', Neck: 'neck', 'arm-l': 'handwear',
+      Shoes: 'footwear', Glasses: 'eyewear', 'Folder/Mouth': 'mouth', 'Layer 1': null, topwear: 'topwear',
+    };
+    for (const [name, tag] of Object.entries(cases)) expect(tagForLayerName(name), name).toBe(tag);
   });
 });
