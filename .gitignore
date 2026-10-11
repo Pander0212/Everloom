@@ -1,6 +1,7 @@
 node_modules/
 dist/
 data/
+!packages/engine/src/rig/data/
 *.log
 .env
 .env.*
