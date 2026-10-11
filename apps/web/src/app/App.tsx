@@ -1,12 +1,16 @@
+import { TourHost } from '@/features/guide/tour';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { GlobalScripts } from '@/scripting/GlobalScripts';
-import { lazy, Suspense, useEffect, useState } from 'react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router';
 import { api, get, onAuthRequired, setCsrf } from '@/lib/api';
 import { CustomCss } from '@/lib/customCss';
 import { startEvents, stopEvents } from '@/lib/events';
 import { useSettings } from '@/lib/queries';
-import { applyMotion, applyPalette, applyTextSize, applyTheme, watchSystemTheme } from '@/lib/theme';
+import { applyLooks, applyMotion, applyPalette, applyReading, applyTextSize, applyTheme, watchSystemTheme } from '@/lib/theme';
+import { useDeviceLook } from '@/themes/device';
+import { installScaling } from '@/lib/scale';
+import { useSettingsPatch } from '@/features/settings/common';
 import { Button, ConfirmHost, PasswordHost, Spinner, Toaster } from '@/ui';
 import { LoginPage, SetupPage, UnlockPage } from './AuthPages';
 import { onVaultLocked, setVaultOn } from '@/lib/vaultMode';
@@ -20,6 +24,7 @@ const StudioPage = lazy(() => import('@/features/studio/StudioPage'));
 const BrowsePage = lazy(() => import('@/features/sources/BrowsePage'));
 const BridgeReceive = lazy(() => import('@/features/sources/BridgeReceive'));
 const BridgeShare = lazy(() => import('@/features/sources/BridgeShare'));
+const ScenariosPage = lazy(() => import('@/features/scenarios/ScenariosPage'));
 const PersonasPage = lazy(() => import('@/features/personas/PersonasPage'));
 const LorePage = lazy(() => import('@/features/lore/LorePage'));
 const LoreEditor = lazy(() => import('@/features/lore/LoreEditor'));
@@ -28,8 +33,10 @@ const StoryView = lazy(() => import('@/features/story/StoryView'));
 const DesignPage = lazy(() => import('@/features/design/DesignPage'));
 const ExtensionScreen = lazy(() => import('@/scripting/ExtensionScreen'));
 const Lab3D = lazy(() => import('@/features/avatar3d/Lab3D'));
+const PuppetLab = lazy(() => import('@/features/puppets/PuppetLab'));
 const AvatarsPage = lazy(() => import('@/features/avatars/AvatarsPage'));
 const AvatarEditor = lazy(() => import('@/features/avatar3d/AvatarEditor'));
+const CharacterCreator = lazy(() => import('@/features/avatar3d/creator/CreatorPage'));
 const PartsMaker = lazy(() => import('@/features/avatar3d/Maker').then((m) => ({ default: m.MakerRoute })));
 
 export function PageFallback() {
@@ -43,26 +50,45 @@ export function PageFallback() {
 
 function AuthedApp() {
   const settings = useSettings();
+  const device = useDeviceLook();
+  const { update } = useSettingsPatch();
+  const textRef = useRef(settings.data?.textSize ?? 'medium');
+  textRef.current = settings.data?.textSize ?? 'medium';
+  useEffect(
+    () =>
+      installScaling(
+        () => textRef.current,
+        (s) => {
+          applyTextSize(s);
+          void update({ textSize: s });
+        },
+      ),
+    [], // eslint-disable-line react-hooks/exhaustive-deps
+  );
   useEffect(() => {
     startEvents();
     return () => stopEvents();
   }, []);
   useEffect(() => {
     if (!settings.data) return;
+    applyLooks({ account: settings.data.look?.id ?? 'everloom', device: device.id, worlds: device.worlds });
     applyTheme(settings.data.theme);
     applyMotion(settings.data.motion);
     applyTextSize(settings.data.textSize);
     applyPalette(settings.data.palette);
+    applyReading(settings.data.look?.reading);
     return watchSystemTheme(() => settings.data!.theme);
-  }, [settings.data]);
+  }, [settings.data, device.id, device.worlds]);
   return (
     <Suspense fallback={<PageFallback />}>
       <CustomCss />
       <GlobalScripts />
+      <TourHost />
       <Routes>
         <Route path="/chat/:id" element={<StoryView />} />
         <Route path="/design" element={<DesignPage />} />
         <Route path="/lab/3d" element={<Lab3D />} />
+        <Route path="/lab/puppets" element={<PuppetLab />} />
         <Route element={<Shell />}>
           <Route index element={<ChatsPage />} />
           <Route path="characters" element={<CharactersPage />} />
@@ -73,8 +99,11 @@ function AuthedApp() {
           <Route path="characters/avatars" element={<AvatarsPage />} />
           <Route path="characters/avatars/:id" element={<AvatarEditor />} />
           <Route path="characters/maker" element={<PartsMaker />} />
+          <Route path="characters/creator" element={<CharacterCreator />} />
+          <Route path="characters/creator/:id" element={<CharacterCreator />} />
           <Route path="characters/:id" element={<CharacterEditor />} />
           <Route path="personas" element={<PersonasPage />} />
+          <Route path="scenarios" element={<ScenariosPage />} />
           <Route path="lore" element={<LorePage />} />
           <Route path="lore/:id" element={<LoreEditor />} />
           <Route path="settings/*" element={<SettingsPage />} />

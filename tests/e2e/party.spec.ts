@@ -2,8 +2,8 @@ import { api, expect, mockControl, test } from './fixtures';
 import type { Page } from '@playwright/test';
 
 async function openTool(page: Page, name: string) {
-  await page.getByRole('button', { name: 'Actions and tools' }).click();
-  await page.getByLabel('Search tools and actions').fill(name);
+  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await page.getByLabel('Search tools, settings and the story').fill(name);
   await page.getByRole('button', { name, exact: true }).click();
 }
 
@@ -82,8 +82,8 @@ test.describe('party and battle', () => {
 
     // Battle: an enemy weak to fire. Intents show; swap Wren in; break it with Ember; win.
     await ops(page, chat, [{ type: 'battle.start', enemies: [{ name: 'Bramble Wolf', level: 1, hp: 90, atk: 1, spd: 1, weaknesses: ['fire'] }] }]);
-    await page.getByRole('button', { name: 'Actions and tools' }).click();
-    await page.getByLabel('Search tools and actions').fill('Battle');
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByLabel('Search tools, settings and the story').fill('Battle');
     await page.getByRole('button', { name: /^Battle/ }).first().click();
     await expect(page.getByText(/^Next: (Attack|Heavy strike) →/)).toBeVisible();
     await page.getByRole('button', { name: 'Swap in Wren' }).click();

@@ -10,7 +10,7 @@ export const DEFAULT_SETTINGS: Settings = {
   genreTheme: true,
   audio: { music: false, ambient: false, musicVolume: 0.5, ambientVolume: 0.35, crossfadeMs: 2500, playlists: [], ambientFiles: {} },
   stage: { bubbles: false, live2d: false },
-  roles: { main: null, utility: null, background: null, embeddings: null, tts: null, image: null, model3d: null },
+  roles: { main: null, utility: null, background: null, embeddings: null, tts: null, image: null, model3d: null, layering: null },
   activePresetId: null,
   defaultPersonaId: null,
   tracker: { mode: 'separate', injectBudget: 600, injectState: true },
@@ -26,12 +26,14 @@ export const DEFAULT_SETTINGS: Settings = {
   art: { enabled: true },
   css: { snippets: [] },
   studio: { presets: [], preset: 'balanced', connection: null },
-  library: { view: 'grid', presets: [], defaultPreset: null, versionRetention: 30, debug: false, prevNext: true, cardInfo: true, nsfw: false },
+  library: { view: 'grid', presets: [], defaultPreset: null, versionRetention: 30, debug: false, prevNext: true, cardInfo: true, blurAdult: false },
   world: { profile: 'balanced', recallLimit: 6, sceneBudget: 1100, ...WORLD_PROFILES.balanced },
   // Existing installs keep everything on; first-run setup offers the presets.
   features: defaultFeatureSettings(),
   privacy: { shield: defaultShieldSettings() },
   scripts: defaultScriptSettings(),
+  ui: { pins: null, quick: null, tours: [], advanced: false, experimental: false },
+  look: { id: 'everloom', scenery: 'animated', reading: { leading: 1.6, width: 760, paragraph: 0.75, storyFont: null, uiFont: null } },
 };
 
 function merge<T>(base: T, patch: any): T {

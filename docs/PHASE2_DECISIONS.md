@@ -889,3 +889,427 @@ demand for download.
 - **Tested:** a gated server test (`EVERLOOM_BLENDER` and `EVERLOOM_MPFB_ZIPS`) installs from the
   real zips, makes a clothed character and imports it with every bone mapped; the installer's
   checksum refusal and zip-path checks run in every test run.
+
+## Browser 3D repair (2026-10-07, verification in progress)
+
+The owner's correction matters: their GLB imported, and their phone's file explorer would not let
+them select the VRM. Extension-only `accept` filters are inconsistent across mobile file providers.
+Model pickers now let the owner select files and validate them in the application. The owner's actual
+VRoid VRM 0 export was independently imported and rendered locally; private evidence is excluded
+from Git. Their `.vroid` is a project ZIP containing binary project data, metadata and a thumbnail,
+not a reliable directory of clothing textures. The UI explains exporting VRM or PNG from VRoid Studio.
+
+The real-file matrix also found an import-blocking optimization design: a valid VRM stayed on the
+processing screen while KTX2 encoding ran, and the same queue delayed later models. Inspection now
+publishes a usable original immediately. Optional encoders run separately, with a bounded backlog;
+failure keeps the original. Worker exits without a result are reported. Prepared-model decoder
+failures fall back to the original. File-served Draco and Basis workers have their own CSP;
+the page keeps its strict policy. These changes need the remaining cross-browser matrix checks.
+
+Numbered Cesium/Blender sample joints needed a hierarchy-based mapper; left-arm suffixes run in
+reverse in one fixture. Both actual fixtures now map all required bones in regression tests. The
+editor also accidentally filtered out authored emotes such as Wave; it now offers the full list.
+
+### Native data and licenses
+
+The native creator reads the original MakeHuman base OBJ, sparse targets, rig JSON, weights,
+MHClO bindings and materials using independently written TypeScript. No GPL Blender add-on code
+is included. MPFB's mesh data and the official system assets explicitly grant CC0 1.0; the program
+code has a separate GPL license. The core pack is reproducibly prepared from pinned, checked data
+and excludes explicit anatomy targets before distribution. Merely filtering an upstream ZIP after
+download would still download adult assets with adult mode off. Assets enter the normal media store
+and encrypted settings manifest. Owner packs are validated, tagged and catalogued there too.
+
+| Candidate | Finding and decision |
+| --- | --- |
+| MakeHuman / MPFB | CC0 data, full macro and local shape targets, clothes bound to the original topology. Added native readers and proxy fitting; Blender remains optional. |
+| Anny | Apache 2.0 program code, CC0 MakeHuman data and Mika Suominen's CC0 Face Units 01. Python/PyTorch is unsuitable as a browser dependency. Added 16 licensed facial actions directly to the shared MakeHuman topology and proxy bindings; no Anny program code. Its optional noncommercial SMPL-X assets are excluded. |
+| makehuman-js | Historical AGPL implementation, tied to older rendering code. Examined as a format reference; no code reused. |
+| MB-Lab | AGPL project with a distinct base/morph pipeline. No code or unverified asset license was copied. It is not currently an installed base. |
+| CharMorph | GPL tools with separately licensed bases, including CC-BY meshes. No Blender dependency was introduced; distinct topology/clothing compatibility still needs evaluation before adding a base. |
+| VRoid samples | Some official sample terms prohibit use in character-creator services. Not bundled as defaults. Owner exports and separately licensed VRM fixtures are used for testing. |
+
+The first native render had no facial morphs. The licensed Face Units addition now exports 16
+actions and maps blinks, emotions and visemes through Everloom's existing expression system.
+Physical skin/cloth/eye/hair materials, ACES tone mapping, image-based RoomEnvironment lighting,
+and texture limits improve the preview. The inspected bob still looks helmet-like; modern visual
+quality is not yet accepted. No NanoGPT or ElectronHub key was available, and no image calls or
+budget spending were made.
+
+### Baseline and current verification limits
+
+The untouched archive, with its own engine dependency, finished the original 449-case Chromium
+matrix: 398 passed, 45 failed, six skipped. See `3d-fix-evidence/baseline.md`. The first overlapping
+run is not treated as a clean baseline. The initial unit run had 513 passes, ten failures and five
+skips, including Windows path/cleanup and hook-timeout failures. Portable outside-root fixtures and
+secondary database cleanup address those test-environment issues; a full post-change run remains.
+
+Native creation/rendering was verified in Chromium and Firefox before facial targets were added.
+The newer facial model saved and rendered in Chromium; Firefox's latest editor wait failed and
+remains under investigation. Three licensed GLBs passed picker/drop/editor/stage-emote flows on
+phone Chromium. Nine focused data/server tests passed. Donor parts, generic fitting, complete rig
+swapping, body extremes, native wardrobe rollback, modern portraits and the remaining acceptance
+matrix must still be verified. This section records progress, not a completed checklist.
+## Browser 3D repair: additional verification checkpoint (2026-10-07)
+
+The owner's final clarification was that the phone picker would not select `.vrm`, rather than
+that the uploaded GLB failed. Extension-only accept filters were removed; format validation
+still happens after selection. The owner's VRoid export was reproduced locally without
+redistributing it. A `.vroid` project is still explained as a project requiring a VRM/texture export.
+
+Further confirmed defects:
+
+- Zod's optional schema JIT attempted code generation under strict CSP in Firefox. Browser
+  startup now configures `jitless`; the CSP remains strict.
+- mmd-parser ignored PMX's UTF-8 flag. The vendored MIT parser now supports UTF-8 and UTF-16.
+  A real CC0 RobotExpressive conversion exercises PMX 2.0, 7,214 vertices and 74 bones.
+- Rigid game models can use animated transform ancestors outside their skin-joint lists.
+  Inspection and loading now include those ancestors; explicit limb names beat independent
+  foot-control ancestry. Multi-material mesh groups are excluded as joint candidates.
+- Hip motion lost the armature's scale because its conversion used only a quaternion.
+  Parent-to-root matrices now convert translation in both directions. This fixes metre-scale
+  displacement from centimetre armatures. Existing retargeting/conversion tests and real robot
+  wave checks pass; screenshots were inspected after the correction.
+- Orbit controls prevented editor framing buttons from moving the camera. Framing now snaps
+  the directed camera and the orbit target together. Stage framing also accounts for head
+  geometry above the head joint and unusually wide heads.
+- Optional garment optimization could still prevent outfit upload. It now retains the validated
+  original when the encoder fails or its queue is full.
+
+The focused VRM 0.x/PMX/FBX phone matrix passed 11 tests in Chromium and Firefox, through picker
+or drop as applicable, editor and stage emote. A later robot retargeting checkpoint passed seven
+browser checks. Earlier ready-state screenshots showed broken animation; those were explicitly
+rejected as visual acceptance evidence, and the retargeter was corrected. Camera and additional
+editor work still require the final acceptance run.
+
+The full unit checkpoint passed **93 files, 542 tests, 5 skipped**, versus the original baseline
+with 10 failures. This checkpoint precedes the newest native material/visual work; it is not a
+claim that the complete 18-item acceptance checklist has passed.
+
+Both installed native data packs are bundled sanitized CC0 derivatives. The body pack is
+38,637,876 bytes; the system pack is 92,380,784 bytes, SHA-256
+`2da052728c2900d2170862cebad797b4daa2d8b9334d7db66275bf45b00ac583`. System skins keep head UV
+detail over a plain body texture, with neutral normal maps elsewhere; explicit targets are
+excluded. The actual sanitized skin was visually inspected. Installation does not fetch the
+upstream full-body skin archive while adult mode is off. Shipped textures are limited to 1024px.
+
+Native rendering experiments add independently authored tiled micro-normal/roughness maps,
+subtle wrapped warm diffuse lighting, cloth sheen, corneal clearcoat and hair anisotropy. These
+are browser approximations, not offline skin scattering. Research references:
+[three.js physical materials](https://threejs.org/docs/pages/MeshPhysicalMaterial.html) and
+[its scattering example](https://threejs.org/examples/webgl_materials_subsurface_scattering.html).
+No example shader code was copied. Long native hair gains a short weighted secondary chain;
+copied donor parts carry secondary bones and spring settings. Visual quality is still under
+review with three native profiles, close-ups, smiles and slider extremes.
+
+The unified imported/native editor now has undo/redo, delayed autosave and reusable presets.
+Character and rig/physics presets use the normal authenticated export/import flow, including
+password-protected `.evlt` files. Focused tests cover encrypted round trips and adult/family
+rejection. Browser garment fitting and material-level donor rebinding have focused pose and
+source-preservation tests; real-browser wardrobe and clipping checks remain required.
+
+## Custom bases, fitting, physics, skin layers, paired animations (2026-10-08)
+
+- **A base is any rigged GLB, not a new avatar kind.** The base model check reads facts from the
+  loaded model (bones, skinned meshes, morphs, UVs, textures, chest bones) and the engine turns them
+  into plain-word lines and feature switches (`base-report.ts`), so the check is testable without a
+  browser. A base is identified by a fingerprint of its morph names, bone names and vertex count;
+  slider mappings and presets are keyed by it, which is how presets carry across characters made
+  from the same file.
+- **Sliders come from names, with the owner's edits kept.** Classification is by name patterns
+  (body kinds, face/expression names, side markers); the last direction word wins (`fat-decr` is a
+  decrease). Re-reading a file merges new morphs into the saved mapping rather than replacing it.
+  Explicitly named shapes are flagged adult and filtered both in the UI and on the server.
+- **Generated adjusters stay** for regions without morphs, but only where the file has no morph of
+  that kind, and labelled as generated.
+- **Fitting runs in the browser, in a worker, not in Blender.** The server's Blender fitting needs
+  Blender installed and a round trip; the browser has the body as loaded (morphs, sliders, the real
+  bind pose) and can show the result immediately. The worker gets plain arrays (body surface in the
+  rest pose, garment vertices, bone list) and returns weights, morph deltas, swing chains and
+  covered triangles, so it is unit-tested in Node.
+- **Weight transfer is closest-point with a normal check, not a heat or voxel method.** A BVH
+  closest point that only accepts body surface facing the same way (within about 70°, 6 cm; then a
+  pass three times as far for vertices with no match) fixes the classic failure (a sleeve's inside picking the chest);
+  unmatched vertices get geodesic fill from matched cloth, then edge smoothing and a 4-bone limit.
+  Voxel/heat methods were rejected as slower in a phone's worker and worse on thin, open garments.
+- **Quantized skinned positions are read through skinning.** Optimized files store skinned
+  positions quantized with the dequantization folded into the inverse bind matrices; every place
+  that needs the body in metres (fitting, colliders, generated adjusters) now uses the skinning path
+  (`restMatrices`), which also fixed the generated adjusters on optimized models.
+- **Skirts and long hair swing on generated bone chains, not per-vertex cloth.** Chains cost a few
+  dozen solver points, collide with the same capsules as hair, survive saving as a GLB and work in
+  every runtime; per-vertex cloth would cost thousands of points and a custom skinning path. The
+  trade-off (no draping or folding) is stated in the docs. Leg bones are never chain anchors (a
+  skirt pinned to one thigh splits), so chains hang from the hips.
+- **Hidden skin is computed when a garment is worn, from the garment itself**, not from regions:
+  a few rays cast outward from each body triangle (and inward, for cups and tight parts) that hit
+  the garment within a short distance mark it covered, and it is hidden while the garment is on. Hair hides nothing; swinging parts hide only what their pinned part covers.
+- **One spring solver for everything.** three-vrm's spring manager was replaced by our own
+  fixed-step Verlet solver following VRMC_springBone semantics (stiffness, drag, gravity, hit radius),
+  so VRM springs, chains from files, generated chains and the chest share colliders, budgets and the
+  off-screen pause. Collider resolution is iterated (4 passes) because a single pass let chains
+  re-enter the body.
+- **Skin layers are baked into the skin texture**, not drawn as overlay meshes: they cost nothing
+  per frame and deform with everything by construction. Decals store the skin's frame at the tap
+  point (cm → UV), so they aren't skewed by the UV layout. Projected decal geometry for seams is
+  not built; a tattoo across a UV seam is cut at the seam.
+- **Paired animations are role clips plus placement and contacts**, played on one shared clock by
+  the stage. Contacts use two-bone IK, meeting points constrained to what both arms can reach, a
+  pole for hugs, and a step-closer rule (never closer than a chest's depth) for short arms. There is
+  no inter-character mesh collision; spacing and contacts keep obvious overlaps away. Built-in clips
+  are keyframed for Everloom (CC0); no third-party paired clips were bundled.
+- **Contact a chain is made with is kept, not pushed out** (follow-up, 2026-10-08). Measuring the
+  dressed base from behind showed long hair flung out like a cape: the generated hair chains lie on
+  the shoulders and back, their first points started inside the spine and shoulder capsules, and the
+  solver pushed them fully out, turning the top bones 30–54° and everything below with them. Each
+  joint now records, per collider, how deep it sits at rest (measured with the body in its rest pose
+  when the chain is added) and is only kept from going deeper. The alternative, shrinking the
+  colliders, would have let every other chain into the body.
+- **Skin under the mostly pinned part of a skirt hides.** The buttocks and the tops of the thighs are
+  skinned to the legs while the skirt's upper part follows the hips, so dancing pushed them through
+  the back of the skirt. A garment triangle now counts as staying on the body (and hides the skin it
+  covers) while its corners are at most 60% on swing chains (was 25%); the hem still hides nothing.
+  A wider collision margin for skirt chains was tried and dropped: it made no visible difference,
+  since the chains were already outside the legs and it's the cloth between them that cuts corners.
+- **Hair is the outermost layer.** It draws over tops where they meet. Garments still don't collide
+  with each other: hair fitted on the bare body lets a shirt's back through in lively poses.
+- **No chest helper bones.** Generating breast bones for a base without them means splitting the
+  chest's skin weights between new bones, a fitting problem of its own; the base check now says a
+  base without breast bones has no chest motion instead of promising helper bones.
+- **A chat counts as starting until its scripts are known.** The earlier fix (a message sent as a
+  chat opens waits for scripts that are starting) only saw frames that already existed; while the
+  chat's script list or the lazy script layer was still loading nothing was "starting", and the
+  turn kept the empty list it was typed with, so `entryActivated` never fired. The chat now marks
+  itself starting until the list has loaded and the layer has attached its frames, and the turn
+  reads the list through a ref when it runs. Still bounded by the same few-second wait.
+- **Measuring is a separate spec.** `tests/e2e/measure-3d.spec.ts` (skipped unless `MEASURE_3D=1`)
+  times the 20,000-vertex fit with the preview hidden (and the same input in Node), samples frame
+  rates for one to three dressed characters per quality, and checks the skirt against the legs and
+  the chest on and off. Production builds expose the stage's stats when `everloom:debug3d` is set
+  in the browser, so the numbers come from the build that ships.
+- **Paid test models stay out of the repository.** The owner's paid base and underwear were used for
+  testing from a git-ignored `.private/` folder; screenshots of them are in a git-ignored
+  `docs/3d-base-evidence/private/`, taken dressed. Committed evidence uses Everloom-made CC0 bodies
+  and garments (`tools/avatars/build-test-base.ts`, `build-test-garments.ts`).
+
+## Everloom Puppets: format, tools and pipeline (2026-10-08, first run)
+
+**Research (sources cloned and read; licences checked in each repository):**
+
+| Project | Licence | What it is | Use |
+|---|---|---|---|
+| Inochi2D SDK (D), Inochi Creator | BSD-2-Clause | The open Live2D alternative and its editor; `.inp`/`.inx` (`TRNSRTS`, big-endian JSON payload, `TEX_SECT`, `EXT_SECT`) | Interchange only: export and import written from the 0.8.7 serializer |
+| Inox2D (Rust) | BSD-2-Clause | Native Rust runtime with a WebGL example | Prototype by its own account ("not recommended for production"); no mesh groups yet; would need a WASM build and Rust toolchain in our build |
+| inochi2d-ts / inochi-chat fork | unstated | A Three.js port | Unmaintained, untested features, no licence named: not used |
+| See-through (shitagaki-lab) | Apache-2.0 code; weights CreativeML OpenRAIL++-M (LayerDiff 3D, Marigold), Apache-2.0 (SAM body parsing) | One anime image → up to 23 inpainted layers with draw order and depth (SIGGRAPH 2026) | The layering step of the pipeline, on a rented GPU (`tools/see-through-worker`) |
+| Stretchy Studio | MIT | Browser editor: imports See-through PSDs, auto-rigs with bones, contour + Delaunay meshes, Spine export | Ideas taken: the See-through tag → role mapping (`psdOrganizer.js`), contour meshes (a possible upgrade of our grid meshes). Its `.stretch` project is an editor format, not a runtime format |
+| Anime2.5DRig | MIT | Browser 2.5D VTuber rig from See-through-named PSDs | Confirms the layer-naming route; not used directly |
+| seethrough-live2d-pipeline (Kota-Ohno) | MIT | Post-processing for See-through output | Idea taken: keep generated pixels only where things were hidden, re-project the original's pixels where visible, refine edges from the original's matte |
+| easy-live2d | MIT | Pixi.js 8 wrapper for real Live2D models | Not adopted yet: the current Live2D sprite works and the swap is outside this run; noted for the Live2D upgrade |
+| Textoon | Apache-2.0 code; template under Live2D's material licence | Text → Live2D by filling a template | Confirms the template approach; nothing used (its template is not usable) |
+| flat2rig | MIT | CPU bone splitter | Too basic; nothing used |
+| Bunraku (arXiv 2607.27348) | paper CC BY-NC-SA; repo has only a readme | Single image → Live2D layers, meshes, keyposes | No code or weights released; its ideas (fixed taxonomy, alpha meshes, per-parameter keypose offsets) match our design |
+
+**Format: (B), our own runtime and format, with Inochi2D import and export.** No browser runtime for
+Inochi2D is maintained and phone-ready: the official one is D compiled to WASM with a patched
+runtime, Inox2D calls itself a prototype, and the TypeScript port is abandoned. Stretchy Studio's
+format belongs to its editor. Our runtime is small (a keyform evaluator, warp and rotation
+deformers, pendulums, one WebGL 2 program with stencil masks and batching), so the cost of owning it
+is low and it fits Everloom's rules (lazy-loaded behind the feature switch, no dependency).
+Inochi2D interchange: parts, meshes, draw order, masks, blend modes, and every parameter as a
+one-axis Inochi2D parameter with deform and opacity bindings baked from our rig (Inochi2D has no
+warp deformers); the whole Everloom puppet travels in the `everloom.puppet` extension section, so a
+round trip is lossless and edits made in Inochi Creator come back as a correction layer. Not
+exchanged: physics, two-axis tables (cut along each axis), animations. The round trip is unit
+tested; opening the file in Inochi Creator itself was not possible here (no desktop), and is the
+first thing to check by hand.
+
+**Pipeline: master image → See-through layers → schema → automatic rig, with edits only for
+expressions.** The first attempt (before See-through was in scope) made every layer from an edit
+of the master: bald, armless, underwear, eyes blank, and so on, cut by difference. It works and the
+edits line up (they stay in `tools/puppets/cut.py`, which also measures the template's landmarks),
+but it costs about 20 images per template and gets hidden areas only as far as an edit can reveal
+them. See-through fills hidden areas in one pass, so it now makes the base layers and the edit
+route is kept for what one picture can't hold (eyes shut and smiling, mouth shapes, blush, arm
+poses). Lessons recorded in docs/art/PROMPTING.md: Z Image Turbo makes the cleanest masters (a
+truly flat key, the framing asked for, 1024x1536); an identity edit of the master gives a working
+master in the editor's own colours (background difference ~14 → ~3 levels); differences must
+tolerate one- or two-pixel line jitter or every outline counts as a change.
+
+**The template rig is generated, not hand-placed:** `buildTemplateRig` (engine) takes the
+template's landmarks and the parts and makes the deformer tree and every keyform. Head turns project
+each layer onto a sphere with its own depth (face 0, fringe +0.42, side hair +0.22, back hair −0.5),
+so parallax comes from geometry, not hand-tuned offsets; eyes open and close by squashing the open
+drawings toward the lash line and handing over to the half and shut drawings; mouths are a
+crossfade table over MouthOpen × MouthForm; breathing lifts the shoulders and widens the chest;
+body shape is banded grid keyforms on the body warp, which clothing shares. The placeholder puppet
+goes through the same function, which is how the rig was built and tested before the art existed.
+
+**GPU sessions:** RunPod first (community 24 GB cards from $0.16/h, then secure up to $0.60/h), one
+batch per session, a time cap that keeps $0.50 on the account in the worst case, termination in a
+`finally` step plus the pod's own idle and time watchdog, and a check of the account's pod and
+volume lists at the start and end. No network volume (the weights download in a few minutes,
+cheaper than storage). SaladCloud wasn't used: no key was given. The first attempt found no free
+community card with the first request size and ended without starting anything ($0.00, in the GPU
+ledger); the second attempt needs the owner's approval to run in this environment.
+
+## Adult content without a setting (owner's decision, October 2026)
+
+The owner removed the app-wide "Adult content (18+)" switch (it was on Settings › Features and
+hard to find, and adult characters stayed hidden): the people using Everloom are responsible for
+themselves, so adult characters, 3D avatars, puppets, packs, paired animations and bridge imports
+are shown and allowed without enabling anything.
+
+**Update (3D import and editor work):** the last 18+ switch (online character sources) and the
+adult rating with its confirmation on 3D avatars are gone too. Online search has an "Include 18+"
+filter, on by default; an avatar is rated adult automatically when it carries explicit content.
+What stays, everywhere and on the server only: the **minor guard**
+(`apps/server/src/services/minor-guard.ts`, tested in `apps/server/test/minor-guard.test.ts`).
+Explicit content (18+ skin layers, explicit sliders, anatomy settings, 18+ MakeHuman assets and
+textures) is refused for a character whose recorded age is under 18, who is described as a child,
+whose body is in the child range, or who is linked to a character card that says so. Adults never
+see it. The one remaining privacy option is Settings › Privacy › "Blur 18+ pictures in lists",
+off by default. Migration: saved settings keep loading (the old `library.nsfw` and
+`adultConfirmed` are kept and ignored), saved avatars keep their rating, nothing becomes hidden.
+
+## Design and UX: simpler tools (October 2026)
+
+The owner: the tools and actions were "way too overfilled". Audit, maps and numbers in
+[docs/ux/](ux/audit.md).
+
+- **One registry, one palette.** Every tool, sheet, action, page and settings page is an entry in
+  `apps/web/src/lib/registry.ts` with a group, a one-line description, a "What is this?" and the
+  feature switches it needs. The palette (the Tools button, Ctrl/⌘K, desktop Search, the phone's
+  settings search) reads it; so do the help buttons, the settings index and a reachability test
+  (`apps/web/test/reachability.test.ts`) that reads the tool, sheet, route and settings lists from
+  the code that renders them. Adding a tool without an entry fails the test. The old command menu
+  and the header's ⋯ menu are gone; their entries are in the palette.
+- **Grouped by intent**: This scene, My character, The world, Story tools, Create, Settings,
+  Advanced. Pins (up to eight, defaults per mode) keep the daily tools one tap away with no scroll.
+  Searching also finds settings pages, feature switches (switchable in the row), the story's
+  places, items and people, and characters.
+- **Message actions**: Edit, Copy, Delete under a message (on tap or hover; the newest message
+  always shows New version, Edit and More), the rest in a More menu with labelled groups. Read
+  aloud and Re-read only show when Voice or the game is on (they used to show and do nothing).
+- **Renames**, following the owner's examples: Tracker pass → Auto-tracking, Scene block → What
+  the AI sees, Prompt inspector → Everything sent to the AI, World inspector → Story state (with
+  Story changes and Story problems as their own entries), Author's note → Note to the AI, swipe →
+  version, Regenerate → Rewrite this version, Databank → Facts, NPCs → People, Social →
+  Relationships, Atmosphere → Weather & mood, Stage mode → Stage view, Pre-read → Read my message
+  first. The feature ids, op names and API are unchanged, so nothing stored changes.
+- **Duplicates merged**: on/off lives only in Settings › Features; Settings › Game keeps only *how*
+  (Auto-tracking's method, What the AI sees' size) and shows the world-simulation rows only for
+  features that are on. "Show the helper companion" did nothing and is gone; the weather overlay
+  settings live in Weather & mood only. Scripts and Extensions settings pages, dictation, Read
+  aloud and the stage's scene-effects button now follow their switches.
+- **Settings: Simple and Advanced.** Simple shows 9 of 21 pages (Models & connections, Features,
+  Appearance & themes, Chat, Voice, Backups & import, Privacy, Account & security, About), Advanced
+  all, in five groups. A page opened by link or palette shows in either view.
+- **Experimental**: the design-system page and the 3D and puppet labs are listed (Tools ›
+  Advanced) only with Settings › Features › Experimental on; their URLs still work.
+- **First-run tour**: six cards per mode after the first-run question, skippable, replayable
+  (Tools › Take the tour). It opens from a session flag set by setup, so existing installs and
+  updates never see it unasked.
+- **A chat's model** is chosen in This chat (tap the title). The server already honoured
+  `metadata.connectionId`; there was no control for it.
+- **Measured** on a phone with Playwright (`playwright.ux.config.ts`): nine tasks went from 32
+  taps and 2 scrolls to 25 taps and none; the play screen from 20 visible controls to 15 (16 once Part 3's input-mode switch joined the message box).
+
+## Design and UX: themes with scenery (October 2026)
+
+Details in [docs/ux/themes.md](ux/themes.md).
+
+- **Themes are data** (`apps/web/src/themes/looks.ts`), turned into one scoped stylesheet at
+  start-up. Scoping by `[data-look]` and `[data-theme]` attributes (not only `:root`) is what lets
+  the gallery show real, live previews side by side; the same change made `app.css`'s light and
+  dark tokens apply to any element with `data-theme`. Fonts, radii and motion became variables
+  (`--font-ui/story/heading`, `--r-*`, `--ui-dur/ease`, `--press`) so a theme changes them all.
+- **Eleven themes**: Everloom (unchanged default, the accent palettes and genre tint stay with it)
+  and the owner's ten examples, all Everloom's own designs. Hakawati (GPL-3.0) was read for the idea
+  only. A test holds every theme/scheme to WCAG AA.
+- **Which theme**: a world's own (This chat › Theme for this world) > this device's override > the
+  account's. A device can turn world themes off. The last theme is cached for the first paint.
+- **Scenery** is canvas 2D in the margins (clipped away from the text) or a 40 px band on phones,
+  capped at 15 fps (10 on phones), paused when hidden, off screen or typing on a phone, still under
+  reduced motion; per device animated/still/off. Not WebGL: the scenes are small and canvas 2D keeps
+  them cheap and simple. Measured: 0.5–1% of a 4×-slowed core for the scenes' script on the phone
+  profile, 3–6% for all main-thread work there including software compositing (no GPU here).
+- **Reading settings** (line spacing, column width, paragraph spacing, story and interface fonts,
+  a fourth text size) are page variables every theme follows.
+- **Micro-interactions** per theme (typing indicators, arrival, buttons, switches, a level-up
+  burst): transform and opacity, the theme's own 140–220 ms; the pushable button is adapted from
+  uiverse.io (Voxybuns, MIT, credited), the rest written for Everloom.
+
+## Design and UX: features from Hakawati (October 2026)
+
+Evaluated against what Everloom already had; details and tables in
+[docs/ux/hakawati.md](ux/hakawati.md). Built clean-room (Hakawati is GPL-3.0).
+
+- **Adopted**: input modes (Act, Say, Story, Direct; Continue = empty send; plain Chat stays the
+  default), scenario questions (`${…}` with options or fixed choices, answers on the chat, the card
+  never changed), Quickstart (client-run steps with a timer; cancel deletes what was made and keeps
+  the form), scenarios (a table of their own, copied into each story, JSON by clipboard or file),
+  the story panel, undo/redo for turns, interface scaling.
+- **Merged**: story cards are the chat's own lorebook (one system, not two); thinking levels were
+  already per connection, now one tap in the story panel; dictation adds the voice connection to the
+  browser's own; editing was already in place and now doesn't jump.
+- **Checked and fixed**: backups before upgrades existed; migrations now run all-or-nothing and the
+  error explains the way back (README › If an update fails).
+- **Continue with ChatGPT: not built yet.** OpenAI's Sign in with ChatGPT with plan usage
+  (https://developers.openai.com/siwc/llms.txt, announced 2026-09-29, preview) is official and
+  self-serve for open-source and locally hosted apps, with a client id registered per installation,
+  but needs a `127.0.0.1` redirect, so a VPS install would need a credentials-copy step; it can't be
+  tested here; the Windows app is the natural place to add it first. No other product's client id is
+  used anywhere.
+- **Right-to-left: skipped** until Everloom has translations.
+
+## 3D import: Unity packages, bone mapping, formats (October 2026)
+
+Research with licenses: [docs/3d-import/research.md](3d-import/research.md).
+
+- **Unity files are read without Unity, in our own code.** A focused reader for Unity's YAML
+  (file ids are 64-bit and stay strings), a streaming tar reader with limits on entries, file size
+  and total size, and a resolver for prefabs, variants and nested prefabs with their
+  modifications. All of it is plain TypeScript in the engine, so the browser (in a worker) and the
+  server use the same code. Paths inside a package are names only; nothing is written to disk by
+  path.
+- **Components are recognised two ways**: by known script GUIDs (VRChat SDK, Modular Avatar,
+  Dynamic Bone, VRM) and by the fields they serialize, so a newer SDK still imports.
+- **The conversion happens in the browser**, like FBX and PMX today: the package is unpacked in a
+  worker, the FBX loaded with three.js, materials, blendshape presets, physics and visemes
+  applied, and the result saved as a GLB with an import report. The server stores it encrypted
+  with the Vault like any other model.
+- **GPL, LGPL and MPL projects are reference only**; bone-name dictionaries come from the MIT
+  original of the Cats plugin plus our own Chinese and Korean words.
+- **.blend**: converted by Blender, never by a partial in-browser reader (none handles current
+  files reliably). Blender can run on the server (one-click install of the official 4.2 LTS build,
+  checksum-verified), on the owner's PC through the Windows app, or for a batch on a rented RunPod
+  CPU machine under the GPU budget rules. Details: [3d-import/blend.md](3d-import/blend.md).
+
+## 3D import: the character creator, anatomy pack, minor guard (October 2026)
+
+- **Own bases, not VRoid's.** VRoid Studio's bases can't be redistributed, so the creator builds on
+  MakeHuman's CC0 data, reshaped toward anime proportions by a script. The base, its shape keys
+  (one pair per slider) and its skeleton (with breast and butt bones) are a 1.8 MB GLB per sex;
+  hair, clothes and textures are generated in the browser from a small recipe
+  (`config.character`), so a saved character is its recipe plus the built GLB, and can be edited
+  again. Details: [3d-import/creator.md](3d-import/creator.md).
+- **Clothes are body shells** (a copy of the body's faces, pushed out, with the body's shape keys),
+  so they follow every slider without fitting; skirts are separate cones that follow the body's
+  outline per ring. Hair is ribbons on bone chains the existing physics already moves. No cloth
+  simulation.
+- **Anatomy is a separate pack.** The repository and GitHub stay safe for work: the bases are
+  smooth, and the anatomy shape keys and layers come from a zip the owner installs (Settings › 3D
+  characters › Anatomy pack). There is no unlock: installing it is the choice. The pack tool
+  refuses to write inside the repository and `.gitignore` covers pack files.
+- **The minor guard is the only gate**, in one file (`apps/server/src/services/minor-guard.ts`):
+  anatomy and other explicit content are refused for anyone under 18, described as a child, or with
+  a child-range body, on the server for every save, import and export, so the UI cannot be
+  bypassed. The creator's age slider starts at 18; a save that the guard refuses (for example a
+  character linked to a card that describes a child) gives the guard's one plain refusal, with no
+  way to override it.
+- **VRM license:** an imported VRM's license is shown, never enforced (the owner runs their own
+  server); the export keeps it and warns when it forbids redistribution. Own characters export as
+  VRM 1.0 with the license the owner fills in, private by default.
+- **Bone sliders:** when the bone mapping has breast or butt bones, the chest and butt sliders scale
+  those bones (so their springs keep working), even if the file also has shape keys for them.

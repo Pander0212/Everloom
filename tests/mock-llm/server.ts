@@ -90,6 +90,8 @@ function classify(messages: any[]): string {
   if (/is worn by a simple stylised 3D figure/i.test(sys)) return 'garment';
   if (/You describe how a story character looks/i.test(sys)) return 'look';
   if (/character writer helping someone build a roleplay character card/i.test(sys)) return 'studio';
+  if (/You write the start of an interactive story for a roleplay app/i.test(sys)) return 'quickstart';
+  if (/You write story cards for a roleplay story/i.test(sys)) return 'cards';
   if (/connection test/i.test(sys)) return 'test';
   if (/helper companion/i.test(sys)) return 'helper';
   if (/map designer/i.test(sys)) return 'map';
@@ -211,6 +213,14 @@ function answerFor(kind: string, messages: any[]): string {
       return 'Tomorrow: light rain. The day after: clearing, mild.';
     case 'call':
       return /they are calling you/.test(all) ? 'Hey! Good to hear from you.' : 'Sure, I can do that. Talk soon.';
+    case 'quickstart':
+      return JSON.stringify({
+        card: { name: 'Captain Sela Marr', description: 'A weathered sky-ship captain with a silver arm and a dry laugh.', personality: 'wry, loyal, reckless', scenario: 'The airship Gull is about to leave the floating port of Venn.', first_mes: 'Sela leans on the rail as the moorings creak. "You coming aboard, or just admiring the view?"', tags: ['fantasy', 'adventure'] },
+        premise: 'Floating islands drift above a sea of cloud; airships carry trade and trouble between them.',
+        style: 'fantasy',
+      });
+    case 'cards':
+      return JSON.stringify({ cards: [{ type: 'place', title: 'The Lantern', keys: ['Lantern', 'bar'], content: 'A small bar where Iris works; warm light, sticky tables.' }, { type: 'character', title: 'Tobias', keys: ['Tobias'], content: 'Leads a band called the Ravens; always late.' }] });
     case 'wizard':
       return JSON.stringify({ opening: 'The rain has not stopped for three days when you arrive in Northcrest.', items: [{ name: 'Umbrella', category: 'tool' }], npcs: [{ name: 'Iris Thorne', role: 'Bartender' }], location: { world: 'Aurel', region: 'Greenmarch', local: 'Northcrest', description: 'A rain-soaked market town on the river.', kind: 'town' }, quests: [{ title: 'Dry Ground', desc: 'Find shelter before nightfall.', objectives: ['Find an inn'] }], facts: ['It has rained for three days.'] });
     case 'garment':

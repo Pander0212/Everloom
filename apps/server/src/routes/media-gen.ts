@@ -4,7 +4,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
 import { generateImage } from '../media/imagegen.js';
-import { listVoices, synthesize } from '../media/tts.js';
+import { listVoices, synthesize, transcribe } from '../media/tts.js';
 import { getState } from '../services/campaigns.js';
 import { getCharacter, updateCharacter } from '../services/characters.js';
 import { getChat, updateChat } from '../services/chats.js';
@@ -91,6 +91,16 @@ export function registerMedia(app: FastifyInstance, ctx: AppContext) {
     const out = await synthesize(conn, b.text, { voice: b.voice, speed: b.speed, reference: b.reference ? referenceVoice(ctx, owner(req), b.reference) : undefined });
     reply.header('content-type', out.mime).header('cache-control', 'no-store');
     return reply.send(out.audio);
+  });
+
+  // ---------------- dictation through the voice connection (the browser's own speech recognition needs none)
+  app.post('/api/stt', { bodyLimit: 25 * 1024 * 1024 }, async (req) => {
+    const audio = req.body as Buffer;
+    if (!Buffer.isBuffer(audio) || audio.length < 100) throw new HttpError(400, 'No recording arrived');
+    const conn = connectionForRole(ctx, owner(req), 'tts');
+    if (!conn) throw new HttpError(400, 'Choose a voice connection in Settings › Models & connections');
+    const q = req.query as { lang?: string };
+    return { text: await transcribe(conn, audio, String(req.headers['content-type'] ?? 'audio/webm'), { language: q.lang }) };
   });
 
   // ---------------- custom (reference) voices: kept apart from preset voices, each with a consent record

@@ -6,7 +6,7 @@
 import { FEATURES, FEATURE_PRESETS, featureDef, PRESET_INFO, toggleFeature, type FeatureGroup, type FeatureId, type FeaturePreset, type FeatureSet, type MemoryMode } from '@everloom/engine';
 import { Check } from 'lucide-react';
 import { cx } from '@/lib/format';
-import { confirm, Segmented, Switch } from '@/ui';
+import { confirm, Segmented, Switch, ToggleRow } from '@/ui';
 import { Section, useSettingsPatch } from '../common';
 
 const GROUPS: Array<{ id: FeatureGroup; title: string; description: string }> = [
@@ -48,7 +48,7 @@ export default function FeaturesSection() {
 
   return (
     <>
-      <Section title="Mode" description="Pick a starting point; every switch below can still be changed. A chat can also have its own mode (in the chat's menu).">
+      <Section title="Mode" description="Pick a starting point; every switch below can still be changed. A chat can also have its own mode: tap its title, then Mode.">
         <div className="grid gap-2 sm:grid-cols-3" role="radiogroup" aria-label="Mode">
           {FEATURE_PRESETS.map((p) => (
             <button
@@ -80,6 +80,9 @@ export default function FeaturesSection() {
           </ul>
         </Section>
       ))}
+      <Section title="Experimental" description="Pages for testing and building Everloom itself: the design system, the 3D lab and the puppet lab. They appear in Tools › Advanced.">
+        <ToggleRow label="Show experimental tools" checked={!!settings.ui?.experimental} onChange={(v) => void update({ ui: { experimental: v } as never })} />
+      </Section>
     </>
   );
 }

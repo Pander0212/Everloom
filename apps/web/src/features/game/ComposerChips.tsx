@@ -1,6 +1,6 @@
 import type { CampaignDTO } from '@everloom/engine';
 import * as P from '@radix-ui/react-popover';
-import { AtSign, Smile, Wand2, X } from 'lucide-react';
+import { AtSign, Dices, FastForward, Smile, UserRoundPen, Wand2, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { useState } from 'react';
 import { post } from '@/lib/api';
@@ -8,6 +8,18 @@ import { cx } from '@/lib/format';
 import { t } from '@/lib/motion';
 import { toastError } from '@/lib/store';
 import { Icon } from '@/ui';
+
+/** Quick actions a player can put above the message box (Settings › Chat). */
+export const QUICK_ACTIONS = [
+  { id: 'target', label: 'Talk to…', description: 'Pick who you speak to (shown when someone is here).', game: true },
+  { id: 'suggest', label: 'Suggest', description: 'Ideas for what to do next.', game: true },
+  { id: 'emote', label: 'Emote', description: 'Add a gesture like *smiles* to your message.', game: true },
+  { id: 'longer', label: 'Longer', description: 'Make the last reply longer.', game: false },
+  { id: 'write', label: 'Write for me', description: 'The AI drafts your next line.', game: false },
+  { id: 'roll', label: 'Roll d20', description: 'Roll a twenty-sided die.', game: false },
+] as const;
+export type QuickAction = (typeof QUICK_ACTIONS)[number]['id'];
+export const defaultQuick = (game: boolean): QuickAction[] => (game ? ['target', 'suggest'] : []);
 
 const EMOTES = ['smiles', 'laughs', 'nods', 'shrugs', 'sighs', 'frowns', 'blushes', 'winks', 'looks away', 'crosses arms', 'leans in', 'waves'];
 
@@ -20,7 +32,7 @@ function Chip({ icon, label, active, onClick }: { icon: typeof AtSign; label: st
   );
 }
 
-export function ComposerChips({ campaign, target, setTarget, composer, setComposer, chatId, busy }: { campaign: CampaignDTO | null; target: string | null; setTarget: (t: string | null) => void; composer: string; setComposer: (v: string) => void; chatId: string; busy: boolean }) {
+export function ComposerChips({ campaign, target, setTarget, composer, setComposer, chatId, busy, quick, onAction }: { campaign: CampaignDTO | null; target: string | null; setTarget: (t: string | null) => void; composer: string; setComposer: (v: string) => void; chatId: string; busy: boolean; quick: string[]; onAction: (a: 'continue' | 'impersonate' | 'roll') => void }) {
   const [suggestions, setSuggestions] = useState<string[] | null>(null);
   const [loading, setLoading] = useState(false);
   const s = campaign?.state;
@@ -62,6 +74,7 @@ export function ComposerChips({ campaign, target, setTarget, composer, setCompos
         ) : null}
       </AnimatePresence>
       <div className="no-scrollbar flex gap-1.5 overflow-x-auto">
+        {quick.includes('target') && s && (people.length || target) ? (
         <P.Root>
           <P.Trigger asChild>
             <button type="button" className={cx('pressable flex h-8 flex-none items-center gap-1.5 rounded-full px-3 text-xs font-medium', target ? 'bg-accent-soft text-accent-text' : 'bg-surface-2 text-fg-2 hover:text-fg')}>
@@ -87,7 +100,9 @@ export function ComposerChips({ campaign, target, setTarget, composer, setCompos
             </P.Content>
           </P.Portal>
         </P.Root>
+        ) : null}
         {target ? <button aria-label="Clear target" onClick={() => setTarget(null)} className="-ml-1 flex h-8 w-6 flex-none items-center justify-center text-fg-3"><Icon icon={X} size={14} /></button> : null}
+        {quick.includes('emote') && s ? (
         <P.Root>
           <P.Trigger asChild>
             <button type="button" className="pressable flex h-8 flex-none items-center gap-1.5 rounded-full bg-surface-2 px-3 text-xs font-medium text-fg-2 hover:text-fg">
@@ -107,7 +122,11 @@ export function ComposerChips({ campaign, target, setTarget, composer, setCompos
             </P.Content>
           </P.Portal>
         </P.Root>
-        <Chip icon={Wand2} label={loading ? 'Thinking…' : 'Suggest'} onClick={() => !busy && !loading && void suggest()} />
+        ) : null}
+        {quick.includes('suggest') && s ? <Chip icon={Wand2} label={loading ? 'Thinking…' : 'Suggest'} onClick={() => !busy && !loading && void suggest()} /> : null}
+        {quick.includes('longer') ? <Chip icon={FastForward} label="Longer" onClick={() => !busy && onAction('continue')} /> : null}
+        {quick.includes('write') ? <Chip icon={UserRoundPen} label="Write for me" onClick={() => !busy && onAction('impersonate')} /> : null}
+        {quick.includes('roll') ? <Chip icon={Dices} label="Roll d20" onClick={() => onAction('roll')} /> : null}
       </div>
     </div>
   );

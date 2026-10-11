@@ -1,5 +1,5 @@
 /**
- * Settings › Character sources: adult content, site accounts (stored encrypted on the server and
+ * Settings › Character sources: site accounts (stored encrypted on the server and
  * never sent back), site notices, the self-test and fixture recorder, and the browser bridge.
  */
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -19,18 +19,7 @@ export default function SourcesSection() {
   if (!settings) return null;
   return (
     <>
-      <Section title="Online sources" description="Browse and import characters from public sites. Everything is fetched by your Everloom server, only when you ask.">
-        <ToggleRow
-          label="Show adult content"
-          description="Off by default. When off, adult characters are hidden from browsing and can't be imported."
-          checked={settings.library.nsfw}
-          onChange={async (v) => {
-            await update({ library: { nsfw: v } });
-            await refresh();
-            await qc.invalidateQueries({ queryKey: ['source-search'] });
-          }}
-        />
-      </Section>
+      <Section title="Online sources" description="Browse and import characters from public sites. Everything is fetched by your Everloom server, only when you ask. The search has an 18+ filter; to blur 18+ pictures when you share your screen, see Settings › Privacy.">{null}</Section>
       <section id="accounts">
         <Section title="Accounts" description="Some sites show more to members. Your sign-in is stored encrypted on your server and is never sent back to this page.">
           {sources.data ? (

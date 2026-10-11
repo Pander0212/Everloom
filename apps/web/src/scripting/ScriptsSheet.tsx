@@ -1,4 +1,5 @@
-/** Chat menu › Scripts: what can run here, what's running, each script's console, stop and restart. */
+/** Tools › Scripts: what can run here, what's running, each script's console, stop and restart. */
+import { entry } from '@/lib/registry';
 import { RotateCcw, Settings2, ShieldQuestion, Square, Trash2 } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { cx } from '@/lib/format';
@@ -21,6 +22,7 @@ export function ScriptsSheet({ open, onOpenChange, active, extensions, safe, on,
       onOpenChange={onOpenChange}
       size="lg"
       title="Scripts"
+      help={entry('scripts-sheet')?.help}
       description={safe ? 'Safe mode: nothing runs. Remove ?safe=1 from the address to turn scripts back on.' : !on ? 'Scripts are turned off in Settings › Scripts.' : 'Scripts and extensions that can run in this chat.'}
       headerActions={<IconButton icon={Settings2} label="Script settings" onClick={() => navigate('/settings/scripts')} />}
     >

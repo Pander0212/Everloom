@@ -94,7 +94,10 @@ these checks for you):
 | `look` | `auto` (toon for VRM and flat-coloured models, PBR for textured realistic ones), `toon`, `pbr` |
 | `outlines`, `outlineWidth` | The ink line of the toon look |
 | `scale`, `floor`, `facing` | File units to metres; feet to the floor; turn in 90° steps |
-| `physics` | Hair and cloth springs: on/off, stiffness and gravity multipliers |
+| `physics` | Hair, cloth and chest springs: on/off, stiffness, gravity, damping, wind, chest motion and strength, extra chains picked by hand, collider edits |
+| `morphs` | Body sliders made from the file's morph targets: the mapping (label, group, range, left/right twin, hidden), the values, body presets, and the base's fingerprint (presets carry across characters on the same base) |
+| `bodyShape` | Generated adjusters (breast, hips, waist, butt, thighs, shoulders) for bases without those morphs |
+| `skinLayers`, `appearance` | Layers painted onto the skin (makeup, paint, tattoos, underwear, swimwear, stockings, scars); skin tone, hair and eye colours |
 | `parts` | Wardrobe level 2: meshes that can be shown or hidden, the body regions they cover, a group (hairstyles replace each other), items that put them on |
 | `outfits` | Wardrobe level 1: a set of parts, or a whole other model with the same skeleton; items that pick it; one can be the default |
 | `accessories` | Small models on a bone (a sword in the right hand) with position, rotation, size, and items that show them |
@@ -120,13 +123,16 @@ Characters › menu › **3D avatars** › Import. The server:
 
 The wizard then walks through:
 
+- **Body**: the base model check (in plain words: what the file has, what's missing, which features
+  that switches off) and the body sliders; see *Custom bases* below.
+- **Skin**: skin tone, hair and eye colours, and skin layers; see *Skin layers* below.
 - **Check**: T-pose, arms up, squat and "right hand up" poses show at a glance whether the bones are
   right; play emotes, expressions and talking.
 - **Bones**: every canonical bone with the file's bones to choose from (required ones marked).
 - **Face**: each expression, mouth shape and blink, with the shapes that make it; tap the eye to
   see it on the model.
-- **Fit**: height in metres, floor, facing, look, outlines, physics.
-- **Wardrobe**: the dressing room (below).
+- **Fit**: height in metres, floor, facing, look, outlines, physics (springs, chest, colliders).
+- **Wardrobe**: the dressing room and clothes fitting (below).
 - **Optimize**: largest texture, KTX2 on or off, how simple the phone copy is; sizes before and after.
 - **Details**: name, picture (taken from the preview), which characters use it.
 
@@ -190,6 +196,41 @@ browser; VMD (with the PMX it was made for) and FBX files the browser can't read
 Preview on the mannequin, name it, choose its kind and whether it loops, and it joins the built-in
 emotes everywhere.
 
+### Paired animations
+
+Two to four characters doing something together. Four are built in, keyframed for Everloom (CC0,
+`tools/avatars/paired.ts`, compiled by `build-paired.ts` into `public/avatar/clips/paired/`):
+**handshake**, **high five**, **hug** and **dance together** (a loop). A paired clip is one ordinary
+clip per participant, plus where each stands relative to the others (at 1.7 m tall), which way they
+face, and **contacts**: which bones meet and when (hands in a handshake; hands on the other's back in a
+hug).
+
+Playing one (`runtime/paired.ts`):
+
+1. The participants step to their spots around where they were standing, spaced for their average
+   height, and turn to each other (they look at each other, not the camera). The clip starts when
+   they're in place (or after 1.5 s).
+2. Every participant's clip runs on **one shared clock**, so dropped frames never put them out of
+   step; a one-shot ends together and everyone goes back to the pose they had.
+3. **Contacts** use light two-bone inverse kinematics on the arms (or legs): hands meet halfway, in a
+   point both arms can reach, wrists a palm apart; a hand on a body goes round to the back on its own
+   side with the elbow pointing out. If the arms are too short for the spacing (a short character
+   with a tall one), the pair steps closer, never nearer than a chest's depth.
+4. Springs keep running (hair and skirts swing as usual).
+5. There's no collision between characters beyond the spacing: arms in a hug go round the other's
+   back by the contacts, but a swinging skirt or a hand can pass into the other character.
+
+Triggers: the story (`{"type":"avatar.paired","clip":"handshake","who":["Mira","Theo"]}`; `clip:
+null` stops a loop; rolls back with swipes; offered to the model only when installed and when the chat
+has 3D characters), the emote picker's **Together** row (the selected character and the next one),
+`/pair handshake Mira Theo`, and scripts (`everloom.avatar.paired(clip, who)`).
+
+**Importing** (Settings › 3D characters › Paired animations › Import): one motion per participant,
+from separate files or one file holding an animation for each (GLB, VRMA, FBX, BVH; retargeted like
+single emotes), then how far apart they stand and what meets (right hands, right-to-left, both
+hands, a hug). Adult-rated paired clips play only when no participant is recorded as under 18 (no
+setting needed).
+
 ## Wardrobe
 
 What a character wears is decided in this order:
@@ -207,6 +248,129 @@ triangles are left out.
 The **dressing room** (Wardrobe step) edits outfits (tap one to try it on), parts (meshes, group,
 regions covered, items), the skin meshes, and accessories (upload a GLB, pick a bone, move, turn,
 size).
+
+## Custom bases
+
+Any rigged GLB can be a base: a body that clothes are fitted to and that other characters can be
+made from. The [base model guide](base-model-guide.md) says what a good one has.
+
+**The base model check** (Body step) reads the file and says, in plain words, what it has and what
+that means: the skeleton (missing required bones; finger bones), skinned meshes, morph targets (body,
+face and other), expression shapes, UVs and textures, chest bones, cost. Features the file can't
+support are switched off with the reason given (no UVs: no skin layers; no skin weights: no fitting).
+
+**Body sliders** are made from the file's morph targets (`packages/engine/src/avatar/morphs.ts`):
+
+- names are read whatever the convention (`Breast_Large`, `BreastSize`, `breast-big`, `Hips_Wide`,
+  `CC_Base_Body.Butt_Big`…) and sorted into **Body**, **Face** and **Other**;
+- opposite pairs (`Hips_Wide`/`Hips_Narrow`, `Breast_Large`/`Breast_Small`) become one slider that
+  goes both ways; left and right twins move together unless unlinked;
+- the mapping can be edited (label, group, range, twin, hidden) and is saved with the model, keyed by
+  the base's fingerprint, so it comes back when the same file is read again;
+- explicit shapes are marked adults-only: no setting is needed, and the server's minor guard never
+  applies them to a character under 18 or described as a child;
+- values change smoothly (no pops), and garments fitted to the base carry the same morphs, so clothes
+  follow the sliders.
+
+Where the file has no morph for breast, hips, waist, butt, thighs or shoulders, **generated
+adjusters** (labelled as such) push that region of the mesh, and its clothes, in or out.
+
+**Body presets** save the slider values; any character made from the same base can apply them
+("From another character on this base").
+
+## Fitting clothes
+
+Wardrobe › *Fit clothes to this body* takes a raw or unrigged garment (GLB, OBJ or FBX with its
+textures) and makes it a garment of this base, in the browser:
+
+1. **Place.** The body stands in its rest pose with every slider at zero. The garment is guessed into
+   place (units, landmarks: chest, hips, feet, head), and you adjust it: drag the gizmo on a computer,
+   or big hold-to-repeat buttons on a phone (move, turn, size; fine or coarse), snap to a landmark,
+   mirror, auto-align, reset, exact numbers. Several pieces in one file can be switched off.
+2. **Rig.** In a worker (the page stays responsive; there's a progress bar and Cancel):
+   - the placement is baked into the vertices;
+   - every vertex finds the closest point on the body (a BVH over the body surface), keeping only
+     body surface that faces the same way and is near enough, so a sleeve takes the arm's weights,
+     not the chest's; vertices too far away take their weights from the nearest matched cloth;
+   - weights are smoothed over the garment's own edges and limited to 4 bones per vertex, normalized;
+   - every body morph is carried over (the body's offset at the matched point), so the garment
+     follows the sliders;
+   - cloth that went into the skin is pushed out (optional);
+   - skirts and long hair get **swing chains**: bones generated down the garment, pinned to the body
+     above a gradient and swinging below it;
+   - the body triangles the garment covers are found and hidden while it's worn (skin never pokes
+     through; hair hides nothing).
+3. **Check.** Poses (T-pose, arms up, squat, right hand up, a dance) and every slider at its lowest
+   or highest; flagged areas can be shown (red: pulled by both left and right limbs; amber: filled
+   in; yellow: pushed out). Adjust and fit again, or save.
+4. **Save.** The rigged garment is written as a GLB with its weights, morphs and chain bones, and
+   added to the wardrobe with its slot, layer and physics.
+
+What it can't do: it doesn't simulate cloth, so a long coat or a gown is a skirt on chains (it swings
+and collides but doesn't drape); garments that need different topology at slider extremes still
+clip at the ends of the range (the test jeans open a small gap on the inside of the lower leg with
+every slider at its highest); garments don't collide with each other (each is fitted to the bare
+body, so long hair can let the back of a top show through it in lively poses, and a skirt fitted
+over trousers doesn't push out of them); hand-made weights are better for very loose or layered
+clothes.
+
+**How long it takes** (October 2026, the CC0 test base: 14,549 vertices, 26,800 triangles, 31 morph
+targets; `tests/e2e/measure-3d.spec.ts`, numbers in `docs/3d-base-evidence/measurements.json`): a
+20,000-vertex garment rigs in **0.47–0.54 s of worker time** with nothing rendering (median of three,
+phone and desktop viewports on the same machine), and the same input through the same code in Node
+takes 0.34–0.44 s (the body's BVH: 33 ms). While it rigs the page keeps answering (the slowest 50 ms
+timer fired at most 7 ms late). The test garments (600–3,300 vertices) rig in 20–180 ms; with the page's own
+work around it (reading the body, building the result) a fit takes about 1 s from *Fit* to the
+review, and saving (upload, optimizing, the phone copy) 1–3 s. Headless Chromium with software
+WebGL; a real phone's worker is slower than this machine's, so expect a few seconds for 20,000.
+
+## Physics
+
+Hair, skirts, tails, accessories and the chest are springs: a fixed-step Verlet solver
+(`runtime/physics/solver.ts`) with the VRM spring-bone settings (stiffness, drag, gravity and its
+direction, hit radius), bone lengths held, and **colliders**: spheres and capsules for the head,
+neck, chest, hips, arms and legs measured from the body in its rest pose (editable, and shown in the
+Fit step). VRM files keep their own springs and colliders, run by the same solver.
+
+- **Chest motion** uses the file's breast bones, with a strength slider and an off switch. A base
+  without breast bones has no chest motion: helper bones aren't generated (they would need the
+  chest's skin weights split between new bones), and the base model check says so.
+- **Settings**: damping, wind, chest; presets per kind (hair, cloth, chest, tail, accessory); chains
+  picked by hand for bones the file doesn't mark.
+- **Contact at rest**: a chain that was made touching the body (long hair lying on the shoulders and
+  back, a skirt over the hips) keeps that contact: each point may sit as deep inside a collider as it
+  did in the rest pose, and no deeper. Pushing it fully out would turn the top bone and swing the
+  whole chain away from the body like a cape.
+- **Cost**: the quality level caps the points each character simulates and the solver rate (low: off;
+  medium: 48 points at 30 Hz; automatic's middle step: 96 at 60 Hz; high: 160 at 60 Hz); characters
+  out of the shot don't simulate. Chains are added until the cap is reached and a chain that doesn't
+  fit is cut: its upper bones swing and the rest follows them. A skirt (40 points) and long hair (50)
+  together fit on high; on medium the hair is mostly still.
+- **Measured** (the CC0 base in a fitted skirt on chains, long hair on chains, a shirt and shoes,
+  dancing for 6 s on high): no skirt point went more than 5 mm into a leg capsule in 4,800 checks;
+  the breast bones turned up to 2.1° from the animated pose with chest motion on and 0° with it off.
+  Screenshots: `5-skirt-dance-*`, `5-hair-back-*` in `docs/3d-base-evidence/`.
+- **Weak spots**: chains hang from the hips, so in a deep squat the thighs come out over the front of
+  a skirt, and when a leg swings far out a strip of thigh can show through the cloth between two
+  chains near the hem (the chains themselves stay outside the legs). Skin under the upper, mostly
+  pinned part of a skirt is hidden while it's worn, so the buttocks don't push through it.
+
+## Skin layers
+
+Skin layers are painted onto the skin texture once (the texture is copied through the GPU, so KTX2
+works too), so they cost nothing per frame and bend with every pose, slider and animation: they *are*
+the skin. A layer is a whole image in the body's UV layout (underwear, swimwear, stockings), a plain
+colour wash, or an image placed by **tapping the body** (tattoos, scars, makeup): size, rotation,
+opacity; drag to move. A placed image keeps its shape whatever the UV layout (the skin's frame at the
+spot is measured when you tap). Underwear, swimwear and stockings act as clothing: outfits and
+equipped items put them on.
+
+Not built: a decal is cut where it crosses a UV seam (it isn't projected onto the mesh), and a
+garment can't be baked into a skin layer (a painted-on top is made as an image layer).
+
+Colours change at once: skin tone (a multiplied wash, so the skin's detail stays), eyes, hair (base,
+tips gradient, highlight). Uploaded images go through the usual upload checks; 18+ layers
+need no setting and are never applied to a minor (the minor guard).
 
 ## Parts maker
 
@@ -340,6 +504,40 @@ characters › *Code-made figures for characters without a picture* turns this o
 | desktop | high | 1 | 1 | 9 | 54,978 | 20 MB |
 | desktop | high | 2 | 3.3 | 19 | 109,958 | 19 MB |
 | desktop | high | 4 | 2.5 | 37 | 219,914 | 31 MB |
+
+- **Dressed characters on a custom base** (October 2026, `tests/e2e/measure-3d.spec.ts`; numbers in
+  `docs/3d-base-evidence/measurements.json`): one to three characters made from the CC0 test base,
+  each wearing a fitted shirt, a skirt on chains, long hair on chains and shoes, dancing with physics
+  on, sampled for 8 s. Same caveat as above: headless Chromium draws with SwiftShader (software
+  WebGL), so its frame rate is the software rasteriser's and doesn't say what a GPU would do; the
+  CPU time per frame (animation, physics, skinning upload and draw submission) is the number that
+  carries over. "phone" is 390×844 at 2× with the CPU slowed 4× (it loads the lighter copy on medium
+  and low). Triangles count every pass (shadows and outlines draw the scene again).
+
+| Profile | Quality | Characters | CPU ms / frame (mean, p95) | Frames / s (software) | Draw calls | Triangles drawn |
+|---|---|---|---|---|---|---|
+| phone | low | 1 | 7.7, 14.2 | 12.7 | 8 | 20,357 |
+| phone | medium | 1 | 12.9, 21.6 | 7 | 13 | 37,491 |
+| phone | high | 1 | 22.8, 48.5 | 2.4 | 26 | 143,108 |
+| phone | low | 2 | 12, 22.4 | 10.1 | 16 | 40,714 |
+| phone | medium | 2 | 16.5, 29.8 | 5.8 | 26 | 74,982 |
+| phone | high | 2 | 35.4, 66.1 | 2.1 | 51 | 286,214 |
+| phone | low | 3 | 15.2, 25.1 | 7.3 | 24 | 61,071 |
+| phone | medium | 3 | 24.1, 47.3 | 4.2 | 39 | 112,473 |
+| phone | high | 3 | 53.5, 114.8 | 1.5 | 76 | 429,320 |
+| desktop | low | 1 | 1.7, 5.2 | 12.3 | 8 | 20,357 |
+| desktop | medium | 1 | 2.6, 5.1 | 6.1 | 13 | 71,554 |
+| desktop | high | 1 | 4.8, 9.6 | 4.1 | 26 | 143,108 |
+| desktop | low | 2 | 2.5, 4.9 | 7.8 | 16 | 40,714 |
+| desktop | medium | 2 | 5.2, 9.8 | 3.5 | 26 | 143,108 |
+| desktop | high | 2 | 8.7, 12.8 | 2.4 | 51 | 286,214 |
+| desktop | low | 3 | 3.4, 7 | 7.2 | 24 | 61,071 |
+| desktop | medium | 3 | 6.1, 8.6 | 2.8 | 39 | 214,662 |
+| desktop | high | 3 | 11.3, 20.1 | 2 | 76 | 429,320 |
+
+  On a phone, keep to medium or *Automatic* with more than one dressed character: high with two or
+  three goes past the 33 ms a 30 fps frame has, on the CPU alone. Desktop stays under 12 ms on
+  average at every setting.
 
 - **Fallbacks**: no WebGL 2, a model that fails to load, a lost GPU context or pictures-only on the
   device: the character shows as its sprite (or Live2D).
@@ -479,6 +677,11 @@ animations wait in Settings › 3D characters › *From Blender*. See its README
 | `apps/server/src/services/avatars/model3d.ts`, `textures.ts` | image-to-3D jobs; seamless garment textures |
 | `tools/blender-addon/` | the Blender exporter add-on (GPL-3.0) |
 | `apps/web/src/features/avatar3d/runtime/` | loading, retargeting, clips, avatar, stage, materials, lighting, wardrobe, import |
+| `runtime/fit/` | clothes fitting: BVH, weight and morph transfer, coverage, the worker and the session |
+| `runtime/physics/`, `runtime/ik.ts`, `runtime/paired.ts`, `runtime/skin.ts`, `runtime/morphs.ts` | springs and colliders; inverse kinematics and paired playback; skin layers and colours; body sliders |
+| `packages/engine/src/avatar/morphs.ts`, `layers.ts`, `physics.ts`, `paired.ts`, `base-report.ts` | slider mapping, skin layers, physics and paired-clip formats, the base model check |
+| `tools/avatars/paired.ts`, `build-paired.ts` | the built-in paired animations |
+| `tools/avatars/build-test-base.ts`, `build-test-garments.ts` | the CC0 test base and garments in `tests/fixtures/avatars/` |
 | `apps/web/src/features/avatar3d/runtime/codemade/` | code-made characters: shapes, mesher, body, clothes, face, worker |
 | `apps/web/src/features/avatar3d/Maker.tsx`, `parts.ts` | the parts maker; packs as garments |
 | `apps/web/public/avatar/packs/basics/` | the built-in part pack (generated) |

@@ -1,6 +1,6 @@
-import type { MessageDTO } from '@everloom/engine';
+import { isInputMode, type InputMode, type MessageDTO } from '@everloom/engine';
 import { useQueryClient } from '@tanstack/react-query';
-import { ArrowDown, ArrowLeft, BookText, Brain, Clapperboard, Code2, Eye, FastForward, History, Minimize2, MoreHorizontal, NotebookPen, PanelRight, Save, Search, ScrollText, ShieldQuestion, Sparkles, Telescope, UserRoundPen, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, BookText, Minimize2, PanelRight, ShieldQuestion, Sparkles, X } from 'lucide-react';
 import { AnimatePresence, motion } from 'motion/react';
 import { lazy, Suspense, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
@@ -11,8 +11,14 @@ import { t } from '@/lib/motion';
 import { FeaturesContext, useFeatures } from '@/lib/features';
 import { qk, upsertMessage, useCampaign, useCharacter, useChat, useGroups, useMessages, useSettings } from '@/lib/queries';
 import { toast, toastError } from '@/lib/store';
-import { Avatar, Button, confirm, IconButton, Menu, Spinner } from '@/ui';
+import { Avatar, Button, confirm, IconButton, Spinner, useMedia } from '@/ui';
 import { Composer } from './Composer';
+import { StoryPanel } from './StoryPanel';
+import { clearRedo, redoTurn, undoTurn } from './turns';
+import { applyWorldLook, useLookId } from '@/lib/theme';
+import { useDeviceLook } from '@/themes/device';
+import { look } from '@/themes/looks';
+import { SceneryLayer } from '@/themes/scenery/SceneryLayer';
 import { generate, stop, useGen } from './gen';
 import { Message, type MessageActions } from './Message';
 import { WorldInspector } from '../inspector/WorldInspector';
@@ -20,11 +26,14 @@ import { MemorySheet } from '../memory/MemorySheet';
 import { ChatInfoSheet, InspectorSheet, NoteSheet, SearchSheet } from './sheets';
 import { speak } from './tts';
 import { GameLayer } from '@/features/game/GameLayer';
-import type { Command } from '@/features/game/CommandMenu';
+import type { PaletteItem } from '@/features/palette/Palette';
+import type { Entry } from '@/lib/registry';
+import { NewChatSheet } from '../chats/NewChatSheet';
+import { openTour } from '@/features/guide/tour';
 import { SavesSheet, ViewSheet } from './SavesSheet';
 import { scriptBus } from '@/scripting/bus';
 import { isCommand, runSlashLine, setChatActions } from '@/scripting/commands';
-import { whenStarted } from '@/scripting/registry';
+import { noteStarting, whenStarted } from '@/scripting/registry';
 import { ScriptViewContext, type ScriptView } from '@/scripting/context';
 import { QuickBar } from '@/scripting/QuickBar';
 import { ReviewSheet } from '@/scripting/ReviewSheet';
@@ -60,8 +69,21 @@ export default function StoryView() {
   const streams = useLive((s) => s.streams);
   const [composer, setComposer] = useState('');
   const [limit, setLimit] = useState(PAGE);
-  const [sheet, setSheet] = useState<null | 'inspector' | 'search' | 'note' | 'memory' | 'info' | 'world' | 'saves' | 'view' | 'scripts'>(null);
+  const [sheet, setSheet] = useState<null | 'inspector' | 'search' | 'note' | 'memory' | 'info' | 'world' | 'saves' | 'view' | 'scripts' | 'newchat'>(null);
+  const [worldTab, setWorldTab] = useState<string | undefined>(undefined);
   const scripts = useScripts(id);
+  // Read when a turn runs (a message sent as the chat opens waits for its scripts, then needs the
+  // list as it is by then, not as it was when the message was typed).
+  const scriptsRef = useRef(scripts);
+  scriptsRef.current = scripts;
+  // Until the chat's scripts are known and their frames attached, they count as starting.
+  const [layerFor, setLayerFor] = useState<string | null>(null);
+  const needsLayer = scripts.on && !!scripts.settings && (scripts.runnable.length > 0 || scripts.extensions.some((e) => e.background));
+  useEffect(() => {
+    const key = `chat:${id}`;
+    noteStarting(key, scripts.loading || (needsLayer && layerFor !== id));
+    return () => noteStarting(key, false);
+  }, [id, scripts.loading, needsLayer, layerFor]);
   const [review, setReview] = useState<ReviewTarget | null>(null);
   const [pendingSeen, setPendingSeen] = useState(false);
   const [cinematic, setCinematic] = useState(false);
@@ -74,8 +96,53 @@ export default function StoryView() {
   const [highlight, setHighlight] = useState<string | null>(null);
   const [speaker, setSpeaker] = useState<string | null>(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // The story panel: remembered open or closed on this device.
+  const [panelOpen, setPanelState] = useState(() => {
+    try {
+      return localStorage.getItem('everloom.storyPanelOpen') === '1' && window.matchMedia('(min-width: 768px)').matches;
+    } catch {
+      return false;
+    }
+  });
+  const [panelTab, setPanelTab] = useState<{ tab: 'cards'; n: number } | null>(null);
+  const setPanel = (o: boolean) => {
+    setPanelState(o);
+    try {
+      localStorage.setItem('everloom.storyPanelOpen', o ? '1' : '0');
+    } catch {
+      /* private mode */
+    }
+  };
   const [target, setTarget] = useState<string | null>(null);
+  // The input mode, remembered on this device (plain chat until the player picks one).
+  const [inputMode, setInputModeState] = useState<InputMode | null>(() => {
+    try {
+      const v = localStorage.getItem('everloom.inputMode');
+      return isInputMode(v) ? v : null;
+    } catch {
+      return null;
+    }
+  });
+  const setInputMode = (m: InputMode | null) => {
+    setInputModeState(m);
+    try {
+      if (m) localStorage.setItem('everloom.inputMode', m);
+      else localStorage.removeItem('everloom.inputMode');
+    } catch {
+      /* private mode */
+    }
+  };
   const scroller = useRef<HTMLDivElement>(null);
+  const column = useRef<HTMLDivElement>(null);
+  const lookId = useLookId();
+  const device = useDeviceLook();
+  const phone = !useMedia('(min-width: 768px)');
+  // A world with its own theme wears it while it is open.
+  const worldLook = (chat.data?.metadata.look as string | null | undefined) ?? null;
+  useEffect(() => {
+    applyWorldLook(worldLook);
+    return () => applyWorldLook(null);
+  }, [worldLook]);
   const [stuck, setStuck] = useState(true);
 
   const busy = gen.chatId === id || Object.keys(streams).some((mid) => messages.data?.some((m) => m.id === mid));
@@ -135,14 +202,16 @@ export default function StoryView() {
     }, 60);
   };
 
-  const run = async (type: Parameters<typeof generate>[1], text?: string) => {
+  const run = async (type: Parameters<typeof generate>[1], text?: string, mode?: InputMode | null) => {
     setStuck(true);
+    const scripts = scriptsRef.current;
     // Scripts see the turn: a hook before it (they may set variables), then what happened.
     if (scripts.runnable.length || scripts.extensions.length) {
       if (type !== 'impersonate') await scriptBus.beforeGeneration({ chatId: id, type });
       scriptBus.emit('generationStart', { chatId: id, type });
     }
-    const r = await generate(id, type, { text, characterId: speaker, target: type === 'normal' && text ? target : null });
+    if (type === 'normal' || type === 'continue') clearRedo(id);
+    const r = await generate(id, type, { text, characterId: speaker, target: type === 'normal' && text ? target : null, mode: type === 'normal' && text ? (mode ?? null) : null });
     if (scripts.runnable.length || scripts.extensions.length) {
       const after = qc.getQueryData<MessageDTO[]>(qk.messages(id)) ?? [];
       const lastA = [...after].reverse().find((x) => x.role === 'assistant');
@@ -162,6 +231,39 @@ export default function StoryView() {
     }
     return r;
   };
+
+  const doUndo = async () => {
+    if (busy) return;
+    try {
+      if (await undoTurn(id)) toast({ title: 'Turn undone', action: { label: 'Redo', run: () => void doRedo() } });
+      else toast('Nothing to undo');
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  const doRedo = async () => {
+    if (busy) return;
+    try {
+      if (!(await redoTurn(id, gameOn))) toast('Nothing to redo');
+    } catch (e) {
+      toastError(e);
+    }
+  };
+  // Ctrl/⌘+Z and Ctrl/⌘+Shift+Z (or Ctrl+Y) undo and redo turns, outside text fields.
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey) || e.altKey) return;
+      const el = e.target as HTMLElement;
+      if (el.closest('input, textarea, select, [contenteditable=true]')) return;
+      const k = e.key.toLowerCase();
+      if (k === 'z' && !e.shiftKey) void doUndo();
+      else if ((k === 'z' && e.shiftKey) || k === 'y') void doRedo();
+      else return;
+      e.preventDefault();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  });
 
   const actions: MessageActions = useMemo(
     () => ({
@@ -271,24 +373,37 @@ export default function StoryView() {
     await patch(`/api/chats/${id}`, { metadata: { mode: m } }).catch(toastError);
   };
 
+  const sceneryMode = device.scenery ?? settings.data?.look?.scenery ?? 'animated';
+  const scenery = sceneryMode !== 'off' && !!look(lookId).scenery && !cinematic ? sceneryMode : null;
+  const minutes = campaign.data?.state?.time.minutes;
+  const hour = minutes !== undefined ? (minutes % 1440) / 60 : undefined;
+  const quick = settings.data?.ui?.quick ?? (gameOn ? ['target', 'suggest'] : []);
+  const quickAction = (a: 'continue' | 'impersonate' | 'roll') => {
+    if (a === 'continue') void run('continue');
+    else if (a === 'impersonate') void run('impersonate').then((t2) => t2 && setComposer(String(t2)));
+    else void runSlashLine('/roll d20', { perms: 'owner', chatId: id, from: 'You' });
+  };
   const composerEl = (
     <Composer
       busy={busy}
       value={composer}
       onChange={setComposer}
       enterToSend={!!settings.data?.chat.enterToSend}
-      stt={!!settings.data?.chat.stt}
-      placeholder={`Message ${group ? 'the group' : title}`}
+      stt={!!settings.data?.chat.stt && features.on.voice}
+      sttEngine={settings.data?.chat.sttEngine ?? 'browser'}
+      placeholder={`Message ${group ? 'the group' : title.split(' ')[0]}`}
       onSend={(text) => {
         setComposer('');
         // "/command …" runs a command; "//text" sends text starting with a slash.
         if (isCommand(text)) return void runSlashLine(text.trim(), { perms: 'owner', chatId: id, from: 'You' });
         const t = text.trim().startsWith('//') ? text.trim().slice(1) : text.trim();
         // Scripts that are still starting (the chat just opened) get to hear this message's events.
-        void whenStarted(3000).then(() => run('normal', t || undefined));
+        void whenStarted(3000).then(() => run('normal', t || undefined, inputMode));
       }}
       onStop={() => void stop(id)}
       onMenu={() => setMenuOpen(true)}
+      mode={inputMode}
+      onMode={setInputMode}
       onSwipeKey={(dir) => {
         const last = list[list.length - 1];
         if (last && last.role === 'assistant' && !busy) void actions.onSwipe(last, dir);
@@ -321,10 +436,10 @@ export default function StoryView() {
               );
             })}
           </div>
-        ) : gameOn ? (
+        ) : gameOn || quick.length ? (
           <Suspense fallback={null}>
-            <CastStrip />
-            <ComposerChips campaign={campaign.data ?? null} target={target} setTarget={setTarget} setComposer={setComposer} composer={composer} chatId={id} busy={busy} />
+            {gameOn ? <CastStrip /> : null}
+            {quick.length ? <ComposerChips campaign={gameOn ? (campaign.data ?? null) : null} target={target} setTarget={setTarget} setComposer={setComposer} composer={composer} chatId={id} busy={busy} quick={quick} onAction={quickAction} /> : null}
           </Suspense>
         ) : null}
         </>
@@ -332,34 +447,34 @@ export default function StoryView() {
     />
   );
 
-  const quick: Command[] = [
-    { id: 'continue', label: 'Continue the reply', icon: FastForward, group: 'Quick', keywords: 'more', run: () => void run('continue') },
-    {
-      id: 'impersonate',
-      label: 'Write my next line',
-      icon: UserRoundPen,
-      group: 'Quick',
-      keywords: 'impersonate',
-      run: async () => {
-        const t2 = await run('impersonate');
-        if (t2) setComposer(String(t2));
-      },
-    },
-    ...(gameOn ? [{ id: 'newgame', label: 'New game setup', icon: Sparkles, group: 'Quick' as const, keywords: 'wizard start campaign', run: () => document.dispatchEvent(new CustomEvent('everloom:tool', { detail: 'newgame' })) }] : []),
-    ...(gameOn ? [{ id: 'log', label: 'Meanwhile… (world log)', icon: History, group: 'Quick' as const, keywords: 'events news digest', run: () => document.dispatchEvent(new CustomEvent('everloom:tool', { detail: 'log' })) }] : []),
-    { id: 'note', label: "Author's note", icon: NotebookPen, group: 'Quick', run: () => setSheet('note') },
-    ...(features.memory !== 'off' ? [{ id: 'memory', label: 'Memory', icon: Brain, group: 'Quick' as const, keywords: 'summary', run: () => setSheet('memory') }] : []),
-    { id: 'inspector', label: 'Prompt inspector', icon: ScrollText, group: 'Quick', keywords: 'tokens debug', run: () => setSheet('inspector') },
-    { id: 'world', label: 'World inspector', icon: Telescope, group: 'Quick', keywords: 'scene block calls cost health changes undo', run: () => setSheet('world') },
-    { id: 'saves', label: 'Saves', icon: Save, group: 'Quick', keywords: 'save load slot checkpoint', run: () => setSheet('saves') },
-    { id: 'cinematic', label: 'Cinematic mode', icon: Clapperboard, group: 'Quick', keywords: 'focus fullscreen immersive hide', run: () => setCinematic(true) },
-    { id: 'scripts', label: 'Scripts', icon: Code2, group: 'Quick', keywords: 'extensions console permissions', run: () => setSheet('scripts') },
-    // Extension panels and screens as tiles.
-    ...scripts.extensions.flatMap((e) => [
-      ...e.panels.filter((p) => p.tile).map((p) => ({ id: `ext:${e.id}:${p.id}`, label: p.title, icon: PanelRight, group: 'Quick' as const, keywords: `${e.name} extension`, run: () => openExtensionPanel(e, p, id, c.characterId) })),
-      ...e.screens.map((sc) => ({ id: `ext:${e.id}:screen:${sc.id}`, label: sc.title, icon: PanelRight, group: 'Quick' as const, keywords: `${e.name} extension`, run: () => navigate(`/x/${encodeURIComponent(e.id)}/${encodeURIComponent(sc.id)}?chat=${id}`) })),
-    ]),
-  ];
+  // Extension panels and screens, in the palette.
+  const extra: PaletteItem[] = scripts.extensions.flatMap((e) => [
+    ...e.panels.filter((p) => p.tile).map((p) => ({ key: `ext:${e.id}:${p.id}`, label: p.title, description: `${e.name} extension`, icon: PanelRight, section: 'Extensions', keywords: `${e.name} extension`, run: () => openExtensionPanel(e, p, id, c.characterId) })),
+    ...e.screens.map((sc) => ({ key: `ext:${e.id}:screen:${sc.id}`, label: sc.title, description: `${e.name} extension`, icon: PanelRight, section: 'Extensions', keywords: `${e.name} extension`, run: () => navigate(`/x/${encodeURIComponent(e.id)}/${encodeURIComponent(sc.id)}?chat=${id}`) })),
+  ]);
+  // Palette entries that belong to the play screen (sheets, actions, pages).
+  const onEntry = (e: Entry) => {
+    const tg = e.target;
+    if (tg.kind === 'sheet') {
+      setWorldTab(tg.tab);
+      setSheet(tg.sheet as typeof sheet);
+    } else if (tg.kind === 'route') navigate(tg.to);
+    else if (tg.kind === 'action') {
+      if (tg.action === 'continue') void run('continue');
+      else if (tg.action === 'impersonate') void run('impersonate').then((t2) => t2 && setComposer(String(t2)));
+      else if (tg.action === 'cinematic') setCinematic(true);
+      else if (tg.action === 'stage') void setMode(mode === 'stage' ? 'chat' : 'stage');
+      else if (tg.action === 'new-chat-same') setSheet('newchat');
+      else if (tg.action === 'tour') openTour(features);
+      else if (tg.action === 'panel') setPanel(true);
+      else if (tg.action === 'undo') void doUndo();
+      else if (tg.action === 'redo') void doRedo();
+      else if (tg.action === 'panel-cards') {
+        setPanelTab({ tab: 'cards', n: Date.now() });
+        setPanel(true);
+      }
+    }
+  };
 
   const renderMessage = (m: MessageDTO) => {
     const live = streams[m.id];
@@ -385,7 +500,7 @@ export default function StoryView() {
   };
 
   return (
-    <div className="ev-story relative flex h-full flex-col bg-bg" data-genre={settings.data?.genreTheme !== false ? (campaign.data?.state?.meta.style ?? undefined) : undefined} data-cinematic={cinematic ? '' : undefined}>
+    <div className="ev-story relative flex h-full flex-col bg-bg" data-genre={lookId === 'everloom' && settings.data?.genreTheme !== false ? (campaign.data?.state?.meta.style ?? undefined) : undefined} data-cinematic={cinematic ? '' : undefined}>
       {cinematic ? (
         <Button size="sm" variant="secondary" icon={Minimize2} className="absolute right-3 top-[calc(var(--safe-top)+12px)] z-30 opacity-70 hover:opacity-100 focus-visible:opacity-100" onClick={() => setCinematic(false)}>
           Exit
@@ -400,35 +515,26 @@ export default function StoryView() {
             <span className="block truncate text-xs text-fg-2">{busy ? 'writing…' : c.title}</span>
           </span>
         </button>
-        <IconButton icon={Search} label="Find in chat" onClick={() => setSheet('search')} />
-        {features.on.stage ? <IconButton icon={BookText} label={mode === 'stage' ? 'Switch to chat mode' : 'Switch to stage mode'} active={mode === 'stage'} onClick={() => setMode(mode === 'stage' ? 'chat' : 'stage')} /> : null}
-        <Menu
-          trigger={<IconButton icon={MoreHorizontal} label="Chat menu" />}
-          items={[
-            { label: 'Prompt inspector', icon: ScrollText, onSelect: () => setSheet('inspector') },
-            { label: "Author's note", icon: NotebookPen, onSelect: () => setSheet('note') },
-            { label: 'Memory', icon: Brain, onSelect: () => setSheet('memory') },
-            { label: 'World inspector', icon: Telescope, onSelect: () => setSheet('world') },
-            { label: 'Saves', icon: Save, onSelect: () => setSheet('saves'), separatorBefore: true },
-            { label: 'View', icon: Eye, onSelect: () => setSheet('view') },
-            { label: 'Cinematic mode', icon: Clapperboard, onSelect: () => setCinematic(true) },
-            { label: 'Scripts', icon: Code2, onSelect: () => setSheet('scripts') },
-            { label: 'Chat details', icon: MoreHorizontal, onSelect: () => setSheet('info'), separatorBefore: true },
-          ]}
-        />
+        <IconButton icon={PanelRight} label="Story panel" active={panelOpen} className="max-md:hidden" onClick={() => setPanel(!panelOpen)} />
+        {features.on.stage ? <IconButton icon={BookText} label={mode === 'stage' ? 'Switch to chat view' : 'Switch to stage view'} active={mode === 'stage'} onClick={() => setMode(mode === 'stage' ? 'chat' : 'stage')} /> : null}
       </header>
 
       <ScriptViewContext.Provider value={scriptView}>
       <FeaturesContext.Provider value={features}>
-      <GameLayer chat={c} campaign={campaign.data ?? null} busy={busy} onRun={run} setComposer={setComposer} menuOpen={menuOpen} setMenuOpen={setMenuOpen} quick={quick}>
+      <div className="flex min-h-0 flex-1">
+      <div className="flex min-w-0 flex-1 flex-col">
+      <GameLayer chat={c} campaign={campaign.data ?? null} busy={busy} onRun={run} setComposer={setComposer} menuOpen={menuOpen} setMenuOpen={setMenuOpen} onEntry={onEntry} extra={extra}>
         {mode === 'stage' ? (
           <Suspense fallback={<div className="flex flex-1 items-center justify-center"><Spinner /></div>}>
             <Stage chat={c} messages={list} campaign={campaign.data ?? null} busy={busy} actions={actions} streamText={gen.chatId === id ? gen.text : null} streamingId={gen.messageId} composer={composerEl} />
           </Suspense>
         ) : (
           <>
+            {scenery && phone ? <SceneryLayer lookId={lookId} band hour={hour} still={scenery === 'still'} className="block h-10 w-full flex-none hairline-b" /> : null}
+            <div className="relative flex min-h-0 flex-1 flex-col">
+            {scenery && !phone ? <SceneryLayer lookId={lookId} column={column} hour={hour} still={scenery === 'still'} className="absolute inset-0 h-full w-full" /> : null}
             <div ref={scroller} onScroll={onScroll} className="relative min-h-0 flex-1 overflow-y-auto overscroll-contain">
-              <div className="mx-auto w-full max-w-[760px] px-4 pb-4 pt-2 sm:px-6">
+              <div ref={column} className="ev-column mx-auto w-full max-w-[var(--story-width)] px-4 pb-4 pt-2 sm:px-6">
                 {list.length > limit ? (
                   <div className="flex justify-center py-3">
                     <Button size="sm" variant="quiet" onClick={() => setLimit((l) => l + PAGE)}>
@@ -461,6 +567,7 @@ export default function StoryView() {
                 ) : null}
               </div>
             </div>
+            </div>
             <AnimatePresence>
               {!stuck ? (
                 <motion.div className="pointer-events-none relative z-10 flex justify-center" initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: 8 }} transition={t.fast}>
@@ -480,11 +587,14 @@ export default function StoryView() {
           </>
         )}
       </GameLayer>
+      </div>
+      <StoryPanel chat={c} want={panelTab} open={panelOpen} onOpenChange={setPanel} onOpenSheet={(x) => setSheet(x)} />
+      </div>
       </FeaturesContext.Provider>
       </ScriptViewContext.Provider>
       {scripts.on && scripts.settings && (scripts.runnable.length || scripts.extensions.some((e) => e.background)) ? (
         <Suspense fallback={null}>
-          <ScriptLayer chatId={id} characterId={c.characterId} settings={scripts.settings} runnable={scripts.runnable} extensions={scripts.extensions} send={sendText} swipeNew={swipeNew} />
+          <ScriptLayer chatId={id} characterId={c.characterId} settings={scripts.settings} runnable={scripts.runnable} extensions={scripts.extensions} send={sendText} swipeNew={swipeNew} onReady={() => setLayerFor(id)} />
         </Suspense>
       ) : null}
       <ScriptsSheet open={sheet === 'scripts'} onOpenChange={(o) => setSheet(o ? 'scripts' : null)} active={scripts.active} extensions={scripts.extensions} safe={scripts.safe} on={scripts.on} onReview={setReview} />
@@ -494,7 +604,8 @@ export default function StoryView() {
       <SearchSheet chatId={id} messages={list} open={sheet === 'search'} onOpenChange={(o) => setSheet(o ? 'search' : null)} onJump={jumpTo} />
       <NoteSheet chat={c} open={sheet === 'note'} onOpenChange={(o) => setSheet(o ? 'note' : null)} />
       <MemorySheet chat={c} open={sheet === 'memory'} onOpenChange={(o) => setSheet(o ? 'memory' : null)} />
-      <WorldInspector chat={c} open={sheet === 'world'} onOpenChange={(o) => setSheet(o ? 'world' : null)} />
+      <WorldInspector chat={c} tab={worldTab} open={sheet === 'world'} onOpenChange={(o) => setSheet(o ? 'world' : null)} />
+      {sheet === 'newchat' ? <NewChatSheet open onOpenChange={(o) => setSheet(o ? 'newchat' : null)} characterId={c.groupId ? undefined : (c.characterId ?? undefined)} /> : null}
       <ChatInfoSheet chat={c} open={sheet === 'info'} onOpenChange={(o) => setSheet(o ? 'info' : null)} />
       <SavesSheet chat={c} open={sheet === 'saves'} onOpenChange={(o) => setSheet(o ? 'saves' : null)} />
       <ViewSheet open={sheet === 'view'} onOpenChange={(o) => setSheet(o ? 'view' : null)} onCinematic={() => setCinematic(true)} />

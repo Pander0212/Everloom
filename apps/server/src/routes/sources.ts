@@ -57,7 +57,7 @@ const SearchQuery = z.object({
   lorebook: tri,
   greetings: tri,
   lang: z.string().max(12).optional(),
-  nsfw: z.enum(['0', '1']).default('0'),
+  nsfw: z.enum(['0', '1']).default('1'),
   hideOwned: z.enum(['0', '1']).default('0'),
 });
 

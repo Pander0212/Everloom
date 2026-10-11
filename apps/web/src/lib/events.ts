@@ -16,9 +16,11 @@ export const useLive = create<LiveState>(() => ({ streams: {}, tracker: {} }));
 
 let source: EventSource | null = null;
 let retry = 0;
+let suspended = false;
+let retryTimer: ReturnType<typeof setTimeout> | undefined;
 
 export function startEvents() {
-  if (source) return;
+  if (source || suspended) return;
   const es = new EventSource('/api/events');
   source = es;
   const on = (type: string, fn: (d: any) => void) =>
@@ -39,7 +41,7 @@ export function startEvents() {
     useUi.getState().setConnection(navigator.onLine ? 'reconnecting' : 'offline');
     if (es.readyState === EventSource.CLOSED) {
       source = null;
-      setTimeout(startEvents, Math.min(15000, 1000 * 2 ** retry++));
+      retryTimer = setTimeout(startEvents, Math.min(15000, 1000 * 2 ** retry++));
     }
   };
   on('message.created', (d) => upsertMessage(d.message as MessageDTO));
@@ -91,9 +93,15 @@ export function startEvents() {
 }
 
 export function stopEvents() {
+  clearTimeout(retryTimer);
   source?.close();
   source = null;
 }
+
+// Close before navigation cancels the request; resume if the browser restores
+// this document from its back/forward cache.
+window.addEventListener('pagehide', () => { suspended = true; stopEvents(); });
+window.addEventListener('pageshow', () => { if (suspended) { suspended = false; startEvents(); } });
 
 window.addEventListener('online', () => {
   if (!source) startEvents();

@@ -1,11 +1,12 @@
 /**
- * World inspector: the exact scene block the narrator gets, every change to the world (with
+ * Story state (was the World inspector): what the AI sees of the story, every change to the world (with
  * revert), every model call (role, model, time, tokens, purpose), and a health check with fixes.
  */
+import { entry } from '@/lib/registry';
 import type { ChatDTO } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { AlertTriangle, Check, CheckCircle2, Copy, Import, RefreshCw, Undo2, Wrench } from 'lucide-react';
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { get, post } from '@/lib/api';
 import { cx, relativeTime } from '@/lib/format';
 import { useCampaign, useLorebooks } from '@/lib/queries';
@@ -52,20 +53,24 @@ interface HealthDTO {
 
 const SOURCE_LABEL: Record<string, string> = { ai: 'Story', user: 'You', sim: 'World', system: 'System', helper: 'Helper' };
 
-export function WorldInspector({ chat, open, onOpenChange }: { chat: ChatDTO; open: boolean; onOpenChange: (o: boolean) => void }) {
+export function WorldInspector({ chat, open, onOpenChange, tab: wanted }: { chat: ChatDTO; open: boolean; onOpenChange: (o: boolean) => void; tab?: string }) {
   const game = !!chat.campaignId;
   const [tab, setTab] = useState(game ? 'scene' : 'calls');
+  // Opened at a tab from the palette (Story changes, Story problems).
+  useEffect(() => {
+    if (open && wanted) setTab(wanted);
+  }, [open, wanted]);
   const health = useQuery({ queryKey: ['inspector', chat.id, 'health'], queryFn: () => get<HealthDTO>(`/api/chats/${chat.id}/health`), enabled: open && game });
   const problems = (health.data?.issues.length ?? 0) + (health.data?.unresolved.length ?? 0);
   const tabs = [
-    ...(game ? [{ value: 'scene', label: 'Scene' }] : []),
+    ...(game ? [{ value: 'scene', label: 'What the AI sees' }] : []),
     ...(game ? [{ value: 'changes', label: 'Changes' }] : []),
     { value: 'calls', label: 'Model calls' },
-    ...(game ? [{ value: 'health', label: problems ? <span className="flex items-center gap-1.5">Health <Badge tone="warning">{problems}</Badge></span> : 'Health' }] : []),
-    ...(game ? [{ value: 'import', label: 'Import' }] : []),
+    ...(game ? [{ value: 'health', label: problems ? <span className="flex items-center gap-1.5">Problems <Badge tone="warning">{problems}</Badge></span> : 'Problems' }] : []),
+    ...(game ? [{ value: 'import', label: 'Import from lore' }] : []),
   ];
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="World inspector" description="What the narrator sees, what changed, and what it cost." size="lg">
+    <Sheet open={open} onOpenChange={onOpenChange} title="Story state" description="What the AI is told about the story, every change (with undo), the AI calls and their cost, and problems to fix." help={entry('story-state')?.help} size="lg">
       <Tabs value={tab} onChange={setTab} tabs={tabs}>
         {game ? (
           <TabPanel value="scene">

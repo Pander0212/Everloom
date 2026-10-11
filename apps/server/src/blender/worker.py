@@ -183,7 +183,7 @@ def summary():
     arm = [o for o in bpy.data.objects if o.type == "ARMATURE"]
     meshes = [o for o in bpy.data.objects if o.type == "MESH"]
     keys = sum(len(m.data.shape_keys.key_blocks) if m.data.shape_keys else 0 for m in meshes)
-    return {"armatures": len(arm), "bones": sum(len(a.data.bones) for a in arm), "meshes": len(meshes), "shapeKeys": keys, "actions": [a.name for a in bpy.data.actions]}
+    return {"armatures": len(arm), "bones": sum(len(a.data.bones) for a in arm), "meshes": len(meshes), "shapeKeys": keys, "actions": [a.name for a in bpy.data.actions], "blender": bpy.app.version_string, "materials": len([m for m in bpy.data.materials if m.users])}
 
 
 def op_convert(job):

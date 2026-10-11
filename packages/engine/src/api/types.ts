@@ -12,7 +12,8 @@ export type ProviderId =
   | 'openai' | 'anthropic' | 'gemini' | 'textgen'
   | 'tts-openai' | 'tts-elevenlabs'
   | 'img-openai' | 'img-openrouter' | 'img-pollinations' | 'img-comfyui' | 'img-a1111'
-  | '3d-meshy' | '3d-fal';
+  | '3d-meshy' | '3d-fal'
+  | 'layers-seethrough';
 
 export interface ConnectionDTO {
   id: string;
@@ -32,6 +33,8 @@ export interface MediaRef {
 }
 
 export interface CharacterGame {
+  /** Recorded age, also checked before linking an adult 3D avatar. */
+  age?: number | null;
   /** emotion -> media id */
   expressions?: Record<string, string>;
   /** A preset voice, or one of the owner's reference voices (kept separate, with consent on file). */
@@ -50,6 +53,7 @@ export interface CharacterGame {
 }
 
 export interface CharacterSummary {
+  adult?: boolean;
   id: string;
   name: string;
   avatar: string | null;
@@ -175,6 +179,8 @@ export interface ChatMeta {
   lastPrompt?: unknown;
   /** This chat's own feature preset (Classic, Story, Full RPG); unset follows Settings › Features. */
   features?: FeaturePreset | null;
+  /** This world's own theme (a look id); unset uses the player's. */
+  look?: string | null;
   [k: string]: unknown;
 }
 
@@ -221,7 +227,7 @@ export interface CampaignDTO {
 export interface Settings {
   theme: 'system' | 'light' | 'dark';
   motion: 'full' | 'reduced';
-  textSize: 'small' | 'medium' | 'large';
+  textSize: 'small' | 'medium' | 'large' | 'xlarge';
   /** Accent palette. */
   palette: 'amber' | 'dusk' | 'sea' | 'rose';
   /** Tint the story view to match the campaign's genre. */
@@ -244,14 +250,14 @@ export interface Settings {
   };
   /** Stage extras: speech bubbles, and Live2D (off by default; needs the owner's own Cubism Core). */
   stage: { bubbles: boolean; live2d: boolean; /** Scene effects the owner turned off. */ fxOff?: string[] };
-  roles: { main: string | null; utility: string | null; background: string | null; embeddings: string | null; tts: string | null; image: string | null; model3d?: string | null };
+  roles: { main: string | null; utility: string | null; background: string | null; embeddings: string | null; tts: string | null; image: string | null; model3d?: string | null; layering?: string | null };
   activePresetId: string | null;
   defaultPersonaId: string | null;
   tracker: { mode: 'off' | 'inline' | 'separate'; injectBudget: number; injectState: boolean };
   hud: { pinned: string[] };
   wi: WISettings & { semantic: boolean; semanticTopK: number; semanticThreshold: number };
   memory: { auto: boolean; every: number; maxWords: number };
-  chat: { enterToSend: boolean; showReasoning: boolean; autoTts: boolean; defaultMode: 'chat' | 'stage'; stt: boolean };
+  chat: { enterToSend: boolean; showReasoning: boolean; autoTts: boolean; defaultMode: 'chat' | 'stage'; stt: boolean; /** Dictation by the browser, or recorded and sent to the voice connection. */ sttEngine?: 'browser' | 'connection' };
   tts: { provider: 'browser' | 'connection'; narratorVoice: string; rate: number; pitch: number };
   images: { autoBackground: boolean; style: string };
   backups: { nightly: boolean; retention: number; hour: number };
@@ -266,6 +272,22 @@ export interface Settings {
   studio: { presets: Array<{ id: string; name: string; system: string }>; preset: string; connection: string | null };
   /** Which modules are on (Settings › Features). */
   features: FeatureSettings;
+  /**
+   * Interface choices (docs/ux/navigation.md): pinned palette entries and composer quick actions
+   * (null = the defaults for the preset), tours already seen, the Simple/Advanced settings view and
+   * whether experimental entries show.
+   */
+  ui: { pins: string[] | null; quick: string[] | null; tours: string[]; advanced: boolean; experimental: boolean };
+  /**
+   * The theme (apps/web/src/themes/looks.ts) and reading settings. A device can override the theme
+   * and the scenery; a chat can have its own theme (`ChatMeta.look`).
+   */
+  look: {
+    id: string;
+    scenery: 'animated' | 'still' | 'off';
+    /** Line height, story column width (px), space between paragraphs (em), font ids (null = the theme's). */
+    reading: { leading: number; width: number; paragraph: number; storyFont: string | null; uiFont: string | null };
+  };
   /** Settings › Privacy. */
   privacy: { shield: ShieldSettings };
   /** Settings › Scripts. */
@@ -303,8 +325,11 @@ export interface LibrarySettings {
   prevNext: boolean;
   /** Card info on hover / long-press. */
   cardInfo: boolean;
-  /** Online sources: show adult content. Off by default. */
-  nsfw: boolean;
+  /** Privacy for screen sharing: blur 18+ pictures in lists (characters, avatars, sources). Off by default. */
+  blurAdult: boolean;
+  /** Older settings (the removed 18+ switch); kept so saved settings still load, never read. */
+  nsfw?: boolean;
+  adultConfirmed?: boolean;
 }
 
 export type WorldProfile = 'cheap' | 'balanced' | 'max' | 'custom';

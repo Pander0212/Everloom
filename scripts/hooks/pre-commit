@@ -1,3 +1,6 @@
 #!/bin/sh
-# Refuse commits that contain a known API key (see scripts/check-secrets.mjs).
-exec node "$(git rev-parse --show-toplevel)/scripts/check-secrets.mjs"
+# Refuse commits that contain a known API key (see scripts/check-secrets.mjs) or puppet pack art
+# (see scripts/check-pack-art.mjs).
+ROOT="$(git rev-parse --show-toplevel)"
+node "$ROOT/scripts/check-secrets.mjs" || exit 1
+exec node "$ROOT/scripts/check-pack-art.mjs"

@@ -66,6 +66,14 @@ export function LevelUpMoment() {
       }
     >
       <div className="flex flex-col items-center gap-3 py-2 text-center">
+        <span className="relative">
+        {!reduce ? (
+          <span className="ev-burst" aria-hidden="true">
+            {Array.from({ length: 10 }, (_, i) => (
+              <i key={i} style={{ '--r': `${i * 36}deg` } as React.CSSProperties} />
+            ))}
+          </span>
+        ) : null}
         <motion.span
           initial={reduce ? false : { scale: 0.6, opacity: 0 }}
           animate={{ scale: 1, opacity: 1 }}
@@ -75,6 +83,7 @@ export function LevelUpMoment() {
         >
           {cur.to}
         </motion.span>
+        </span>
         <p className="text-sm text-fg-2">
           {[pts ? `${pts} stat point${pts === 1 ? '' : 's'}` : null, skillPts ? `${skillPts} skill point${skillPts === 1 ? '' : 's'}` : null].filter(Boolean).join(' and ') || 'Stronger than before.'}
           {pts || skillPts ? ' to spend.' : ''}

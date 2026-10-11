@@ -10,7 +10,8 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./guard": "./src/scripting/guard.ts"
+    "./guard": "./src/scripting/guard.ts",
+    "./unity": "./src/unity/index.ts"
   },
   "scripts": {
     "test": "vitest run",

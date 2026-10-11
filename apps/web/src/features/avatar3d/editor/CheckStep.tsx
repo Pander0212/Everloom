@@ -76,7 +76,7 @@ export function CheckStep({ avatar, handle }: { avatar: AvatarDetail; handle: Pr
             <option value="" disabled>
               Play…
             </option>
-            {BUILTIN_EMOTES.filter((x) => x.source === 'bundled').map((x) => (
+            {BUILTIN_EMOTES.map((x) => (
               <option key={x.id} value={x.id}>
                 {x.label}
               </option>

@@ -35,7 +35,7 @@ const accept = (p: string) => c.req('POST', `/api/sources/${p}/notice`, {});
 
 describe('the shared query', () => {
   it('filter syntax and filter-bar fields reach the site and the final check', async () => {
-    const r = await c.req('GET', `/api/sources/ctavern/search?q=${encodeURIComponent('archive tag:fantasy -tag:pirate tokens<1000 sort:new has:lorebook')}`);
+    const r = await c.req('GET', `/api/sources/ctavern/search?q=${encodeURIComponent('archive tag:fantasy -tag:pirate tokens<1000 sort:new has:lorebook')}&nsfw=0`);
     expect(r.status).toBe(200);
     const u = new URL(calls.find((x) => x.url.includes('/search/cards/'))!.url);
     expect(Object.fromEntries(u.searchParams)).toMatchObject({ query: 'archive', sort: 'newest', tags: 'fantasy', exclude_tags: 'pirate', maximum_tokens: '999', hasLorebook: 'true' });
@@ -54,7 +54,7 @@ describe('the shared query', () => {
 
 describe('Character Tavern (page data)', () => {
   it('searches, suggests tags, and imports with greetings and lorebook', async () => {
-    expect((await c.req('GET', '/api/sources/ctavern/search')).json.items.map((i: any) => i.name)).toEqual(['Wren of the Lantern Archive', 'Captain Orla Vey']);
+    expect((await c.req('GET', '/api/sources/ctavern/search?nsfw=0')).json.items.map((i: any) => i.name)).toEqual(['Wren of the Lantern Archive', 'Captain Orla Vey']);
     expect((await c.req('GET', '/api/sources/ctavern/tags?q=li')).json).toEqual([{ tag: 'librarian', count: 12 }]);
     const ch = (await c.req('POST', '/api/sources/ctavern/import', { key: 'quillwright/wren_of_the_lantern_archive' })).json;
     expect(ch).toMatchObject({ name: 'Wren', linked: 'quillwright/wren_of_the_lantern_archive' });
@@ -75,7 +75,7 @@ describe('Botbooru', () => {
     expect(calls).toHaveLength(0);
     const list = (await accept('botbooru')).json;
     expect(list.providers.find((p: any) => p.id === 'botbooru').noticeAccepted).toBe(true);
-    const s = (await c.req('GET', '/api/sources/botbooru/search?tags=fantasy')).json;
+    const s = (await c.req('GET', '/api/sources/botbooru/search?tags=fantasy&nsfw=0')).json;
     expect(s.items.map((i: any) => i.name)).toEqual(['Mossheart the Gardener']);
     expect(new URL(calls[0]!.url).searchParams.get('q')).toBe('fantasy');
     expect(new URL(calls[0]!.url).searchParams.get('sfw_only')).toBe('true');

@@ -2,6 +2,81 @@
 
 Snapshot of what's built, what's partial, and how it was tested. Everloom 0.1.0.
 
+## 3D import and editor (2026-10-10)
+
+Unity packages without Unity, bone mapping, more formats, `.blend` through Blender, a VRoid-style
+character creator, and the adult switch removed (the minor guard stays). Docs:
+[docs/3d-import/](docs/3d-import/) (research, formats, Unity tables, bones and presets, `.blend`,
+creator); acceptance: [docs/3d-import/evidence/acceptance.md](docs/3d-import/evidence/acceptance.md).
+
+### Done ✅
+- **Unity**: `.unitypackage` and extracted folders (with or without `.meta`) import in the browser:
+  humanoid from `.fbx.meta`, lilToon/Poiyomi/Standard materials, prefab variants and blendshape
+  values, PhysBones and Dynamic Bones as springs (hair, cloth, chest, butt), VRChat visemes and
+  blink, Modular Avatar toggles and outfits (Merge Armature), face and body animations; an import
+  report; the package's license kept, with a warning on export and sharing.
+- **Bones**: one mapping model (humanoid plus roles: spine chains, breast, butt, belly, hair,
+  skirt, tail, helpers…), an auto-mapper (file maps, base presets, Japanese/Chinese/Korean names,
+  geometry) measured at 100% on the fixture rigs, a Bones tab that works on a phone with 250 bones,
+  mapping presets. Roles drive physics and the breast and butt bone sliders.
+- **Formats**: OBJ+MTL, DAE, PMX/PMD with VMD/VPD, BVH, VRMA, zip/7z/rar, TGA/PSD/DDS/KTX2
+  textures; `.clip` and `.psd` drawings become puppets; clear messages for Unity `.anim` and the rest.
+- **`.blend`**: converted by Blender on the server (one-click verified install), the Windows app, or
+  a RunPod CPU session; the old failure was the web app refusing the file before upload.
+- **Creator**: own CC0 bases (anime woman and man), 44 body and many face sliders, eyes, 32 hair
+  presets by part, skin and makeup, 19 clothing templates with patterns and a UV template, save and
+  re-edit, GLB and VRM 1.0 export with the owner's license; VRM license panel for imported VRMs.
+- **Anatomy** from a separate pack (never in the repo), no unlock; the **minor guard**
+  (`apps/server/src/services/minor-guard.ts`) refuses it and other explicit content for minors on
+  the server. The adult-mode switch and its confirmations are gone; "Blur 18+ pictures in lists"
+  is the one privacy option, off by default.
+
+### Partial or not built
+- RAR and ASCII FBX are untested with real files (no free RAR writer, no CC0 ASCII FBX here).
+- The texture library is code-made; image-model textures need an image connection key.
+- Genital shapes for the anatomy pack need sculpted art; the pack tool makes the chest only.
+- On-screen fps can't be measured here (software WebGL); CPU time per frame is (item 11).
+- The RunPod Blender session has not run against RunPod (no key during this work).
+
+### Tests
+- Typecheck clean; Vitest 117 files, 825 passed, 8 skipped (Blender and real-file tests without their env vars; the `.blend` tests pass 3/3 with Blender 4.2).
+- Playwright e2e, all eight projects: 539 passed, 170 skipped (heavy 3D specs run on two projects), 0 failed (1.5 h).
+- Measurement specs (`MEASURE_3D=1`): `perf-250.spec.ts`, results in `docs/3d-import/evidence/perf-250.json`.
+
+## Design & UX (2026-10-09)
+
+Making the app understandable, themes with scenery, and features from Hakawati. Docs:
+[docs/ux/](docs/ux/) (audit, navigation before/after, task tests, glossary, themes, Hakawati);
+acceptance evidence: [docs/ux/evidence/acceptance.md](docs/ux/evidence/acceptance.md).
+
+### Done ✅
+- **Clarity**: Tools grouped by intent (This scene, My character, The world, Story tools, Create,
+  Settings, Advanced) with pins per preset and search (Ctrl/⌘K, phone search); plain names
+  (Auto-tracking, What the AI sees, Story state, …) in one glossary; message actions under the
+  message with More in labelled groups; one send button and an input-mode switch; customizable
+  quick actions; a line and a **What is this?** on every screen; Simple and Advanced settings;
+  a first-run tour per preset; Classic chat shows no game entry anywhere.
+- **Measured**: visible controls on a phone's play screen 20 → 16; nine common tasks 32 → 25 taps,
+  2 → 0 scrolls ([task-tests.md](docs/ux/task-tests.md)).
+- **Themes**: ten themes plus Everloom's own, each with fonts, shapes, motion and scenery around
+  the story (never under the text; a band on phones; paused when hidden, scrolled away or typing;
+  still under reduced motion); live gallery in Settings › Appearance & themes; per world and per
+  device; reading settings; AA contrast tested for every theme in light and dark; scene script
+  0.5–1.0% of a 4× slowed core on the phone profile.
+- **From Hakawati** (ideas only, clean-room): input modes, scenario questions, Quickstart with
+  cancel, scenarios, story cards (merged with lorebooks) with generation, the story panel, undo/redo
+  of turns, thinking levels, dictation through the voice connection, interface scaling, migrations
+  as one step with a recovery message. Researched, not built: Continue with ChatGPT. Skipped:
+  right-to-left (no translations yet). Decisions: [docs/ux/hakawati.md](docs/ux/hakawati.md).
+
+### Tests
+- Typecheck clean; Vitest 106 files, 780 passed, 5 skipped (Blender).
+- Playwright e2e, eight projects: 499 passed, 60 skipped, 2 failed, then fixed; the fixed specs re-run in all eight projects: 121 passed.
+- UX suite (`playwright.ux.config.ts`): task tests, screens, themes, scenery CPU, presets (Classic,
+  Story, Full RPG) all passing.
+- Found and fixed by the final runs: a closing sheet's fading backdrop swallowed the next tap; the
+  scenery could draw with a negative clock on its first frame and throw.
+
 ## Phase 5
 
 3D characters: import, rendering, motion, a wardrobe that follows the inventory, four ways to make
@@ -294,3 +369,144 @@ In this sandbox the image was built with an extra CA certificate for the build n
 6. Link quests to places (target pins, "go to objective" on the map).
 7. Persona expression sprites and per-persona overrides.
 8. Split the shared UI chunk further to lift throttled-mobile performance.
+## Custom bases, clothes fitting, physics, skin layers, paired animations (2026-10-08)
+
+Spec: [docs/avatars.md](docs/avatars.md) (Custom bases, Fitting clothes, Physics, Skin layers, Paired
+animations) and [docs/base-model-guide.md](docs/base-model-guide.md); decisions in
+[docs/PHASE2_DECISIONS.md](docs/PHASE2_DECISIONS.md). Evidence (CC0, Everloom-made bodies and
+clothes): `docs/3d-base-evidence/`.
+
+### Done ✅
+- **Custom bases**: any rigged GLB; the base model check in plain words with the features it turns
+  off; body sliders from morph targets (Body/Face/Other, two-way pairs, linked left/right, editable
+  mapping saved with the model, adults-only shapes gated); generated adjusters where morphs are
+  missing; body presets shared by characters on the same base.
+- **Fitting in the browser**: hand placement (gizmo on desktop, hold buttons on phones, snaps,
+  mirror, auto-align, exact numbers), rigging in a worker (normal-checked closest-point weights,
+  fill, smoothing, 4 bones, morphs carried over, push-out, swing chains for skirts and hair, covered
+  skin hidden), review in poses and at slider extremes, saved as a rigged GLB garment.
+- **Physics**: one Verlet solver for VRM springs, file chains, generated chains and the chest;
+  colliders from the body; damping, wind, chest strength and off; budgets per quality; off-screen
+  pause.
+- **Skin layers and colours**: underwear, swimwear, stockings, makeup, paint, tattoos and scars baked
+  into the skin texture; tattoos placed by tapping; skin tone, eye and hair colours.
+- **Paired animations**: story op, emote picker *Together*, `/pair`, scripts; shared clock,
+  placement by height, IK contacts (hands meet, hugs wrap round), step-closer for short arms; four
+  built-in CC0 clips; an importer; adult gating.
+
+- **Fixed in the follow-up**: long hair flung out like a cape (chains made touching the shoulders
+  and back were pushed fully out of the colliders; contact at rest is now kept), the buttocks
+  pushing through the back of a skirt while dancing (skin under the mostly pinned part now hides),
+  hair drawn under tops (hair is now the outermost layer), the base check promising chest helper
+  bones that aren't made, and a unit test that only passed with the server built.
+- **Found by the full e2e re-run**: a message sent while a chat's scripts were still loading never
+  told its lorebook scripts which entries activated (the turn kept the script list from when the
+  message was typed, and nothing counted as starting while the list or the script layer loaded);
+  the chat now counts as starting until its scripts are known and their frames attached, and the
+  turn reads the list as it is when it runs. Tests that had drifted or raced: the adult-content
+  switch (renamed, now with an 18+ confirmation) and three clicks that could hit a matching button
+  outside the sheet that was still opening.
+
+### Checklist (prompt §6)
+| # | Check | Result |
+|---|---|---|
+| 1 | Base with morphs: report, sliders (breast, hips, butt) | ✅ `1-base-check`, `1-sliders-max/min` |
+| 2 | Base without morphs: report and fallback | ✅ `2-no-morphs-fallback` |
+| 3 | Shirt, trousers, skirt, shoes (and long hair) fitted by hand, poses, sliders | ✅ `3-*` (jeans: a small gap inside the lower leg at slider max) |
+| 4 | 20,000-vertex garment in a worker | ✅ 0.47–0.54 s worker time, page responsive (timer ≤ 7 ms late); Node 0.34–0.44 s |
+| 5 | Skirt swings and collides; hair; chest motion on/off | ✅ `5-skirt-dance-*`, `5-hair-back-*`; 0 of 4,800 skirt-point checks inside a leg; chest 2.1° on, 0° off (weak spots below) |
+| 6 | Underwear layer, tapped tattoo bending with poses and sliders, colours | ✅ `6-*` |
+| 7 | Paired animation, different heights, hands meeting | ✅ `paired-*` |
+| 8 | Story equips a fitted garment on a custom base; a swipe takes it off | ✅ `8-equipped` |
+| 9 | Frame rates, 1–3 dressed characters, phone and desktop, per quality | ✅ table in [docs/avatars.md › Rendering](docs/avatars.md#rendering); `9-three-dancing` |
+| 10 | 390×844 flow; existing suite | ✅ base-models.spec passes at 390×844 and 1280×800; unit 594 passed, 5 skipped (97 files); full e2e 451 passed, 54 skipped, 0 failed on all 8 projects |
+
+**Timings** (`docs/3d-base-evidence/timings.json` from one clean run of base-models.spec,
+`measurements.json` from `tests/e2e/measure-3d.spec.ts`; headless Chromium with software WebGL):
+the test garments (600–3,300 vertices) rig in 20–180 ms of worker time, about 1 s from *Fit* to the
+review, and save in 1–3 s. A 20,000-vertex garment on the CC0 base (14,549 vertices, 31 morphs)
+rigs in 0.47–0.54 s of worker time with the preview not rendering, and in 0.34–0.44 s in Node on
+the same input. (The earlier figures of up to 22 s came from runs where software rendering competed
+with the worker for the CPU.)
+
+**Frame rates** (dressed: shirt, skirt and long hair on chains, shoes; dancing, physics on; CPU
+time per frame, mean): desktop 1.7–11.3 ms at every quality with one to three characters; phone
+profile (4× slower CPU) 7.7–24.1 ms on low and medium, 22.8 ms (one), 35.4 ms (two) and 53.5 ms
+(three) on high. The software rasteriser holds the frame rate itself at 1.5–13 fps here, so only
+the CPU times carry over to real devices.
+
+### Partial or not built
+- **Chest helper bones** for bases without breast bones: not built; such a base has no chest motion
+  and the base check says so.
+- **Projected decals across UV seams**: not built; a tattoo crossing a seam is cut there.
+- **Baking a garment into a skin layer**: not built (paint-on clothes are image layers).
+- **Collision between characters** beyond spacing and the paired-clip contacts: not built.
+- **Collision between garments**: none; hair fitted on the bare body lets a top's back show through
+  it in lively poses, and a skirt fitted over trousers doesn't push out of them.
+- **Skirts**: chains hang from the hips, so in a deep squat the thighs come over the front, and a leg
+  swung far out can show a strip of thigh through the cloth between two chains near the hem.
+- **Jeans at slider max**: a small gap on the inside of the lower leg.
+- **Physics budget on medium**: 48 points; a skirt takes 40, so long hair worn with it barely swings.
+
+## Everloom Puppets — run 1 of several (2026-10-08)
+
+Spec: [docs/puppets.md](docs/puppets.md); decisions and research:
+[docs/PHASE2_DECISIONS.md › Everloom Puppets](docs/PHASE2_DECISIONS.md); the queue for the next run:
+[docs/art/PUPPET_QUEUE.md](docs/art/PUPPET_QUEUE.md).
+
+### Done ✅
+- **Research and decision**: Inochi2D (no maintained, phone-ready browser runtime), See-through,
+  Stretchy Studio, Anime2.5DRig, easy-live2d, Textoon, flat2rig, Bunraku (no code released), with
+  licences; route (B): our own runtime and format, plus Inochi2D import and export.
+- **Engine** (`packages/engine/src/puppet/`): the format with validation; keyform evaluation over
+  one or two parameters; warp and rotation deformers in a tree; masks, blend modes, opacity and
+  draw order by parameter; pendulum physics; automatic life (blinking with natural timing,
+  breathing, idle sway, eyes and head toward a target, lip-sync from the voice level and vowels);
+  expressions for Everloom's emotions; gestures (nod, shake, tilt, surprise, laugh, wave, flinch,
+  lean); meshes from transparency (finer around eyes and mouth); the template rig generator (head
+  turns by sphere projection per depth layer, eyes, brows, mouth, breathing, body shape, hair and
+  chest physics); `.inp`/`.inx` export and import.
+- **Web**: the WebGL 2 player (one canvas for everyone, batching, stencil masks, recolouring in the
+  shader, quality by pixel ratio, 30 fps when idle, paused when hidden) and `/lab/puppets`.
+- **The placeholder puppet** (simple shapes, 38 parts, rigged by the same generator); a `puppets`
+  feature switch (in the Story preset, needs the stage).
+- **Art**: both template masters and full edit sets (51 NanoGPT images on 2026-10-08, ledger
+  #90–#142, within the 95 cap, allowed models only); the prompting guide's puppet section, written
+  before the first call and extended with what the calls taught; `tools/puppets/cut.py`.
+- **GPU tooling**: the See-through worker (API, watchdog, Dockerfile) and the RunPod session tool
+  with its guards; the GPU ledger. A pre-commit check refuses puppet art outside the placeholder;
+  the RunPod key's hash is in the local key scan.
+
+### Not done yet (next runs, in order)
+- **The See-through session**: the first start found no free 24 GB community card (nothing ran, $0
+  spent); the second start, with wider choices, needs the owner's approval in this environment.
+  RunPod balance $5.00, no pods, no volumes (checked through the API).
+- Mapping See-through's layers to the schema; the template puppets with real art; tuning by
+  looking (sweeps and clips in `docs/puppets-evidence/`); the pack builder and installer; the stage
+  integration and story ops; the maker; hairstyles and outfits; the adult layer; in-app layering
+  and part creation. SaladCloud: no key given.
+
+### Tests
+- Engine: 17 puppet tests (deformation, keyforms, masks and draw order, auto-meshes, the template
+  rig's parallax, body shape with the outfit following, eye and mouth crossfades, blinking,
+  breathing, expressions, a nod, lip-sync, hair physics, the look target, the Inochi2D container,
+  a lossless round trip, edits from Creator coming back, and a plain import).
+- Browser (`tests/e2e/puppets.spec.ts`, desktop and 390×844): the placeholder renders, turns its
+  head, blinks on its own, talks and nods; three on stage at about 1.1 ms of CPU per frame (software
+  WebGL; not yet measured with the CPU slowed 4×). Evidence: `docs/puppets-evidence/placeholder-*`.
+  A halo bug (textures not premultiplied when loaded as ImageBitmaps) was found this way and fixed.
+- All unit tests: 611 passed, 5 skipped (98 files).
+
+## Browser 3D repair — in progress
+
+The owner's phone picker issue, optional optimization blocking imports, Firefox schema CSP
+errors, UTF-8 PMX parsing and scaled-armature retargeting defects have been corrected.
+The full unit checkpoint passed 542 tests (5 skipped) across 93 files. Focused real-file phone
+checks passed in Chromium and Firefox for GLB, VRM 0.x/1.0, FBX and PMX; screenshots also
+revealed animation defects that were fixed instead of accepting ready-state markers alone.
+
+Native MakeHuman, sanitized CC0 packs, browser fitting, donor-part copying, material variants,
+adult eligibility checks and protected presets are implemented. Native quality, editor workflows,
+wardrobe rollback, exports and the full end-to-end suite are still being verified. The 18-item
+acceptance checklist and delivery commit/push are **not complete**. Evidence and baseline:
+`docs/3d-fix-evidence/`, `docs/PHASE2_DECISIONS.md`.

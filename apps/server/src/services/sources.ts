@@ -4,8 +4,8 @@
  *
  * Everything is fetched here on the server (no CORS trouble on phones), cached, paced per site, and
  * backed off when a site says "too many requests". Only what the owner asks for is fetched, never in
- * the background. A card whose creator hid its definition comes in as its public parts only, and
- * adult content stays out unless the owner turned it on.
+ * the background. A card whose creator hid its definition comes in as its public parts only. 18+
+ * cards need no setting: the search has an "18+" filter, and nothing is locked.
  */
 import {
   applyLocalFilters,
@@ -31,7 +31,6 @@ import { decrypt, encrypt, newId } from '../security/crypto.js';
 import { fetchPublic } from '../util/public-fetch.js';
 import { getCharacter, importCard, updateCharacter } from './characters.js';
 import { saveImage } from './media.js';
-import { getSettings } from './settings.js';
 import { AccountRequired, CAPABILITIES, PROVIDERS, provider, type FetchOpts, type ProviderIO, type SourceProvider } from './source-providers.js';
 
 export { CAPABILITIES, PROVIDERS, provider, type SourceProvider } from './source-providers.js';
@@ -363,7 +362,7 @@ function io(ctx: AppContext, owner: string, p: SourceProvider) {
 
 export function listProviders(ctx: AppContext, owner: string) {
   return {
-    nsfwAllowed: getSettings(ctx, owner).library.nsfw === true,
+    nsfwAllowed: true,
     providers: Object.values(PROVIDERS).map((p) => ({
       id: p.id,
       name: p.name,
@@ -423,7 +422,6 @@ export function setLink(ctx: AppContext, owner: string, characterId: string, lin
 
 // ------------------------------------------------------------------ browse, preview, import
 
-const allowNsfw = (ctx: AppContext, owner: string) => getSettings(ctx, owner).library.nsfw === true;
 
 /** The search box text plus the filter bar's fields; the bar wins where both say something. */
 export function buildQuery(text: string, extra: Partial<SourceQuery>): { query: SourceQuery; errors: string[] } {
@@ -438,7 +436,7 @@ export function buildQuery(text: string, extra: Partial<SourceQuery>): { query: 
 export async function searchSource(ctx: AppContext, owner: string, providerId: string, q: SourceQuery, opts: { hideOwned?: boolean } = {}) {
   const p = provider(providerId);
   // The owner's setting decides, whatever the request asks for.
-  const nsfw = q.nsfw && allowNsfw(ctx, owner);
+  const nsfw = q.nsfw;
   const query = { ...q, nsfw };
   const r = await siteErrors(() => p.search(query, io(ctx, owner, p)));
   remember(r.items);
@@ -516,7 +514,6 @@ export async function sourceDetail(ctx: AppContext, owner: string, providerId: s
     throw e;
   }
   if (!d) throw new HttpError(404, 'Not found at the source');
-  if (d.nsfw && !allowNsfw(ctx, owner)) throw new HttpError(403, 'This character is marked adult. Turn on adult content in Settings › Character sources to see it.');
   const { card, ...rest } = d;
   return { ...rest, needsAccount: false, preview: card ? { first_mes: card.first_mes, alternate_greetings: card.alternate_greetings.length, tokens: d.tokens } : null, ownedId: linksByKey(ctx, owner).get(`${p.id}:${d.key.toLowerCase()}`) ?? null };
 }
@@ -526,7 +523,6 @@ export async function importFromSource(ctx: AppContext, owner: string, providerI
   const pio = io(ctx, owner, p);
   const d = await siteErrors(() => p.get(key, pio, { fresh: true }));
   if (!d) throw new HttpError(404, 'Not found at the source');
-  if (d.nsfw && !allowNsfw(ctx, owner)) throw new HttpError(403, 'This character is marked adult. Turn on adult content in Settings › Character sources to import it.');
   // A hidden definition: the public parts come in, labelled (card.extensions.definition_hidden).
   if (!d.card) throw new HttpError(404, 'Nothing public to import');
   const created = await importCard(ctx, owner, Buffer.from(JSON.stringify({ spec: 'chara_card_v2', spec_version: '2.0', data: d.card })));

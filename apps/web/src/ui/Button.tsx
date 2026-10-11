@@ -38,6 +38,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(function Button
     <button
       ref={ref}
       type={type}
+      data-variant={variant}
       disabled={disabled || loading}
       className={cx(
         'pressable inline-flex select-none items-center justify-center whitespace-nowrap disabled:cursor-not-allowed disabled:opacity-50',

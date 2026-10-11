@@ -23,11 +23,13 @@ const PROBE = `\`\`\`html
 \`\`\``;
 
 test.describe('scripting', () => {
-  test.afterEach(async ({ page }) => {
+  test.afterEach(async ({ page, errors }) => {
     // Leave the chat first, so turning scripts back on doesn't start its frames again.
     await page.goto('/settings/about');
     await api(page, 'PATCH', '/api/settings', { scripts: { enabled: true, messageJs: 'approved' } });
     for (const kind of ['script', 'qr']) for (const it of await api(page, 'GET', `/api/scripts/library?kind=${kind}`)) await api(page, 'DELETE', `/api/scripts/library/${it.id}?kind=${kind}`);
+    // A frame's refused fetch can be reported after the test moved on; that refusal is expected.
+    for (let i = errors.length - 1; i >= 0; i--) if (/Content Security Policy/.test(errors[i]!)) errors.splice(i, 1);
   });
 
   test('interactive message: off until reviewed, then runs sealed with only its permissions', async ({ page, errors }) => {
@@ -97,8 +99,9 @@ test.describe('scripting', () => {
     await expect(page.getByText('Hello from a script')).toBeVisible({ timeout: 10_000 });
     // An endless loop is stopped and reported; the app stays responsive.
     await page.getByRole('button', { name: 'Spin' }).click();
-    await page.getByRole('button', { name: 'Chat menu' }).click();
-    await page.getByRole('menuitem', { name: 'Scripts' }).click();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByLabel('Search tools, settings and the story').fill('Scripts in this chat');
+    await page.getByRole('button', { name: 'Scripts in this chat', exact: true }).click();
     const sheet = page.getByRole('dialog', { name: 'Scripts' });
     await expect(sheet.getByRole('list', { name: 'Console of Greeter' })).toContainText(/Stopped/, { timeout: 15_000 });
     // The stopped loop's own error is reported by the frame: expected.
@@ -118,8 +121,9 @@ test.describe('scripting', () => {
     await page.goto(`/chat/${chat.id}?safe=1`);
     await expect(page.locator('.ev-message-text')).toBeVisible();
     await expect(page.locator('iframe[title="Interactive content from Nosy Nell"]')).toHaveCount(0);
-    await page.getByRole('button', { name: 'Chat menu' }).click();
-    await page.getByRole('menuitem', { name: 'Scripts' }).click();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByLabel('Search tools, settings and the story').fill('Scripts in this chat');
+    await page.getByRole('button', { name: 'Scripts in this chat', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Scripts' })).toContainText('Safe mode');
     await page.goto(`/chat/${chat.id}?safe=0`);
     expect(errors.filter((e) => !/Read this chat/.test(e))).toEqual([]);

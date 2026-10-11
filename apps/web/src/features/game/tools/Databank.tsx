@@ -21,13 +21,13 @@ export default function Databank() {
   });
   const facts = useMemo(() => Object.values(s?.databank ?? {}).sort((a, b) => b.at - a.at), [s]);
   const tags = useMemo(() => [...new Set(facts.flatMap((f) => f.tags))].slice(0, 16), [facts]);
-  if (!s) return <ToolSheet title="Databank"><NoCampaign /></ToolSheet>;
+  if (!s) return <ToolSheet title="Facts"><NoCampaign /></ToolSheet>;
   const n = q.trim().toLowerCase();
   const list = facts.filter((f) => (!tag || f.tags.includes(tag)) && (!n || `${f.title} ${f.text} ${f.tags.join(' ')}`.toLowerCase().includes(n)));
   const others = (hits.data ?? []).filter((h) => h.kind !== 'fact');
   return (
     <ToolSheet
-      title="Databank"
+      title="Facts"
       description="What you've learned. The most relevant facts go into the prompt automatically."
       footer={
         <Button variant="secondary" icon={Plus} block onClick={() => setEdit({ text: '', title: '', tags: [] })}>

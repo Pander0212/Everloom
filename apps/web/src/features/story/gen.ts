@@ -24,8 +24,8 @@ export function isBusy(chatId: string) {
 }
 
 /** Returns the impersonated text for 'impersonate', otherwise null. */
-export async function generate(chatId: string, type: GenType, opts: { text?: string; characterId?: string | null; target?: string | null } = {}): Promise<string | null> {
-  return runGeneration(chatId, type, `/api/chats/${chatId}/generate`, { type, text: opts.text, characterId: opts.characterId, target: opts.target });
+export async function generate(chatId: string, type: GenType, opts: { text?: string; characterId?: string | null; target?: string | null; mode?: string | null } = {}): Promise<string | null> {
+  return runGeneration(chatId, type, `/api/chats/${chatId}/generate`, { type, text: opts.text, characterId: opts.characterId, target: opts.target, mode: opts.mode ?? undefined });
 }
 
 /** Drive any server endpoint that streams generation events (chat turns, New Game openings). */

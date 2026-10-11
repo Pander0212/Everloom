@@ -3,6 +3,7 @@ import type { AvatarConfig } from '@everloom/engine';
 import { useEffect, useState } from 'react';
 import { Field, Input, SectionTitle, Segmented, Slider, Switch } from '@/ui';
 import type { PreviewHandle } from '../Preview3D';
+import { PhysicsEditor } from './PhysicsEditor';
 
 export function FitStep({ config, set, handle }: { config: AvatarConfig; set: (p: Partial<AvatarConfig>) => void; handle: PreviewHandle | null }) {
   const raw = handle?.model.rawHeight ?? null;
@@ -79,6 +80,7 @@ export function FitStep({ config, set, handle }: { config: AvatarConfig; set: (p
           <Field label={`Gravity (${config.physics.gravity.toFixed(1)}×)`}>
             <Slider label="Gravity" min={0} max={3} step={0.1} value={config.physics.gravity} onChange={(v) => set({ physics: { ...config.physics, gravity: v } })} />
           </Field>
+          <PhysicsEditor config={config} set={set} handle={handle} />
         </>
       ) : null}
     </div>

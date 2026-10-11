@@ -1,0 +1,20 @@
+# 3D import and editor: acceptance (Part 6)
+
+Each item, how it was checked, and the evidence in this folder. "e2e" means Playwright in real
+Chromium (software WebGL), on the desktop (1280) and phone (390) projects.
+
+| # | Item | Result | Evidence |
+|---|---|---|---|
+| 1 | Real `.blend` files import through a converter, and the old failure's cause is documented | ✅ Files saved by Blender 3.6 and 4.2 (plain, zstd, with modifiers and an action) convert with Blender 4.2 on the server: `apps/server/test/blend-convert.test.ts`, 3/3 with `EVERLOOM_BLENDER` set. Cause: the web app refused `.blend` before upload | [../blend.md](../blend.md) |
+| 2 | A VRChat `.unitypackage` imports without Unity: materials (lilToon/Poiyomi), prefab blendshapes, PhysBones as springs, visemes, humanoid from `.fbx.meta` | ✅ e2e `unity-import.spec.ts`; engine `unity-package.test.ts` | `unity-avatar-*.png` |
+| 3 | A clothing package for that avatar merges, becomes a wardrobe outfit that follows the inventory and rolls back on swipe | ✅ e2e `unity-import.spec.ts`: the shirt package becomes a garment and an outfit on the avatar. Equipping from the inventory and the swipe rollback use the same wardrobe outfits, tested in `base-models.spec.ts` and `avatars.spec.ts` (not with this shirt itself) | `unity-outfit-*.png` |
+| 4 | The import report lists imported, approximated and skipped | ✅ e2e and `unity-package.test.ts` check each region | `unity-avatar-*.png` |
+| 5 | PMX+VMD, OBJ+MTL, DAE, BVH, VRMA, zip/7z/rar; `.clip` to puppets; clear messages for the rest | ✅ e2e `formats.spec.ts`, `real-models.spec.ts`; `clipfile.test.ts`. RAR goes through the same libarchive path as 7z but was not tested with a real `.rar` (no free RAR writer here) | `format-*.png`, [../formats.md](../formats.md) |
+| 6 | The auto-mapper hits its measured accuracy (spine chains, several breast and butt bones); a 250-bone avatar is mapped and reviewed in the Bones tab on a phone | ✅ `automap.test.ts`; e2e `bones.spec.ts` | `automap-accuracy.json`, `bones-*.png` |
+| 7 | Breast and butt physics and body sliders work through the secondary roles on an imported VRChat avatar | ✅ e2e `unity-import.spec.ts` (item 7 test): the roles come from the mapping, 4 body springs run, the bones swing when the avatar moves, the butt bone slider scales the butt bones | `unity-body-roles-*.png` |
+| 8 | The creator builds a character from Everloom's bases with hair, library textures and sliders, exports VRM, and the export reloads | ✅ e2e `creator.spec.ts` | `creator-*.png`, [../creator.md](../creator.md) |
+| 9 | A VRoid export is edited (textures, hair colour, sliders), its VRM license shown, nothing blocked | ✅ e2e `vrm-edit.spec.ts` with Seed-san (VRM, VRM Public License) | `vrm-license-*.png`, `vrm-edited-*.png` |
+| 10 | Anatomy works for an adult with no unlock; silently refused for under 18, described as a child, or a child-range body, also when sent straight to the server; assets in a separate pack | ✅ e2e `creator.spec.ts` (anatomy with a synthetic pack); `minor-guard.test.ts`, `anatomy.test.ts` (direct API requests); the pack tool refuses repo paths, `.gitignore` covers packs | [../creator.md](../creator.md#the-anatomy-pack) |
+| 11 | A 250-bone avatar with PhysBones at 30 fps or better on the phone profile, or the quality settings get it there | ✅ with quality settings: phone profile (4× CPU slowdown) CPU time per frame 13.1 ms on Low (about 76 fps of headroom) and 16.8 ms on Medium (about 60); High is 44 ms (about 23). The on-screen rate here is limited by software WebGL (no GPU), not by Everloom | `perf-250.json`, `perf-250-*.png` |
+| 12 | The adult switch and its unlock steps are gone; the minor protection still refuses on the server | ✅ no switch left in the web app; `minor-guard.test.ts` | `apps/server/src/services/minor-guard.ts` |
+| 13 | The existing suite passes; exporting or sharing a third-party asset shows a license warning | ✅ suite results in [STATUS.md](../../../STATUS.md); e2e `unity-import.spec.ts` checks the warning | `unity-license-warning-*.png` |

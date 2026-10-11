@@ -1,4 +1,5 @@
 /** Save slots for this story, and what the story view shows on this device. */
+import { entry } from '@/lib/registry';
 import type { ChatDTO } from '@everloom/engine';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowDown, ArrowUp, Clapperboard, FolderOpen, LayoutPanelTop, MapPin, Pencil, Save, Trash2, X } from 'lucide-react';
@@ -59,6 +60,7 @@ export function SavesSheet({ chat, open, onOpenChange }: { chat: ChatDTO; open: 
       open={open}
       onOpenChange={onOpenChange}
       title="Saves"
+      help={entry('saves')?.help}
       description="A save keeps the story exactly as it is now: messages, game state and memory. Loading one starts a new chat from it, so saves never change."
       size="md"
       footer={
@@ -134,7 +136,7 @@ export function ViewSheet({ open, onOpenChange, onCinematic }: { open: boolean; 
   const v = useViewPrefs();
   const desktop = useMedia('(min-width: 1024px) and (pointer: fine)');
   return (
-    <Sheet open={open} onOpenChange={onOpenChange} title="View" description="What the story view shows on this device." size="md">
+    <Sheet open={open} onOpenChange={onOpenChange} title="View on this device" description="What the play screen shows on this device." help={entry('view')?.help} size="md">
       <div className="flex flex-col divide-y divide-line">
         <ToggleRow label="Status bar" description="Time, weather, place and trackers above the story." checked={v.hud} onChange={(x) => v.set({ hud: x })} />
         <ToggleRow label="Reply chips" description="Who you're talking to, emotes and suggestions above the composer." checked={v.chips} onChange={(x) => v.set({ chips: x })} />

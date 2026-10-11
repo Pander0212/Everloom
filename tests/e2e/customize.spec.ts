@@ -2,8 +2,8 @@ import { api, expect, isPhone, mockControl, test } from './fixtures';
 import type { Page } from '@playwright/test';
 
 async function openTool(page: Page, name: string) {
-  await page.getByRole('button', { name: 'Actions and tools' }).click();
-  await page.getByLabel('Search tools and actions').fill(name);
+  await page.getByRole('button', { name: 'Tools', exact: true }).click();
+  await page.getByLabel('Search tools, settings and the story').fill(name);
   await page.getByRole('button', { name, exact: true }).click();
 }
 
@@ -22,8 +22,9 @@ test.describe('customization', () => {
   test('save a slot, lose the key, load the save as a new chat with the key back', async ({ page, errors }) => {
     const chat = await story(page);
     await page.goto(`/chat/${chat.id}`);
-    await page.getByRole('button', { name: 'Chat menu' }).click();
-    await page.getByRole('menuitem', { name: 'Saves' }).click();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByLabel('Search tools, settings and the story').fill('Saves');
+    await page.getByRole('button', { name: 'Saves', exact: true }).click();
     const saves = page.getByRole('dialog', { name: 'Saves' });
     await saves.getByLabel('Save name').fill('Before the vault');
     await saves.getByRole('button', { name: 'Save now' }).click();
@@ -32,8 +33,9 @@ test.describe('customization', () => {
     await saves.getByRole('button', { name: 'Close', exact: true }).click();
 
     await api(page, 'POST', `/api/campaigns/${chat.campaignId}/ops`, { chatId: chat.id, ops: [{ type: 'item.remove', name: 'Brass Key' }] });
-    await page.getByRole('button', { name: 'Chat menu' }).click();
-    await page.getByRole('menuitem', { name: 'Saves' }).click();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByLabel('Search tools, settings and the story').fill('Saves');
+    await page.getByRole('button', { name: 'Saves', exact: true }).click();
     await page.getByRole('button', { name: 'Load Before the vault' }).click();
     await page.getByRole('dialog', { name: /Load “Before the vault”/ }).getByRole('button', { name: 'Load', exact: true }).click();
     await expect(page).not.toHaveURL(new RegExp(`/chat/${chat.id}$`));
@@ -51,18 +53,20 @@ test.describe('customization', () => {
     await page.goto(`/chat/${chat.id}`);
     const root = page.locator('.ev-story');
     await expect(root).toHaveAttribute('data-genre', 'fantasy');
-    await page.getByRole('button', { name: 'Chat menu' }).click();
-    await page.getByRole('menuitem', { name: 'Cinematic mode' }).click();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByLabel('Search tools, settings and the story').fill('Cinematic mode');
+    await page.getByRole('button', { name: 'Cinematic mode', exact: true }).click();
     await expect(root).toHaveAttribute('data-cinematic', '');
-    await expect(page.getByRole('button', { name: 'Chat menu' })).toBeHidden();
+    await expect(page.getByRole('button', { name: 'Tools', exact: true })).toBeHidden();
     await expect(page.getByText('The lantern flickers as you come in.')).toBeVisible();
     await page.keyboard.press('Escape');
-    await expect(page.getByRole('button', { name: 'Chat menu' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Tools', exact: true })).toBeVisible();
 
-    await page.getByRole('button', { name: 'Chat menu' }).click();
-    await page.getByRole('menuitem', { name: 'View' }).click();
-    await page.getByRole('dialog', { name: 'View' }).getByText('Status bar', { exact: true }).click();
-    await page.getByRole('dialog', { name: 'View' }).getByRole('button', { name: 'Close', exact: true }).click();
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByLabel('Search tools, settings and the story').fill('View on this device');
+    await page.getByRole('button', { name: 'View on this device', exact: true }).click();
+    await page.getByRole('dialog', { name: 'View on this device' }).getByText('Status bar', { exact: true }).click();
+    await page.getByRole('dialog', { name: 'View on this device' }).getByRole('button', { name: 'Close', exact: true }).click();
     await expect(page.locator('.ev-hud')).toBeHidden();
     await page.reload();
     await expect(page.getByText('The lantern flickers as you come in.')).toBeVisible();
@@ -102,7 +106,7 @@ test.describe('customization', () => {
     const panel = page.getByTestId('floating-panel');
     await expect(panel).toBeVisible();
     // The story stays usable underneath: no modal overlay.
-    await expect(page.getByRole('button', { name: 'Chat menu' })).toBeEnabled();
+    await expect(page.getByRole('button', { name: 'Tools', exact: true })).toBeEnabled();
     const before = (await panel.boundingBox())!;
     const handle = page.getByTestId('panel-handle');
     const h = (await handle.boundingBox())!;
@@ -127,9 +131,10 @@ test.describe('customization', () => {
     const chat = await story(page);
     await api(page, 'PATCH', '/api/settings', { hud: { pinned: ['time', 'weather', 'hp'] } });
     await page.goto(`/chat/${chat.id}`);
-    await page.getByRole('button', { name: 'Chat menu' }).click();
-    await page.getByRole('menuitem', { name: 'View' }).click();
-    const view = page.getByRole('dialog', { name: 'View' });
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByLabel('Search tools, settings and the story').fill('View on this device');
+    await page.getByRole('button', { name: 'View on this device', exact: true }).click();
+    const view = page.getByRole('dialog', { name: 'View on this device' });
     await view.getByRole('button', { name: 'Move Weather up' }).click();
     await expect.poll(async () => (await api(page, 'GET', '/api/settings')).hud.pinned).toEqual(['weather', 'time', 'hp']);
     const desktop = !(await isPhone(page)) && (page.viewportSize()?.width ?? 0) >= 1024;
@@ -156,9 +161,10 @@ test.describe('customization', () => {
       await page.mouse.up();
       const snapped = (await page.getByTestId('floating-hud').boundingBox())!;
       expect([Math.round(snapped.x), Math.round(snapped.y)]).toEqual([8, 8]);
-      await page.getByRole('button', { name: 'Chat menu' }).click();
-      await page.getByRole('menuitem', { name: 'View' }).click();
-      await page.getByRole('dialog', { name: 'View' }).getByRole('button', { name: 'Reset layout' }).click();
+      await page.getByRole('button', { name: 'Tools', exact: true }).click();
+      await page.getByLabel('Search tools, settings and the story').fill('View on this device');
+      await page.getByRole('button', { name: 'View on this device', exact: true }).click();
+      await page.getByRole('dialog', { name: 'View on this device' }).getByRole('button', { name: 'Reset layout' }).click();
       await expect(page.getByTestId('floating-hud')).toHaveCount(0);
       await expect(page.locator('.ev-hud')).toBeVisible();
     }

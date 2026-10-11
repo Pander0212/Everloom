@@ -8,9 +8,55 @@ import { logged, promptTokens } from '../services/calls.js';
 import { getCharacter } from '../services/characters.js';
 import { connectionForRole } from '../services/connections.js';
 import { getLorebook } from '../services/lorebooks.js';
+import { getChat, listMessages } from '../services/chats.js';
+import { utilityJson } from '../services/utility.js';
 import { parse } from '../util/validate.js';
 
+export interface CardProposal {
+  type: 'character' | 'place' | 'thing' | 'concept';
+  title: string;
+  keys: string[];
+  content: string;
+}
+
 export function registerLoreAi(app: FastifyInstance, ctx: AppContext) {
+  /**
+   * Story cards from the story so far: people, places, things and ideas worth remembering, as
+   * proposals (not saved) for the chat's own lorebook. docs/ux/hakawati.md › Story cards.
+   */
+  app.post('/api/chats/:id/cards/generate', async (req) => {
+    const o = owner(req);
+    const chatId = (req.params as { id: string }).id;
+    const b = parse(z.object({ count: z.number().int().min(1).max(10).default(5), known: z.array(z.string().max(120)).max(200).default([]) }), req.body ?? {});
+    const chat = getChat(ctx, o, chatId);
+    const recent = listMessages(ctx, o, chatId)
+      .filter((m) => !m.hidden)
+      .slice(-30)
+      .map((m) => `${m.name}: ${(m.swipes[m.swipeId]?.text ?? '').slice(0, 1200)}`)
+      .join('\n\n');
+    if (!recent.trim()) throw new HttpError(400, 'Nothing has happened in this story yet');
+    const raw = await utilityJson<{ cards?: Array<Partial<CardProposal>> }>(
+      ctx,
+      o,
+      'You write story cards for a roleplay story: short reference notes the narrator reads when a keyword comes up. Only use what the story has established. Reply with JSON only.',
+      `Story "${chat.title}", most recent part:\n${recent.slice(-14000)}\n\nAlready have cards for: ${b.known.join(', ') || 'nothing yet'}.\nWrite up to ${b.count} new cards for the people, places, things and ideas that matter most. JSON: {"cards":[{"type":"character|place|thing|concept","title":"","keys":["words that bring it up"],"content":"2-4 sentences in present tense"}]}`,
+      1600,
+      'story cards',
+    );
+    const types = ['character', 'place', 'thing', 'concept'] as const;
+    const known = new Set(b.known.map((k) => k.toLowerCase()));
+    const cards: CardProposal[] = (raw.cards ?? [])
+      .map((c) => ({
+        type: types.includes(c.type as never) ? (c.type as CardProposal['type']) : 'concept',
+        title: String(c.title ?? '').trim().slice(0, 120),
+        keys: (Array.isArray(c.keys) ? c.keys : []).map((k) => String(k).trim().slice(0, 60)).filter(Boolean).slice(0, 8),
+        content: String(c.content ?? '').trim().slice(0, 2000),
+      }))
+      .filter((c) => c.title && c.content && !known.has(c.title.toLowerCase()))
+      .slice(0, b.count);
+    return { cards };
+  });
+
   const setup = (req: any) => {
     const o = owner(req);
     const book = getLorebook(ctx, o, req.params.id);

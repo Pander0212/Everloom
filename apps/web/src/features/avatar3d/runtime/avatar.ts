@@ -12,14 +12,19 @@
  *   5. the canonical pose is applied to the model (canonical.ts), then the face (expression,
  *      blinking, mouth shapes; all smoothed so nothing pops), then hair and cloth springs.
  */
+import { HELPER_FOLLOW, ROLE_PHYSICS, type RigMapping } from '@everloom/engine';
 import * as THREE from 'three';
-import { VRMSpringBoneCollider, VRMSpringBoneColliderShapeSphere, VRMSpringBoneJoint, VRMSpringBoneManager } from '@pixiv/three-vrm';
-import { BUILTIN_EMOTES, faceWeights, type Emotion, type HumanBone, type Viseme } from '@everloom/engine';
-import { applyCanonical, emptyPose, prepareRig, type CanonicalPose, type RigInfo } from './canonical';
+import { VRMSpringBoneColliderShapeCapsule, type VRMSpringBoneCollider } from '@pixiv/three-vrm';
+import { BUILTIN_EMOTES, faceWeights, type Appearance, type Emotion, type HumanBone, type Physics, type SpringSettings, type Viseme } from '@everloom/engine';
+import type { SkinPainter } from './skin';
+import { applyCanonical, emptyPose, prepareRig, setHelpers, type CanonicalPose, type RigInfo } from './canonical';
 import { blendPose, copyPose, sampleClip, UPPER_BODY, type Clip } from './clip';
 import { clipIdFor, getClip } from './clips';
-import type { LoadedModel } from './loader';
+import { applyRestPose, withRestPose, type LoadedModel } from './loader';
 import { applyLook, type Look, type LookOptions } from './materials';
+import { MorphController } from './morphs';
+import { generateColliders } from './physics/colliders';
+import { makeCollider, SpringSolver, type Collider, type JointSettings } from './physics/solver';
 import type { Wardrobe } from './wardrobe';
 import type { Garments } from './garments';
 
@@ -30,6 +35,18 @@ export interface AvatarOptions {
   /** Multipliers for hair and cloth springs (saved per avatar). */
   stiffness?: number;
   gravity?: number;
+  /** The avatar's saved physics settings (chest, picked chains, collider edits, wind, damping). */
+  settings?: Partial<Physics>;
+  /** Simulated points and solver rate for the device's quality level. */
+  budget?: { points: number; hz: number };
+  /** Bone roles (breasts, butt, hair, skirt…): their chains get the matching spring preset. */
+  rig?: RigMapping;
+}
+
+/** A garment's or chain's spring settings as the solver takes them, with the avatar's multipliers. */
+export function jointSettings(s: Partial<SpringSettings> = {}, k = 1, g = 1, kind: 'hair' | 'cloth' | 'chest' | 'tail' | 'accessory' | 'butt' | 'belly' = 'hair'): Partial<JointSettings> {
+  const base = { hair: { stiffness: 0.7, drag: 0.4, gravity: 0.15 }, cloth: { stiffness: 1.2, drag: 0.5, gravity: 0.4 }, chest: { stiffness: 4, drag: 0.35, gravity: 0.08 }, butt: { stiffness: 5, drag: 0.4, gravity: 0.08 }, belly: { stiffness: 6, drag: 0.45, gravity: 0.05 }, tail: { stiffness: 0.9, drag: 0.4, gravity: 0.2 }, accessory: { stiffness: 1.5, drag: 0.5, gravity: 0.3 } }[kind];
+  return { stiffness: (s.stiffness ?? 1) * base.stiffness * k, drag: s.damping ?? base.drag, gravity: (s.gravity ?? 1) * base.gravity * g, wind: s.wind ?? 0.5, ...(s.radius !== undefined ? { radius: s.radius } : {}) };
 }
 
 interface Layer {
@@ -56,6 +73,9 @@ const rotate = (q: THREE.Quaternion | undefined, x: number, y: number, z: number
   if (!q) return;
   q.multiply(_q.setFromEuler(_e.set(x * DEG, y * DEG, z * DEG)));
 };
+
+/** Breast bones (chest physics, not hair chains). */
+const CHEST = /breast|bust|boob|oppai|胸|おっぱい/i;
 
 /** Emotes that hold their last frame (they're states, not gestures). */
 const HOLD = new Set(['defeat', 'sleep', 'lie_down']);
@@ -90,7 +110,28 @@ export class Avatar {
   private blinkT = 2 + Math.random() * 3;
   private blinkPhase = -1;
   private look = new THREE.Vector2();
-  private springs: VRMSpringBoneManager | null = null;
+  /** Hair, cloth, tail and chest springs. */
+  readonly physics = new SpringSolver();
+  /** Body sliders: morphs by name on every mesh, garments included. */
+  readonly morphs: MorphController;
+  /** Off-screen (the stage pauses its springs). */
+  physicsPaused = false;
+  /** The avatar's own physics switch (the device's quality can still turn springs off). */
+  wantsPhysics = true;
+  /** Hold the file's rest pose, no animation (fitting a garment). */
+  restPose = false;
+  /** Runs after the pose is applied each frame (inverse kinematics for paired animations). */
+  postPose: ((avatar: Avatar, dt: number) => void) | null = null;
+  /** Skin layers baked onto the skin texture. */
+  skin: SkinPainter | null = null;
+  /** Hair and eye colours (re-applied to garments as they load). */
+  appearance: Appearance | null = null;
+  /** Wakes the stage's render loop (set by the stage). */
+  kick: (() => void) | null = null;
+  /** Has drawn at least one frame (before that, slider changes jump instead of easing). */
+  started = false;
+  private headTopOffset = 0;
+  framingWidth = 0;
   /** True while anything besides the quiet idle is happening (the stage renders faster then). */
   busy = false;
   /** The face an emote wears while it plays (a laugh looks amused), and a held pose's own face. */
@@ -133,7 +174,11 @@ export class Avatar {
     this.model = model;
     this.options = options;
     this.group.add(model.scene);
+    this.morphs = new MorphController(model.scene);
     this.rig = prepareRig(model.scene, model.bones);
+    // Mapped helper and twist bones follow their limb by a fraction (docs/3d-import/bones.md).
+    const helpers = (options.rig?.roles ?? []).flatMap((r) => (HELPER_FOLLOW[r.role] ? r.bones.slice(0, 1).map((name) => ({ name, fraction: HELPER_FOLLOW[r.role]! })) : []));
+    if (helpers.length) setHelpers(this.rig, helpers);
     // Models built facing away (VRM 0.x, MMD) are turned to face the camera. Retargeting works in
     // the rig's own frame, so this changes nothing else.
     if (Math.abs(this.rig.facing.w) < 0.5) model.scene.rotation.y += Math.PI;
@@ -141,8 +186,13 @@ export class Avatar {
     // The model's feet stand on the group's origin.
     model.scene.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(model.scene);
+    const headY = model.bones.head?.getWorldPosition(new THREE.Vector3()).y;
+    this.headTopOffset = headY === undefined ? model.height * 0.1 : Math.max(0, box.max.y - headY);
+    this.framingWidth = model.height * 0.18;
+    for (const mesh of model.meshes) if (/head|face|hair/i.test(mesh.name)) this.framingWidth = Math.max(this.framingWidth, new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3()).x * 1.12);
     model.scene.position.y -= box.min.y - model.floor;
     this.setLook(options.look, { outlines: options.outlines });
+    if (options.budget) { this.physics.maxPoints = options.budget.points; this.physics.hz = options.budget.hz || 30; }
     this.setupSprings();
     void this.setBase('idle');
   }
@@ -166,7 +216,7 @@ export class Avatar {
       this.group.updateWorldMatrix(true, false);
       const y = head.getWorldPosition(_v).y - this.group.position.y;
       // The head bone sits below the top of the head; keep a margin, and never frame below a third.
-      h = Math.max(this.model.height * 0.3, Math.min(this.model.height, y * 1.14));
+      h = Math.max(this.model.height * 0.3, Math.min(this.model.height, y + this.headTopOffset));
     }
     this.poseHeight = this.poseHeight ? damp(this.poseHeight, h, 3, dt) : h;
     // Lying clips lie along the view; turn the body across the screen so it reads.
@@ -261,6 +311,15 @@ export class Avatar {
   update(dt: number, camera: THREE.Camera | null) {
     dt = Math.min(dt, 0.1);
     this.clock += dt;
+    this.started = true;
+    if (this.restPose) {
+      // Fitting: the body exactly as it was skinned, neutral shape, nothing moving.
+      applyRestPose(this.model);
+      this.physics.rest();
+      this.busy = this.morphs.update(dt);
+      this.measurePose(dt);
+      return;
+    }
     const pose = this.pose;
     // 1. base and what's fading out of it.
     const base = this.base;
@@ -303,9 +362,12 @@ export class Avatar {
     else this.procedural(pose, dt, camera);
     // 5. the model.
     applyCanonical(this.rig, pose);
+    this.postPose?.(this, dt);
     this.measurePose(dt);
+    if (this.morphs.update(dt)) this.busy = true;
     this.face(dt);
-    if (this.springs && this.options.physics) this.springs.update(dt);
+    if (this.options.physics && !this.physicsPaused) this.physics.update(dt);
+    else if (!this.options.physics) this.physics.rest();
     this.model.vrm?.expressionManager?.update();
   }
 
@@ -409,74 +471,183 @@ export class Avatar {
 
   // ------------------------------------------------------------------ springs
 
-  private colliders: { colliders: VRMSpringBoneCollider[]; name: string } | null = null;
+  private bodyColliders: Collider[] | null = null;
+  /** The chest springs (breast bones, and butt and belly ones), so the strength slider can change them live. */
+  private chestChains: number[] = [];
+  /** Breast chains from the bone mapping. */
+  private roleBreasts: THREE.Object3D[][] = [];
 
   private setupSprings() {
-    if (this.model.vrm?.springBoneManager && this.model.vrm.springBoneManager.joints.size) {
-      this.springs = this.model.vrm.springBoneManager;
-      for (const j of this.springs.joints) {
-        j.settings.stiffness *= this.options.stiffness ?? 1;
-        j.settings.gravityPower *= this.options.gravity ?? 1;
-      }
-      this.springs.setInitState();
-      return;
+    const s = this.options.settings ?? {};
+    this.physics.windStrength = s.wind ?? 0;
+    const vrm = this.model.vrm?.springBoneManager;
+    const byName = new Map<string, THREE.Object3D>();
+    this.model.scene.traverse((o) => { if (!byName.has(o.name)) byName.set(o.name, o); });
+    const find = (n: string) => byName.get(n) ?? byName.get(THREE.PropertyBinding.sanitizeNodeName(n));
+    // Bone roles from the mapping (docs/3d-import/bones.md): each chain gets its role's preset.
+    const roleBones = new Set<THREE.Object3D>();
+    const roleChains: { bones: THREE.Object3D[]; kind: NonNullable<(typeof ROLE_PHYSICS)[keyof typeof ROLE_PHYSICS]> }[] = [];
+    for (const r of this.options.rig?.roles ?? []) {
+      const kind = ROLE_PHYSICS[r.role];
+      const bones = r.bones.map(find).filter((b): b is THREE.Object3D => !!b && (b as THREE.Bone).isBone);
+      for (const b of bones) roleBones.add(b);
+      if (kind && bones.length) roleChains.push({ bones, kind });
     }
-    this.addSpringChains(this.model.secondaryChains);
+    if (vrm && vrm.joints.size) this.addVrmSprings();
+    else {
+      this.addSpringChains(this.model.secondaryChains.filter((c) => !CHEST.test(c[0]!.name) && !roleBones.has(c[0]!)));
+      for (const c of roleChains) {
+        if (c.kind === 'chest') continue; // breasts: setupChest
+        const id = this.addSpringChains([c.bones], jointSettings({}, this.options.stiffness, this.options.gravity, c.kind === 'butt' ? 'butt' : c.kind === 'belly' ? 'belly' : c.kind))[0];
+        if (id !== undefined && (c.kind === 'butt' || c.kind === 'belly')) this.chestChains.push(id);
+      }
+    }
+    this.roleBreasts = roleChains.filter((c) => c.kind === 'chest').map((c) => c.bones);
+    // Chains the owner picked in the editor.
+    for (const pick of s.chains ?? []) {
+      const start = byName.get(pick.bone);
+      // A bone the mapping already gave a role (breast, butt, hair…) moves with that role's preset.
+      if (!pick.on || !start || roleBones.has(start) || this.model.secondaryChains.some((c) => c[0] === start)) continue;
+      const chain: THREE.Object3D[] = [start];
+      for (let cur: THREE.Object3D = start; chain.length < 12;) { const next = cur.children.find((c) => (c as THREE.Bone).isBone); if (!next) break; chain.push(next); cur = next; }
+      const id = this.addSpringChains([chain], jointSettings(pick.settings, this.options.stiffness, this.options.gravity, pick.kind === 'accessory' ? 'hair' : pick.kind))[0];
+      if (id !== undefined && pick.kind === 'butt') this.chestChains.push(id);
+    }
+    this.setupChest();
   }
 
-  /** Spheres on the head, chest, hips and thighs keep hair and skirts outside the body. */
-  private colliderGroup() {
-    if (this.colliders) return this.colliders;
+  /** The body's spheres and capsules (made once, from its proportions). */
+  colliders(): Collider[] {
+    if (!this.bodyColliders) {
+      try { this.bodyColliders = generateColliders(this.model, this.options.settings?.colliders ?? []); }
+      catch { this.bodyColliders = []; }
+    }
+    return this.bodyColliders;
+  }
+
+  /** Re-measures the colliders after the owner edits them (springs keep their chains). */
+  setColliderEdits(edits: Physics['colliders']) {
+    const fresh = generateColliders(this.model, edits);
+    const current = this.colliders();
+    for (let i = 0; i < Math.min(fresh.length, current.length); i++) Object.assign(current[i]!, { radius: fresh[i]!.radius, offset: fresh[i]!.offset, tail: fresh[i]!.tail, on: fresh[i]!.on });
+  }
+
+  /** VRM spring bones, read with their own settings and colliders, solved by the same solver. */
+  private addVrmSprings() {
+    const mgr = this.model.vrm!.springBoneManager!;
+    const k = this.options.stiffness ?? 1, g = this.options.gravity ?? 1;
+    const converted = new Map<VRMSpringBoneCollider, Collider>();
+    const depth = (o: THREE.Object3D) => { let d = 0; for (let p = o.parent; p; p = p.parent) d++; return d; };
+    for (const j of [...mgr.joints].sort((a, b) => depth(a.bone) - depth(b.bone))) {
+      const colliders: Collider[] = [];
+      for (const group of j.colliderGroups) for (const c of group.colliders) {
+        let mine = converted.get(c);
+        if (!mine) {
+          c.updateWorldMatrix(true, false);
+          const scale = new THREE.Vector3().setFromMatrixScale(c.matrixWorld).x || 1;
+          const shape = c.shape as unknown as { offset: THREE.Vector3; radius: number; tail?: THREE.Vector3 };
+          mine = makeCollider(c, shape.radius * scale, shape.offset.clone(), c.shape instanceof VRMSpringBoneColliderShapeCapsule && shape.tail ? shape.tail.clone() : null, c.parent?.name ?? 'vrm');
+          converted.set(c, mine);
+        }
+        colliders.push(mine);
+      }
+      const scale = new THREE.Vector3().setFromMatrixScale(j.bone.matrixWorld).x || 1;
+      // Each VRM joint is one bone aiming at its child (or 7 cm along itself, as VRM does).
+      const tail = j.child ? j.child.position.clone() : j.bone.position.lengthSq() > 1e-12 ? j.bone.position.clone().normalize().multiplyScalar(0.07 / scale) : new THREE.Vector3(0, -0.07 / scale, 0);
+      this.physics.addChain([j.bone], { stiffness: j.settings.stiffness * k, drag: j.settings.dragForce, gravity: j.settings.gravityPower * g, gravityDir: j.settings.gravityDir.clone(), radius: j.settings.hitRadius * scale, wind: 0.6 }, colliders, tail);
+    }
+  }
+
+  /** The chest: breast bones swing a little, stiffly, scaled by the strength slider. */
+  private setupChest() {
+    const chest = this.options.settings?.chest ?? { enabled: true, strength: 1 };
+    const torso = this.rig.bones.upperChest ?? this.rig.bones.chest ?? this.rig.bones.spine;
+    if (!torso) return;
+    const bones: THREE.Object3D[] = [];
+    // Breast bones from the mapping first; otherwise by name under the torso.
+    for (const chain of this.roleBreasts) if (chain[0]) bones.push(chain[0]);
+    if (!bones.length) torso.parent?.traverse((o) => { if (CHEST.test(o.name) && (o as THREE.Bone).isBone && !Object.values(this.rig.bones).includes(o) && !CHEST.test(o.parent?.name ?? '')) bones.push(o); });
     const h = this.model.height;
-    const group = { colliders: [] as VRMSpringBoneCollider[], name: 'body' };
-    const sphere = (bone: THREE.Object3D | undefined, r: number, offset = new THREE.Vector3()) => {
-      if (!bone) return;
-      // Radii are in metres; the bone may sit inside a scaled model (centimetre files).
-      const s = new THREE.Vector3().setFromMatrixScale(bone.matrixWorld).x || 1;
-      const c = new VRMSpringBoneCollider(new VRMSpringBoneColliderShapeSphere({ radius: (r * h) / s, offset: offset.divideScalar(s) }));
-      bone.add(c);
-      group.colliders.push(c);
-    };
-    const b = this.rig.bones;
-    this.model.scene.updateMatrixWorld(true);
-    sphere(b.head, 0.06, new THREE.Vector3(0, 0.05 * h, 0));
-    sphere(b.upperChest ?? b.chest, 0.08);
-    sphere(b.hips, 0.09);
-    sphere(b.leftUpperLeg, 0.055, new THREE.Vector3(0, -0.08 * h, 0));
-    sphere(b.rightUpperLeg, 0.055, new THREE.Vector3(0, -0.08 * h, 0));
-    this.colliders = group;
-    return group;
+    for (const bone of bones) {
+      bone.updateWorldMatrix(true, false);
+      const scale = new THREE.Vector3().setFromMatrixScale(bone.matrixWorld).x || 1;
+      // Forward from the chest (the model faces +Z in its frame).
+      const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(this.rig.facing).applyQuaternion(this.model.scene.getWorldQuaternion(new THREE.Quaternion()));
+      const child = bone.children.find((c) => (c as THREE.Bone).isBone);
+      const tail = child ? undefined : forward.applyQuaternion(bone.getWorldQuaternion(new THREE.Quaternion()).invert()).multiplyScalar((0.06 * h) / scale);
+      const id = this.physics.addChain([bone], { ...jointSettings({}, 1, 1, 'chest'), strength: chest.enabled ? chest.strength * 0.6 : 0, maxAngle: THREE.MathUtils.degToRad(16), radius: 0, wind: 0 }, [], tail);
+      this.chestChains.push(id);
+    }
   }
 
-  /** Makes bone chains swing (hair, skirts, capes); returns the joints so they can be removed. */
-  addSpringChains(chains: THREE.Object3D[][]): VRMSpringBoneJoint[] {
+  private roleRest = new Map<THREE.Object3D, THREE.Vector3>();
+  /**
+   * Body sliders through the bone roles: the chest and butt sliders scale the mapped breast and butt
+   * bones (each chain from its root), on rigs that have them.
+   */
+  shapeRoles(shape: { chest?: number; buttocks?: number } | undefined) {
+    const amount = { breast: shape?.chest ?? 0, butt: shape?.buttocks ?? 0 } as const;
+    const byName = new Map<string, THREE.Object3D>();
+    this.model.scene.traverse((o) => { if (!byName.has(o.name)) byName.set(o.name, o); });
+    for (const r of this.options.rig?.roles ?? []) {
+      if (r.role !== 'breast' && r.role !== 'butt') continue;
+      const root = byName.get(r.bones[0]!) ?? byName.get(THREE.PropertyBinding.sanitizeNodeName(r.bones[0]!));
+      if (!root) continue;
+      let rest = this.roleRest.get(root);
+      if (!rest) this.roleRest.set(root, (rest = root.scale.clone()));
+      root.scale.copy(rest).multiplyScalar(1 + amount[r.role] * 0.9);
+    }
+  }
+
+  /** True when the mapping has breast or butt bones (the sliders then scale them, not the mesh). */
+  get rolesShapeBody() {
+    return (this.options.rig?.roles ?? []).some((r) => r.role === 'breast' || r.role === 'butt');
+  }
+
+  /** Live damping for every chain but the chest (which keeps its own). */
+  setDamping(damping: number) {
+    for (const id of this.physics.chainIds()) if (!this.chestChains.includes(id)) this.physics.setChainSettings(id, { drag: damping });
+  }
+
+  /** Live chest settings (the strength slider and the off switch). */
+  setChest(enabled: boolean, strength: number) {
+    for (const id of this.chestChains) this.physics.setChainSettings(id, { strength: enabled ? strength * 0.6 : 0 });
+  }
+
+  get hasChestBones() { return this.chestChains.length > 0; }
+  /** How many body springs (breast, butt, belly) move. */
+  get bodySpringCount() { return this.chestChains.length; }
+
+  /** Makes bone chains swing (hair, skirts, capes); returns ids so they can be removed. */
+  addSpringChains(chains: THREE.Object3D[][], settings?: Partial<JointSettings>): number[] {
     if (!chains.length) return [];
-    const mgr = this.springs ?? new VRMSpringBoneManager();
-    const group = this.colliderGroup();
-    const h = this.model.height;
     const k = this.options.stiffness ?? 1;
     const g = this.options.gravity ?? 1;
-    const made: VRMSpringBoneJoint[] = [];
+    const h = this.model.height;
+    const made: number[] = [];
+    const colliders = this.colliders();
     for (const chain of chains) {
-      const skirt = /skirt|スカート|cloth|coat|cape|cloak|dress|robe/i.test(chain[0]!.name);
-      for (let i = 0; i < chain.length; i++) {
-        const joint = new VRMSpringBoneJoint(chain[i]!, chain[i + 1] ?? null, { hitRadius: 0.012 * h, stiffness: (skirt ? 1.2 : 0.7) * k, gravityPower: (skirt ? 0.4 : 0.15) * g, gravityDir: new THREE.Vector3(0, -1, 0), dragForce: skirt ? 0.5 : 0.4 }, [group]);
-        mgr.addJoint(joint);
-        made.push(joint);
-      }
+      const skirt = /skirt|スカート|cloth|coat|cape|cloak|dress|robe|EvSwing/i.test(chain[0]!.name);
+      const saved = chain[0]!.userData.everloomSpring ?? {};
+      const finite = (value: unknown, fallback: number, max: number) => (typeof value === 'number' && Number.isFinite(value) ? THREE.MathUtils.clamp(value, 0, max) : fallback);
+      const direction = Array.isArray(saved.gravityDir) && saved.gravityDir.length === 3 && saved.gravityDir.every((n: unknown) => typeof n === 'number' && Number.isFinite(n)) ? new THREE.Vector3().fromArray(saved.gravityDir).normalize() : new THREE.Vector3(0, -1, 0);
+      const fromFile: Partial<JointSettings> = { radius: finite(saved.hitRadius, 0.012 * h, h * 0.2), stiffness: finite(saved.stiffness, skirt ? 1.2 : 0.7, 20) * k, gravity: finite(saved.gravityPower, skirt ? 0.4 : 0.15, 20) * g, gravityDir: direction, drag: finite(saved.dragForce, this.options.settings?.damping ?? (skirt ? 0.5 : 0.4), 1) };
+      // Added in the rest pose, so contact the garment was made with (hair on the shoulders) is
+      // measured as it was authored; then the chain starts from the pose the body is in now.
+      made.push(withRestPose(this.model, () => this.physics.addChain(chain, { ...fromFile, ...settings }, colliders)));
     }
-    mgr.setInitState();
-    this.springs = mgr;
+    for (const id of made) this.physics.reset(id);
     return made;
   }
 
-  removeSpringJoints(joints: VRMSpringBoneJoint[]) {
-    for (const j of joints) this.springs?.deleteJoint(j);
+  removeSpringJoints(chains: number[]) {
+    for (const id of chains) this.physics.removeChain(id);
   }
 
   dispose() {
     this.wardrobe?.dispose();
     this.garments?.dispose();
+    this.skin?.dispose();
     this.group.removeFromParent();
     this.model.scene.traverse((o) => {
       const m = o as THREE.Mesh;

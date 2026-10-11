@@ -1,10 +1,11 @@
 /**
  * Browse online character sources: one search box (with the library's filter syntax), a filter bar,
  * saved searches, every site at once, preview and import, or import from a link. Everything comes
- * through the Everloom server, pictures included; adult content stays hidden unless turned on in
- * Settings. Sites the server must not fetch are listed with how to bring cards in (the browser bridge).
+ * through the Everloom server, pictures included. 18+ cards are a search filter (on by default), not
+ * a setting; Settings › Privacy can blur their pictures. Sites the server must not fetch are listed with how to bring cards in (the browser bridge).
  */
 import { contentStorageAllowed } from '@/lib/vaultMode';
+import { useBlurAdult } from '@/lib/queries';
 import type { SourceItem } from '@everloom/engine';
 import { useInfiniteQuery, useQuery, useQueryClient } from '@tanstack/react-query';
 import { ArrowLeft, Bookmark, Check, Download, ExternalLink, Info, Link2, Lock, Search, SlidersHorizontal, Star, Trash2, UserRound } from 'lucide-react';
@@ -79,7 +80,7 @@ interface BrowsePrefs {
   filters: Filters;
   showFilters: boolean;
 }
-const DEFAULT_PREFS: BrowsePrefs = { sort: 'popular', hideOwned: false, adult: false, auto: false, filters: NO_FILTERS, showFilters: false };
+const DEFAULT_PREFS: BrowsePrefs = { sort: 'popular', hideOwned: false, adult: true, auto: false, filters: NO_FILTERS, showFilters: false };
 function readPrefs(id: string): BrowsePrefs {
   try {
     const p = { ...DEFAULT_PREFS, ...JSON.parse(localStorage.getItem(`everloom:browse:${id}`) ?? '{}') };
@@ -135,6 +136,7 @@ export default function BrowsePage() {
   const [text, setText] = useState('');
   const [query, setQuery] = useState('');
   const [prefs, setPrefsState] = useState<BrowsePrefs>(() => readPrefs(sourceId));
+  const blurAdult = useBlurAdult();
   const sortList: Sort[] = all ? ['popular', 'new'] : (provider?.sorts ?? ['popular']);
   const sort = sortList.includes(prefs.sort) ? prefs.sort : (sortList[0] ?? 'popular');
   const { hideOwned, adult, filters } = prefs;
@@ -254,12 +256,10 @@ export default function BrowsePage() {
               <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={hideOwned} onChange={(e) => setPrefs({ hideOwned: e.target.checked })} />
               Hide ones I have
             </label>
-            {providers.data.nsfwAllowed ? (
-              <label className="flex items-center gap-2 text-sm text-fg-2">
-                <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={adult} onChange={(e) => setPrefs({ adult: e.target.checked })} />
-                Adult
-              </label>
-            ) : null}
+            <label className="flex items-center gap-2 text-sm text-fg-2">
+              <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={adult} onChange={(e) => setPrefs({ adult: e.target.checked })} />
+              Include 18+
+            </label>
             <label className="flex items-center gap-2 text-sm text-fg-2">
               <input type="checkbox" className="size-4 accent-[var(--accent)]" checked={prefs.auto} onChange={(e) => setPrefs({ auto: e.target.checked })} />
               Load as I scroll
@@ -308,7 +308,7 @@ export default function BrowsePage() {
                   <li key={`${i.provider}:${i.key}`}>
                     <button className="pressable group flex w-full flex-col text-left" onClick={() => setOpen(i)}>
                       <span className="relative block aspect-[3/4] w-full overflow-hidden rounded-lg bg-surface-2">
-                        {i.avatarUrl ? <img src={imgUrl(i.provider, i.avatarUrl, 384)!} alt="" loading="lazy" decoding="async" className="size-full object-cover transition-transform group-hover:scale-[1.02]" /> : null}
+                        {i.avatarUrl ? <img src={imgUrl(i.provider, i.avatarUrl, 384)!} alt="" loading="lazy" decoding="async" className={`size-full object-cover transition-transform group-hover:scale-[1.02] ${i.nsfw && blurAdult ? 'blur-lg' : ''}`} /> : null}
                         {i.ownedId ? (
                           <span className="absolute left-2 top-2">
                             <Badge tone="success">

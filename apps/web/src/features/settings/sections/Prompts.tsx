@@ -19,7 +19,7 @@ const MARKER_HINT: Record<string, string> = {
   dialogueExamples: 'Example dialogue',
   chatHistory: 'The conversation',
   memory: 'Rolling summary and long-term memories',
-  gameState: 'Live game state (time, place, vitals, NPCs…)',
+  gameState: 'Live story state (time, place, vitals, people…)',
   authorsNote: "Chat author's note",
 };
 
@@ -159,7 +159,7 @@ export default function PromptsSection() {
       </Section>
       <Section
         title="Prompt blocks"
-        description="Top to bottom is the order sent to the model. Use the Prompt inspector in a chat to see the result."
+        description="Top to bottom is the order sent to the model. In a chat, Tools › Everything sent to the AI shows the result."
         action={
           <Button size="sm" variant="secondary" icon={Plus} onClick={addBlock}>
             Block

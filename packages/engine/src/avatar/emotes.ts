@@ -6,6 +6,7 @@
  */
 
 import type { Emotion } from '../game/emotion.js';
+import { BUILTIN_PAIRED, resolvePaired, type PairedInfo } from './paired.js';
 
 export const EMOTE_CATEGORIES = ['idle', 'talk', 'emotion', 'social', 'state', 'dance', 'battle'] as const;
 export type EmoteCategory = (typeof EMOTE_CATEGORIES)[number];
@@ -122,10 +123,19 @@ export function installedEmotes(custom: ReadonlyArray<{ id: string; label: strin
  * Avatar ops from the story, checked against what is installed: names become ids, poses must be
  * pose emotes, and anything unknown is dropped (never guessed).
  */
-export function normalizeAvatarOps<T extends { type: string }>(ops: T[], installed: readonly EmoteInfo[]): { ok: T[]; rejected: Array<{ op: T; reason: string }> } {
+export function normalizeAvatarOps<T extends { type: string }>(ops: T[], installed: readonly EmoteInfo[], paired: readonly PairedInfo[] = BUILTIN_PAIRED.filter((p) => !p.adult)): { ok: T[]; rejected: Array<{ op: T; reason: string }> } {
   const ok: T[] = [];
   const rejected: Array<{ op: T; reason: string }> = [];
   for (const op of ops) {
+    if (op.type === 'avatar.paired') {
+      const o = op as unknown as { clip: string | null; who: string[] };
+      if (o.clip === null) { ok.push(op); continue; }
+      const p = resolvePaired(paired, o.clip);
+      if (!p) rejected.push({ op, reason: `No paired animation called "${o.clip}"` });
+      else if (o.who.length !== p.participants) rejected.push({ op, reason: `${p.label} needs ${p.participants} characters` });
+      else ok.push({ ...op, clip: p.id });
+      continue;
+    }
     if (op.type === 'avatar.emote') {
       const e = resolveEmote(installed, (op as unknown as { emote: string }).emote);
       if (!e) rejected.push({ op, reason: `No emote called "${(op as unknown as { emote: string }).emote}"` });

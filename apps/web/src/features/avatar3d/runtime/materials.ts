@@ -10,6 +10,7 @@
  */
 import * as THREE from 'three';
 import { MToonMaterial, MToonMaterialOutlineWidthMode } from '@pixiv/three-vrm';
+import type { AvatarConfig } from '@everloom/engine';
 
 export type Look = 'toon' | 'pbr';
 export interface LookOptions {
@@ -50,6 +51,8 @@ function toonFrom(src: THREE.Material, tint: THREE.Color): MToonMaterial {
   if (isMToon(src)) return src;
   const s = src as THREE.MeshStandardMaterial;
   const color = s.color ? s.color.clone() : new THREE.Color(1, 1, 1);
+  // Imported Unity toon materials (lilToon, Poiyomi, MToon, UTS) carry their own shadow, rim and outline colours.
+  const unity = (s.userData?.everloomToon ?? null) as { shade?: [number, number, number] | null; border?: number | null; rim?: { color: [number, number, number]; power: number } | null; outline?: { color: [number, number, number]; width: number } | null } | null;
   const m = new MToonMaterial({
     color,
     map: s.map ?? undefined,
@@ -58,13 +61,13 @@ function toonFrom(src: THREE.Material, tint: THREE.Color): MToonMaterial {
     emissiveMap: s.emissiveMap ?? undefined,
     emissiveIntensity: s.emissiveIntensity ?? 1,
     // Shadows are the base texture times a tinted, darker version of the colour.
-    shadeColorFactor: color.clone().multiply(tint).multiplyScalar(SHADE),
+    shadeColorFactor: unity?.shade ? new THREE.Color(...unity.shade).multiply(color).multiply(tint) : color.clone().multiply(tint).multiplyScalar(SHADE),
     shadeMultiplyTexture: s.map ?? undefined,
-    shadingShiftFactor: 0.05,
+    shadingShiftFactor: typeof unity?.border === 'number' ? Math.max(-1, Math.min(1, (0.5 - unity.border) * 2)) : 0.05,
     shadingToonyFactor: 0.88,
     giEqualizationFactor: 0.55,
-    parametricRimColorFactor: new THREE.Color(0.3, 0.3, 0.34),
-    parametricRimFresnelPowerFactor: 3.5,
+    parametricRimColorFactor: unity?.rim ? new THREE.Color(...unity.rim.color).multiplyScalar(0.4) : new THREE.Color(0.3, 0.3, 0.34),
+    parametricRimFresnelPowerFactor: unity?.rim ? Math.max(1, Math.min(10, unity.rim.power)) : 3.5,
     parametricRimLiftFactor: 0.08,
     rimLightingMixFactor: 1,
     transparent: s.transparent,
@@ -73,6 +76,7 @@ function toonFrom(src: THREE.Material, tint: THREE.Color): MToonMaterial {
     depthWrite: s.depthWrite,
   });
   m.name = `${s.name || 'material'} (toon)`;
+  if (unity?.outline) m.outlineColorFactor.setRGB(...unity.outline.color);
   if ((src as THREE.MeshStandardMaterial).vertexColors) m.vertexColors = true;
   keepOffset(src, m);
   return m;
@@ -112,6 +116,54 @@ const cached = (m: THREE.Material) => {
   if (!c) cache.set(m, (c = {}));
   return c;
 };
+
+type Surface = THREE.MeshStandardMaterial & { shadeMultiplyTexture?: THREE.Texture | null; shadeColorFactor?: THREE.Color; isOutline?: boolean; outlineColorFactor?: THREE.Color };
+const baselines = new WeakMap<THREE.Material, { color: THREE.Color; map: THREE.Texture | null; shadeMap: THREE.Texture | null; shade: THREE.Color | null; transparent: boolean; alphaTest: number; depthWrite: boolean }>();
+const textureCaches = new WeakMap<THREE.Object3D, Map<string, Promise<THREE.Texture>>>();
+const materialGeneration = new WeakMap<THREE.Object3D, number>();
+const materialKeys = new WeakMap<THREE.Object3D, string>();
+/** Texture changes follow the same resolved outfit as geometry, so story rollback remains shared. */
+export async function configureMaterials(root: THREE.Object3D, overrides: AvatarConfig['materialOverrides']) {
+  const key = JSON.stringify(overrides); if (materialKeys.get(root) === key) return;
+  materialKeys.set(root, key);
+  const generation = (materialGeneration.get(root) ?? 0) + 1; materialGeneration.set(root, generation);
+  let textures = textureCaches.get(root); if (!textures) textureCaches.set(root, textures = new Map());
+  const load = (id: string) => {
+    if (!textures!.has(id)) textures!.set(id, new THREE.TextureLoader().loadAsync(`/media/${id}`).then(texture => {
+      texture.colorSpace = THREE.SRGBColorSpace; texture.flipY = false;
+      if (!root.userData.disposables) Object.defineProperty(root.userData, 'disposables', { value: [] as THREE.Texture[], writable: true, enumerable: false });
+      const owned = root.userData.disposables as THREE.Texture[]; owned.push(texture);
+      return texture;
+    }).catch(e => { textures!.delete(id); throw e; }));
+    return textures!.get(id)!;
+  };
+  const downloaded = new Map<string, THREE.Texture>();
+  try { for (const value of Object.values(overrides)) for (const id of [value.texture, value.shadeTexture]) if (id && !downloaded.has(id)) downloaded.set(id, await load(id)); }
+  catch (e) { if (materialKeys.get(root) === key) materialKeys.delete(root); throw e; }
+  if (materialGeneration.get(root) !== generation) return;
+  for (const original of originalsOf(root).materials.values()) for (const source of Array.isArray(original) ? original : [original]) {
+    const src = source as Surface; if (!src.color) continue;
+    let base = baselines.get(source);
+    if (!base) baselines.set(source, base = { color: src.color.clone(), map: src.map, shadeMap: src.shadeMultiplyTexture ?? null, shade: src.shadeColorFactor?.clone() ?? null, transparent: src.transparent, alphaTest: src.alphaTest, depthWrite: src.depthWrite });
+    const change = overrides[source.name] ?? {};
+    const color = change.color ? new THREE.Color(change.color) : base.color;
+    const map = change.texture ? downloaded.get(change.texture)! : base.map;
+    const shadeMap = change.shadeTexture ? downloaded.get(change.shadeTexture)! : change.texture ? map : base.shadeMap;
+    const derived = cached(source), toon = derived.toon;
+    const targets = new Set<THREE.Material>([source, ...[derived.pbr, toon, derived.outline, toon && cached(toon).outline].filter((m): m is THREE.Material => !!m)]);
+    for (const target of targets) {
+      const material = target as Surface;
+      material.color?.copy(color); material.map = map;
+      if ('shadeMultiplyTexture' in material) material.shadeMultiplyTexture = shadeMap;
+      if (material.shadeColorFactor && base.shade) material.shadeColorFactor.setRGB(base.shade.r * color.r / Math.max(0.01, base.color.r), base.shade.g * color.g / Math.max(0.01, base.color.g), base.shade.b * color.b / Math.max(0.01, base.color.b));
+      if (material.isOutline) material.outlineColorFactor?.copy(color).multiplyScalar(0.18);
+      material.transparent = change.alpha ? change.alpha === 'blend' : base.transparent;
+      material.alphaTest = change.alpha ? change.alpha === 'mask' ? 0.5 : 0 : base.alphaTest;
+      material.depthWrite = change.alpha ? change.alpha !== 'blend' : base.depthWrite;
+      material.needsUpdate = true;
+    }
+  }
+}
 
 /** Applies a look to every mesh under `root`. Safe to call again to switch looks or outlines. */
 export function applyLook(root: THREE.Object3D, look: Look, opts: LookOptions) {

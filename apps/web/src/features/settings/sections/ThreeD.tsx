@@ -1,10 +1,10 @@
 /** Settings › 3D characters: this device's quality and effects, Blender, and the avatar library. */
 import { Box, Plus, RefreshCw, Shirt, Trash2, Upload } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { lazy, Suspense, useState } from 'react';
-import { del, get } from '@/lib/api';
+import { lazy, Suspense, useEffect, useState } from 'react';
+import { del, get, post, upload } from '@/lib/api';
 import { useNavigate } from 'react-router';
-import { deleteClip, refreshBlender, setBlenderPath, useAvatarClips, useAvatars, useBlender, useBlenderJobs, useMpfb } from '@/features/avatars/api';
+import { deleteClip, refreshBlender, setBlenderPath, useAvatarClips, useAvatarPaired, useAvatars, useBlender, useBlenderJobs, useMpfb } from '@/features/avatars/api';
 import { MpfbSetup } from '@/features/avatars/Realistic';
 import { usePrefs3D, type Quality3D } from '@/features/avatars/prefs';
 import { deletePack, importPack, setPackEnabled, usePacks } from '@/features/avatars/packs';
@@ -12,6 +12,8 @@ import { toastError } from '@/lib/store';
 import { Button, confirm, Field, FileButton, IconButton, Input, ListRow, Segmented, Sheet, Spinner, Switch, ToggleRow } from '@/ui';
 
 const ClipImporter = lazy(() => import('@/features/avatar3d/ClipImporter'));
+const PairedImporter = lazy(() => import('@/features/avatar3d/PairedImporter'));
+const ImportDiagnostics = lazy(() => import('@/features/avatar3d/ImportDiagnostics'));
 import { Section } from '../common';
 
 export default function ThreeDSection() {
@@ -28,12 +30,21 @@ export default function ThreeDSection() {
   const inbox = useQuery({ queryKey: ['motion-inbox'], queryFn: () => get<Array<{ id: string; name: string; url: string }>>('/api/avatar-motions/inbox') });
   const packs = usePacks();
   const [packBusy, setPackBusy] = useState(false);
+  const [diagnostics, setDiagnostics] = useState(false);
+  const paired = useAvatarPaired();
+  const [importingPaired, setImportingPaired] = useState(false);
   return (
     <>
       <Section title="Avatars" description="3D models for your characters. Each character can show as 3D, Live2D or pictures (set on the character).">
         <Button variant="secondary" icon={Box} onClick={() => navigate('/characters/avatars')}>
           Open the avatar library{avatars.data ? ` (${avatars.data.length})` : ''}
         </Button>
+      </Section>
+
+      <AnatomyPackSection />
+
+      <Section title="Diagnostics" description="Check importing on this server and device.">
+        {diagnostics ? <Suspense fallback={<Spinner />}><ImportDiagnostics /></Suspense> : <Button variant="secondary" onClick={() => setDiagnostics(true)}>Open import diagnostics</Button>}
       </Section>
 
       <Section
@@ -130,6 +141,43 @@ export default function ThreeDSection() {
           <p className="text-sm text-fg-2">No imported motions yet.</p>
         )}
       </Section>
+      <Section
+        title="Paired animations"
+        description="Two to four characters doing something together: a handshake, a hug, a dance for two. Played in sync, placed for their heights, hands meeting."
+        action={
+          <Button size="sm" variant="secondary" icon={Plus} onClick={() => setImportingPaired(true)} data-testid="paired-import">
+            Import
+          </Button>
+        }
+      >
+        <div className="flex flex-col" data-testid="paired-list">
+          {(paired.data ?? []).map((p) => (
+            <ListRow
+              key={p.id}
+              title={p.label}
+              subtitle={`${p.id} · ${p.participants} characters${p.loop ? ' · loops' : ''}${p.adult ? ' · adults only' : ''} · ${p.source === 'authored' ? 'built in' : 'imported'}`}
+              trailing={
+                p.source === 'imported' ? (
+                  <IconButton
+                    icon={Trash2}
+                    label={`Delete ${p.label}`}
+                    onClick={async () => {
+                      if (await confirm({ title: `Delete “${p.label}”?`, description: 'The story can no longer pick it.', confirmLabel: 'Delete', danger: true })) await del(`/api/avatar-paired/${p.id}`).then(() => paired.refetch()).catch(toastError);
+                    }}
+                  />
+                ) : null
+              }
+            />
+          ))}
+        </div>
+      </Section>
+      <Sheet open={importingPaired} onOpenChange={setImportingPaired} title="Import a paired animation" size="lg">
+        {importingPaired ? (
+          <Suspense fallback={<Spinner />}>
+            <PairedImporter onDone={() => { setImportingPaired(false); void paired.refetch(); }} />
+          </Suspense>
+        ) : null}
+      </Sheet>
       {inbox.data?.length ? (
         <Section title="From Blender" description="Animations the Blender add-on sent. Import each one to name it and choose how it plays.">
           <div className="flex flex-col" data-testid="motion-inbox">
@@ -174,7 +222,8 @@ export default function ThreeDSection() {
 
       <Section title="On this device" description="Saved in this browser only, so a phone and a computer can differ.">
         <ToggleRow label="Show pictures instead of 3D" description="For slow or battery-tight devices. Nothing 3D is downloaded while this is on." checked={p.spritesOnly} onChange={(v) => p.set({ spritesOnly: v })} />
-        <ToggleRow label="Code-made figures for characters without a picture" description="Built from their description, with no file to download. Characters with a picture or Live2D keep it." checked={p.codeNpcs} onChange={(v) => p.set({ codeNpcs: v })} />
+        <ToggleRow label="Experimental procedural characters" description="Enable the older code-made creator. Off by default; characters without a saved avatar keep their pictures." checked={p.experimentalProcedural} onChange={(v) => p.set({ experimentalProcedural: v })} />
+        {p.experimentalProcedural ? <ToggleRow label="Code-made figures for characters without a picture" description="Experimental fallback generated from their description." checked={p.codeNpcs} onChange={(v) => p.set({ codeNpcs: v })} /> : null}
         <Field label="Quality" hint="Automatic lowers resolution, shadows, outlines and physics when frames run slow, and raises them when there's room.">
           <Segmented<Quality3D>
             label="3D quality"
@@ -220,6 +269,7 @@ export default function ThreeDSection() {
         <p className="text-sm" data-testid="blender-status">
           {blender.isLoading ? 'Looking for Blender…' : blender.data?.found ? `Found Blender ${blender.data.version ?? ''} at ${blender.data.path}.${blender.data.mmd ? ' MMD Tools is installed (PMX/VMD work).' : ' For PMX and VMD files, add the MMD Tools extension in Blender.'}` : 'Blender was not found. Install it from blender.org, or enter where it is below.'}
         </p>
+        {!blender.data?.found ? <BlenderInstall /> : null}
         <Field label="Blender program" hint="Leave empty to look in the usual places.">
           <div className="flex gap-2">
             <Input aria-label="Blender path" placeholder="/usr/bin/blender" value={path ?? (blender.data?.source === 'setting' ? (blender.data.path ?? '') : '')} onChange={(e) => setPath(e.target.value)} />
@@ -264,5 +314,63 @@ export default function ThreeDSection() {
         </Section>
       ) : null}
     </>
+  );
+}
+
+/** One-click headless Blender converter on the server, with what it needs and whether this server has it. */
+function BlenderInstall() {
+  const [info, setInfo] = useState<{ check: { ok: boolean; reasons: string[]; freeDiskGb: number; freeMemoryGb: number; arch: string; installed: boolean }; state: { state: string; progress: number; error: string | null }; version: string } | null>(null);
+  const load = () => get<NonNullable<typeof info>>('/api/blender/install').then(setInfo).catch(toastError);
+  useEffect(() => {
+    void load();
+  }, []);
+  const busy = !!info && ['downloading', 'checking', 'unpacking'].includes(info.state.state);
+  useEffect(() => {
+    if (!busy) return;
+    const t = setInterval(() => {
+      void get<NonNullable<typeof info>>('/api/blender/install').then((i) => {
+        setInfo(i);
+        if (i.state.state === 'done') void refreshBlender();
+      });
+    }, 1500);
+    return () => clearInterval(t);
+  }, [busy]);
+  if (!info) return null;
+  return (
+    <div className="mb-3 rounded-md border border-line p-3 text-sm" data-testid="blender-install">
+      <p className="font-medium">Install the headless Blender converter</p>
+      <p className="mt-1 text-fg-2">
+        Blender {info.version} without a screen, only for converting files (no graphics card needed). It needs an x86-64 Linux server, about 2 GB of memory and 1.5 GB of disk; this server has {info.check.freeMemoryGb} GB of memory free and {info.check.freeDiskGb} GB of disk ({info.check.arch}). Downloaded from blender.org and checked against its published checksum.
+      </p>
+      {info.check.reasons.length ? <p className="mt-1 text-warning">{info.check.reasons.join(' ')}</p> : null}
+      {info.state.error ? <p className="mt-1 text-danger">{info.state.error}</p> : null}
+      <div className="mt-2 flex items-center gap-2">
+        <Button size="sm" variant="secondary" disabled={!info.check.ok || busy} loading={busy} onClick={() => void post('/api/blender/install', {}).then(load).catch(toastError)}>
+          {busy ? `${info.state.state === 'downloading' ? `Downloading ${info.state.progress}%` : info.state.state === 'checking' ? 'Checking' : 'Unpacking'}…` : 'Install'}
+        </Button>
+        <span className="text-xs text-fg-3">Other ways: the Windows app uses a Blender you installed; or export GLB from Blender.</span>
+      </div>
+    </div>
+  );
+}
+
+/** The anatomy pack (a separate download): installs like any pack, no unlock; the creator's Anatomy tab uses it. */
+function AnatomyPackSection() {
+  const q = useQuery({ queryKey: ['anatomy-pack'], queryFn: () => get<{ installed: boolean; name?: string; license?: string }>('/api/anatomy-pack') });
+  const [busy, setBusy] = useState(false);
+  const install = async (files: File[]) => {
+    const f = files[0];
+    if (!f) return;
+    setBusy(true);
+    try { await upload('/api/anatomy-pack', f); await q.refetch(); } catch (e) { toastError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Section title="Anatomy pack" description="Shape keys and texture layers for the character creator's Anatomy tab. A separate download (it isn't part of Everloom); install the zip here. Never applied to a character under 18.">
+      {q.data?.installed ? (
+        <ListRow title={q.data.name ?? 'Anatomy pack'} subtitle={q.data.license ?? ''} trailing={<IconButton icon={Trash2} label="Remove the anatomy pack" onClick={async () => { if (await confirm({ title: 'Remove the anatomy pack?', confirmLabel: 'Remove', danger: true })) { try { await del('/api/anatomy-pack'); await q.refetch(); } catch (e) { toastError(e); } } }} />} />
+      ) : (
+        <FileButton variant="secondary" icon={Upload} accept=".zip,application/zip" loading={busy} onFiles={(f) => void install(f)} data-testid="anatomy-pack-install">Install the anatomy pack</FileButton>
+      )}
+    </Section>
   );
 }

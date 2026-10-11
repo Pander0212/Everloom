@@ -136,6 +136,21 @@ export function mapBones(bones: RigBone[], vrmHumanoid?: Partial<Record<string, 
   };
 
   const map: Partial<Record<HumanBone, string>> = {};
+  // Khronos's Cesium/Blender sample rigs number joints rather than naming body
+  // parts. Follow their actual parent chains; the left-arm numbers are reversed
+  // in CesiumMan, so suffix numbers alone cannot identify the joints safely.
+  if (names.some(n => /^(?:skeleton)?torsojoint1$/.test(W(n).joined))) {
+    const torso = names.filter(n => /^(?:skeleton)?torsojoint\d+$/.test(W(n).joined)).sort((a, b) => ancestors(a).length - ancestors(b).length);
+    const neck = names.filter(n => /^(?:skeleton)?neckjoint\d+$/.test(W(n).joined)).sort((a, b) => ancestors(a).length - ancestors(b).length);
+    if (torso[0]) map.hips = torso[0]; if (torso[1]) map.spine = torso[1]; if (torso[2]) map.chest = torso[2];
+    if (neck[0]) map.neck = neck[0]; if (neck[1]) map.head = neck[1];
+    for (const side of ['left', 'right'] as const) for (const region of ['arm', 'leg'] as const) {
+      const joints = names.filter(n => W(n).side === side && new RegExp(`^(?:skeleton)?${region}joint\\d*$`).test(W(n).joined)).sort((a, b) => ancestors(a).length - ancestors(b).length);
+      const parts = region === 'arm' ? ['UpperArm', 'LowerArm', 'Hand'] : ['UpperLeg', 'LowerLeg', 'Foot', 'Toes'];
+      for (let i = 0; i < parts.length; i++) if (joints[i]) map[`${side}${parts[i]}` as HumanBone] = joints[i];
+    }
+    if (REQUIRED_BONES.every(b => map[b])) return { map, missing: [], convention: 'generic' };
+  }
   for (const side of ['left', 'right'] as const) {
     const S = side;
     const hand = shallowest(find(HAND, side));
@@ -169,6 +184,16 @@ export function mapBones(bones: RigBone[], vrmHumanoid?: Partial<Record<string, 
   }
 
   // The head by name, or the end of the bone chain rising between the two arms.
+  // Rigid game rigs can use independent foot controls instead of a direct
+  // thigh→shin→foot chain. Explicit segment names win over those control parents.
+  for (const side of ['left', 'right'] as const) {
+    for (const [segment, pattern] of [['UpperArm', /^upperarm$/], ['LowerArm', /^(lowerarm|forearm)$/], ['UpperLeg', /^(upperleg|thigh)$/], ['LowerLeg', /^(lowerleg|shin|calf)$/]] as const) {
+      const named = shallowest(find(pattern, side)); if (named) map[`${side}${segment}` as HumanBone] = named;
+    }
+    if (!map[`${side}Hand`]) {
+      const palm = shallowest(find(/^palm2$/, side)); if (palm) map[`${side}Hand`] = palm;
+    }
+  }
   let head = shallowest(find(HEAD, null).filter((n) => W(n).side === null));
   const lArm = map.leftUpperArm;
   const rArm = map.rightUpperArm;
@@ -191,7 +216,7 @@ export function mapBones(bones: RigBone[], vrmHumanoid?: Partial<Record<string, 
   if (leg && head) {
     const up = new Set(ancestors(head));
     const common = ancestors(leg).find((n) => up.has(n));
-    const named = names.find((n) => /^(hips?|pelvis)$/.test(W(n).joined) && W(n).side === null && ancestors(leg).includes(n) && ancestors(head!).includes(n));
+    const named = names.find((n) => /^(hips?|pelvis)$/.test(W(n).joined) && W(n).side === null && ancestors(head!).includes(n));
     map.hips = named ?? common;
   }
   // The spine chain: hips (exclusive) to head (exclusive), without helper bones.

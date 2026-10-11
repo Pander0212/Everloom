@@ -32,7 +32,7 @@ export default function Social({ arg }: { arg?: string }) {
   const [adding, setAdding] = useState(false);
   const [who, setWho] = useState('');
   const rels = useMemo(() => Object.values(s?.relationships ?? {}).sort((a, b) => b.affection + b.trust - (a.affection + a.trust)), [s]);
-  if (!s) return <ToolSheet title="Social"><NoCampaign /></ToolSheet>;
+  if (!s) return <ToolSheet title="Relationships"><NoCampaign /></ToolSheet>;
   const rel = openId ? s.relationships[openId] ?? null : null;
   const portrait = (r: Relationship) => {
     const npc = r.npcId ? s.npcs[r.npcId] : null;
@@ -42,7 +42,7 @@ export default function Social({ arg }: { arg?: string }) {
 
   return (
     <ToolSheet
-      title="Social"
+      title="Relationships"
       description={rels.length ? `${rels.length} ${rels.length === 1 ? 'bond' : 'bonds'}` : undefined}
       footer={
         <Button variant="secondary" icon={Plus} block onClick={() => setAdding(true)} disabled={!candidates.length}>

@@ -21,7 +21,7 @@ export default function CharactersTool() {
     .filter(Boolean) as CharacterDTO[];
 
   return (
-    <ToolSheet title="Characters" description={group ? group.name : undefined}>
+    <ToolSheet title="Story cast" description={group ? group.name : undefined}>
       {cards.length ? (
         <div className="flex flex-col gap-3">
           {cards.map((c) => {

@@ -1,0 +1,22 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!91 &9100000
+AnimatorController:
+  m_Name: FX
+  m_AnimatorParameters: []
+  m_AnimatorLayers:
+  - serializedVersion: 5
+    m_Name: Gesture
+    m_StateMachine: {fileID: 110700001}
+--- !u!1107 &110700001
+AnimatorStateMachine:
+  m_Name: Gesture
+  m_ChildStates:
+  - serializedVersion: 1
+    m_State: {fileID: 110200001}
+    m_Position: {x: 0, y: 0, z: 0}
+  m_ChildStateMachines: []
+--- !u!1102 &110200001
+AnimatorState:
+  m_Name: Fist
+  m_Motion: {fileID: 7400000, guid: 1a0e0000000000000000000000000021, type: 2}

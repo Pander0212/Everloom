@@ -27,6 +27,7 @@ export async function createTestApp(): Promise<BuiltApp & { dataDir: string; cle
     cleanup: async () => {
       await built.app.close();
       built.ctx.db.close();
+      if (built.ctx.sys !== built.ctx.db && built.ctx.sys.open) built.ctx.sys.close();
       rmSync(dataDir, { recursive: true, force: true });
     },
   };

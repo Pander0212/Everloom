@@ -26,6 +26,8 @@ export const qk = {
 };
 
 export const useSettings = () => useQuery({ queryKey: qk.settings, queryFn: () => get<Settings>('/api/settings') });
+/** Settings › Privacy › Blur 18+ pictures in lists (off by default). */
+export const useBlurAdult = () => useSettings().data?.library.blurAdult === true;
 export const useCharacters = () => useQuery({ queryKey: qk.characters, queryFn: () => get<CharacterSummary[]>('/api/characters') });
 export const useCharacter = (id?: string | null) => useQuery({ queryKey: qk.character(id ?? ''), queryFn: () => get<CharacterDTO>(`/api/characters/${id}`), enabled: !!id });
 export const useChats = (f?: { characterId?: string; groupId?: string }) => useQuery({ queryKey: qk.chats(f), queryFn: () => get<ChatSummary[]>('/api/chats', f as any) });

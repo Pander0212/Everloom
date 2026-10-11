@@ -2,16 +2,17 @@ import { ChevronDown } from 'lucide-react';
 import type { ReactNode } from 'react';
 import { Icon, Kbd } from '@/ui';
 import { ToolSheet } from './ToolSheet';
+import { GLOSSARY } from '@/lib/glossary';
 
 const SECTIONS: Array<{ title: string; body: ReactNode }> = [
   {
     title: 'Chatting',
     body: (
       <ul>
-        <li>Swipe a reply left or right (or use the arrows) to see other takes. The game state follows the take you keep.</li>
-        <li>The ⋯ button on a message lets you edit, branch, hide, bookmark, copy or read it aloud.</li>
-        <li>The plus button next to the message box opens every action and tool: continue, impersonate, suggestions, summaries and the game tools.</li>
-        <li>Stage mode (the theatre icon) shows one line at a time with sprites and the background.</li>
+        <li>Tap › under the newest reply for a new version (or swipe it sideways); ‹ › move between versions. The story state follows the version you keep.</li>
+        <li>Tap a message for Edit, Copy and Delete; More has branch, hide from the AI, bookmark and read aloud.</li>
+        <li>Tools, next to the message box, finds every tool and setting by name, with a line on what each does. Pin the ones you use.</li>
+        <li>Stage view (the book button at the top) shows one line at a time with pictures and the background.</li>
       </ul>
     ),
   },
@@ -19,9 +20,9 @@ const SECTIONS: Array<{ title: string; body: ReactNode }> = [
     title: 'The game layer',
     body: (
       <ul>
-        <li>After each reply a small model reads the scene and updates time, needs, items, people and places. You see a short summary under the message.</li>
-        <li>Anything it changed can be undone from the summary, and swiping, editing or deleting a message rolls its changes back exactly.</li>
-        <li>You can edit everything yourself: open the tools menu and pick Inventory, NPCs, Journal, Map and so on.</li>
+        <li>After each reply, auto-tracking reads the scene and updates time, needs, items, people and places. You see a short summary under the message.</li>
+        <li>Tools › Story changes lists every change with Undo, and a new version, an edit or a deleted message rolls its changes back exactly.</li>
+        <li>You can edit everything yourself: open Tools and pick Inventory, People, Journal, Map and so on.</li>
         <li>Lock a person, place or organization to stop the model from changing it.</li>
       </ul>
     ),
@@ -51,7 +52,7 @@ const SECTIONS: Array<{ title: string; body: ReactNode }> = [
     body: (
       <ul>
         <li>Lorebooks work like SillyTavern World Info: keywords, secondary keys, recursion, sticky and cooldown, scan depth and budget.</li>
-        <li>Presets hold the prompt order and sampler settings. The prompt inspector in the chat menu shows exactly what is sent.</li>
+        <li>Presets hold the prompt order and sampler settings. Tools › Everything sent to the AI shows exactly what is sent.</li>
         <li>Main writes the story. Utility (optional, cheaper) handles bookkeeping, summaries, the helper and texts.</li>
       </ul>
     ),
@@ -61,13 +62,13 @@ const SECTIONS: Array<{ title: string; body: ReactNode }> = [
     body: (
       <ul>
         <li>
-          <Kbd>Ctrl</Kbd> + <Kbd>K</Kbd> opens the tools menu.
+          <Kbd>Ctrl</Kbd> + <Kbd>K</Kbd> opens Tools.
         </li>
         <li>
           <Kbd>Enter</Kbd> sends, <Kbd>Shift</Kbd> + <Kbd>Enter</Kbd> adds a new line (configurable in Settings).
         </li>
         <li>
-          <Kbd>←</Kbd> <Kbd>→</Kbd> swipe the last reply when the message box is empty.
+          <Kbd>←</Kbd> <Kbd>→</Kbd> move between versions of the last reply when the message box is empty.
         </li>
       </ul>
     ),
@@ -77,8 +78,24 @@ const SECTIONS: Array<{ title: string; body: ReactNode }> = [
     body: (
       <ul>
         <li>Everything lives on your server. API keys are encrypted there and never sent to the browser.</li>
-        <li>Settings → Data has backups, restore and the SillyTavern importer. Characters export as PNG or JSON cards.</li>
+        <li>Settings › Backups &amp; import has backups, restore and the SillyTavern importer. Characters export as PNG or JSON cards.</li>
       </ul>
+    ),
+  },
+  {
+    title: 'Words',
+    body: (
+      <dl className="flex flex-col gap-2">
+        {GLOSSARY.map((g) => (
+          <div key={g.term}>
+            <dt className="font-medium text-fg">{g.term}</dt>
+            <dd>
+              {g.means}
+              {g.was ? <span className="text-fg-3"> (Also: {g.was}.)</span> : null}
+            </dd>
+          </div>
+        ))}
+      </dl>
     ),
   },
 ];

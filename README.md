@@ -134,6 +134,8 @@ cd Everloom && bash update.sh
 
 Run it as your normal user; it uses `sudo` for Docker by itself when needed (running the whole script with `sudo` works too). It ends with `Updated: Everloom is running build abc1234`, and **Settings → About** shows the same build. If it stops with an error, nothing was changed.
 
+**If an update fails.** Before the database is upgraded, Everloom writes a copy of it to `data/backups/pre-migration-v<N>-<time>.db` (the three newest are kept), and the upgrade runs as one step: if any part fails, none of it is applied. The error names the step and the copy. To go back, check out the previous version (`git checkout <previous tag or commit>`, then `docker compose build && docker compose up -d`); it opens the database as it was. Only if the database itself is damaged: stop Everloom, replace `data/everloom.db` with the copy, delete `data/everloom.db-wal` and `data/everloom.db-shm`, and start the previous version. The Windows app backs up before installing an update and doesn't install one if that backup fails.
+
 **Backups:**
 
 - The app makes a nightly backup (database + images) into `data/backups/`, keeping the newest 14 by default. Change this in **Settings → Backups & import**, where you can also make a backup right now and download it.
@@ -263,6 +265,39 @@ full spec, with a checklist for model makers, is [docs/avatars.md](docs/avatars.
 - **Realistic:** if Blender 4.2+ is on your server, MPFB (MakeHuman) makes realistic humans from
   sliders, with clothes you can take off (one button installs MPFB and its CC0 assets).
 
+**Which files work.** GLB and VRM (0.x and 1.0) load in the browser. So do OBJ (with its `.mtl`
+and textures), DAE, FBX, PMX/PMD with VMD/VPD motions, BVH and VRMA motions, and textures in PNG,
+JPEG, WebP, TGA, PSD, DDS and KTX2. Zip, 7z and RAR archives are unpacked first (a password-protected
+one has to be unpacked on your PC). `.blend` files go through Blender on your server (one-click install in
+Settings › 3D characters › Blender) or on your PC. A Clip Studio `.clip` or a layered `.psd`
+becomes a 2D puppet. Unity's own `.anim` and scripts can't play outside Unity; Everloom says so and
+lists what it skipped. Details: [docs/3d-import/formats.md](docs/3d-import/formats.md).
+
+**A BOOTH avatar and its outfits, without Unity.** Drop the avatar's `.unitypackage` (or the folder
+you extracted, with or without its `.meta` files) on Characters › 3D avatars. Everloom reads the
+prefab like Unity would: the humanoid mapping from the `.fbx.meta`, lilToon and Poiyomi materials
+turned into toon materials, the prefab's blendshape values, PhysBones as swinging bones (hair,
+skirt, breasts, butt), the VRChat visemes for lip-sync and blink, and Modular Avatar toggles as
+wardrobe parts. An import report lists what came in, what was approximated and what was skipped.
+Then drop an outfit package made for that avatar and pick the avatar: the outfit's bones join the
+avatar's, and it becomes a wardrobe outfit that the inventory puts on (and takes off again if the
+message is swiped away). The package's license stays with it; exporting or sharing it shows a
+warning. More: [docs/3d-import/unity.md](docs/3d-import/unity.md).
+
+**Bone mapping.** Every model is mapped to a standard humanoid skeleton automatically, from the
+file's own map, known bases (VRoid, VRChat bases, MMD, Mixamo, Rigify, …), the bone names in
+several languages, and the shape of the skeleton. Extra bones get roles (breast, butt, belly, hair,
+skirt, tail, ears, twist helpers…), which give them physics and body sliders. The **Bones** tab
+shows the mapping as a tree you can fix, with how sure each guess was; a mapping can be saved and
+applied to another avatar with the same bones. More: [docs/3d-import/bones.md](docs/3d-import/bones.md).
+
+**The character creator.** Make › Character creator (anime) builds a new character on Everloom's own
+CC0 bases, VRoid-style: body and face sliders, eyes, 32 hair presets you combine by part, skin and
+makeup, 19 clothing templates with patterns or your own painted textures. Save it, edit it again,
+or export it as GLB or VRM 1.0 with the license you choose. An imported VRM's own license is shown
+in its Export tab. Anatomy is a separate download, never part of Everloom; it works for adult
+characters only. More: [docs/3d-import/creator.md](docs/3d-import/creator.md).
+
 **Where to get good models:** [VRoid Studio](https://vroid.com/en/studio) (free, makes anime VRMs
 in minutes), [VRoid Hub](https://hub.vroid.com) and [Booth](https://booth.pm) (check each model's
 terms), [Quaternius](https://quaternius.com) and [Kenney](https://kenney.nl) (CC0), Ready Player
@@ -284,13 +319,40 @@ name it, pick its kind (and whether it loops), and it becomes an emote the story
    colour and pattern variants; the skin under them hides. Equip a sword or a coat in the
    inventory and the character wears it; swipe the message away and it comes off again.
 
+**Your own base body, with sliders and clothes fitted to it.** Import any rigged body (a GLB you
+made or bought) and it becomes a base that characters and clothes are made from:
+
+- *What a base needs:* a humanoid skeleton and skinned meshes, nothing more. Shape keys (morph
+  targets) give it body sliders: name them plainly (`Breast_Large`/`Breast_Small`, `Hips_Wide`/
+  `Hips_Narrow`…) and Everloom sorts them into Body, Face and Other, makes opposite pairs into one
+  slider and links left with right. Without them, generated adjusters (marked as such) can widen or
+  narrow the hips, chest, waist, butt, thighs and shoulders. Breast bones give chest motion, a clean
+  UV layout gives skin layers. The editor's **Base model check** says what your file has and what
+  that turns off. More in [docs/base-model-guide.md](docs/base-model-guide.md).
+- *How fitting works:* drop a garment that isn't rigged (GLB, OBJ or FBX) onto the body, put it in
+  place (drag the handles, or big buttons on a phone; it guesses a start), and press *Fit*. In the
+  background Everloom copies the skin weights from the body under each part of the garment, copies
+  the body's shape keys so it follows the sliders, pushes out anything inside the skin, hangs skirts
+  and long hair on swinging bone chains, and hides the skin it covers. Check it in poses and with
+  every slider at its ends, then save. Every character on that base can wear it.
+- *What the automatic steps can't do:* there's no cloth simulation (a gown swings on chains but
+  doesn't drape or fold; in a deep squat or a wide step the thighs can come through a skirt), a
+  garment can still clip at the very ends of a slider's range, clothes don't collide with each other
+  (long hair can let the back of a top show through), and loose or layered clothes rig better by
+  hand in Blender. The check flags the spots worth a look.
+- *Also:* skin tone, eye and hair colours change at once; underwear, stockings, makeup and tattoos
+  are painted onto the skin (tap the body to place a tattoo); hair, skirts and the chest swing and
+  collide with the body; and two to four characters can shake hands, hug or dance together, in
+  step, with their hands meeting whatever their heights.
+
 **What the AI tools can and can't do:** with a Meshy or fal.ai connection, *Make with AI* turns a
 description or picture into a prop (hats, weapons, bags: good) or, experimentally, a garment
 fitted with Blender (close-fitting clothes are fine, loose or layered ones come out rough). Your
 image connection can make seamless fabric textures. None of this makes a whole good character; for
 that, use VRoid, the parts maker, or a model made by a person.
 
-**On phones:** keep to two 3D characters at once, leave quality on *Automatic* (it lowers
+**On phones:** keep to two 3D characters at once (dressed ones with swinging hair and skirts: medium
+quality or lower), leave quality on *Automatic* (it lowers
 resolution, shadows and physics when frames run long), use the 30 fps cap, and prefer models under
 60,000 triangles (Everloom makes a lighter copy of each for phones and compresses textures).
 "Show pictures instead of 3D" in Settings › 3D characters turns 3D off on one device.

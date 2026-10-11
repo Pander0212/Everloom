@@ -1,5 +1,5 @@
 import { effectiveFeatures, type FeaturePreset,
-  createInitialState, exportChatJsonl, expandMacros, parseChatJsonl,
+  createInitialState, exportChatJsonl, expandMacros, fillCard, parseChatJsonl,
   type ChatDTO, type ChatMeta, type ChatSummary, type GroupDTO, type MessageDTO, type SwipeDTO,
 } from '@everloom/engine';
 import { HttpError, type AppContext } from '../context.js';
@@ -138,6 +138,8 @@ export interface CreateChatInput {
   greeting?: boolean;
   /** This chat's own feature preset; unset uses the character's default, else the global setting. */
   features?: FeaturePreset | null;
+  /** Answers to the card's scenario questions (${…}), filled into this chat's copy of the card. */
+  answers?: Record<string, string>;
 }
 
 export function insertMessage(
@@ -163,6 +165,7 @@ export function createChat(ctx: AppContext, owner: string, input: CreateChatInpu
   const characters = input.groupId
     ? getGroup(ctx, owner, input.groupId).members.map((m) => getCharacter(ctx, owner, m.characterId))
     : [getCharacter(ctx, owner, input.characterId!)];
+  const answers = input.answers && Object.keys(input.answers).length ? Object.fromEntries(Object.entries(input.answers).slice(0, 50)) : null;
   const group = input.groupId ? getGroup(ctx, owner, input.groupId) : null;
   const title = input.title?.trim() || `${group?.name ?? characters[0].name} — ${new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}`;
   // The chat's own feature preset (or the character's default); with the game layer off no game is set up.
@@ -180,13 +183,14 @@ export function createChat(ctx: AppContext, owner: string, input: CreateChatInpu
   }
   const id = newId('c_');
   const now = Date.now();
-  const meta: ChatMeta = { mode: f.on.stage ? settings.chat.defaultMode : 'chat', ...(chatFeatures ? { features: chatFeatures } : {}) };
+  const meta: ChatMeta = { mode: f.on.stage ? settings.chat.defaultMode : 'chat', ...(chatFeatures ? { features: chatFeatures } : {}), ...(answers ? { answers } : {}) };
   ctx.db
     .prepare('INSERT INTO chats (id, owner_id, character_id, group_id, title, persona_id, campaign_id, metadata, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
     .run(id, owner, input.characterId ?? null, input.groupId ?? null, title, persona?.id ?? null, campaignId, JSON.stringify(meta), now, now);
   if (input.greeting !== false) {
     for (const ch of characters) {
-      const greetings = [ch.card.first_mes, ...(group ? ch.card.group_only_greetings ?? [] : []), ...(ch.card.alternate_greetings ?? [])].filter((g) => g && g.trim());
+      const card = fillCard(ch.card, answers);
+      const greetings = [card.first_mes, ...(group ? card.group_only_greetings ?? [] : []), ...(card.alternate_greetings ?? [])].filter((g) => g && g.trim());
       if (!greetings.length) continue;
       const macros = { char: ch.name, user: userName };
       insertMessage(ctx, owner, id, {

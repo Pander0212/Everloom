@@ -74,7 +74,7 @@ test.describe('3D characters', () => {
     await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 45_000 });
     for (const pose of ['T-pose', 'Arms up', 'Squat', 'Right hand up', 'Idle']) await page.getByRole('radio', { name: pose }).click();
     await page.getByRole('tab', { name: 'Bones' }).click();
-    await expect(page.getByText('All main bones are mapped')).toBeVisible();
+    await expect(page.getByText('Main bones mapped')).toBeVisible();
     await page.getByRole('tab', { name: 'Fit' }).click();
     const toon = page.getByRole('radio', { name: 'Anime (toon)' });
     await toon.evaluate((e) => e.scrollIntoView({ block: 'center' }));
@@ -100,7 +100,7 @@ test.describe('3D characters', () => {
     await api(page, 'PATCH', `/api/characters/${ch.id}`, { game: { avatar3d: avatar, display: 'auto' } });
     const chat = await api(page, 'POST', '/api/chats', { characterId: ch.id });
     await page.goto(`/chat/${chat.id}`);
-    await page.getByRole('button', { name: 'Switch to stage mode' }).click();
+    await page.getByRole('button', { name: 'Switch to stage view' }).click();
     await expect(page.getByTestId('stage-3d')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('stage-sprite')).toHaveCount(0);
     // The story can make the character emote and hold a pose (and it rolls back like any op).
@@ -135,20 +135,23 @@ test.describe('3D characters', () => {
     await page.evaluate(() => localStorage.setItem('everloom:3d', JSON.stringify({ spritesOnly: true })));
     await page.reload();
     // Stage mode is remembered for the chat.
-    await expect(page.getByRole('button', { name: 'Switch to chat mode' })).toBeVisible();
+    await expect(page.getByRole('button', { name: 'Switch to chat view' })).toBeVisible();
     await expect(page.getByTestId('stage-sprite')).toHaveCount(1);
     await expect(page.getByTestId('stage-3d')).toHaveCount(0);
     await page.evaluate(() => localStorage.removeItem('everloom:3d'));
     expect(errors).toEqual([]);
   });
 
-  test('code-made: make one, edit it, and pictureless characters appear as code-made figures', async ({ page, errors }) => {
+  test('code-made is opt-in: make one, edit it, and explicitly enable procedural NPCs', async ({ page, errors }) => {
+    await page.goto('/');
+    await page.evaluate(() => localStorage.setItem('everloom:3d', JSON.stringify({ experimentalProcedural: true, codeNpcs: true })));
+    await api(page, 'PATCH', '/api/avatar-packs/basics', { enabled: true });
     await page.goto('/characters/avatars');
     await page.getByTestId('avatar-make').click();
     // Realistic characters are only offered where Blender runs.
     const blender = await api(page, 'GET', '/api/blender');
     await expect(page.getByRole('menuitem', { name: /Realistic/ })).toHaveCount(blender.found ? 1 : 0);
-    await page.getByRole('menuitem', { name: /Code-made/ }).click();
+    await page.getByRole('menuitem', { name: /Experimental code-made/ }).click();
     await expect(page).toHaveURL(/\/characters\/avatars\/av_/);
     await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 45_000 });
     await page.getByRole('tab', { name: 'Face & hair' }).click();
@@ -173,7 +176,7 @@ test.describe('3D characters', () => {
     const ch = await api(page, 'POST', '/api/characters', { card: { name: 'Old Tam', description: 'An elderly fisherman with a white beard, a grey beanie and boots.', first_mes: 'Tam squints at the sea.' } });
     const chat = await api(page, 'POST', '/api/chats', { characterId: ch.id });
     await page.goto(`/chat/${chat.id}`);
-    await page.getByRole('button', { name: 'Switch to stage mode' }).click();
+    await page.getByRole('button', { name: 'Switch to stage view' }).click();
     await expect(page.getByTestId('stage-3d')).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('stage-sprite')).toHaveCount(0);
     // Turned off on this device: back to the (empty) picture slot.
@@ -186,6 +189,8 @@ test.describe('3D characters', () => {
   });
 
   test('parts maker on a phone: build, save, use on the stage, and an equipped item swaps a part', async ({ page, errors }) => {
+    await page.goto('/');
+    await api(page, 'PATCH', '/api/avatar-packs/basics', { enabled: true });
     await page.goto('/characters/avatars');
     await page.getByTestId('avatar-make').click();
     await page.getByRole('menuitem', { name: /From parts/ }).click();
@@ -219,7 +224,7 @@ test.describe('3D characters', () => {
     const r = await api(page, 'POST', `/api/campaigns/${chat.campaignId}/ops`, { chatId: chat.id, ops: [{ type: 'party.add', name: who }, { type: 'item.add', name: 'Iron Helmet', category: 'armor', slot: 'head' }, { type: 'party.update', name: who, equip: { slot: 'head', item: 'Iron Helmet' } }] });
     expect(r.errors).toEqual([]);
     await page.goto(`/chat/${chat.id}`);
-    await page.getByRole('button', { name: 'Switch to stage mode' }).click();
+    await page.getByRole('button', { name: 'Switch to stage view' }).click();
     const stage = page.getByTestId('stage-3d');
     await expect(stage).toBeVisible({ timeout: 20_000 });
     await expect(stage).toHaveAttribute('data-worn', /item-hat-helmet/, { timeout: 30_000 });
@@ -245,7 +250,7 @@ test.describe('3D characters', () => {
     await api(page, 'PATCH', '/api/settings', { audio: { ...settings.audio, music: true, playlists: [{ id: 'pl_party', name: 'Party', mood: 'party', tracks: [track] }] } });
     await api(page, 'POST', `/api/campaigns/${chat.campaignId}/ops`, { chatId: chat.id, ops: [{ type: 'music.set', mood: 'party' }] });
     await page.goto(`/chat/${chat.id}`);
-    await page.getByRole('button', { name: 'Switch to stage mode' }).click();
+    await page.getByRole('button', { name: 'Switch to stage view' }).click();
     const stage = page.getByTestId('stage-3d');
     await expect(stage).toBeVisible({ timeout: 20_000 });
     await expect(page.getByTestId('audio-director')).toHaveAttribute('data-playlist', 'Party');
@@ -262,7 +267,7 @@ test.describe('3D characters', () => {
     await expect.poll(async () => (await api(page, 'GET', `/api/campaigns/${chat.campaignId}`)).state.stage.avatars[key]?.outfit, { timeout: 20_000 }).toBe('Ball gown');
     await expect(stage).toHaveAttribute('data-outfit', new RegExp(`${ch.id}:gown`), { timeout: 20_000 });
     await mockControl({ trackerOps: [] });
-    await page.getByRole('button', { name: 'New swipe' }).click();
+    await page.getByRole('button', { name: 'New version' }).click();
     await expect.poll(async () => (await api(page, 'GET', `/api/campaigns/${chat.campaignId}`)).state.stage.avatars[key]?.outfit ?? null, { timeout: 20_000 }).toBeNull();
     await expect(stage).toHaveAttribute('data-outfit', new RegExp(`${ch.id}:(\\||$)`), { timeout: 20_000 });
     await mockControl({ trackerOps: null });
@@ -288,8 +293,8 @@ test.describe('3D characters', () => {
 
     const chat = await api(page, 'POST', '/api/chats', { characterId: ch.id });
     await page.goto(`/chat/${chat.id}`);
-    await page.getByRole('button', { name: 'Actions and tools' }).click();
-    await page.getByLabel('Search tools and actions').fill('Stage & sound');
+    await page.getByRole('button', { name: 'Tools', exact: true }).click();
+    await page.getByLabel('Search tools, settings and the story').fill('Stage & sound');
     await page.getByRole('button', { name: 'Stage & sound', exact: true }).click();
     await page.getByRole('tab', { name: 'Sprites' }).click();
     await page.getByRole('button', { name: 'Asset library' }).click();

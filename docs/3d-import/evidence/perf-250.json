@@ -1,0 +1,78 @@
+{
+ "phone-390-light": [
+  {
+   "profile": "phone (4× CPU slowdown)",
+   "quality": "low",
+   "fps": 16.9,
+   "cpuMsMean": 13.1,
+   "cpuMsP95": 19.2,
+   "joints": 48,
+   "level": 0,
+   "drawCalls": 49,
+   "triangles": 14372,
+   "cpuFpsCeiling": 76.3
+  },
+  {
+   "profile": "phone (4× CPU slowdown)",
+   "quality": "medium",
+   "fps": 8.5,
+   "cpuMsMean": 16.8,
+   "cpuMsP95": 33.1,
+   "joints": 48,
+   "level": 1,
+   "drawCalls": 96,
+   "triangles": 28466,
+   "cpuFpsCeiling": 59.5
+  },
+  {
+   "profile": "phone (4× CPU slowdown)",
+   "quality": "high",
+   "fps": 2.8,
+   "cpuMsMean": 44.2,
+   "cpuMsP95": 72.5,
+   "joints": 160,
+   "level": 3,
+   "drawCalls": 192,
+   "triangles": 113140,
+   "cpuFpsCeiling": 22.6
+  }
+ ],
+ "desktop-1280-light": [
+  {
+   "profile": "desktop",
+   "quality": "low",
+   "fps": 14.7,
+   "cpuMsMean": 3.1,
+   "cpuMsP95": 5.8,
+   "joints": 48,
+   "level": 0,
+   "drawCalls": 49,
+   "triangles": 14372,
+   "cpuFpsCeiling": 322.6
+  },
+  {
+   "profile": "desktop",
+   "quality": "medium",
+   "fps": 7.2,
+   "cpuMsMean": 5,
+   "cpuMsP95": 9,
+   "joints": 48,
+   "level": 1,
+   "drawCalls": 96,
+   "triangles": 56570,
+   "cpuFpsCeiling": 200
+  },
+  {
+   "profile": "desktop",
+   "quality": "high",
+   "fps": 4.6,
+   "cpuMsMean": 9.1,
+   "cpuMsP95": 13.8,
+   "joints": 160,
+   "level": 3,
+   "drawCalls": 192,
+   "triangles": 113140,
+   "cpuFpsCeiling": 109.9
+  }
+ ]
+}

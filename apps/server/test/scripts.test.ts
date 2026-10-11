@@ -241,7 +241,7 @@ describe('sandbox and extensions', () => {
     const p = (await c.req('POST', '/api/extensions/preview', withServer)).json;
     expect(p.server).toMatchObject({ allowed: false });
     expect((await c.req('POST', '/api/extensions/install', { token: p.token })).json.code).toBe('server_ext_off');
-    expect((await c.req('POST', '/api/extensions/dev', { folder: '/etc' })).status).toBe(403);
+    expect((await c.req('POST', '/api/extensions/dev', { folder: path.resolve(import.meta.dirname, '..') })).status).toBe(403);
   });
 
   it('a server extension runs in its own process when the server allows it', async () => {

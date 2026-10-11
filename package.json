@@ -19,11 +19,13 @@
     "typecheck": "tsc -p packages/engine && tsc -p apps/server && tsc -p apps/web",
     "test": "vitest run",
     "test:e2e": "playwright test",
+    "test:3d": "playwright test --config playwright.3d.config.ts",
     "migrate": "node apps/server/dist/index.js --migrate-only",
     "mock-llm": "tsx tests/mock-llm/server.ts",
     "bench:memory": "tsx tests/memory-bench/cli.ts",
     "prepare": "node -e \"try{require('child_process').execSync('git config core.hooksPath scripts/hooks',{stdio:'ignore'})}catch(e){}\"",
-    "check:secrets": "node scripts/check-secrets.mjs --all"
+    "check:secrets": "node scripts/check-secrets.mjs --all",
+    "bones:automap": "tsx tools/bones/automap.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",

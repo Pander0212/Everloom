@@ -14,7 +14,6 @@ import { HttpError, type AppContext } from '../context.js';
 import { newId, randomToken, sha256 } from '../security/crypto.js';
 import { getCharacter, importCard } from './characters.js';
 import { saveImage } from './media.js';
-import { getSettings } from './settings.js';
 
 export interface BridgeDevice {
   id: string;
@@ -121,7 +120,6 @@ function b64(data: string): Buffer {
 }
 
 export async function bridgeImport(ctx: AppContext, owner: string, p: BridgePayload) {
-  if (p.nsfw && getSettings(ctx, owner).library.nsfw !== true) throw new HttpError(403, 'This character is marked adult. Turn on adult content in Settings › Character sources to import it.');
   let created;
   if (p.file) {
     created = await importCard(ctx, owner, b64(p.file.data));

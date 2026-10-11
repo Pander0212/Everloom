@@ -8,10 +8,10 @@ import {
   useState,
   type ReactNode,
 } from "react";
-import { useNavigate } from "react-router";
-import { Archive, HelpCircle, Settings } from "lucide-react";
 import { Sheet, Spinner } from "@/ui";
-import { CommandMenu, TOOL_META, type Command } from "./CommandMenu";
+import { Palette, type PaletteItem } from "@/features/palette/Palette";
+import { usePaletteWiring } from "@/features/palette/wiring";
+import { entryForTool, type Entry } from "@/lib/registry";
 import { applyOps, GameContext, type GameCtx, type ToolId } from "./context";
 import { FeaturesContext } from "@/lib/features";
 import { presetFeatures, type FeatureId } from "@everloom/engine";
@@ -31,7 +31,7 @@ const CutscenePlayer = lazy(() =>
 );
 
 /** Which module each tool belongs to: a tool whose module is off isn't offered (or downloaded). */
-const TOOL_FEATURE: Record<keyof typeof TOOL_META, FeatureId> = {
+const TOOL_FEATURE: Partial<Record<ToolId, FeatureId>> = {
   journal: "journal",
   diary: "diary",
   map: "map",
@@ -97,7 +97,10 @@ export interface GameLayerProps {
   setComposer: (v: string) => void;
   menuOpen: boolean;
   setMenuOpen: (o: boolean) => void;
-  quick: Command[];
+  /** Runs palette entries that aren't game tools (sheets, actions, pages). */
+  onEntry: (e: Entry) => void;
+  /** Extra palette rows (extension panels and screens). */
+  extra: PaletteItem[];
   children: ReactNode;
 }
 
@@ -109,11 +112,11 @@ export function GameLayer({
   setComposer,
   menuOpen,
   setMenuOpen,
-  quick,
+  onEntry,
+  extra,
   children,
 }: GameLayerProps) {
   const [tool, setTool] = useState<{ id: ToolId; arg?: string } | null>(null);
-  const navigate = useNavigate();
   const open = useCallback(
     (id: ToolId, arg?: string) => setTool({ id, arg }),
     [],
@@ -158,65 +161,31 @@ export function GameLayer({
   const unread = state
     ? Object.values(state.phone.unread).reduce((a, b) => a + b, 0)
     : 0;
-  const commands: Command[] = useMemo(() => {
-    const tools: Command[] = state
-      ? (
-          Object.entries(TOOL_META) as Array<
-            [ToolId, (typeof TOOL_META)[keyof typeof TOOL_META]]
-          >
-        )
-          .filter(
-            ([id]) => features.on[TOOL_FEATURE[id as keyof typeof TOOL_META]],
-          )
-          .map(([id, m]) => ({
-            id,
-            label: m.label,
-            icon: m.icon,
-            group: m.group,
-            keywords: m.keywords,
-            badge:
-              id === "phone" && unread
-                ? unread
-                : id === "battle" && state.battle?.status === "active"
-                  ? "!"
-                  : undefined,
-            run: () => open(id),
-          }))
-      : [];
-    const system: Command[] = [
-      {
-        id: "settings",
-        label: "Settings",
-        icon: Settings,
-        group: "System",
-        keywords: "preferences",
-        run: () => navigate("/settings"),
-      },
-      {
-        id: "help",
-        label: "Help",
-        icon: HelpCircle,
-        group: "System",
-        keywords: "how guide",
-        run: () => open("help" as ToolId),
-      },
-      {
-        id: "backups",
-        label: "Backups",
-        icon: Archive,
-        group: "System",
-        keywords: "export save restore",
-        run: () => navigate("/settings/data"),
-      },
-    ];
-    return [...quick, ...tools, ...system];
-  }, [quick, state, unread, open, navigate, features]);
+  const wiring = usePaletteWiring(features);
+  const scope = useMemo(
+    () => ({ features, chat: true, game: !!state, experimental: wiring.experimental }),
+    [features, state, wiring.experimental],
+  );
+  const badges = useMemo(
+    () => ({
+      phone: unread || undefined,
+      battle: state?.battle?.status === "active" ? "!" : undefined,
+    }),
+    [unread, state?.battle?.status],
+  );
+  const runEntry = useCallback(
+    (e: Entry) => {
+      if (e.target.kind === "tool") open(e.target.tool as ToolId, e.target.arg);
+      else onEntry(e);
+    },
+    [open, onEntry],
+  );
 
   // A tool for a module that is off can't be opened, even from a link or an event.
   const allowed =
     !tool ||
-    !(tool.id in TOOL_FEATURE) ||
-    features.on[TOOL_FEATURE[tool.id as keyof typeof TOOL_FEATURE]];
+    !TOOL_FEATURE[tool.id] ||
+    features.on[TOOL_FEATURE[tool.id]!];
   const Tool = tool && allowed ? TOOLS[tool.id] : null;
   return (
     <GameContext.Provider value={ctx}>
@@ -240,10 +209,23 @@ export function GameLayer({
           </>
         ) : null}
       </Suspense>
-      <CommandMenu
+      <Palette
         open={menuOpen}
         onOpenChange={setMenuOpen}
-        commands={commands}
+        scope={scope}
+        onEntry={runEntry}
+        extra={extra}
+        badges={badges}
+        pins={wiring.pins}
+        onPins={wiring.onPins}
+        onFeature={wiring.onFeature}
+        onSettings={wiring.onSettings}
+        campaign={campaign}
+        characters={wiring.characters}
+        onCharacter={wiring.onCharacter}
+        onPlace={(id) => open("map", id)}
+        onItem={(id) => open("inventory", id)}
+        onPerson={(id) => open("npcs", id)}
       />
       {tool && Tool ? (
         <Suspense
@@ -251,7 +233,7 @@ export function GameLayer({
             <Sheet
               open
               onOpenChange={close}
-              title={TOOL_META[tool.id as keyof typeof TOOL_META]?.label ?? ""}
+              title={entryForTool(tool.id)?.label ?? ""}
             >
               <div className="flex justify-center py-10">
                 <Spinner />

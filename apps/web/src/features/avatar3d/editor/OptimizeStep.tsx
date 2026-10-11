@@ -7,7 +7,7 @@ import { Button, Field, SectionTitle, Select, Slider, Switch } from '@/ui';
 export function OptimizeStep({ avatar }: { avatar: AvatarDetail }) {
   const prev = avatar.info.optimize ?? {};
   const [maxTexture, setMaxTexture] = useState(prev.maxTexture ?? 2048);
-  const [ktx2, setKtx2] = useState(prev.ktx2 ?? true);
+  const [ktx2, setKtx2] = useState(prev.ktx2 ?? false);
   const [lowRatio, setLowRatio] = useState(prev.lowRatio ?? 0.5);
   const [busy, setBusy] = useState(false);
   const r = avatar.info.report;
@@ -17,6 +17,7 @@ export function OptimizeStep({ avatar }: { avatar: AvatarDetail }) {
   const [bBusy, setBBusy] = useState<string | null>(null);
   return (
     <div className="flex flex-col gap-4">
+      {avatar.processingStage ? <p role="status" className="text-sm text-fg-2">The original model is ready. {avatar.processingStage}.</p> : null}
       {r ? (
         <dl className="grid grid-cols-3 gap-2 rounded-md bg-surface-2 p-3 text-sm" data-testid="avatar-report">
           <div>

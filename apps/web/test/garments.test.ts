@@ -1,9 +1,30 @@
 import * as THREE from 'three';
-import { describe, expect, it } from 'vitest';
-import { bindGarment } from '../src/features/avatar3d/runtime/garments';
+import { describe, expect, it, vi } from 'vitest';
+import { GarmentSchema } from '@everloom/engine';
+import { bindGarment, Garments } from '../src/features/avatar3d/runtime/garments';
+import * as loader from '../src/features/avatar3d/runtime/loader';
+import type { Avatar } from '../src/features/avatar3d/runtime/avatar';
+import type { GLTFLoader } from 'three/examples/jsm/loaders/GLTFLoader.js';
 import { bonesOf, loadGlb } from './helpers3d';
 
 describe('garments', () => {
+  for (const action of ['remove', 'dispose'] as const) it(`does not restore a pending garment after ${action}`, async () => {
+    const body = (await loadGlb('tests/fixtures/avatars/models/mannequin-f.glb')).scene;
+    const garmentModel = await loadGlb('tests/fixtures/avatars/models/garment-jacket.glb');
+    let finish!: (model: typeof garmentModel) => void;
+    const request = new Promise<typeof garmentModel>(resolve => { finish = resolve; });
+    const mock = vi.spyOn(loader, 'loaderFor').mockReturnValue({ loadAsync: () => request } as unknown as GLTFLoader);
+    const dispose = vi.fn(); garmentModel.scene.traverse(object => { if ((object as THREE.Mesh).isMesh) (object as THREE.Mesh).geometry.addEventListener('dispose', dispose); });
+    try {
+      const garments = new Garments({ model: { scene: body }, options: { physics: false } } as unknown as Avatar, null);
+      const garment = GarmentSchema.parse({ id: 'jacket', name: 'Jacket', model: 'test-jacket', slot: 'outer' });
+      const loading = garments.set([{ garment, variant: null }], 'pbr', false, false);
+      if (action === 'remove') await garments.set([], 'pbr', false, false); else garments.dispose();
+      finish(garmentModel); await loading;
+      expect(body.getObjectByName('garment:jacket')).toBeUndefined();
+      expect(dispose).toHaveBeenCalled();
+    } finally { mock.mockRestore(); }
+  });
   it('bind to the avatar skeleton: same place at rest, follow its pose, extra bones hang from it', async () => {
     const avatar = (await loadGlb('tests/fixtures/avatars/models/mannequin-f.glb')).scene as THREE.Object3D;
     const original = (await loadGlb('tests/fixtures/avatars/models/garment-jacket.glb')).scene as THREE.Object3D;

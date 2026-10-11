@@ -697,6 +697,8 @@ export interface StageState {
   ambient: AmbientKind;
   /** 3D characters: held pose, a named outfit (null: by equipment), and the last one-off emote. */
   avatars?: Record<string, AvatarStageState>;
+  /** A paired or group animation (a handshake): who takes part, in role order; `cue` changes every time. */
+  paired?: { clip: string; who: string[]; cue: string } | null;
 }
 export interface AvatarStageState {
   name: string;

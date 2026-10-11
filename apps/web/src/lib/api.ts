@@ -98,7 +98,7 @@ export async function api<T = any>(path: string, opts: ApiOptions = {}): Promise
 }
 
 export const get = <T = any>(path: string, query?: ApiOptions['query']) => api<T>(path, { query });
-export const post = <T = any>(path: string, body: unknown = {}) => api<T>(path, { method: 'POST', body });
+export const post = <T = any>(path: string, body: unknown = {}, o: { signal?: AbortSignal } = {}) => api<T>(path, { method: 'POST', body, signal: o.signal });
 export const put = <T = any>(path: string, body: unknown) => api<T>(path, { method: 'PUT', body });
 export const patch = <T = any>(path: string, body: unknown) => api<T>(path, { method: 'PATCH', body });
 export const del = <T = any>(path: string) => api<T>(path, { method: 'DELETE' });

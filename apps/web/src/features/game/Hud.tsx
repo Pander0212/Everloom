@@ -7,6 +7,7 @@ import { useViewPrefs } from '@/lib/viewPrefs';
 import { cx } from '@/lib/format';
 import { Icon, IconButton, useMedia } from '@/ui';
 import { useGame } from './context';
+import { useFeatureOn } from '@/lib/features';
 
 export const WEATHER_ICON = { clear: Sun, cloudy: Cloud, overcast: SunDim, rain: CloudRain, storm: CloudLightning, snow: CloudSnow, fog: CloudFog, wind: Wind, heat: Thermometer } as const;
 
@@ -80,15 +81,26 @@ export function Hud() {
   const settings = useSettings();
   const hudFloat = useViewPrefs((v) => v.hudFloat);
   const desktop = useMedia('(min-width: 1024px) and (pointer: fine)');
+  const mapOn = useFeatureOn('map');
   // Hold the strip's space while the campaign loads so the story doesn't jump down.
   if (!state) return chat.campaignId ? <div className="h-11 flex-none hairline-b" aria-hidden="true" /> : null;
   const pinned = settings.data?.hud.pinned ?? ['time', 'weather', 'location', 'hp', 'hunger', 'energy'];
   if (desktop && hudFloat) return <FloatingHud at={hudFloat} onOpen={() => open('status')} items={<HudItems s={state} pinned={pinned} />} />;
+  // The place is its own button (it opens the map); the rest opens the status sheet.
+  const loc = pinned.includes('location') && mapOn && state.currentLocationId ? state.locations[state.currentLocationId] : null;
   return (
-    <button onClick={() => open('status')} className={cx('ev-hud pressable no-scrollbar flex h-11 w-full flex-none items-center gap-4 overflow-x-auto px-4 py-2 hairline-b text-left [&>*]:flex-none')}>
-      <span className="sr-only">Status:</span>
-      <HudItems s={state} pinned={pinned} />
-    </button>
+    <div className="ev-hud no-scrollbar flex h-11 w-full flex-none items-center overflow-x-auto hairline-b">
+      {loc ? (
+        <button onClick={() => open('map')} aria-label={`${loc.name}: open the map`} className="pressable flex h-full max-w-[150px] flex-none items-center gap-1 pl-4 pr-2 text-xs text-fg-2">
+          <Icon icon={MapPin} size={14} className="flex-none" />
+          <span className="truncate">{loc.name}</span>
+        </button>
+      ) : null}
+      <button onClick={() => open('status')} className={cx('pressable flex h-full min-w-0 flex-1 items-center gap-4 py-2 pr-4 text-left [&>*]:flex-none', loc ? 'pl-2' : 'pl-4')}>
+        <span className="sr-only">Status:</span>
+        <HudItems s={state} pinned={loc ? pinned.filter((x) => x !== 'location') : pinned} />
+      </button>
+    </div>
   );
 }
 

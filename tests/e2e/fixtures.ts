@@ -10,7 +10,7 @@ export const test = base.extend<{ errors: string[] }>({
       const harness = m.location().url === 'about:srcdoc' && /^Blocked script execution in 'about:srcdoc'/.test(m.text());
       if (m.type() === 'error' && !/favicon/.test(m.text()) && !harness) errors.push(m.text());
     });
-    page.on('pageerror', (e) => errors.push(e.message));
+    page.on('pageerror', (e) => errors.push(e.message + (process.env.E2E_STACKS ? `\n${e.stack}` : '')));
     await use(errors);
     expect(errors, 'console errors').toEqual([]);
   },

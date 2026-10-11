@@ -1,14 +1,14 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { Search, Users } from 'lucide-react';
+import { Search, Sparkles, Users } from 'lucide-react';
 import { useMemo, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { post } from '@/lib/api';
-import { useCharacters, useGroups, usePersonas, useSettings } from '@/lib/queries';
-import { FEATURE_PRESETS, PRESET_INFO, type FeaturePreset } from '@everloom/engine';
+import { useCharacter, useCharacters, useGroups, usePersonas, useSettings } from '@/lib/queries';
+import { cardQuestions, FEATURE_PRESETS, PRESET_INFO, validAnswer, type FeaturePreset } from '@everloom/engine';
 import { toastError } from '@/lib/store';
 import { Avatar, Button, EmptyState, Field, Icon, Input, ListRow, Segmented, Select, Sheet } from '@/ui';
 
-export function NewChatSheet({ open, onOpenChange, characterId }: { open: boolean; onOpenChange: (o: boolean) => void; characterId?: string }) {
+export function NewChatSheet({ open, onOpenChange, characterId, onQuickstart }: { open: boolean; onOpenChange: (o: boolean) => void; characterId?: string; onQuickstart?: () => void }) {
   const chars = useCharacters();
   const groups = useGroups();
   const personas = usePersonas();
@@ -22,6 +22,11 @@ export function NewChatSheet({ open, onOpenChange, characterId }: { open: boolea
   // Ask only when the character has no default mode of its own.
   const pickedChar = kind === 'character' ? chars.data?.find((c) => c.id === picked) : null;
   const charDefault = pickedChar?.chatMode ?? null;
+  // Scenario questions in the card (${…}): asked here, filled into this chat's copy.
+  const detail = useCharacter(kind === 'character' ? picked : null);
+  const questions = useMemo(() => (detail.data ? cardQuestions(detail.data.card) : []), [detail.data]);
+  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const unanswered = questions.filter((q) => !validAnswer(q, answers[q.key]));
   const [busy, setBusy] = useState(false);
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -34,7 +39,8 @@ export function NewChatSheet({ open, onOpenChange, characterId }: { open: boolea
     if (!picked) return;
     setBusy(true);
     try {
-      const chat = await post('/api/chats', { [kind === 'character' ? 'characterId' : 'groupId']: picked, personaId: personaId || undefined, ...(mode ? { features: mode } : {}) });
+      const filled = questions.length ? Object.fromEntries(questions.map((q) => [q.key, answers[q.key]!.trim()])) : undefined;
+      const chat = await post('/api/chats', { [kind === 'character' ? 'characterId' : 'groupId']: picked, personaId: personaId || undefined, ...(mode ? { features: mode } : {}), ...(filled ? { answers: filled } : {}) });
       await qc.invalidateQueries({ queryKey: ['chats'] });
       onOpenChange(false);
       navigate(`/chat/${chat.id}`);
@@ -51,12 +57,21 @@ export function NewChatSheet({ open, onOpenChange, characterId }: { open: boolea
       title="New chat"
       size="lg"
       footer={
-        <Button variant="primary" size="lg" block disabled={!picked} loading={busy} onClick={start}>
+        <Button variant="primary" size="lg" block disabled={!picked || unanswered.length > 0} loading={busy} onClick={start}>
           Start chat
         </Button>
       }
     >
       <div className="flex flex-col gap-4">
+        {onQuickstart && !characterId ? (
+          <button onClick={onQuickstart} className="pressable flex items-center gap-3 rounded-md border border-dashed border-line-strong p-3 text-left hover:bg-surface-2">
+            <Icon icon={Sparkles} className="flex-none text-accent-text" />
+            <span className="min-w-0">
+              <span className="block text-sm font-medium">Quickstart</span>
+              <span className="block text-xs text-fg-2">A new character, opening scene and world from a short idea.</span>
+            </span>
+          </button>
+        ) : null}
         {!characterId ? (
           <Segmented
             label="Chat type"
@@ -100,6 +115,41 @@ export function NewChatSheet({ open, onOpenChange, characterId }: { open: boolea
             </Select>
           </Field>
         )}
+        {questions.length ? (
+          <section aria-label="Before you start" className="flex flex-col gap-3 rounded-md bg-surface-2 p-3">
+            <div>
+              <h3 className="text-sm font-semibold">Before you start</h3>
+              <p className="text-xs text-fg-2">This story asks {questions.length === 1 ? 'one question' : `${questions.length} questions`}. Your answers go into this chat only; the character stays as it is.</p>
+            </div>
+            {questions.map((qq, i) => (
+              <Field key={qq.key} label={qq.text} htmlFor={`q-${i}`}>
+                {qq.fixed ? (
+                  <Select id={`q-${i}`} value={answers[qq.key] ?? ''} onChange={(e) => setAnswers((a) => ({ ...a, [qq.key]: e.target.value }))}>
+                    <option value="">Choose…</option>
+                    {qq.options.map((o) => (
+                      <option key={o} value={o}>
+                        {o}
+                      </option>
+                    ))}
+                  </Select>
+                ) : (
+                  <>
+                    <Input id={`q-${i}`} value={answers[qq.key] ?? ''} maxLength={200} list={qq.options.length ? `ql-${i}` : undefined} onChange={(e) => setAnswers((a) => ({ ...a, [qq.key]: e.target.value }))} />
+                    {qq.options.length ? (
+                      <div className="mt-1.5 flex flex-wrap gap-1.5">
+                        {qq.options.map((o) => (
+                          <button key={o} type="button" onClick={() => setAnswers((a) => ({ ...a, [qq.key]: o }))} className="pressable h-8 rounded-full bg-surface px-3 text-xs font-medium text-fg-2 hover:text-fg">
+                            {o}
+                          </button>
+                        ))}
+                      </div>
+                    ) : null}
+                  </>
+                )}
+              </Field>
+            ))}
+          </section>
+        ) : null}
         <Field label="Play as" htmlFor="persona">
           <Select id="persona" value={personaId} onChange={(e) => setPersonaId(e.target.value)}>
             <option value="">Default persona</option>

@@ -9,6 +9,8 @@ import { HttpError, type AppContext } from './context.js';
 import { reconcileLegacyCampaigns } from './services/campaigns.js';
 import { openDb, type DB } from './db/index.js';
 import { lockedDb, openSystemDb, Vault } from './vault/vault.js';
+import { registerQuickstart } from './routes/quickstart.js';
+import { registerScenarios } from './routes/scenarios.js';
 import { registerAuth } from './routes/auth.js';
 import { runWithShield } from './privacy/shield.js';
 import { installShield } from './services/shield.js';
@@ -33,6 +35,7 @@ import { registerComms } from './routes/comms.js';
 import { registerBridge } from './routes/bridge.js';
 import { registerCustomize } from './routes/customize.js';
 import { registerLive2d } from './routes/live2d.js';
+import { registerPuppets } from './routes/puppets.js';
 import { registerAvatarRoutes } from './routes/avatars.js';
 import { registerAssetRoutes } from './routes/assets.js';
 import { logSafeError, recordError, setContentFreeLogs } from './services/diagnostics.js';
@@ -105,7 +108,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
     reply.header('permissions-policy', frame ? 'camera=(), geolocation=(), microphone=(), payment=(), usb=()' : 'camera=(), geolocation=(), microphone=(self)');
     // The 3D texture transcoder worker (Emscripten) needs eval; only that file, which runs in a
     // worker with no access to the page, gets it.
-    const ktx2Worker = req.url.split('?')[0] === '/three/basis/ktx2-worker.js';
+    const ktx2Worker = ['/three/basis/ktx2-worker.js', '/three/draco/draco-worker.js'].includes(req.url.split('?')[0]);
     reply.header('content-security-policy', frame ? FRAME_CSP : ktx2Worker ? KTX2_WORKER_CSP : CSP);
     if (req.url.startsWith('/api/')) reply.header('cache-control', 'no-store');
     return payload;
@@ -182,6 +185,9 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerBridge(app, ctx);
   registerCustomize(app, ctx, VERSION);
   registerLive2d(app, ctx);
+  registerPuppets(app, ctx);
+  registerQuickstart(app, ctx);
+  registerScenarios(app, ctx);
   registerAvatarRoutes(app, ctx);
   registerAssetRoutes(app, ctx);
   registerSystem(app, ctx);

@@ -11,8 +11,24 @@ tests/e2e/.artifacts/
 coverage/
 .DS_Store
 *.tsbuildinfo
+docs/3d-fix-evidence/owner-*
 .sandbox-ca.crt
 
 # World Engine source: private, contains AGPL/GPL-derived files. Local reference only, never committed.
 docs/reference/world-engine/source/
 .art-raw/
+
+# Owner's paid or private test assets and screenshots of them: never committed.
+.private/
+docs/3d-base-evidence/private/
+
+# Everloom Puppets: the art working folder and built packs (art is shared as packs, never committed)
+.puppets-work/
+# Puppets built locally for the lab (/lab/puppets?puppet=/puppets/local/<id>/puppet.json)
+apps/web/public/puppets/local/
+docs/art/.ledger.lock/
+tests/ux/.artifacts/
+
+# The anatomy pack is a separate download, never committed.
+*anatomy-pack*.zip
+everloom-anatomy-pack/

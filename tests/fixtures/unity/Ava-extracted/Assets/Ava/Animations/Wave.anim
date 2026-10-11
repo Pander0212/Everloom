@@ -1,0 +1,39 @@
+%YAML 1.1
+%TAG !u! tag:unity3d.com,2011:
+--- !u!74 &7400000
+AnimationClip:
+  m_Name: Wave
+  serializedVersion: 7
+  m_SampleRate: 60
+  m_EulerCurves: []
+  m_PositionCurves: []
+  m_ScaleCurves: []
+  m_FloatCurves: []
+  m_PPtrCurves: []
+  m_RotationCurves:
+  - curve:
+      serializedVersion: 2
+      m_Curve:
+      - serializedVersion: 3
+        time: 0
+        value: {x: 0, y: 0, z: 0, w: 1}
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+      - serializedVersion: 3
+        time: 0.5
+        value: {x: 0, y: 0, z: 0.5, w: 0.866}
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+      - serializedVersion: 3
+        time: 1
+        value: {x: 0, y: 0, z: 0, w: 1}
+        inSlope: 0
+        outSlope: 0
+        tangentMode: 0
+    path: Armature/pelvis/上半身/spine_02/spine_03/clavicle_r/upperarm_r
+  m_AnimationClipSettings:
+    serializedVersion: 2
+    m_StopTime: 1
+    m_LoopTime: 1

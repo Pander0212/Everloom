@@ -1,5 +1,5 @@
 import { applyRegexScripts, extOpRetired, OpSchemas, RegexPlacement, normalizeAvatarOps, validateOps, type GenerateEvent, type OpType, type ValidatedOps } from '@everloom/engine';
-import { emotesFor } from '../services/avatars/service.js';
+import { emotesFor, pairedFor } from '../services/avatars/service.js';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
@@ -36,7 +36,7 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
   app.get('/api/chats', async (req) => chats.listChats(ctx, owner(req), req.query as any));
   app.post('/api/chats', async (req) => {
     const b = parse(
-      z.object({ characterId: z.string().nullable().optional(), groupId: z.string().nullable().optional(), personaId: z.string().nullable().optional(), title: z.string().max(200).optional(), campaign: z.string().max(80).optional(), greeting: z.boolean().optional(), features: z.enum(['classic', 'story', 'full']).nullable().optional() }),
+      z.object({ characterId: z.string().nullable().optional(), groupId: z.string().nullable().optional(), personaId: z.string().nullable().optional(), title: z.string().max(200).optional(), campaign: z.string().max(80).optional(), greeting: z.boolean().optional(), features: z.enum(['classic', 'story', 'full']).nullable().optional(), answers: z.record(z.string().max(300), z.string().max(2000)).optional() }),
       req.body,
     );
     const chat = chats.createChat(ctx, owner(req), b);
@@ -89,7 +89,7 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
   });
   app.post('/api/chats/:id/generate', async (req, reply) => {
     const b = parse(
-      z.object({ type: z.enum(['normal', 'swipe', 'regenerate', 'continue', 'impersonate']).default('normal'), text: z.string().max(100_000).optional(), characterId: z.string().nullable().optional(), target: z.string().max(120).nullable().optional() }),
+      z.object({ type: z.enum(['normal', 'swipe', 'regenerate', 'continue', 'impersonate']).default('normal'), text: z.string().max(100_000).optional(), characterId: z.string().nullable().optional(), target: z.string().max(120).nullable().optional(), mode: z.enum(['act', 'say', 'story', 'direct']).nullable().optional() }),
       req.body,
     );
     const chatId = (req.params as any).id;
@@ -171,6 +171,22 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
     pub(req, 'message.updated', { chatId: m.chatId, message: m });
     return m;
   });
+  /** Redo: messages an undo took away come back as they were (their story changes are read again by retrack). */
+  app.post('/api/chats/:id/messages/restore', async (req) => {
+    const chatId = (req.params as any).id;
+    const swipe = z.object({ text: z.string().max(100_000), createdAt: z.number().optional(), reasoning: z.string().max(100_000).optional() }).passthrough();
+    const b = parse(
+      z.object({ messages: z.array(z.object({ role: z.enum(['user', 'assistant', 'system']), name: z.string().max(120), characterId: z.string().nullable().optional(), swipes: z.array(swipe).min(1).max(100), swipeId: z.number().int().min(0).default(0), hidden: z.boolean().optional(), extra: z.record(z.string(), z.any()).optional() })).min(1).max(20) }),
+      req.body,
+    );
+    chats.getChat(ctx, owner(req), chatId);
+    const out = b.messages.map((m) => {
+      const msg = chats.insertMessage(ctx, owner(req), chatId, { ...m, swipeId: Math.min(m.swipeId, m.swipes.length - 1), swipes: m.swipes.map((s) => ({ ...s, createdAt: s.createdAt ?? Date.now() })) as any });
+      pub(req, 'message.created', { chatId, message: msg });
+      return msg;
+    });
+    return { messages: out };
+  });
   app.post('/api/messages/:id/retrack', async (req) => {
     const m = chats.getMessage(ctx, owner(req), (req.params as any).id);
     return runTrackerPass(ctx, owner(req), m.chatId, m.id, req.clientId);
@@ -186,7 +202,7 @@ export function registerChats(app: FastifyInstance, ctx: AppContext) {
     const b = parse(z.object({ chatId: z.string(), ops: z.array(z.any()).min(1).max(64), messageId: z.string().nullable().optional() }), req.body);
     const v0 = withoutRetired(validateOps(b.ops, USER_OP_TYPES));
     // Emotes by name ("waves" → wave); unknown ones are refused like any invalid op.
-    const n = v0.ok.some((o) => o.type === 'avatar.emote' || o.type === 'avatar.pose') ? normalizeAvatarOps(v0.ok, emotesFor(ctx, owner(req))) : { ok: v0.ok, rejected: [] };
+    const n = v0.ok.some((o) => o.type === 'avatar.emote' || o.type === 'avatar.pose' || o.type === 'avatar.paired') ? normalizeAvatarOps(v0.ok, emotesFor(ctx, owner(req)), pairedFor(ctx, owner(req))) : { ok: v0.ok, rejected: [] };
     const v = { ok: n.ok, rejected: [...v0.rejected, ...n.rejected.map((r) => ({ error: r.reason }))] };
     if (!v.ok.length) throw new HttpError(400, v.rejected.map((r) => r.error).join('; ') || 'No valid ops');
     const chat = chats.getChat(ctx, owner(req), b.chatId);

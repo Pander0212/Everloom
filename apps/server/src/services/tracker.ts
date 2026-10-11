@@ -1,6 +1,6 @@
-/** Tracker pass: after an AI message, ask the utility model for JSON ops and apply them. */
+﻿/** Tracker pass: after an AI message, ask the utility model for JSON ops and apply them. */
 import { AI_OP_TYPES, allowedOpTypes, buildTrackerPrompt, normalizeAvatarOps, parseTrackerOutput, stripInlineTags, TRACKER_REPAIR_PROMPT, type Op, type TrackerExtras } from '@everloom/engine';
-import { emotesFor, emotesForChat } from './avatars/service.js';
+import { emotesFor, emotesForChat, pairedFor } from './avatars/service.js';
 import { settingsFor } from './features.js';
 import type { AppContext } from '../context.js';
 import { completeChat } from '../llm/providers.js';
@@ -52,7 +52,7 @@ async function doRun(ctx: AppContext, owner: string, chatId: string, messageId: 
   const { system, user } = buildTrackerPrompt(
     state,
     all.slice(-6).map((m) => ({ name: m.name, role: m.role, text: stripInlineTags(m.swipes[m.swipeId]?.text ?? '') })),
-    { characterNames: characterRefs(ctx, owner).map((c) => c.name).slice(0, 40), memory: settings.world.memory, allowed, emotes: emotesForChat(ctx, owner, chatCharacterIds(ctx, owner, chat).map((c) => c.id)) },
+    { characterNames: characterRefs(ctx, owner).map((c) => c.name).slice(0, 40), memory: settings.world.memory, allowed, ...(() => { const emotes = emotesForChat(ctx, owner, chatCharacterIds(ctx, owner, chat).map((c) => c.id)); return { emotes, paired: emotes.length ? pairedFor(ctx, owner) : [] }; })() },
   );
   ctx.bus.publish(owner, 'tracker.status', { chatId, messageId, status: 'running' });
   const call = (extra: Array<{ role: 'user' | 'assistant'; content: string }> = []) => {
@@ -143,7 +143,7 @@ export function writeTurnWorld(ctx: AppContext, owner: string, chatId: string, m
 /** Apply ops for a message/swipe (replacing earlier ones from the same source) and store the summary on the swipe. */
 export function applyTracked(ctx: AppContext, owner: string, campaignId: string, chatId: string, messageId: string, swipeId: number, rawOps: Op[], source: 'ai', origin?: string, extras?: TrackerExtras): AppendResult & { memory: TurnWriteResult | null } {
   // 3D emotes and poses only from what is installed (names resolved to ids; unknown ones dropped).
-  const ops = rawOps.some((o) => o.type === 'avatar.emote' || o.type === 'avatar.pose') ? normalizeAvatarOps(rawOps, emotesFor(ctx, owner)).ok : rawOps;
+  const ops = rawOps.some((o) => o.type === 'avatar.emote' || o.type === 'avatar.pose' || o.type === 'avatar.paired') ? normalizeAvatarOps(rawOps, emotesFor(ctx, owner), pairedFor(ctx, owner)).ok : rawOps;
   const result = appendOps(ctx, owner, campaignId, { chatId, messageId, swipeId, source, ops, replace: true, origin });
   if (result.errors.length) recordUnresolved(ctx, owner, campaignId, result.errors);
   const memory = extras ? writeTurnWorld(ctx, owner, chatId, messageId, swipeId, extras) : null;

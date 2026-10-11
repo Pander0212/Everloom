@@ -79,6 +79,12 @@ describe('3D model files', () => {
     const bad = Buffer.from(MANNEQUIN);
     bad.writeUInt32LE(3, 4);
     await expect(inspectModel(bad)).rejects.toThrow(/glTF 2.0/);
+    const cyclic = parseGlb(MANNEQUIN);
+    cyclic.json.nodes![0]!.children = [0];
+    await expect(inspectModel(writeGlb(cyclic))).rejects.toThrow(/cycle|parent/);
+    const outside = parseGlb(MANNEQUIN);
+    outside.json.nodes![0]!.children = [999999];
+    await expect(inspectModel(writeGlb(outside))).rejects.toThrow(/missing child/);
   });
 
   it('optimizes a GLB smaller, with a simpler low-detail copy, keeping the skeleton', async () => {
@@ -279,7 +285,7 @@ describe('part packs and parts-made avatars', () => {
   it('imports a pack (files into media), rejects broken ones with reasons, and keeps characters working', async () => {
     c = await createClient();
     let list = (await c.req('GET', '/api/avatar-packs')).json;
-    expect(list).toEqual([expect.objectContaining({ id: 'basics', builtin: true, enabled: true, license: 'CC0 1.0' })]);
+    expect(list).toEqual([expect.objectContaining({ id: 'basics', builtin: true, enabled: false, license: 'CC0 1.0' })]);
 
     expect((await c.req('POST', '/api/avatar-packs', Buffer.from('not a zip'), zipType)).json.error).toMatch(/not a zip/);
     const missing = await c.req('POST', '/api/avatar-packs', await packZip((m) => m.traits[1].collection.push({ id: 'gone', directory: 'hair/gone.glb' })), zipType);

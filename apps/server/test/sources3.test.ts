@@ -56,8 +56,8 @@ describe('more sources', () => {
     ['risu', 'clock', '1f2e3d4c-0000-4000-8000-00000000a001', 'Sable'],
     ['pygmalion', 'map', '7a7a7a7a-1111-4222-8333-444455556666', 'Juniper'],
     ['wyvern', 'bees', '_fixtureWyvernOpen01', 'Bram the Beekeeper'],
-  ])('%s: search hides adult cards, then imports with its picture and a link', async (provider, q, key, name) => {
-    const s = (await c.req('GET', `/api/sources/${provider}/search?q=${q}`)).json;
+  ])('%s: the 18+ filter off hides adult cards, then imports with its picture and a link', async (provider, q, key, name) => {
+    const s = (await c.req('GET', `/api/sources/${provider}/search?q=${q}&nsfw=0`)).json;
     expect(s.items.some((i: any) => i.nsfw)).toBe(false);
     expect(s.items.map((i: any) => i.key)).toContain(key);
     const ch = await c.req('POST', `/api/sources/${provider}/import`, { key });
@@ -134,12 +134,12 @@ describe('browser bridge', () => {
     expect(js.body).not.toMatch(/evb_[A-Za-z0-9_-]{20,}/);
   });
 
-  it('a hidden card keeps only its public profile, whatever arrives; adult cards need the setting', async () => {
+  it('a hidden card keeps only its public profile, whatever arrives; adult cards import without a setting', async () => {
     const { token } = (await c.req('POST', '/api/bridge/devices', { label: 'Phone' })).json;
     const r = await send(token, { page: 'https://janitorai.com/characters/9', hidden: true, card: { name: 'Veiled', description: 'leaked?', personality: 'leaked?', first_mes: '', creator_notes: 'Public bio.' } });
     const ch = (await c.req('GET', `/api/characters/${JSON.parse(r.body).id}`)).json;
     expect(ch.card).toMatchObject({ description: '', personality: '', creator_notes: 'Public bio.', extensions: { definition_hidden: true, source_url: 'https://janitorai.com/characters/9' } });
-    expect((await send(token, { page: 'https://janitorai.com/characters/10', nsfw: true, card: { name: 'Adult' } })).statusCode).toBe(403);
+    expect((await send(token, { page: 'https://janitorai.com/characters/10', nsfw: true, card: { name: 'Adult' } })).statusCode).toBe(200);
   });
 
   it('the bookmarklet hand-off imports with the signed-in session', async () => {
