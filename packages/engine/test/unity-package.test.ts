@@ -4,7 +4,7 @@ import { gunzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { projectFromFiles, projectFromPackage } from '../src/unity/project';
 import { readTar } from '../src/unity/tar';
-import { planImport, summarize } from '../src/unity/plan';
+import { licenseFiles, planImport, summarize } from '../src/unity/plan';
 
 const DIR = join(__dirname, '../../../tests/fixtures/unity');
 const pkg = (name: string) => projectFromPackage(readTar(new Uint8Array(gunzipSync(readFileSync(join(DIR, name))))));
@@ -119,4 +119,30 @@ it('discovers direct mesh dependencies, groups color variants, and resolves spli
   for (const guid of [redMat, blueMat]) p.add({ guid, path: `Assets/Variants/${guid}.mat`, kind: 'material', data: enc.encode('%YAML 1.1\n--- !u!21 &2100000\nMaterial:\n  m_Name: Fabric\n') });
   expect(summarize(p).outfits.find(c => c.guid === red)?.missing).toEqual([]);
   expect(planImport(p, red).models.map(m => m.guid)).toContain(model.guid);
+});
+
+ it('keeps licenses with the chosen product and its dependency folders', () => {
+  const p = pkg('Ava.unitypackage');
+  for (const path of ['Assets/Other/README.txt', 'Assets/Shared/Docs/LICENSE.md', 'LICENSE.txt'])
+    p.add({ guid: path, path, kind: 'text', data: new TextEncoder().encode(path) });
+  const report = planImport(p, summarize(p).avatars[0]!.guid).report;
+  expect(report.license.map(l => l.path)).toEqual(['Assets/Ava/README.txt', 'LICENSE.txt']);
+  expect(licenseFiles(p, ['Assets/Ava/Ava.prefab', 'Assets/Shared/texture.png']).map(l => l.path))
+    .toEqual(['Assets/Ava/README.txt', 'Assets/Shared/Docs/LICENSE.md', 'LICENSE.txt']);
+});
+
+it('retains inferred texture links when replanning loose files beside older products', () => {
+  const source = folder('Ava-extracted-nometa');
+  const p = projectFromFiles(source.all().map(a => ({ path: a.path.split('/').pop()!, data: a.data! })));
+  const old = pkg('AvaShirt.unitypackage');
+  for (const a of old.all()) p.add(a);
+  const candidate = summarize(p).avatars.find(c => c.path === 'Ava.prefab')!;
+  const first = planImport(p, candidate.guid);
+  const second = planImport(p, candidate.guid);
+  expect(Object.values(second.materials).map(m => m.path).sort()).toEqual(['Body.mat', 'Hat.mat']);
+  expect(first.report.guessed.some(g => g.from === 'Body.mat' && g.kind === 'texture')).toBe(true);
+  expect(second.report.guessed.some(g => g.from === 'Body.mat' && g.kind === 'texture')).toBe(true);
+  const link = second.report.guessed.find(g => g.from === 'Body.mat' && g.kind === 'texture')!;
+  p.choices.set(link.key!, '');
+  expect(planImport(p, candidate.guid).report.guessed.find(g => g.from === 'Body.mat' && g.kind === 'texture')?.to).toBe('');
 });

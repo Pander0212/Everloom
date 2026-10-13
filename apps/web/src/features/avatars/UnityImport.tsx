@@ -7,7 +7,7 @@ import { AlertTriangle, FileText, Package, Shirt, UserRound } from 'lucide-react
 import { useEffect, useMemo, useState, useRef } from 'react';
 import { useNavigate } from 'react-router';
 import type { AvatarConfig } from '@everloom/engine';
-import { get, upload } from '@/lib/api';
+import { api, get, upload } from '@/lib/api';
 import { cx } from '@/lib/format';
 import { toastError } from '@/lib/store';
 import { Button, Field, Icon, Select, Sheet } from '@/ui';
@@ -18,6 +18,7 @@ import type { UnityProject } from '@everloom/engine/unity';
 import ClipImporter from '@/features/avatar3d/ClipImporter';
 
 type Pick = { guid: string; as: 'avatar' | 'outfit' };
+type Pending = Pick & { id: string; name: string; target: string | null; variantGuid: string };
 
 
 async function waitReady(id: string): Promise<AvatarDetail> {
@@ -53,6 +54,8 @@ export function UnityImport({ files, onClose, target: fixed, onOutfit }: { files
   const [done, setDone] = useState<{ build: UnityBuild; id: string } | null>(null);
   const [links, setLinks] = useState<{ from: string; to: string; how: string; kind: string; key: string }[]>([]);
   const [linkRev, setLinkRev] = useState(0);
+  const [pending, setPending] = useState<Pending[]>([]);
+  const autoProject = useRef<UnityProject | null>(null);
   const [motion, setMotion] = useState<{ guid: string; file: File } | null>(null);
   // Without .meta files: preview the guessed links so the owner can fix them before importing.
   useEffect(() => {
@@ -87,8 +90,19 @@ export function UnityImport({ files, onClose, target: fixed, onOutfit }: { files
         const { summarize } = await import('@/features/avatar3d/runtime/unity/build');
         const { readUnityLibrary } = await import('@/features/avatar3d/runtime/unity/library');
         const p = await readUnityLibrary(files, (s) => live && setStep(s), abort.signal);
+        const queued = await get<Pending[]>('/api/unity/pending');
         if (!live) return;
+        setPending(queued);
         const s = summarize(p);
+        const { dependencyAssets, licenseFiles } = await import('@everloom/engine/unity');
+        const touched = (c: PackageSummary['avatars'][number]) => queued.some(item => item.guid === c.guid) || [c.guid, ...(c.variants ?? []).map(v => v.guid)].some(guid => p.recent.has(guid) || dependencyAssets(p, guid).assets.some(asset => p.recent.has(asset)));
+        // The retained library supplies dependencies; Import all applies to this upload,
+        // not every product the owner has ever indexed.
+        s.avatars = s.avatars.filter(touched);
+        s.outfits = s.outfits.filter(touched);
+        const relevantPaths = [...s.avatars, ...s.outfits].flatMap(c => dependencyAssets(p, c.guid).assets.map(guid => p.get(guid)!.path));
+        relevantPaths.push(...p.all().filter(a => p.recent.has(a.guid)).map(a => a.path));
+        s.license = licenseFiles(p, relevantPaths);
         setProject(p);
         setSummary(s);
         // From a wardrobe: an outfit first (a bare FBX or prefab without a descriptor counts as one).
@@ -120,18 +134,34 @@ export function UnityImport({ files, onClose, target: fixed, onOutfit }: { files
     if (!target && own[0]) setTarget(own[0].id);
   }, [own, target]);
 
-  const run = async () => {
-    if (!project || !pick) return;
+  const removePending = async (id: string) => {
+    await api(`/api/unity/pending/${id}`, { method: 'DELETE' });
+    setPending(items => items.filter(p => p.id !== id));
+  };
+  const run = async (queued?: Pending[]) => {
+    const selection: Array<Pick & Partial<Pending>> = queued ?? picks;
+    if (!project || !selection.length) return;
+    const defaultTarget = target;
     setBusy(true);
     setError(null);
     const addedGarments: NewGarment[] = [], addedOutfits: NewOutfit[] = [];
     try {
       const { buildUnity } = await import('@/features/avatar3d/runtime/unity/build');
       const stamp = new Date().toISOString();
-      for (const pick of picks) {
+      const { planImport } = await import('@everloom/engine/unity');
+      for (const pick of selection) {
+      const target = pick.target === undefined ? defaultTarget : pick.target ?? '';
+      const complete = async () => {
+        for (const item of pending.filter(p => p.guid === pick.guid && p.as === pick.as && (p.as === 'avatar' || p.target === target))) await removePending(item.id);
+      };
       const candidate = [...(summary?.avatars ?? []), ...(summary?.outfits ?? [])].find(c => c.guid === pick.guid);
-      const chosen = variantChoice[pick.guid] ?? pick.guid;
+      const chosen = pick.variantGuid ?? variantChoice[pick.guid] ?? pick.guid;
       if ((candidate?.variants?.length ?? 0) > 16) throw new Error('This item has more than 16 variants. Split its variants into smaller groups before importing.');
+      if (!planImport(project, chosen).models.length) {
+        const item = await api<Pending>('/api/unity/pending', { body: { guid: pick.guid, variantGuid: chosen, name: (candidate?.name ?? project.get(chosen)?.path ?? 'Unity item').slice(0, 120), as: pick.as, target: pick.as === 'outfit' ? target : null } });
+        setPending(items => [...items.filter(p => p.id !== item.id), item]);
+        continue;
+      }
       if (pick.as === 'avatar') {
         const build = await buildUnity(project, chosen, { as: 'avatar' }, setStep);
         setStep('Uploading to your server…');
@@ -196,9 +226,10 @@ export function UnityImport({ files, onClose, target: fixed, onOutfit }: { files
         }
         const garment: NewGarment = { id, name, model: saved.model, modelLow: saved.modelLow ?? null, slot: 'full', layer: 2, hides: [], hidesSlots: [], variants: variants.length > 1 ? variants : [], variant: variants.length > 1 ? variants.find(v => v.model === saved.model)!.id : null, springs: true, family: cfg.family, on: true, items: [name] };
         const outfit: NewOutfit = { id: `o_${id}`.slice(0, 40), name, model: null, modelLow: null, parts: [], garments: [{ id, variant: null }], items: [name] };
-        if (onOutfit) {
+        if (onOutfit && target === fixed) {
           addedGarments.push(garment); addedOutfits.push(outfit);
           setDone({ build, id: target });
+          await complete();
           continue;
         }
         await saveAvatar(target, {
@@ -212,6 +243,7 @@ export function UnityImport({ files, onClose, target: fixed, onOutfit }: { files
         });
         setDone({ build, id: target });
       }
+      await complete();
       }
 
     } catch (e) {
@@ -222,6 +254,17 @@ export function UnityImport({ files, onClose, target: fixed, onOutfit }: { files
       setStep('');
     }
   };
+
+  useEffect(() => {
+    if (!project || busy || autoProject.current === project) return;
+    autoProject.current = project;
+    void import('@everloom/engine/unity').then(({ planImport }) => {
+      const ready = pending.filter(p => {
+        try { return planImport(project, p.variantGuid).models.length > 0; } catch { return false; }
+      });
+      if (ready.length) void run(ready);
+    });
+  }, [project, busy, pending]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const fit = async () => {
     if (!project || !pick || !target) return;
@@ -255,6 +298,7 @@ export function UnityImport({ files, onClose, target: fixed, onOutfit }: { files
           {c.missing?.length ? <span className="block text-xs text-warning">Missing references: {c.missing.join(", ")}. Add the source package or link a replacement below. Missing textures use a placeholder.</span> : null}
         </span>
       </button>
+      {!fixed && c.dependencies?.models === 0 && picks.some(p => p.guid === c.guid) ? <Field label={`Import ${c.name} as`}><Select aria-label={`Import ${c.name} as`} value={picks.find(p => p.guid === c.guid)!.as} onChange={e => setPicks(items => items.map(p => p.guid === c.guid ? { ...p, as: e.target.value as Pick['as'] } : p))}><option value="avatar">New avatar</option><option value="outfit">Outfit for an existing avatar</option></Select><span className="text-xs text-fg-2">The missing model prevents automatic classification. Choose how to finish this import when it arrives.</span></Field> : null}
       {(c.variants?.length ?? 0) > 1 ? <Field label={`Variant for ${c.name}`}><Select value={variantChoice[c.guid] ?? c.guid} onChange={e => setVariantChoice(old => ({ ...old, [c.guid]: e.target.value }))}>{c.variants!.map(v => <option key={v.guid} value={v.guid}>{v.name}</option>)}</Select><span className="text-xs text-fg-2">All {c.variants!.length} variants are imported together.</span></Field> : null}
     </li>
   );
@@ -288,6 +332,10 @@ export function UnityImport({ files, onClose, target: fixed, onOutfit }: { files
             <Icon icon={AlertTriangle} className="mt-0.5" /> {error}
           </p>
         ) : null}
+        {pending.length ? <section aria-label="Pending imports" className="rounded-md border border-line p-3">
+          <p className="text-sm">Waiting for model files. These imports finish automatically when you add the missing package.</p>
+          {pending.map(item => <div key={item.id} className="flex items-center justify-between gap-2 text-sm"><span>{item.name}</span><Button variant="ghost" disabled={busy} onClick={() => void removePending(item.id).catch(toastError)}>Cancel pending import</Button></div>)}
+        </section> : null}
         {done ? (
           <ImportReportView report={done.build.report} />
         ) : summary ? (

@@ -48,3 +48,18 @@ it('resumes at the acknowledged offset and rejects changed retry bytes', async (
   expect((await c.req('DELETE', `/api/unity/uploads/${id}`)).status).toBe(200);
   expect((await c.req('GET', `/api/unity/uploads/${id}`)).status).toBe(404);
 });
+
+it('persists and deduplicates pending imports and rejects unavailable sources or targets', async () => {
+  c = await createClient();
+  const assets = await index('Ava.unitypackage', readFileSync(join(FIXTURES, 'unity/Ava.unitypackage')));
+  const guid = assets.find(a => a.path.endsWith('Ava.prefab')).guid;
+  const input = { guid, variantGuid: guid, as: 'avatar', target: null, name: 'Ava' };
+  const queued = await c.req('POST', '/api/unity/pending', input);
+  expect(queued.status, queued.body).toBe(200);
+  expect((await c.req('POST', '/api/unity/pending', { ...input, name: 'Updated name' })).json.id).toBe(queued.json.id);
+  expect((await c.req('GET', '/api/unity/pending')).json).toEqual([{ ...input, name: 'Updated name', id: queued.json.id }]);
+  expect((await c.req('POST', '/api/unity/pending', { ...input, guid: 'missing' })).status).toBe(404);
+  expect((await c.req('POST', '/api/unity/pending', { ...input, as: 'outfit', target: 'av_missing' })).status).toBe(404);
+  await c.req('DELETE', `/api/unity/pending/${queued.json.id}`);
+  expect((await c.req('GET', '/api/unity/pending')).json).toEqual([]);
+});

@@ -50,7 +50,7 @@ export async function load(files: File[]): Promise<Loaded> {
     return { files: inputs, unity, names: unity.map((text, i) => readAnim(text)?.name ?? inputs[i]!.name), read: async () => { throw new Error('Use the Unity clip preview to convert this animation.'); } };
   }
   const main = files.find((f) => ['glb', 'gltf', 'vrma', 'fbx', 'bvh', 'vmd', 'vpd', 'blend'].includes(ext(f)));
-  if (!main) throw new Error('Choose a GLB, VRMA, FBX, BVH, VMD, VPD or .blend file.');
+  if (!main) throw new Error('Choose a GLB, VRMA, FBX, BVH, VMD, VPD, Unity .anim or .blend file.');
   const kind = ext(main);
   let read: () => Promise<MotionSource>;
   if (kind === 'bvh') {
@@ -189,7 +189,7 @@ export default function ClipImporter({ onDone, initial }: { onDone: () => void; 
       <FileButton multiple onFiles={pick} icon={Upload} variant="secondary" loading={busy && !loaded}>
         Choose a motion file
       </FileButton>
-      <p className="text-xs text-fg-2">GLB, VRMA, FBX, BVH and MMD motions (VMD) and poses (VPD) are read here; add the PMX model with a VMD/VPD for the closest match. Some old FBX files and .blend files need Blender.</p>
+      <p className="text-xs text-fg-2">Unity .anim, GLB, VRMA, FBX, BVH and MMD motions (VMD) and poses (VPD) are read here; add the PMX model with a VMD/VPD for the closest match. Some old FBX files and .blend files need Blender.</p>
       {notes.length ? <ul className="text-sm text-fg-2">{notes.map((n, i) => <li key={i}>{n}</li>)}</ul> : null}
       {error ? <p className="rounded-md bg-danger-soft p-2 text-sm text-danger" role="alert">{error}</p> : null}
       {loaded ? (

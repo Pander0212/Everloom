@@ -134,9 +134,16 @@ export function dependencyAssets(project: UnityProject, guid: string): { assets:
   return { assets: [...assets], missing: [...missing] };
 }
 
-export function licenseFiles(project: UnityProject): { path: string; text: string }[] {
+export function licenseFiles(project: UnityProject, paths?: string[]): { path: string; text: string }[] {
+  // Unity packages have no retained archive boundary. Use product folders, including
+  // dependency products, and keep root-level terms that may apply to all assets.
+  const roots = paths?.map(path => {
+    const parts = path.split('/');
+    return parts.slice(0, parts[0] === 'Assets' ? 2 : 1).join('/') + '/';
+  });
   return project
     .all()
+    .filter(a => !roots || !a.path.includes('/') || /^Assets\/[^/]+$/.test(a.path) || roots.some(root => a.path.startsWith(root)))
     .filter((a) => a.data && /(^|\/)(licen[cs]e|readme|terms|利用規約|規約|readme_jp|お読みください)[^/]*\.(txt|md)$/i.test(a.path) && a.data.length < 200_000)
     .map((a) => ({ path: a.path, text: text(a.data) }));
 }
@@ -322,10 +329,17 @@ function addMaterial(project: UnityProject, plan: UnityPlan, a: UnityAsset) {
   if (!spec) return;
   plan.materials[a.guid] = { ...spec, path: a.path };
   for (const [slot, t] of Object.entries(spec.raw.textures)) {
-    const tex = project.get(t.ref.guid) ?? project.guess(a.path, 'texture', spec.name, slot);
+    const choiceKey = `${a.path}|texture|${slot}`;
+    const chosen = project.choices.has(choiceKey);
+    const tex = chosen ? project.guess(a.path, 'texture', spec.name, slot) : project.get(t.ref.guid) ?? project.guess(a.path, 'texture', spec.name, slot);
+    if (chosen && !tex && t.ref.guid) project.links.delete(t.ref.guid);
     // Keep the link under the GUID the material asks for, so the browser finds it.
     if (tex && tex.guid !== t.ref.guid) project.links.set(t.ref.guid!, tex.guid);
     if (!tex) continue;
+    // Replanning must retain inferred/replacement links in the editable report.
+    // The first plan caches the link, so a later plan may not call guess().
+    if (tex.guid !== t.ref.guid && !project.guessed.some(g => g.from === a.path && g.key === `${a.path}|texture|${slot}`))
+      project.guessed.push({ from: a.path, to: tex.path, how: 'linked replacement', kind: 'texture', key: `${a.path}|texture|${slot}` });
     const ti = importer(tex.meta, 'TextureImporter');
     const normal = Number(ti.textureType ?? (/bump|normal/i.test(slot) ? 1 : 0)) === 1 || /_BumpMap|_NormalMap/.test(slot);
     const srgb = Number(asStr((asMap(ti.mipmaps).sRGBTexture ?? ti.sRGBTexture) as never, '1')) !== 0;
@@ -354,11 +368,12 @@ function addModelMaterials(project: UnityProject, plan: UnityPlan, model: UnityA
     const dir = dirName(model.path);
     const up = dirName(dir);
     // (Files picked without their folders all sit at the top: every material counts.)
-    for (const a of project.all('material')) if (!dir || a.path.startsWith(dir + '/') || (up && up !== 'Assets' && a.path.startsWith(up + '/'))) addMaterial(project, plan, a);
+    for (const a of project.all('material')) if ((!dir && !dirName(a.path)) || (dir && a.path.startsWith(dir + '/')) || (up && up !== 'Assets' && a.path.startsWith(up + '/'))) addMaterial(project, plan, a);
   }
 }
 
 function finishReport(project: UnityProject, plan: UnityPlan, sourcePath: string) {
+  plan.report.license = licenseFiles(project, [sourcePath, ...plan.models.map(m => m.path), ...Object.values(plan.materials).map(m => m.path), ...Object.values(plan.textures).map(t => t.path)]);
   const r = plan.report;
   r.guessed = [...project.guessed];
   r.imported.unshift({ what: 'Models', detail: plan.models.map((m) => baseName(m.path)).join(', ') || 'none' });

@@ -30,10 +30,14 @@ import { anatomyPackStatus, installAnatomyPack, removeAnatomyPack } from '../ser
 import { exportBrowserModel } from '../services/avatars/browser-export.js';
 import { replaceNativeBody } from '../services/avatars/service.js';
 import { checkAvatarContent } from '../services/avatars/service.js';
+import { UnityPendingSchema, pendingUnity, queueUnity, removePendingUnity } from '../services/avatars/unity-pending.js';
 
 const MOTION_TYPES: Record<string, string> = { fbx: 'fbx', bvh: 'bvh', vmd: 'vmd', glb: 'glb', gltf: 'glb', vrma: 'glb', blend: 'blend' };
 
 export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
+  app.get('/api/unity/pending', async req => pendingUnity(ctx, owner(req)));
+  app.post('/api/unity/pending', async req => queueUnity(ctx, owner(req), parse(UnityPendingSchema, req.body)));
+  app.delete('/api/unity/pending/:id', async req => removePendingUnity(ctx, owner(req), (req.params as { id: string }).id));
   app.get('/api/creator-presets', async req => creatorPresets(ctx, owner(req)));
   app.post('/api/creator-presets', async req => saveCreatorPreset(ctx, owner(req), parse(CreatorPresetSchema, req.body)));
   app.delete('/api/creator-presets/:id', async req => deleteCreatorPreset(ctx, owner(req), (req.params as { id: string }).id));
