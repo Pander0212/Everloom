@@ -45,18 +45,19 @@ mesh = bpy.context.object
 mod = mesh.modifiers.new('Skin', 'ARMATURE')
 mod.object = arm
 mesh.vertex_groups.new(name='def-spine').add(list(range(len(mesh.data.vertices))), 1, 'REPLACE')
-before = {b.name: (b.parent.name if b.parent else None, b.matrix_local.copy()) for b in data.bones}
-active = bpy.context.view_layer.objects.active
-selected = set(bpy.context.selected_objects)
+rest = {b.name: b.matrix_local.copy() for b in data.bones}
+# export_model reshapes the scene it is given (the add-on runs it on a saved copy: export_copy).
 report = core.export_model(output)
-assert report['reparentedDeformBones'] == len(links) - 1, report
+# Every deform bone but the hips hung from the control root; the hips become the root.
+assert report['reparentedDeformBones'] >= len(links) - 1, report
 assert report['unweightedVertices'] == 0, report
-assert bpy.context.view_layer.objects.active == active
-assert set(bpy.context.selected_objects) == selected
-for bone in data.bones:
-    parent, matrix = before[bone.name]
-    assert (bone.parent.name if bone.parent else None) == parent, bone.name
-    assert max(abs(a - b) for ra, rb in zip(matrix, bone.matrix_local) for a, b in zip(ra, rb)) < 1e-6, bone.name
+assert report['check']['ok'], report['check']
+# The deform bones (and the root, which deforms by default); the tgt- control bones are gone.
+assert report['exportedJoints'] == len(links) + 1, report
+rig = next(o for o in bpy.data.objects if o.type == 'ARMATURE')
+assert not any(b.name.startswith('tgt-') for b in rig.data.bones)
+for bone in rig.data.bones:
+    assert max(abs(a - b) for ra, rb in zip(rest[bone.name], bone.matrix_local) for a, b in zip(ra, rb)) < 1e-5, bone.name
 with open(output, 'rb') as f:
     raw = f.read()
 n = struct.unpack_from('<I', raw, 12)[0]

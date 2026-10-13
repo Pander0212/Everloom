@@ -41,80 +41,49 @@ def enable_mmd():
     return False
 
 
+RENDERABLE = ("MESH", "CURVE", "SURFACE", "FONT", "META", "CURVES")
+
+
 def open_blend(path):
     """
     Opens a .blend as the scene (never running its scripts: Blender starts with auto-run off and the
-    file is opened with use_scripts=False, so drivers and startup scripts in it stay inert), then
-    keeps what would render: meshes in the view layer that aren't hidden from render (themselves
-    or by a collection) and the armatures that move them. Subdivision is dropped (too heavy for
-    the stage); other modifiers are applied where a mesh has no shape keys.
+    file is opened with use_scripts=False, so drivers and startup scripts in it stay inert), and
+    selects what would render: geometry in the view layer that isn't hidden from render (itself or
+    by a collection) and the armatures that move it. Everything else stays in the file until the
+    export is done, since modifiers may need it (a boolean's cutter, a mirror's centre object).
     """
     bpy.ops.wm.open_mainfile(filepath=path, load_ui=False, use_scripts=False)
-    scene = bpy.context.scene
+    from_core = core()
     layer = bpy.context.view_layer
     in_layer = {o.name for o in layer.objects}
-
-    def renders(o):
-        if o.name not in in_layer or o.hide_render:
-            return False
-        return not any(c.hide_render for c in o.users_collection)
-
-    meshes = [o for o in bpy.data.objects if o.type == "MESH" and renders(o)]
+    shown = [o for o in bpy.data.objects if o.type in RENDERABLE and from_core.renders(o, in_layer)]
     arms = set()
-    for o in meshes:
-        for m in o.modifiers:
+    for o in shown:
+        for m in getattr(o, "modifiers", []):
             if m.type == "ARMATURE" and m.object:
                 arms.add(m.object)
         if o.parent and o.parent.type == "ARMATURE":
             arms.add(o.parent)
-    keep = set(meshes) | arms
-    # Parents of what's kept stay too (an empty holding the rig), so transforms don't change.
-    for o in list(keep):
-        p = o.parent
-        while p:
-            keep.add(p)
-            p = p.parent
-    skipped = 0
-    for o in list(bpy.data.objects):
-        if o not in keep:
-            bpy.data.objects.remove(o, do_unlink=True)
-            skipped += 1
-    for sc in list(bpy.data.scenes):
-        if sc != scene:
-            bpy.data.scenes.remove(sc)
-    for o in keep:
-        if o.name not in scene.objects:
-            scene.collection.objects.link(o)
+    keep = set(shown) | arms
+    for o in bpy.data.objects:
+        # Hidden in the viewport means not evaluated: a modifier's helper object must be evaluated.
         o.hide_viewport = False
+        # "Disable selection" would make select_set() do nothing, and the export takes the selection.
+        o.hide_select = False
+    for o in layer.objects:
         try:
             o.hide_set(False)
+            o.select_set(o in keep)
         except RuntimeError:
             pass
-    subdiv = 0
-    unapplied = 0
-    for o in meshes:
-        for m in list(o.modifiers):
-            if m.type in ("SUBSURF", "MULTIRES"):
-                o.modifiers.remove(m)
-                subdiv += 1
-        others = [m for m in o.modifiers if m.type != "ARMATURE"]
-        if not others:
-            continue
-        if o.data.shape_keys:
-            unapplied += len(others)
-            continue
-        if o.data.users > 1:
-            o.data = o.data.copy()
-        for m in others:
-            with bpy.context.temp_override(object=o, active_object=o):
-                try:
-                    bpy.ops.object.modifier_apply(modifier=m.name)
-                except RuntimeError:
-                    o.modifiers.remove(m)
-                    unapplied += 1
-    missing = sorted({i.name for i in bpy.data.images if i.source == "FILE" and not i.packed_file and i.filepath and not os.path.exists(bpy.path.abspath(i.filepath))})[:20]
+    for o in arms:
+        if o.name not in in_layer:
+            bpy.context.scene.collection.objects.link(o)
+            o.select_set(True)
+    missing = sorted({i.name for i in bpy.data.images if i.users and i.source == "FILE" and not i.packed_file and i.filepath and not os.path.exists(bpy.path.abspath(i.filepath))})[:20]
     libs = sum(1 for l in bpy.data.libraries if not os.path.exists(bpy.path.abspath(l.filepath)))
-    return {"blend": {"version": ".".join(str(v) for v in bpy.data.version), "meshes": len(meshes), "skipped": skipped, "subdivRemoved": subdiv, "modifiersNotApplied": unapplied, "missingTextures": missing, "missingLibraries": libs}}
+    skipped = sum(1 for o in bpy.data.objects if o.type in RENDERABLE and o not in keep)
+    return {"blend": {"version": ".".join(str(v) for v in bpy.data.version), "meshes": len(shown), "skipped": skipped, "missingTextures": missing, "missingLibraries": libs}}
 
 
 def import_any(path, motion=False):
@@ -161,15 +130,26 @@ def clean():
     return removed
 
 
-def export_glb(path, animations=False, selection=False):
-    # The add-on and all server workers use this same source file; the build copies it beside us.
-    import importlib.util
-    local = os.path.join(os.path.dirname(__file__), "export_core.py")
-    source = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../tools/blender-addon/everloom/export_core.py"))
-    spec = importlib.util.spec_from_file_location("everloom_export_core", local if os.path.exists(local) else source)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    return module.export_model(path, animations=animations, selection=selection)
+_CORE = []
+
+
+def core():
+    """The shared export script (tools/blender-addon/everloom/export_core.py; the build copies it beside us)."""
+    if not _CORE:
+        import importlib.util
+        local = os.path.join(os.path.dirname(__file__), "export_core.py")
+        source = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../tools/blender-addon/everloom/export_core.py"))
+        spec = importlib.util.spec_from_file_location("everloom_export_core", local if os.path.exists(local) else source)
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        _CORE.append(module)
+    return _CORE[0]
+
+
+def export_glb(path, animations=False, selection=False, prepare=False):
+    # prepare: the full conversion (modifiers, deform skeleton, weights, materials, clips). The
+    # fitting, optimizing and MPFB jobs shape their own scene and only need the export.
+    return core().export_model(path, animations=animations, selection=selection, prepare=prepare)
 
 
 def summary():
@@ -183,14 +163,17 @@ def op_convert(job):
     clear_scene()
     path = inside(job, job["input"])
     extra = {}
-    if path.lower().endswith(".blend"):
+    blend = path.lower().endswith(".blend")
+    if blend:
         extra = open_blend(path)
+        actions = [a.name for a in bpy.data.actions]
     else:
         import_any(path)
-    removed = clean()
+        actions = [a.name for a in bpy.data.actions]
+    removed = clean() if not blend else 0
     out = inside(job, job["output"])
-    validation = export_glb(out, animations=False)
-    return {"removed": removed, "validation": validation, **extra, **summary()}
+    validation = export_glb(out, animations=False, selection=blend, prepare=True)
+    return {"removed": removed, "validation": validation, **extra, **summary(), "sourceActions": actions}
 
 
 def op_motion(job):
@@ -792,8 +775,11 @@ def main():
         result = {"ok": False, "error": str(e)[:500], "trace": traceback.format_exc()[-2000:]}
     with open(os.path.join(job["_dir"], "result.json"), "w", encoding="utf-8") as f:
         json.dump(result, f)
-    if not result["ok"]:
-        sys.exit(3)
+    sys.stdout.flush()
+    sys.stderr.flush()
+    # Leave without Blender's teardown: freeing a big scene can crash after the work is done
+    # (a 180 MB Auto-Rig Pro file did, every time), which would read as a failed job.
+    os._exit(0 if result["ok"] else 3)
 
 
 main()

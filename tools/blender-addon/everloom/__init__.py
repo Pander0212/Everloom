@@ -124,11 +124,10 @@ def check(context, kind):
 
 
 def export_glb(path, objs, kind):
-    bpy.ops.object.select_all(action="DESELECT")
-    for o in objs:
-        o.select_set(True)
-    from .export_core import export_model
-    return export_model(path, animations=(kind == "animation"), selection=True, extras=True)
+    # The same export as the server's, run on a saved copy in a background Blender: it applies
+    # modifiers and rebuilds the skeleton, which must never happen to the file being edited.
+    from .export_core import export_copy
+    return export_copy(path, selection_names=[o.name for o in objs], animations=(kind == "animation"), extras=True)
 
 
 def request(context, path, body=None, query=None):

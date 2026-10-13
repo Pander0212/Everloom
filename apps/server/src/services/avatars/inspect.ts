@@ -3,7 +3,7 @@
  * skeleton, morph targets and VRM expressions, size and cost, plus the automatic bone and expression
  * mapping. Works on the raw description, so VRM extensions are read as written.
  */
-import { automap, skeletonFromGltf, type GltfJson as RigGltf, type RigMapping } from '@everloom/engine';
+import { automap, FAMILY_LABELS, HUMANOID_MOTION_FAMILIES, skeletonFromGltf, type GltfJson as RigGltf, type RigMapping } from '@everloom/engine';
 import sharp from 'sharp';
 import { mapBones, mapExpressions, REQUIRED_BONES, type BoneMapResult, type ExpressionMap, type HumanBone, type MorphWeight, type RigBone } from '@everloom/engine';
 import { parseGlb, viewBytes, type Glb, type GltfJson } from './glb.js';
@@ -239,13 +239,28 @@ export async function inspectModel(bytes: Buffer, glb?: Glb): Promise<ModelInfo>
   const world = worldMatrices(json);
   const lo = [Infinity, Infinity, Infinity];
   const hi = [-Infinity, -Infinity, -Infinity];
+  // Skinned meshes are placed by their skeleton, not their node: in the bind pose a vertex sits
+  // where joint world × inverse bind puts it (the same for every joint). Blender writes rotated or
+  // scaled armatures this way, so the identity would get their size wrong.
+  const bind = (skin: number): M4 => {
+    const s = json.skins?.[skin];
+    const acc = s?.inverseBindMatrices !== undefined ? (json.accessors?.[s.inverseBindMatrices] as { bufferView?: number; byteOffset?: number } | undefined) : undefined;
+    if (!s?.joints.length || acc?.bufferView === undefined) return ident();
+    try {
+      const view = viewBytes(g, acc.bufferView);
+      const off = acc.byteOffset ?? 0;
+      const ibm = Array.from({ length: 16 }, (_, k) => view.readFloatLE(off + k * 4));
+      return mul(world[s.joints[0]!]!, ibm);
+    } catch {
+      return ident();
+    }
+  };
   nodes.forEach((n, i) => {
     if (n.mesh === undefined) return;
     for (const p of json.meshes?.[n.mesh]?.primitives ?? []) {
       const a = json.accessors?.[p.attributes.POSITION ?? -1] as { min?: number[]; max?: number[] } | undefined;
       if (!a?.min || !a.max) continue;
-      // Skinned meshes are placed by their skeleton, not their node: use the identity for them.
-      const m = n.skin !== undefined ? ident() : world[i]!;
+      const m = n.skin !== undefined ? bind(n.skin) : world[i]!;
       for (let k = 0; k < 8; k++) {
         const c = apply(m, [k & 1 ? a.max[0]! : a.min[0]!, k & 2 ? a.max[1]! : a.min[1]!, k & 4 ? a.max[2]! : a.min[2]!]);
         for (let d = 0; d < 3; d++) {
@@ -262,7 +277,9 @@ export async function inspectModel(bytes: Buffer, glb?: Glb): Promise<ModelInfo>
   const materials = json.materials?.length ?? 0;
   if (!(json.meshes?.length ?? 0)) warnings.push({ code: 'no_mesh', message: 'The file has no meshes', level: 'problem' });
   if (!joints.length) warnings.push({ code: 'no_skeleton', message: 'The model has no skeleton, so it can only stand still. Rig it (Blender, or Mixamo) and import it again.', level: 'problem' });
-  else if (auto.missing.some((b) => (REQUIRED_BONES as readonly string[]).includes(b))) warnings.push({ code: 'bones_missing', message: `Some main bones weren't found (${auto.missing.filter((b) => (REQUIRED_BONES as readonly string[]).includes(b)).join(', ')}). Set them on the bones step.`, level: 'problem' });
+  else if (!HUMANOID_MOTION_FAMILIES.has(rigAuto.rig.family)) warnings.push({ code: 'skeleton_family', message: `A ${FAMILY_LABELS[rigAuto.rig.family].toLowerCase()} skeleton (${rigAuto.rig.familyWhy}). It moves with its own clips, breathing and looking around, and the emotes that fit its body; human dances aren't offered. Change the body type on the bones step if this is wrong.`, level: 'info' });
+  else if (REQUIRED_BONES.some((b) => !rigAuto.boneMap[b])) warnings.push({ code: 'bones_missing', message: `Some main bones weren't found (${REQUIRED_BONES.filter((b) => !rigAuto.boneMap[b]).join(', ')}). Set them on the bones step.`, level: 'problem' });
+  else if (rigAuto.rig.family === 'bipedCreature') warnings.push({ code: 'skeleton_family', message: `A two-legged creature (${rigAuto.rig.familyWhy}): human motions play on its body, and its wings and tail move on their own.`, level: 'info' });
   if (!ex.found.length) warnings.push({ code: 'no_face', message: 'No facial expressions or mouth shapes were found: the face will not move (the body still will).', level: 'info' });
   if (triangles > BUDGET.trianglesMax) warnings.push({ code: 'very_heavy', message: `${triangles.toLocaleString('en')} triangles is very heavy; phones will use the low-detail version`, level: 'heavy' });
   else if (triangles > BUDGET.triangles) warnings.push({ code: 'heavy', message: `${triangles.toLocaleString('en')} triangles is above the phone budget (${BUDGET.triangles.toLocaleString('en')})`, level: 'heavy' });
@@ -291,10 +308,11 @@ export async function inspectModel(bytes: Buffer, glb?: Glb): Promise<ModelInfo>
     springs: !!(json.extensions?.VRMC_springBone || json.extensions?.VRM?.secondaryAnimation?.boneGroups?.length),
     height,
     unitScale,
-    boneMap: auto.map,
+    // The full auto-mapper's map: it also maps rigs whose names say nothing, from their shape.
+    boneMap: rigAuto.boneMap,
     rig: rigAuto.rig,
     rigReview: rigAuto.review.slice(0, 200),
-    missingBones: auto.missing,
+    missingBones: rigAuto.missing,
     convention: auto.convention,
     expressionMap: ex.map,
     faceRig: ex.rig,

@@ -4,3 +4,4 @@ export * from './names.js';
 export * from './presets.js';
 export * from './automap.js';
 export * from './gltf.js';
+export * from './family.js';

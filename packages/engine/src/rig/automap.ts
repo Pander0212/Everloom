@@ -18,6 +18,7 @@ import { REQUIRED_BONES, type HumanBone } from '../avatar/skeleton.js';
 import { hasWord, nameInfo, type NameInfo, type Side } from './names.js';
 import { recognizeBase, type BasePreset } from './presets.js';
 import { RigMappingSchema, type RigMapping, type RigRole, type RoleAssignment } from './schema.js';
+import { analyzeSkeleton, HUMANOID_MOTION_FAMILIES, type Limb, type SkeletonAnalysis, type SkeletonFamily } from './family.js';
 
 export type Vec3 = [number, number, number];
 
@@ -37,6 +38,8 @@ export interface AutomapInput {
   humanoidSource?: string;
   /** Physics chain roots the file names (PhysBones, VRM springs), with a kind. */
   chains?: { root: string; kind: string }[];
+  /** The owner's choice of body family (kept instead of the detected one). */
+  family?: SkeletonFamily | null;
 }
 
 export interface Assigned {
@@ -54,6 +57,8 @@ export interface AutomapResult {
   /** Bones a person should look at, with the reason. */
   review: { bone: string; why: string }[];
   base: BasePreset | null;
+  /** What kind of body it is and where its parts are (docs/3d-import/creatures.md). */
+  analysis: SkeletonAnalysis;
   /** Every bone's outcome, for the report and tests. */
   byBone: Map<string, { kind: 'humanoid' | 'spine' | 'role' | 'ignore' | 'review'; role?: RigRole | HumanBone; confidence: number; why: string }>;
 }
@@ -107,6 +112,7 @@ export function automap(input: AutomapInput): AutomapResult {
   const info = new Map(bones.map((b) => [b.name, nameInfo(b.name)]));
   const byBone: AutomapResult['byBone'] = new Map();
   const review: AutomapResult['review'] = [];
+  const used = new Set<string>();
 
   // 1–2. The humanoid core: the file's own mapping, else the core mapper on raw and translated names.
   const base = recognizeBase(bones.map((b) => b.name));
@@ -123,7 +129,6 @@ export function automap(input: AutomapInput): AutomapResult {
     const t2 = mapBones(translated.map((t) => ({ name: t.name, parent: t.parent ? parents.get(t.parent) ?? null : null })), null);
     for (const [k, v] of Object.entries(t2.map)) if (v && !humanoid[k as HumanBone]) humanoid[k as HumanBone] = { bone: back.get(v)!, confidence: 0.75, why: 'by translated name and structure' };
   }
-  const used = new Set<string>();
   for (const [k, a] of Object.entries(humanoid)) {
     used.add(a.bone);
     byBone.set(a.bone, { kind: 'humanoid', role: k as HumanBone, confidence: a.confidence, why: a.why });
@@ -146,8 +151,28 @@ export function automap(input: AutomapInput): AutomapResult {
       });
     }
   }
+  // The body's shape (legs to the ground, wings, tails…): which family it is, and the humanoid
+  // core from structure alone when names didn't give it (a rig named "MThigh.L", "Bone.012"…).
+  const coreByName = REQUIRED_BONES.every((b) => humanoid[b]);
+  const analysis = analyzeSkeleton(bones, { humanoidCore: coreByName });
+  if (input.family) {
+    analysis.family = input.family;
+    analysis.why = ['chosen by you'];
+  }
+  if (!coreByName && (analysis.family === 'humanoid' || analysis.family === 'bipedCreature')) fillHumanoidFromShape(analysis, humanoid, used, byBone);
+  // A face bone that won the "head" slot by name (lips, a face control) gives way to the bone the
+  // body ends in, when that one holds it.
+  const named = humanoid.head?.bone;
+  if (named && analysis.head && named !== analysis.head && ancestors(named).includes(analysis.head) && !used.has(analysis.head)) {
+    used.delete(named);
+    byBone.delete(named);
+    humanoid.head = { bone: analysis.head, confidence: 0.85, why: 'where the neck ends (a face bone had the name)' };
+    used.add(analysis.head);
+    byBone.set(analysis.head, { kind: 'humanoid', role: 'head', confidence: 0.85, why: humanoid.head.why });
+  }
   const missing = REQUIRED_BONES.filter((b) => !humanoid[b]);
-  for (const m of missing) review.push({ bone: m, why: `No bone found for ${m}.` });
+  // A pony has no arms: missing humanoid bones are only worth a look on humanoid-like bodies.
+  if (HUMANOID_MOTION_FAMILIES.has(analysis.family)) for (const m of missing) review.push({ bone: m, why: `No bone found for ${m}.` });
 
   // 3. The spine chain: everything between the hips and the neck (or head), in order.
   function ancestors(n: string): string[] {
@@ -169,8 +194,9 @@ export function automap(input: AutomapInput): AutomapResult {
     const i = up.indexOf(hips);
     if (i >= 0) spine = up.slice(0, i).reverse();
   }
+  if (!spine.length && !HUMANOID_MOTION_FAMILIES.has(analysis.family)) spine = analysis.spine.filter((b) => !used.has(b));
   for (const s of spine) {
-    if (!used.has(s)) byBone.set(s, { kind: 'spine', confidence: 0.9, why: 'between the hips and the neck' });
+    if (!used.has(s)) byBone.set(s, { kind: 'spine', confidence: 0.9, why: hips ? 'between the hips and the neck' : 'between the pelvis and the chest' });
     used.add(s);
   }
 
@@ -289,6 +315,42 @@ export function automap(input: AutomapInput): AutomapResult {
 
   // 4. Chains: every bone not in the core belongs to a chain hanging from somewhere.
   const roles: RoleAssignment[] = [];
+  // Body parts the shape analysis found come first (legs, wings, tails, the head's parts).
+  const conf = analysis.confidence;
+  const branch = (start: string): string[] => {
+    const out = [start];
+    for (let k = children.get(start); k?.length === 1 && out.length < 64; k = children.get(k[0]!)) out.push(k[0]!);
+    return out;
+  };
+  const part = (role: RigRole, side: 'L' | 'R' | 'C', list: string[], why: string, whole = false) => {
+    const chain = list.filter((b) => !used.has(b));
+    if (!chain.length) return;
+    roles.push({ role, side, bones: chain.slice(0, 64), confidence: conf, why });
+    for (const b of chain) {
+      used.add(b);
+      byBone.set(b, { kind: conf < REVIEW_BELOW ? 'review' : 'role', role, confidence: conf, why });
+    }
+    if (conf < REVIEW_BELOW) review.push({ bone: chain[0]!, why: `${role}? ${why}` });
+    // Feathers off a wing, spikes off a tail: the part's other branches keep its role.
+    if (whole) for (const b of chain) for (const c of children.get(b) ?? []) if (!used.has(c)) part(role, side, branch(c), why, true);
+  };
+  const limbs = (role: RigRole, ls: Limb[], why: string, whole = false) => ls.forEach((l) => part(role, l.side, l.bones, why, whole));
+  if (!HUMANOID_MOTION_FAMILIES.has(analysis.family)) {
+    if (analysis.root && analysis.root !== analysis.pelvis) part('root', 'C', [analysis.root], 'the top of the skeleton');
+    if (analysis.pelvis) part('pelvis', 'C', [analysis.pelvis], 'where the hind legs join the body');
+    part('neck', 'C', analysis.neck, 'between the body and the head');
+    if (analysis.head) part('head', 'C', [analysis.head], 'the end of the body, where the face is');
+    limbs('frontLeg', analysis.frontLegs, 'a leg to the ground, nearer the head');
+    limbs('hindLeg', analysis.hindLegs, 'a leg to the ground, nearer the tail');
+    limbs('leg', analysis.legs, 'a leg to the ground');
+    limbs('arm', analysis.arms, 'to the side of the chest, off the ground');
+    limbs('extraLimb', analysis.extraLimbs, 'one more leg to the ground');
+  }
+  limbs('wings', analysis.wings, 'to the side of the chest, off the ground', true);
+  limbs('tail', analysis.tails, 'behind the pelvis, in the middle', true);
+  limbs('ears', analysis.ears, 'named as an ear, on the head');
+  if (analysis.jaw) part('jaw', 'C', [analysis.jaw], 'named as a jaw, on the head');
+  for (const e of analysis.eyes) part('eye', analysis.eyes.length === 2 ? (e === analysis.eyes[0] ? 'L' : 'R') : 'C', [e], 'named as an eye');
   const ignore: string[] = [];
   const aboveHips = new Set(hips ? ancestors(hips) : []);
   const visit = (n: string, inherited: { role: RigRole; confidence: number; why: string } | null, chain: string[] | null, chainInfo: RoleAssignment | null) => {
@@ -330,15 +392,56 @@ export function automap(input: AutomapInput): AutomapResult {
   for (const b of bones) if (!b.parent || !byName.has(b.parent)) visit(b.name, null, null, null);
 
   const boneMap = Object.fromEntries(Object.entries(humanoid).map(([k, v]) => [k, v.bone])) as Partial<Record<HumanBone, string>>;
-  return {
-    humanoid,
-    boneMap,
-    missing,
-    rig: RigMappingSchema.parse({ spine, roles, ignore: ignore.slice(0, 1000), base: base?.id ?? null }),
-    review,
-    base,
-    byBone,
+  // Very large rigs (a face rig with hundreds of chains) stay within the schema's limits instead
+  // of failing the import; what doesn't fit is listed for review.
+  const LIMIT = 2000;
+  if (roles.length > LIMIT) {
+    for (const r of roles.slice(LIMIT)) review.push({ bone: r.bones[0]!, why: `not mapped: more than ${LIMIT} chains` });
+    roles.length = LIMIT;
+  }
+  const mapping = RigMappingSchema.parse({ spine: spine.slice(0, 12), roles, ignore: ignore.slice(0, 1000), base: base?.id ?? null, family: analysis.family, familySource: input.family ? 'owner' : 'auto', familyWhy: analysis.why.join('; ').slice(0, 300) });
+  return { humanoid, boneMap, missing, rig: mapping, review, base, analysis, byBone };
+}
+
+/**
+ * The humanoid slots from a skeleton's shape when its names didn't give them: hips where the legs
+ * join, the spine up to the neck, the head, each leg's thigh, shin, foot and toes, and each arm's
+ * shoulder, upper arm, forearm and hand.
+ */
+function fillHumanoidFromShape(a: SkeletonAnalysis, humanoid: Partial<Record<HumanBone, Assigned>>, used: Set<string>, byBone: AutomapResult['byBone']) {
+  const why = "from the skeleton's shape";
+  const set = (slot: HumanBone, bone: string | undefined | null) => {
+    if (!bone || humanoid[slot] || used.has(bone)) return;
+    humanoid[slot] = { bone, confidence: 0.7, why };
+    used.add(bone);
+    byBone.set(bone, { kind: 'humanoid', role: slot, confidence: 0.7, why });
   };
+  set('hips', a.pelvis);
+  const trunk = [...a.spine];
+  if (a.chest && a.chest !== a.pelvis && !trunk.includes(a.chest)) trunk.push(a.chest);
+  set('spine', trunk[0]);
+  if (trunk.length >= 2) set('chest', trunk.at(-1));
+  set('neck', a.neck[0]);
+  set('head', a.head);
+  for (const l of a.legs.length ? a.legs : a.hindLegs) {
+    const side = l.side === 'L' ? 'left' : l.side === 'R' ? 'right' : null;
+    if (!side) continue;
+    set(`${side}UpperLeg` as HumanBone, l.bones[0]);
+    set(`${side}LowerLeg` as HumanBone, l.bones[1]);
+    set(`${side}Foot` as HumanBone, l.bones[2]);
+    set(`${side}Toes` as HumanBone, l.bones[3]);
+  }
+  for (const l of a.arms) {
+    const side = l.side === 'L' ? 'left' : l.side === 'R' ? 'right' : null;
+    if (!side || l.bones.length < 3) continue;
+    // Shoulder, upper arm, forearm, hand when there are four or more; else upper arm, forearm, hand.
+    const b = l.bones;
+    const hand = b.length >= 4 ? 3 : 2;
+    if (hand === 3) set(`${side}Shoulder` as HumanBone, b[0]);
+    set(`${side}UpperArm` as HumanBone, b[hand - 2]);
+    set(`${side}LowerArm` as HumanBone, b[hand - 1]);
+    set(`${side}Hand` as HumanBone, b[hand]);
+  }
 }
 
 /** Accuracy against an expected answer: per role and overall (bones whose role matches). */

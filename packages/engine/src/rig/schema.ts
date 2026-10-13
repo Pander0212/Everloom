@@ -4,6 +4,7 @@
  * side, the evidence that put it there, and a confidence. See docs/3d-import/bones.md.
  */
 import { z } from 'zod';
+import { SKELETON_FAMILIES } from './family.js';
 
 export const RIG_ROLES = [
   'breast',
@@ -23,6 +24,18 @@ export const RIG_ROLES = [
   'tongue',
   'teeth',
   'accessory',
+  // Bodies that aren't human (docs/3d-import/creatures.md): one bone or one chain each.
+  'root',
+  'pelvis',
+  'neck',
+  'head',
+  'jaw',
+  'eye',
+  'frontLeg',
+  'hindLeg',
+  'leg',
+  'arm',
+  'extraLimb',
 ] as const;
 export type RigRole = (typeof RIG_ROLES)[number];
 
@@ -62,10 +75,15 @@ export const RigMappingSchema = z.object({
   version: z.literal(1).default(1),
   /** The spine from the hips up to the neck, in order (Spine → Spine1 → Spine2 → Chest → UpperChest). */
   spine: z.array(bone).max(12).default([]),
-  roles: z.array(RoleAssignmentSchema).max(400).default([]),
+  roles: z.array(RoleAssignmentSchema).max(2000).default([]),
   /** Bones deliberately left alone (end bones, IK targets, controls). */
   ignore: z.array(bone).max(1000).default([]),
   /** A known base the skeleton was recognised as (preset id). */
   base: z.string().max(60).nullable().default(null),
+  /** What kind of body: decides which motions fit and how the stage frames it. */
+  family: z.enum(SKELETON_FAMILIES).default('humanoid'),
+  /** Found from the skeleton, or chosen by the owner (then automatic mapping keeps it). */
+  familySource: z.enum(['auto', 'owner']).default('auto'),
+  familyWhy: z.string().max(300).default(''),
 });
 export type RigMapping = z.infer<typeof RigMappingSchema>;
