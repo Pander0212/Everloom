@@ -127,19 +127,8 @@ def export_glb(path, objs, kind):
     bpy.ops.object.select_all(action="DESELECT")
     for o in objs:
         o.select_set(True)
-    bpy.ops.export_scene.gltf(
-        filepath=path,
-        export_format="GLB",
-        use_selection=True,
-        export_animations=(kind == "animation"),
-        export_skins=True,
-        export_morph=True,
-        export_yup=True,
-        export_apply=False,
-        export_extras=True,
-        export_cameras=False,
-        export_lights=False,
-    )
+    from .export_core import export_model
+    return export_model(path, animations=(kind == "animation"), selection=True, extras=True)
 
 
 def request(context, path, body=None, query=None):

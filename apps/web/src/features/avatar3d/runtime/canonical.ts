@@ -192,6 +192,7 @@ export function prepareRig(root: THREE.Object3D, bones: Partial<Record<HumanBone
 export interface CanonicalPose {
   rot: Partial<Record<HumanBone, THREE.Quaternion>>;
   hips: THREE.Vector3;
+  morphs?: Record<string, number>;
 }
 
 export const emptyPose = (): CanonicalPose => ({ rot: {}, hips: new THREE.Vector3() });

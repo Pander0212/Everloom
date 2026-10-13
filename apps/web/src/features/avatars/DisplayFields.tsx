@@ -67,6 +67,7 @@ export function DisplayFields({ game, setGame, characterId }: { game: CharacterG
 
   return (
     <div className="grid gap-3">
+      {characterId ? <Button icon={Wand2} onClick={() => navigate(`/characters/creator?character=${encodeURIComponent(characterId)}`)}>Create a 3D character from the description</Button> : null}
       <Field label="Recorded age"><Input aria-label="Recorded age" type="number" min={0} max={120} value={game.age ?? ''} onChange={e => setGame({ age: e.target.value === '' ? null : Number(e.target.value) })} /></Field>
       <div role="radiogroup" aria-label="On the stage" className="grid gap-2 sm:grid-cols-2" data-testid="display-picker">
         {CHOICES.filter(c => c.value !== 'code' || experimental || chosen?.kind === 'code').map((c) => (

@@ -4,6 +4,7 @@
  * hidden), reviewed in poses and at slider extremes, and saved as a garment of this avatar. Fitting
  * is done once per garment and base.
  */
+import { takeUnityFit } from './pending-fit';
 import { GarmentPhysicsSchema, GARMENT_SLOTS, type AvatarConfig, type Garment, type GarmentPhysics, type GarmentSlot } from '@everloom/engine';
 import { FlipHorizontal2, Minus, Move3d, Plus, RotateCcw, Scaling, Shirt } from 'lucide-react';
 import { useEffect, useReducer, useRef, useState } from 'react';
@@ -122,6 +123,17 @@ export function GarmentFitter({ avatar, config, set, handle }: { avatar: AvatarD
       setPhase('place');
     } catch (e) { setError((e as Error).message); setPhase('idle'); }
   };
+
+  useEffect(() => {
+    const receive = () => {
+      if (!handle || preparing) return;
+      const file = takeUnityFit(avatar.id);
+      if (file) void start([file]);
+    };
+    receive();
+    window.addEventListener('everloom-unity-fit', receive);
+    return () => window.removeEventListener('everloom-unity-fit', receive);
+  }, [handle, preparing, avatar.id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // The gizmo on wider screens (phones get big buttons instead).
   useEffect(() => {

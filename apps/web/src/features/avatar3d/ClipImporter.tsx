@@ -20,7 +20,7 @@ import { forgetClip, registerClip } from './runtime/clips';
 import type { ClipJSON } from './runtime/clip';
 import { convertMotion, type MotionSource } from './runtime/convert';
 
-export type Loaded = { files: File[]; names: string[]; read: () => Promise<MotionSource> };
+export type Loaded = { files: File[]; names: string[]; read: () => Promise<MotionSource>; unity?: string[] };
 
 const ext = (f: File) => f.name.split('.').pop()!.toLowerCase();
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '').replace(/^(\d)/, 'm$1').slice(0, 40) || 'motion';
@@ -43,7 +43,12 @@ async function viaServer(files: File[]): Promise<ArrayBuffer> {
 /** Reads a motion file (or a VMD/VPD with its model) and lists the animations in it. */
 export async function load(files: File[]): Promise<Loaded> {
   const anim = files.find((f) => ext(f) === 'anim');
-  if (anim && !files.some((f) => ['glb', 'gltf', 'vrma', 'fbx', 'bvh', 'vmd', 'vpd', 'blend'].includes(ext(f)))) throw new Error(`${anim.name} is a Unity animation: it only plays on the avatar it was made for. Import it with that avatar's .unitypackage (its animations come in with it), or export it from Unity as FBX.`);
+  if (anim) {
+    const inputs = files.filter(f => ext(f) === 'anim');
+    const unity = await Promise.all(inputs.map(f => f.text()));
+    const { readAnim } = await import('@everloom/engine/unity');
+    return { files: inputs, unity, names: unity.map((text, i) => readAnim(text)?.name ?? inputs[i]!.name), read: async () => { throw new Error('Use the Unity clip preview to convert this animation.'); } };
+  }
   const main = files.find((f) => ['glb', 'gltf', 'vrma', 'fbx', 'bvh', 'vmd', 'vpd', 'blend'].includes(ext(f)));
   if (!main) throw new Error('Choose a GLB, VRMA, FBX, BVH, VMD, VPD or .blend file.');
   const kind = ext(main);
@@ -98,6 +103,7 @@ export default function ClipImporter({ onDone, initial }: { onDone: () => void; 
   const [loop, setLoop] = useState(false);
   const [inPlace, setInPlace] = useState(true);
   const [clip, setClip] = useState<ClipJSON | null>(null);
+  const [notes, setNotes] = useState<string[]>([]);
   const handle = useRef<PreviewHandle | null>(null);
   // Opened with a file already (an animation sent from Blender).
   useEffect(() => {
@@ -130,8 +136,16 @@ export default function ClipImporter({ onDone, initial }: { onDone: () => void; 
     setBusy(true);
     setError(null);
     try {
-      const src = await loaded.read();
-      const json = convertMotion(src, src.animations[anim]!, { id: id || 'preview', loop, inPlace, source: loaded.files.map((f) => f.name).join(' + ').slice(0, 200), maxSeconds: 120 });
+      let json: ClipJSON;
+      if (loaded.unity) {
+        const { unityMotionText } = await import('./runtime/unity/motion');
+        const result = unityMotionText(loaded.unity[anim]!, { id: id || 'preview', loop, source: loaded.files[anim]?.name });
+        json = result.clip; setNotes(result.notes);
+      } else {
+        const src = await loaded.read();
+        json = convertMotion(src, src.animations[anim]!, { id: id || 'preview', loop, inPlace, source: loaded.files.map((f) => f.name).join(' + ').slice(0, 200), maxSeconds: 30 });
+        setNotes([]);
+      }
       setClip(json);
       registerClip(`import_preview`, json);
       play();
@@ -176,6 +190,7 @@ export default function ClipImporter({ onDone, initial }: { onDone: () => void; 
         Choose a motion file
       </FileButton>
       <p className="text-xs text-fg-2">GLB, VRMA, FBX, BVH and MMD motions (VMD) and poses (VPD) are read here; add the PMX model with a VMD/VPD for the closest match. Some old FBX files and .blend files need Blender.</p>
+      {notes.length ? <ul className="text-sm text-fg-2">{notes.map((n, i) => <li key={i}>{n}</li>)}</ul> : null}
       {error ? <p className="rounded-md bg-danger-soft p-2 text-sm text-danger" role="alert">{error}</p> : null}
       {loaded ? (
         <>

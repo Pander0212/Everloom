@@ -98,3 +98,17 @@ it('creator anatomy needs no unlock for an adult and is refused for a minor, how
   const raw = { content: {}, character: { body: { age: 15 }, anatomy: { enabled: true } } };
   expect((await c.req('PATCH', `/api/avatars/${id}`, { config: raw })).status).toBe(400);
 }, 30000);
+
+it('checks persona links, subsequent age changes, and later explicit avatar edits', async () => {
+  c = await createClient();
+  const avatar = (await c.req('POST', '/api/avatars/code', { name: 'Persona model', recipe: {} })).json;
+  expect((await c.req('PATCH', `/api/avatars/${avatar.id}`, { config: explicit({ age: 30 }) })).status).toBe(200);
+  expect((await c.req('POST', '/api/personas', { name: 'Young', age: 15, data: { avatar3d: avatar.id } })).status).toBe(400);
+  const adult = await c.req('POST', '/api/personas', { name: 'Adult', age: 30, data: { avatar3d: avatar.id } });
+  expect(adult.status).toBe(200);
+  expect((await c.req('PUT', `/api/personas/${adult.json.id}`, { name: 'Young now', age: 16 })).status).toBe(400);
+  expect((await c.req('PATCH', `/api/avatars/${avatar.id}`, { config: AvatarConfigSchema.parse({}) })).status).toBe(200);
+  expect((await c.req('PUT', `/api/personas/${adult.json.id}`, { name: 'Young now', age: 16 })).status).toBe(200);
+  expect((await c.req('PATCH', `/api/avatars/${avatar.id}`, { config: explicit({ age: 30 }) })).status).toBe(400);
+  expect((await c.req('POST', '/api/personas', { name: 'Missing', data: { avatar3d: 'av_missing' } })).status).toBe(404);
+});

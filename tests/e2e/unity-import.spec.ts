@@ -2,7 +2,7 @@ import path from 'node:path';
 import { api, expect, test } from './fixtures';
 
 // Software WebGL so the 3D preview renders headless.
-test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } });
+test.use({ launchOptions: { ...(process.env.E2E_CHROMIUM ? { executablePath: process.env.E2E_CHROMIUM } : {}), args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } });
 
 /** Heavy: on two projects, like the other 3D import checks. */
 test.beforeEach(({}, info) => test.skip(!/^(desktop-1280|phone-390)-light$/.test(info.project.name), 'Unity import runs on two projects'));
@@ -28,7 +28,7 @@ test.describe('Unity packages', () => {
     await page.getByTestId('avatar-import').click();
     await (await chooser).setFiles(path.join(DIR, 'Ava.unitypackage'));
     const sheet = page.getByRole('dialog', { name: 'Import from Unity' });
-    await expect(sheet.getByRole('radio', { name: /Ava.*VRChat avatar descriptor/ })).toHaveAttribute('aria-checked', 'true', { timeout: 30_000 });
+    await expect(sheet.getByRole('checkbox', { name: /Ava.*VRChat avatar descriptor/ })).toHaveAttribute('aria-checked', 'true', { timeout: 30_000 });
     await sheet.getByText('The package’s license and readme').click();
     await expect(sheet.getByText(/CC0 1\.0/)).toBeVisible();
     await sheet.getByRole('button', { name: 'Import the avatar' }).click();
@@ -46,7 +46,8 @@ test.describe('Unity packages', () => {
     expect(ava.config.expressionMap.aa[0].morph).toBe('vrc.v_aa');
     expect(ava.config.expressionMap.blink[0].morph).toBe('eyeBlinkLeft');
     expect(ava.config.physics.chains.map((c: { bone: string; kind: string }) => `${c.bone}:${c.kind}`).sort()).toEqual(['Butt_L:butt', 'Butt_R:butt', 'Hair_Back_1:hair', 'breast_l:chest', 'breast_r:chest']);
-    expect(ava.config.parts.map((p: { name: string; on: boolean }) => `${p.name}:${p.on}`)).toEqual(['Hat:false']);
+    expect(ava.config.parts.map((p: { name: string; on: boolean }) => `${p.name}:${p.on}`)).toEqual(expect.arrayContaining(['Hat:false']));
+    expect(ava.config.parts.length).toBeGreaterThan(1);
     expect(ava.config.look).toBe('toon');
     expect(ava.config.importReport.thirdParty).toBe(true);
     // A face animation became the "joy" expression; a body animation became a motion clip.
@@ -64,7 +65,7 @@ test.describe('Unity packages', () => {
     chooser = page.waitForEvent('filechooser');
     await page.getByTestId('avatar-import').click();
     await (await chooser).setFiles(path.join(DIR, 'AvaShirt.unitypackage'));
-    await expect(sheet.getByRole('radio', { name: /Shirt.*Merge Armature/ })).toHaveAttribute('aria-checked', 'true', { timeout: 30_000 });
+    await expect(sheet.getByRole('checkbox', { name: /Shirt.*Merge Armature/ })).toHaveAttribute('aria-checked', 'true', { timeout: 30_000 });
     await sheet.getByLabel('For which avatar').selectOption({ label: 'Ava' });
     await sheet.getByRole('button', { name: 'Import the outfit' }).click();
     await expect(sheet.getByTestId('import-report')).toContainText(/bones matched to the avatar/, { timeout: 90_000 });
@@ -78,7 +79,7 @@ test.describe('Unity packages', () => {
     chooser = page.waitForEvent('filechooser');
     await page.getByTestId('unity-outfit-drop').getByRole('button', { name: 'Choose files' }).click();
     await (await chooser).setFiles(path.join(DIR, 'AvaShirt.unitypackage'));
-    await expect(sheet.getByRole('radio', { name: /Shirt/ })).toHaveAttribute('aria-checked', 'true', { timeout: 30_000 });
+    await expect(sheet.getByRole('checkbox', { name: /Shirt/ })).toHaveAttribute('aria-checked', 'true', { timeout: 30_000 });
     await sheet.getByRole('button', { name: 'Import the outfit' }).click();
     await sheet.getByRole('button', { name: 'Done' }).click({ timeout: 90_000 });
     await page.getByTestId('avatar-save').click();

@@ -17,6 +17,9 @@ export interface UnityAsset {
   meta?: YamlMap;
   /** True when the GUID was made up from the path (no .meta file). */
   guessed?: boolean;
+  /** Server library handle: bytes are fetched only for the chosen item's dependencies. */
+  sourceId?: string;
+  size?: number;
 }
 
 const EXT: Record<string, UnityKind> = {
@@ -35,6 +38,7 @@ export function kindOf(path: string): UnityKind {
 }
 
 export class UnityProject {
+  readonly recent = new Set<string>();
   readonly byGuid = new Map<string, UnityAsset>();
   readonly byPath = new Map<string, UnityAsset>();
   /** Links made by name because a .meta was missing (shown in the report; the owner can change them). */
@@ -45,6 +49,8 @@ export class UnityProject {
   readonly links = new Map<string, string>();
 
   add(a: UnityAsset) {
+    const old = this.byGuid.get(a.guid);
+    if (old) this.byPath.delete(normPath(old.path));
     this.byGuid.set(a.guid, a);
     this.byPath.set(normPath(a.path), a);
   }

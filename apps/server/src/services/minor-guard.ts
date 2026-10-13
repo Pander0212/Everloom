@@ -13,7 +13,7 @@
  *
  * Tests: apps/server/test/minor-guard.test.ts.
  */
-import { ageYears, AvatarConfigSchema, type AvatarConfig, type CardData, type CharacterGame } from '@everloom/engine';
+import { ageYears, AvatarConfigSchema, type AvatarConfig, type CardData, type CharacterGame, type PersonaDTO } from '@everloom/engine';
 import { HttpError, type AppContext } from '../context.js';
 
 /** The one message a refusal gives. */
@@ -72,7 +72,9 @@ export function isMinorAvatar(ctx: AppContext, owner: string, config: AvatarConf
   if (avatarMinorReason(config)) return true;
   if (!avatarId) return false;
   const linked = ctx.db.prepare("SELECT card, game FROM characters WHERE owner_id = ? AND json_extract(game, '$.avatar3d') = ?").all(owner, avatarId) as Array<{ card: string; game: string }>;
-  return linked.some((l) => cardMinorReason(JSON.parse(l.card), JSON.parse(l.game)) !== null);
+  if (linked.some((l) => cardMinorReason(JSON.parse(l.card), JSON.parse(l.game)) !== null)) return true;
+  const personas = ctx.db.prepare("SELECT age, age_stage, description FROM personas WHERE owner_id = ? AND json_extract(data, '$.avatar3d') = ?").all(owner, avatarId) as Array<{ age: number | null; age_stage: string; description: string }>;
+  return personas.some(p => personaMinor({ age: p.age, ageStage: p.age_stage, description: p.description }));
 }
 
 /** Linking a character card to an avatar: refused when the avatar is explicit and the card a minor. */
@@ -82,4 +84,14 @@ export function assertLinkAllowed(ctx: AppContext, owner: string, avatar: string
   const config = AvatarConfigSchema.parse(JSON.parse(row.config));
   if (!hasExplicitContent(config)) return;
   if (avatarMinorReason(config) || cardMinorReason(card, game)) throw new HttpError(400, REFUSED);
+}
+
+function personaMinor(p: Pick<PersonaDTO, 'age' | 'ageStage' | 'description'>) {
+  return (p.age != null && p.age < 18) || /^(child|teen)$/i.test(p.ageStage) || describesMinor(p.description);
+}
+export function assertPersonaAvatarAllowed(ctx: AppContext, owner: string, avatar: string, persona: Pick<PersonaDTO, 'age' | 'ageStage' | 'description'>) {
+  const row = ctx.db.prepare('SELECT config FROM avatars WHERE id = ? AND owner_id = ?').get(avatar, owner) as { config: string } | undefined;
+  if (!row) throw new HttpError(404, 'Avatar not found');
+  const config = AvatarConfigSchema.parse(JSON.parse(row.config));
+  if (hasExplicitContent(config) && (avatarMinorReason(config) || personaMinor(persona))) throw new HttpError(400, REFUSED);
 }

@@ -78,12 +78,17 @@ if ! ls -d data/blender/blender-* >/dev/null 2>&1; then
   echo
   read -r -p "Install Blender for 3D characters (optional, about 350 MB download)? [y/N] " WANT_BLENDER || true
   if [[ "${WANT_BLENDER:-}" =~ ^[Yy] ]]; then
-    REL="https://download.blender.org/release/Blender4.2/"
-    FILE="$(curl -fsSL "$REL" | grep -o 'blender-4\.2\.[0-9]*-linux-x64\.tar\.xz' | sort -uV | tail -1 || true)"
+    REL="https://download.blender.org/release/Blender5.2/"
+    VERSION="5.2.0"
+    FILE="blender-$VERSION-linux-x64.tar.xz"
     if [ -n "$FILE" ]; then
       bold "Downloading $FILE…"
       mkdir -p data/blender
-      curl -fL "$REL$FILE" -o "data/blender/$FILE" && tar -xJf "data/blender/$FILE" -C data/blender && rm -f "data/blender/$FILE"
+      WANT="$(curl -fsSL "${REL}blender-$VERSION.sha256" | awk -v file="$FILE" '$2 == file {print $1}')"
+      [[ "$WANT" =~ ^[a-f0-9]{64}$ ]] || { warn "Missing Blender checksum"; exit 1; }
+      curl -fL "$REL$FILE" -o "data/blender/$FILE"
+      printf '%s  %s\n' "$WANT" "data/blender/$FILE" | sha256sum -c -
+      tar -xJf "data/blender/$FILE" -C data/blender && rm -f "data/blender/$FILE"
       BLENDER_LIBS=1
       grep -q '^EVERLOOM_BLENDER_LIBS=' .env || echo "EVERLOOM_BLENDER_LIBS=1" >> .env
       bold "Blender installed in data/blender (Everloom finds it there)."

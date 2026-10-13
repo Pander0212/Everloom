@@ -105,3 +105,18 @@ describe('importing Everloom’s Unity test packages', () => {
     expect(plan.report.approximated.map((l) => l.what)).toContain('Links between files');
   });
 });
+
+it('discovers direct mesh dependencies, groups color variants, and resolves split packages in either order', () => {
+  const enc = new TextEncoder(), p = pkg('AvaShirt.unitypackage');
+  const model = p.all('model')[0]!;
+  const make = (name: string, guid: string, material: string) => ({ guid, kind: 'prefab' as const, path: `Assets/Variants/${name}.prefab`, data: enc.encode(`%YAML 1.1\n--- !u!1 &1\nGameObject:\n  m_Name: ${name}\n  m_IsActive: 1\n--- !u!4 &2\nTransform:\n  m_GameObject: {fileID: 1}\n  m_Father: {fileID: 0}\n--- !u!137 &3\nSkinnedMeshRenderer:\n  m_GameObject: {fileID: 1}\n  m_Mesh: {fileID: 4300000, guid: ${model.guid}, type: 3}\n  m_Materials:\n  - {fileID: 2100000, guid: ${material}, type: 2}\n`) });
+  const red = 'a'.repeat(32), blue = 'b'.repeat(32), redMat = 'c'.repeat(32), blueMat = 'd'.repeat(32);
+  for (const a of [make('Red', red, redMat), make('Blue', blue, blueMat)]) p.add(a);
+  const variants = summarize(p).outfits.find(c => c.guid === red)!;
+  expect(variants.variants?.map(v => v.name)).toEqual(['Red', 'Blue']);
+  expect(variants.dependencies?.models).toBe(1);
+  expect(variants.missing).toEqual(expect.arrayContaining([redMat, blueMat]));
+  for (const guid of [redMat, blueMat]) p.add({ guid, path: `Assets/Variants/${guid}.mat`, kind: 'material', data: enc.encode('%YAML 1.1\n--- !u!21 &2100000\nMaterial:\n  m_Name: Fabric\n') });
+  expect(summarize(p).outfits.find(c => c.guid === red)?.missing).toEqual([]);
+  expect(planImport(p, red).models.map(m => m.guid)).toContain(model.guid);
+});

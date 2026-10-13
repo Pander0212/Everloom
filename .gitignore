@@ -1,4 +1,5 @@
 node_modules/
+samples/
 dist/
 data/
 !packages/engine/src/rig/data/
@@ -33,3 +34,5 @@ tests/ux/.artifacts/
 # The anatomy pack is a separate download, never committed.
 *anatomy-pack*.zip
 everloom-anatomy-pack/
+
+__pycache__/

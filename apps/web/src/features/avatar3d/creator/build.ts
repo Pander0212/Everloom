@@ -39,11 +39,11 @@ export interface CharacterModel {
 const key = (x: unknown) => JSON.stringify(x);
 
 /** What the anatomy pack adds to a base: shape keys (per body vertex) and its distance layer. */
-export interface AnatomyData { shapeKeys: Record<string, Float32Array>; areolaDistance: ImageData | null }
+export interface AnatomyData { shapeKeys: Record<string, Float32Array>; areolaDistance: ImageData | null; models?: Record<string, ArrayBuffer> }
 
 /** Loads the installed anatomy pack's files for a base (null when it has none for it). */
 export async function loadAnatomy(base: CharacterSpec['base']): Promise<AnatomyData | null> {
-  const r = await fetch('/api/anatomy-pack').then((x) => x.json()).catch(() => null) as { installed: boolean; bases?: Record<string, { shapeKeys: Record<string, string>; layers: Record<string, string> }> } | null;
+  const r = await fetch('/api/anatomy-pack').then((x) => x.json()).catch(() => null) as { installed: boolean; bases?: Record<string, { shapeKeys: Record<string, string>; layers: Record<string, string>; models?: Record<string, string> }> } | null;
   const b = r?.installed ? r.bases?.[base] : undefined;
   if (!b) return null;
   const shapeKeys: Record<string, Float32Array> = {};
@@ -55,7 +55,12 @@ export async function loadAnatomy(base: CharacterSpec['base']): Promise<AnatomyD
     g.drawImage(bmp, 0, 0);
     areolaDistance = g.getImageData(0, 0, bmp.width, bmp.height);
   }
-  return { shapeKeys, areolaDistance };
+  const models: Record<string, ArrayBuffer> = {};
+  for (const [name, url] of Object.entries(b.models ?? {})) {
+    const response = await fetch(url); if (!response.ok) throw new Error(`Could not load anatomy model ${name}`);
+    models[name] = await response.arrayBuffer();
+  }
+  return { shapeKeys, areolaDistance, models };
 }
 
 export async function createCharacter(first: CharacterSpec, textures: Map<string, THREE.Texture> = new Map(), anatomy: AnatomyData | null = null): Promise<CharacterModel> {
@@ -96,6 +101,21 @@ export async function createCharacter(first: CharacterSpec, textures: Map<string
   const setMaterial = (mesh: THREE.Mesh, m: THREE.Material) => { const old = sourceMaterials.get(mesh); if (old && old !== m) { (old as THREE.MeshStandardMaterial).map?.dispose(); old.dispose(); } mesh.material = m; sourceMaterials.set(mesh, m); };
   setMaterial(B, new THREE.MeshStandardMaterial({ name: 'Skin', roughness: 0.62 }));
   setMaterial(E, new THREE.MeshStandardMaterial({ name: 'Eyes', roughness: 0.1 }));
+  const anatomyModels = new Map<string, THREE.Object3D>();
+  const pelvis = B.skeleton.bones.find(b => /^(pelvis|hips)$/i.test(b.name));
+  if (pelvis) for (const [name, bytes] of Object.entries(anatomy?.models ?? {})) {
+    const part = (await loader.parseAsync(bytes, '')).scene;
+    root.updateMatrixWorld(true);
+    const origin = pelvis.getWorldPosition(new THREE.Vector3()).add(new THREE.Vector3(0, -.13, .055));
+    part.position.copy(pelvis.worldToLocal(origin));
+    part.quaternion.copy(pelvis.getWorldQuaternion(new THREE.Quaternion()).invert());
+    part.name = `Anatomy_${name}`;
+    pelvis.add(part); anatomyModels.set(name, part);
+    part.traverse(o => {
+      const mesh = o as THREE.Mesh;
+      if (mesh.isMesh) setMaterial(mesh, new THREE.MeshStandardMaterial({ name: `Anatomy_${name}`, color: name === 'internal' ? '#c58387' : first.skin.tone, roughness: .68, side: THREE.DoubleSide }));
+    });
+  }
   let hair: THREE.Object3D[] = [], hairBones: THREE.Bone[] = [], clothes: THREE.SkinnedMesh[] = [];
   const last: Record<string, string> = {};
 
@@ -133,6 +153,24 @@ export async function createCharacter(first: CharacterSpec, textures: Map<string
       if (spec.anatomy.enabled && anatomy?.areolaDistance) paintAreola(canvas, anatomy.areolaDistance, spec.anatomy);
       setMaterial(B, new THREE.MeshStandardMaterial({ name: 'Skin', map: canvasTexture(canvas), roughness: 0.62 }));
     }
+    const a = spec.anatomy;
+    const shape = a.genitalShape;
+    for (const [kind, part] of anatomyModels) {
+      part.visible = a.enabled && (kind === 'internal' ? (shape.internal ?? 0) > 0 : a.genitalPreset === kind);
+      part.traverse(o => {
+        const mesh = o as THREE.Mesh;
+        if (!mesh.isMesh) return;
+        const mat = sourceMaterials.get(mesh) as THREE.MeshStandardMaterial | undefined;
+        if (mat && kind !== 'internal') mat.color.set(spec.skin.tone);
+        for (const [name, i] of Object.entries(mesh.morphTargetDictionary ?? {})) {
+          if (mesh.morphTargetInfluences) mesh.morphTargetInfluences[i] = THREE.MathUtils.clamp(shape[name] ?? 0, 0, 1);
+        }
+      });
+    }
+    const bodyMat = sourceMaterials.get(B) as THREE.MeshStandardMaterial;
+    const cutaway = a.enabled && (shape.internal ?? 0) > 0 && (shape.cutaway ?? 0) > 0 && anatomyModels.has('internal');
+    if (bodyMat.transparent !== cutaway) { bodyMat.transparent = cutaway; bodyMat.needsUpdate = true; }
+    bodyMat.opacity = cutaway ? .22 : 1; bodyMat.depthWrite = !cutaway;
     const ek = key(spec.eyes);
     if (ek !== last.eyes) {
       last.eyes = ek;

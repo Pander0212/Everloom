@@ -26,6 +26,7 @@ export interface UnityAnim {
   scales: { path: string; keys: Key<[number, number, number]>[] }[];
   /** Humanoid muscle curves (Animator, class 95): present means the clip needs Unity's muscle space. */
   muscles: number;
+  muscleCurves: { name: string; keys: Key<number>[] }[];
   /** Other float curves (material properties, toggles), counted for the report. */
   other: number;
 }
@@ -50,19 +51,19 @@ export function readAnim(text: string): UnityAnim | null {
   const doc = parseUnityYaml(text).find((d) => d.classId === 74 || d.type === 'AnimationClip');
   if (!doc) return null;
   const b = doc.body;
-  const a: UnityAnim = { name: asStr(b.m_Name) || 'Clip', sampleRate: asNum(b.m_SampleRate, 60), loop: asNum(asMap(b.m_AnimationClipSettings).m_LoopTime) !== 0, length: 0, blendShapes: [], rotations: [], eulers: [], positions: [], scales: [], muscles: 0, other: 0 };
+  const a: UnityAnim = { name: asStr(b.m_Name) || 'Clip', sampleRate: asNum(b.m_SampleRate, 60), loop: asNum(asMap(b.m_AnimationClipSettings).m_LoopTime) !== 0, length: 0, blendShapes: [], rotations: [], eulers: [], positions: [], scales: [], muscles: 0, muscleCurves: [], other: 0 };
   for (const c of asList(b.m_FloatCurves).map(asMap)) {
     const attr = asStr(c.attribute);
     const cls = asNum(c.classID);
     if (attr.startsWith('blendShape.')) a.blendShapes.push({ path: asStr(c.path), name: attr.slice('blendShape.'.length), keys: keys(c, (v) => asNum(v as never)) });
-    else if (cls === 95) a.muscles++;
+    else if (cls === 95) { a.muscles++; a.muscleCurves.push({ name: attr, keys: keys(c, v => asNum(v as never)) }); }
     else a.other++;
   }
   for (const c of asList(b.m_RotationCurves).map(asMap)) a.rotations.push({ path: asStr(c.path), keys: keys(c, q4) });
   for (const c of asList(b.m_EulerCurves).map(asMap)) a.eulers.push({ path: asStr(c.path), keys: keys(c, v3) });
   for (const c of asList(b.m_PositionCurves).map(asMap)) a.positions.push({ path: asStr(c.path), keys: keys(c, v3) });
   for (const c of asList(b.m_ScaleCurves).map(asMap)) a.scales.push({ path: asStr(c.path), keys: keys(c, v3) });
-  const all = [...a.blendShapes, ...a.rotations, ...a.eulers, ...a.positions, ...a.scales].flatMap((c) => c.keys.map((k) => k.t));
+  const all = [...a.blendShapes, ...a.rotations, ...a.eulers, ...a.positions, ...a.scales, ...a.muscleCurves].flatMap((c) => c.keys.map((k) => k.t));
   const stop = asNum(asMap(b.m_AnimationClipSettings).m_StopTime, 0);
   a.length = Math.max(stop, ...all, 0);
   if (asList(b.m_PPtrCurves).length) a.other++;

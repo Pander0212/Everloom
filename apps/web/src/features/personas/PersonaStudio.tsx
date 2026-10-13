@@ -5,12 +5,16 @@ import { useEffect, useState } from 'react';
 import { del, post, put, upload } from '@/lib/api';
 import { toastError } from '@/lib/store';
 import { Avatar, Button, confirm, Field, FileButton, Input, Select, Sheet, TabPanel, Tabs, Textarea, ToggleRow } from '@/ui';
+import { useAvatars } from '@/features/avatars/api';
+import { useNavigate } from 'react-router';
 import { LineageEditor } from './LineageEditor';
 
 const AGE_STAGES = ['Child', 'Teen', 'Young adult', 'Adult', 'Middle-aged', 'Elder'];
 
 export function PersonaStudio({ persona, open, onOpenChange }: { persona: PersonaDTO | null; open: boolean; onOpenChange: (o: boolean) => void }) {
   const qc = useQueryClient();
+  const avatars = useAvatars();
+  const navigate = useNavigate();
   const [d, setD] = useState<Partial<PersonaDTO>>({});
   const [tab, setTab] = useState('identity');
   const [busy, setBusy] = useState(false);
@@ -110,6 +114,13 @@ export function PersonaStudio({ persona, open, onOpenChange }: { persona: Person
           <Field label="Description" htmlFor="pd" hint="Appearance, background, what others would notice.">
             <Textarea id="pd" rows={5} value={d.description ?? ''} onChange={(e) => set({ description: e.target.value })} />
           </Field>
+          <Field label="3D character" htmlFor="persona-avatar3d">
+            <Select id="persona-avatar3d" value={d.data?.avatar3d ?? ''} onChange={e => set({ data: { ...d.data, avatar3d: e.target.value || null } })}>
+              <option value="">Use portrait</option>
+              {(avatars.data ?? []).filter(a => a.status === 'ready').map(a => <option key={a.id} value={a.id}>{a.name}</option>)}
+            </Select>
+          </Field>
+          {d.data?.avatar3d ? <Button onClick={async () => { const saved = await save((d as any)._avatarId); if (saved) { onOpenChange(false); navigate(`/characters/avatars/${d.data!.avatar3d}?step=wardrobe`); } }}>Dressing room</Button> : null}
           <ToggleRow label="Default persona" description="Used for new chats unless you pick another." checked={!!d.isDefault} onChange={(v) => set({ isDefault: v })} />
         </TabPanel>
         <TabPanel value="lineage" className="pt-5">

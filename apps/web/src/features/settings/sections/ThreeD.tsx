@@ -222,6 +222,9 @@ export default function ThreeDSection() {
 
       <Section title="On this device" description="Saved in this browser only, so a phone and a computer can differ.">
         <ToggleRow label="Show pictures instead of 3D" description="For slow or battery-tight devices. Nothing 3D is downloaded while this is on." checked={p.spritesOnly} onChange={(v) => p.set({ spritesOnly: v })} />
+        <Field label="3D looks for scene NPCs" hint="Uses the creator and installed parts. Each appearance is cached.">
+          <Segmented label="NPC appearance generation" value={p.npcLooks} onChange={v => p.set({ npcLooks: v })} options={[{ value: 'off', label: 'Off' }, { value: 'ask', label: 'Ask' }, { value: 'automatic', label: 'Automatic' }]} />
+        </Field>
         <ToggleRow label="Experimental procedural characters" description="Enable the older code-made creator. Off by default; characters without a saved avatar keep their pictures." checked={p.experimentalProcedural} onChange={(v) => p.set({ experimentalProcedural: v })} />
         {p.experimentalProcedural ? <ToggleRow label="Code-made figures for characters without a picture" description="Experimental fallback generated from their description." checked={p.codeNpcs} onChange={(v) => p.set({ codeNpcs: v })} /> : null}
         <Field label="Quality" hint="Automatic lowers resolution, shadows, outlines and physics when frames run slow, and raises them when there's room.">

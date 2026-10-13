@@ -24,6 +24,7 @@ interface BodyMesh {
 export class Wardrobe {
   private body: BodyMesh[] = [];
   private mask = 0;
+  private partMaterials = new Map<THREE.Material, boolean>();
   private accessories = new Map<string, { obj: THREE.Object3D; key: string }>();
   private find: (name: string) => THREE.Object3D | undefined;
 
@@ -116,7 +117,29 @@ export class Wardrobe {
 
   /** Shows parts, hides covered regions, attaches accessories. */
   apply(cfg: Pick<AvatarConfig, 'parts'>, state: WardrobeState, mask: number) {
-    for (const p of cfg.parts) for (const m of p.meshes) this.find(m)?.traverse((o) => void (o.visible = state.parts[p.id] !== false));
+    for (const [mat, visible] of this.partMaterials) mat.visible = visible;
+    for (const p of cfg.parts) {
+      const visible = state.parts[p.id] !== false;
+      if (p.materialSlots?.length) {
+        for (const target of p.materialSlots) {
+          this.find(target.mesh)?.traverse(o => {
+            const mesh = o as THREE.Mesh;
+            if (!mesh.isMesh) return;
+            const slots = Array.isArray(mesh.material) ? [...mesh.material] : [mesh.material];
+            for (const [i, original] of slots.entries()) {
+              if (target.material ? original.name !== target.material : i !== target.slot) continue;
+              let mat = original;
+              if (!this.partMaterials.has(mat)) {
+                mat = mat.clone(); slots[i] = mat;
+                this.partMaterials.set(mat, mat.visible);
+              }
+              mat.visible = mat.visible && visible;
+            }
+            mesh.material = Array.isArray(mesh.material) ? slots : slots[0]!;
+          });
+        }
+      } else for (const m of p.meshes) this.find(m)?.traverse((o) => void (o.visible = visible));
+    }
     if (mask !== this.mask) this.hideRegions(mask);
     void this.setAccessories(state.accessories);
   }
@@ -181,6 +204,8 @@ export class Wardrobe {
   }
 
   dispose() {
+    for (const [mat, visible] of this.partMaterials) mat.visible = visible;
+    this.partMaterials.clear();
     this.coverage.clear();
     // Give the body its triangles back (a new wardrobe may cover it differently).
     for (const b of this.body) {
@@ -220,21 +245,24 @@ export function dress(avatar: Avatar, cfg: AvatarConfig, renderer: THREE.WebGLRe
     avatar.garments ??= new Garments(avatar, renderer);
     void avatar.garments.set(state.garments, avatar.options.look, avatar.options.outlines, !!opts.low).catch(() => undefined);
   }
-  shapeBody(avatar, cfg, opts);
+  shapeBody(avatar, cfg, { ...opts, partState: state.parts });
   paintSkin(avatar, cfg, renderer, state, opts);
 }
 
 /** Morph weights for the body sliders and the generated adjusters (explicit ones only when allowed). */
-export function bodyWeights(cfg: Pick<AvatarConfig, 'morphs' | 'bodyShape'>, opts: { adultAllowed?: boolean } = {}): Record<string, number> {
+export function bodyWeights(cfg: Pick<AvatarConfig, 'morphs' | 'bodyShape'> & Partial<Pick<AvatarConfig, 'parts'>>, opts: { adultAllowed?: boolean; partState?: Record<string, boolean> } = {}): Record<string, number> {
   const sliders = (cfg.morphs?.sliders ?? []).filter((s) => !s.adult || opts.adultAllowed);
   const weights = morphWeights(sliders, cfg.morphs?.values ?? {});
   for (const s of cfg.morphs?.sliders ?? []) if (s.adult && !opts.adultAllowed) for (const m of [...s.plus, ...s.minus]) weights[m] = 0;
   for (const k of SHAPE_KEYS) weights[`EverloomBody_${k}`] = cfg.bodyShape?.[k] ?? 0;
+  for (const p of cfg.parts ?? []) for (const m of p.hideMorphs ?? []) {
+    weights[m.morph] = Math.max(weights[m.morph] ?? 0, (opts.partState?.[p.id] ?? p.on) ? m.weight : 0);
+  }
   return weights;
 }
 
 /** Body sliders: every mesh with the morph follows (garments included). */
-export function shapeBody(avatar: Avatar, cfg: AvatarConfig, opts: { adultAllowed?: boolean; snap?: boolean } = {}) {
+export function shapeBody(avatar: Avatar, cfg: AvatarConfig, opts: { adultAllowed?: boolean; snap?: boolean; partState?: Record<string, boolean> } = {}) {
   const weights = bodyWeights(cfg, opts);
   // Mapped breast and butt bones take the chest and butt sliders (bone scale) instead of the mesh morphs.
   if (avatar.rolesShapeBody) {

@@ -63,3 +63,33 @@ describe('wardrobe on a model', () => {
     expect(degenerate(body)).toBe(0);
   });
 });
+
+it('toggles a clothing material without hiding another mesh sharing that material, and restores it', async () => {
+  const model = await loadModel(buf(), null);
+  const jacket = model.scene.getObjectByName('Jacket')!;
+  const meshes: THREE.Mesh[] = [];
+  jacket.traverse(o => { if ((o as THREE.Mesh).isMesh) meshes.push(o as THREE.Mesh); });
+  const original = Array.isArray(meshes[0]!.material) ? meshes[0]!.material[0]! : meshes[0]!.material;
+  original.name = 'JacketFabric';
+  const other = new THREE.Mesh(new THREE.BoxGeometry(), original);
+  other.name = 'OtherPiece'; model.scene.add(other);
+  const config = AvatarConfigSchema.parse({ parts: [{ id: 'fabric', name: 'Fabric', meshes: ['Jacket'], materialSlots: [{ mesh: 'Jacket', slot: 0, material: 'JacketFabric' }] }] });
+  const wardrobe = new Wardrobe(model, []);
+  const on = resolveWardrobe(config), off = { ...on, parts: { fabric: false } };
+  wardrobe.apply(config, off, 0);
+  const material = Array.isArray(meshes[0]!.material) ? meshes[0]!.material[0]! : meshes[0]!.material;
+  expect(material.visible).toBe(false);
+  expect(other.material.visible).toBe(true);
+  expect(jacket.visible).toBe(true);
+  wardrobe.apply(config, on, 0);
+  expect(material.visible).toBe(true);
+  wardrobe.dispose();
+});
+
+it('body-hiding shapes follow message-bound parts and restore manual sliders on rollback', async () => {
+  const { bodyWeights } = await import('../src/features/avatar3d/runtime/wardrobe');
+  const config = AvatarConfigSchema.parse({ parts: [{ id: 'shirt', name: 'Shirt', meshes: ['shirt'], hideMorphs: [{ morph: 'Hide_Shirt', weight: 1 }] }] });
+  expect(bodyWeights(config, { partState: { shirt: true } }).Hide_Shirt).toBe(1);
+  expect(bodyWeights(config, { partState: { shirt: false } }).Hide_Shirt).toBe(0);
+  expect(bodyWeights(config, { partState: { shirt: true } }).Hide_Shirt).toBe(1);
+});

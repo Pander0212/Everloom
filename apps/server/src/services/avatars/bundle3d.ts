@@ -32,7 +32,7 @@ const MODEL_EXT = /\.(glb|vrm|fbx|pmx|pmd|obj|dae)$/i;
 export function avatarMediaRefs(cfg: AvatarConfig): string[] {
   const ids = [
     ...cfg.outfits.flatMap((o) => [o.model, o.modelLow]),
-    ...cfg.garments.flatMap((g) => [g.model, g.modelLow, ...g.variants.map((v) => v.texture)]),
+    ...cfg.garments.flatMap((g) => [g.model, g.modelLow, ...g.variants.flatMap((v) => [v.texture, v.model, v.modelLow])]),
     ...cfg.accessories.map((a) => a.model),
     cfg.maker?.body,
     ...Object.values(cfg.maker?.textures ?? {}),

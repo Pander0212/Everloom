@@ -1,0 +1,24 @@
+import * as THREE from 'three';
+import { expect, it } from 'vitest';
+import { preserveSecondary } from '../src/features/avatar3d/runtime/fit/secondary';
+import type { LoadedModel } from '../src/features/avatar3d/runtime/loader';
+import type { BodySurface } from '../src/features/avatar3d/runtime/fit/extract';
+import type { TransferResult } from '../src/features/avatar3d/runtime/fit/core';
+it('keeps weighted source chains attached to the mapped target and normalizes mixed weights', () => {
+  const hips = new THREE.Bone(), ribbon = new THREE.Bone(), tip = new THREE.Bone(), target = new THREE.Bone();
+  hips.name = 'SourceHips'; ribbon.name = 'Ribbon'; tip.name = 'Tip';
+  hips.add(ribbon); ribbon.position.set(0, -.2, 0); ribbon.add(tip); tip.position.set(0, -.1, 0);
+  hips.updateMatrixWorld(true);
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('fitJoints', new THREE.Uint16BufferAttribute([0, 2, 0, 0], 4));
+  geometry.setAttribute('fitWeights', new THREE.Float32BufferAttribute([.25, .75, 0, 0], 4));
+  const result = { bones: [], meshes: [{ joints: new Uint16Array([0, 0, 0, 0]), weights: new Float32Array([1, 0, 0, 0]) }] } as unknown as TransferResult;
+  const transform = new THREE.Matrix4().makeTranslation(1, 2, 3);
+  const r = preserveSecondary([hips, ribbon, tip], { hips: 'SourceHips' }, transform, { bones: { hips: target } } as LoadedModel, { bones: [target] } as BodySurface, [{ name: 'Cloth', geometry, material: new THREE.MeshStandardMaterial() }], result);
+  expect(r).toEqual({ preserved: 2, skipped: 0 });
+  expect(result.bones[0]!.parent).toBe(0);
+  expect(result.bones[1]!.parent).toBe(result.bones[0]!.name);
+  expect(result.bones[1]!.position[1]).toBeCloseTo(1.7);
+  expect([...result.meshes[0]!.joints]).toEqual([2, 0, 0, 0]);
+  expect([...result.meshes[0]!.weights]).toEqual([.75, .25, 0, 0]);
+});

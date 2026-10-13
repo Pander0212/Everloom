@@ -11,6 +11,7 @@ COPY tsconfig.base.json ./
 COPY packages packages
 COPY apps apps
 COPY scripts scripts
+COPY tools/blender-addon/everloom/export_core.py tools/blender-addon/everloom/export_core.py
 ARG EVERLOOM_COMMIT=
 ENV EVERLOOM_COMMIT=$EVERLOOM_COMMIT
 RUN npm run build -w apps/web && npm run build -w apps/server
