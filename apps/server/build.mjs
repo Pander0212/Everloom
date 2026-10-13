@@ -25,6 +25,7 @@ await build({
   banner: { js: "import { createRequire as __cr } from 'module'; const require = __cr(import.meta.url);" },
 });
 copyFileSync('src/blender/worker.py', 'dist/blender-worker.py');
+copyFileSync('../../tools/blender-addon/everloom/export_core.py', 'dist/export_core.py');
 // The script sandbox's in-frame runtime is plain JavaScript, inlined into the frame document at run time.
 copyFileSync('src/sandbox/frame-runtime.js', 'dist/frame-runtime.js');
 console.log('server built');

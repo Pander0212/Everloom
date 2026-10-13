@@ -123,6 +123,8 @@ export function newerThan(file: string | null, blender: string | null): boolean 
 
 /** Plain-words notes about what Blender found in a .blend (for the import report). */
 export function blendNotes(result: Record<string, unknown>, fileVersion: string | null = null, via = 'Blender on this server'): Array<{ code: string; message: string; level: 'info' | 'problem' }> {
+  const source = result.blend as { version?: unknown } | undefined;
+  fileVersion ??= typeof source?.version === 'string' ? source.version : null;
   const conv = typeof result.blender === 'string' ? result.blender.replace(/\s.*$/, '') : null;
   const head: Array<{ code: string; message: string; level: 'info' | 'problem' }> = [];
   if (conv) head.push({ code: 'blend_converter', message: `Converted by Blender ${conv} (${via})${fileVersion ? `; the file was saved with Blender ${fileVersion}` : ''}: meshes, armature, weights, shape keys and materials.`, level: 'info' });

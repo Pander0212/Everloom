@@ -1313,3 +1313,25 @@ Research with licenses: [docs/3d-import/research.md](3d-import/research.md).
   VRM 1.0 with the license the owner fills in, private by default.
 - **Bone sliders:** when the bone mapping has breast or butt bones, the chest and butt sliders scale
   those bones (so their springs keep working), even if the file also has shape keys for them.
+
+## 2026-10-12: Unity dependency library and Blender constraint rigs
+
+Unity import now indexes all supplied packages on the server before offering logical products. A prefab imports its FBX, materials and texture dependencies; renderer `m_Mesh` references are followed even when a prefab has no nested model instance. Colour prefabs sharing the model and renderer/visibility layout are grouped. All selected variants are saved with the garment, rather than discarding the three unselected colours. Raw FBX selection follows a related prefab where possible and no longer absorbs unrelated materials from every product under `Assets`.
+
+The owner's four-colour outfit has two independent issues: renderer-to-FBX references were not always followed, and some texture references have no corresponding file in the archive. Its four variants now each export in Chromium with one model, four materials and five available textures. Image decoding is awaited and images are converted to RGBA before GLB export. A missing/unreadable image uses a reported placeholder; exact GUID references can be relinked in the sheet. Keeping GLB as the stored format preserves the existing optimizer, Vault, wardrobe and stage paths; it avoids introducing another runtime state system.
+
+The library retains GUID-indexed sources across packages and loose files. Transport uses 4 MiB idempotent chunks, with a 4 GiB configurable input limit. Tar/ZIP reading is bounded and streamed; originals and staged chunks use Vault-covered media. A per-chunk journal lets an interrupted job clean up after unlocking/retrying. Browser conversion hydrates only the chosen item and enforces a 256 MiB dependency budget. This handles large archives without promising that a multi-gigabyte individual mesh can be rendered on a phone.
+
+One private Blender rig has almost all `def-*` bones parented directly to a root and driven by `COPY_TRANSFORMS` constraints. glTF cannot retain those constraints, so the exported flat hierarchy defeated humanoid mapping. The shared exporter recognizes this specific structure, recovers target-chain/core parents while preserving each armature-space rest matrix, exports the rest pose, then restores the source scene. It leaves ordinary rigs unchanged. A synthetic Blender 5.2 test checks restored parents, selection, rest transforms and inverse bind matrices. All three supplied Blender files convert with no required humanoid bones missing. Joint/texture budget warnings still apply; this does not certify every animation or pose of these models.
+
+Cross-avatar fitting starts from mapped humanoid proportions when sufficient landmarks exist. Surface weight/morph transfer and interactive adjustment remain the primary fit. Weighted secondary chains retain their hierarchy and attach to the nearest mapped body ancestor; oversized chains fall back to surface weights with a note. Four strongest weights are normalized. Different silhouettes still need manual review.
+
+Standalone Unity muscle curves use an explicitly approximate conversion to canonical rotations. Generic clips without a model assume the canonical rest pose. Preview before saving: this is not Unity's full humanoid IK/avatar solver. Blendshape curves are retained in motion clips.
+
+SPS research is recorded in CREDITS.md. Only serialized attachment metadata is preserved; VRCFury code, shaders and depth actions are not shipped or executed.
+
+## Creator phone and skirt follow-up (2026-10-12)
+
+Phone acceptance exposed controls covered by the sticky 44vh preview. The phone preview now scrolls with the document; desktop retains its side-by-side sticky preview. Creator tests enable the 3D feature before visiting its settings page and interact with the native anatomy checkbox without forced clicks.
+
+Screenshot inspection also exposed a dress seam at the hips: the skirt cone started below the waist and had no body morphs. It now starts at the waist and uses closest-surface barycentric transfer for body shape deltas. A geometry regression verifies transfer to both bodice and skirt; phone screenshots are checked separately for the visual result.

@@ -7,7 +7,7 @@
 import { AvatarConfigSchema, type AvatarConfig } from '@everloom/engine';
 import { ArrowLeft, MoreHorizontal, RotateCcw, Trash2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { Page } from '@/app/Shell';
 import { deleteAvatar, reprocessAvatar, saveAvatar, useAvatar } from '@/features/avatars/api';
 import CodeMadeEditor from './CodeMadeEditor';
@@ -70,7 +70,10 @@ function ImportedEditor() {
   const humans = useHumanLibrary(!!a?.config.makehuman);
   const [draft, setDraft] = useState<AvatarConfig | null>(null);
   const [name, setName] = useState('');
-  const [step, setStep] = useState('check');
+  const [search] = useSearchParams();
+  const requestedStep = search.get('step');
+  const [step, setStep] = useState(STEPS.some(s => s.value === requestedStep) ? requestedStep! : 'check');
+  useEffect(() => { if (STEPS.some(s => s.value === requestedStep)) setStep(requestedStep!); }, [requestedStep]);
   const [framing, setFraming] = useState<Framing>('full');
   const [lighting, setLighting] = useState<LightingPreset['id']>('studio');
   const [handle, setHandle] = useState<PreviewHandle | null>(null);

@@ -1,4 +1,10 @@
 /** 3D avatars: import, settings, outfits, thumbnails; motion clips; the Blender worker's status. */
+import { creatorRecipe } from '../services/avatars/creator-recipe.js';
+import { isMinorAvatar } from '../services/minor-guard.js';
+import { CreatorPresetSchema, creatorPresets, saveCreatorPreset, deleteCreatorPreset } from '../services/avatars/creator-presets.js';
+import { Readable } from 'node:stream';
+import { beginUpload, appendUpload, getUpload, removeUpload, readBlob, UPLOAD_CHUNK } from '../services/avatars/uploads.js';
+import { libraryManifest, libraryBlob, startLibraryJob, cancelLibraryJob } from '../services/avatars/unity-library.js';
 import { BLENDER_VERSION, installCheck, installState, startInstall, uninstall } from '../services/blender-install.js';
 import type { FastifyInstance } from 'fastify';
 import { unzipSync } from 'fflate';
@@ -24,10 +30,34 @@ import { anatomyPackStatus, installAnatomyPack, removeAnatomyPack } from '../ser
 import { exportBrowserModel } from '../services/avatars/browser-export.js';
 import { replaceNativeBody } from '../services/avatars/service.js';
 import { checkAvatarContent } from '../services/avatars/service.js';
+import { UnityPendingSchema, pendingUnity, queueUnity, removePendingUnity } from '../services/avatars/unity-pending.js';
 
 const MOTION_TYPES: Record<string, string> = { fbx: 'fbx', bvh: 'bvh', vmd: 'vmd', glb: 'glb', gltf: 'glb', vrma: 'glb', blend: 'blend' };
 
 export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
+  app.get('/api/unity/pending', async req => pendingUnity(ctx, owner(req)));
+  app.post('/api/unity/pending', async req => queueUnity(ctx, owner(req), parse(UnityPendingSchema, req.body)));
+  app.delete('/api/unity/pending/:id', async req => removePendingUnity(ctx, owner(req), (req.params as { id: string }).id));
+  app.get('/api/creator-presets', async req => creatorPresets(ctx, owner(req)));
+  app.post('/api/creator-presets', async req => saveCreatorPreset(ctx, owner(req), parse(CreatorPresetSchema, req.body)));
+  app.delete('/api/creator-presets/:id', async req => deleteCreatorPreset(ctx, owner(req), (req.params as { id: string }).id));
+  app.post('/api/avatars/creator-recipe', async req => creatorRecipe(ctx, owner(req), parse(z.object({ characterId: z.string().max(64).optional(), name: z.string().max(80).optional(), text: z.string().max(20000).optional(), reroll: z.boolean().optional() }), req.body ?? {})));
+  app.post('/api/unity/uploads', async req => beginUpload(ctx, owner(req), parse(z.object({ name: z.string().min(1).max(1024), size: z.number().int().positive().safe(), fingerprint: z.string().regex(/^[a-f0-9]{64}$/) }), req.body)));
+  app.get('/api/unity/uploads/:id', async req => getUpload(ctx, owner(req), (req.params as { id: string }).id));
+  app.put('/api/unity/uploads/:id', { bodyLimit: UPLOAD_CHUNK }, async req => {
+    if (!Buffer.isBuffer(req.body)) throw new HttpError(400, 'Send binary upload data');
+    const q = parse(z.object({ offset: z.coerce.number().int().min(0).safe() }), req.query);
+    return appendUpload(ctx, owner(req), (req.params as { id: string }).id, q.offset, req.body);
+  });
+  app.post('/api/unity/uploads/:id/process', async req => startLibraryJob(ctx, owner(req), (req.params as { id: string }).id, parse(z.object({ mode: z.enum(['library', 'avatar']).default('library') }), req.body ?? {}).mode));
+  app.post('/api/unity/uploads/:id/cancel', async req => { cancelLibraryJob(owner(req), (req.params as { id: string }).id); return { ok: true }; });
+  app.delete('/api/unity/uploads/:id', async req => { removeUpload(ctx, owner(req), (req.params as { id: string }).id); return { ok: true }; });
+  app.get('/api/unity/library', async req => libraryManifest(ctx, owner(req)));
+  app.get('/api/unity/library/:guid', async (req, reply) => {
+    const who = owner(req), blob = libraryBlob(ctx, who, (req.params as { guid: string }).guid);
+    return reply.type('application/octet-stream').header('content-length', blob.size).send(Readable.from(readBlob(ctx, who, blob)));
+  });
+
   app.get('/api/makehuman', async req => makeHumanStatus(ctx, owner(req)));
   app.get('/api/anatomy-pack', async req => anatomyPackStatus(ctx, owner(req)));
   app.post('/api/anatomy-pack', { bodyLimit: 300 * 1024 * 1024 }, async req => {
@@ -178,7 +208,11 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     return garmentLibrary(ctx, owner(req), q.family);
   });
 
-  app.get('/api/avatars/:id', async (req) => avatarDetail(getAvatarRow(ctx, owner(req), (req.params as { id: string }).id)));
+  app.get('/api/avatars/:id', async (req) => {
+    const who = owner(req), id = (req.params as { id: string }).id;
+    const detail = avatarDetail(getAvatarRow(ctx, who, id));
+    return { ...detail, adultAllowed: !isMinorAvatar(ctx, who, detail.config, id) };
+  });
   app.post('/api/avatars/:id/preset-export', async (req, reply) => {
     const who = owner(req), id = (req.params as { id: string }).id;
     getAvatarRow(ctx, who, id);

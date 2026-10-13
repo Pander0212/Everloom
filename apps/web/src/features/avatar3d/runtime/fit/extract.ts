@@ -203,6 +203,7 @@ export function buildGarmentScene(model: LoadedModel, surface: BodySurface, piec
   pieces.forEach((piece, i) => {
     const r = result.meshes[i]!;
     const g = piece.geometry.clone();
+    g.deleteAttribute('fitJoints'); g.deleteAttribute('fitWeights');
     g.deleteAttribute('skinIndex'); g.deleteAttribute('skinWeight');
     g.morphAttributes = {};
     g.setAttribute('position', new THREE.BufferAttribute(r.positions, 3));

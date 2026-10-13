@@ -209,7 +209,7 @@ async function processAvatar(ctx: AppContext, owner: string, id: string, opts: P
     const src = readMedia(ctx, owner, row.source_media);
     const ext = path.extname(src.row.filename).slice(1) as SourceType;
     let glb = src.bytes;
-    let conversion: Record<string, unknown> | null = null;
+    let conversion: Record<string, unknown> | null = safeJson<{ conversion?: Record<string, unknown> }>(row.info, {}).conversion ?? null;
     let fileVersion: string | null = null;
     if (ext === 'blend' || ext === 'zip') {
       progress('Optional Blender conversion');
@@ -295,7 +295,7 @@ async function processAvatar(ctx: AppContext, owner: string, id: string, opts: P
 // Public operations
 // ---------------------------------------------------------------------------------------------
 
-export function createAvatar(ctx: AppContext, owner: string, bytes: Buffer, opts: { name?: string; filename?: string; kind?: AvatarKind; config?: Partial<AvatarConfig>; id?: string }) {
+export function createAvatar(ctx: AppContext, owner: string, bytes: Buffer, opts: { name?: string; filename?: string; kind?: AvatarKind; config?: Partial<AvatarConfig>; id?: string; conversion?: Record<string, unknown> }) {
   if (bytes.length < 64) throw new HttpError(400, 'The file is empty');
   const type = sniffModel(bytes, opts.filename);
   if (!type) throw new HttpError(415, 'Unsupported 3D file. Use GLB, VRM (0.x or 1.0), .blend (or a zip with a .blend and its textures), FBX, PMX/PMD, OBJ or DAE.');
@@ -317,7 +317,7 @@ export function createAvatar(ctx: AppContext, owner: string, bytes: Buffer, opts
   const name = (opts.name || (opts.filename ?? '').replace(/\.[^.]+$/, '') || 'New avatar').trim().slice(0, 80);
   ctx.db
     .prepare('INSERT INTO avatars (id, owner_id, name, kind, status, format, source_media, config, info, created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)')
-    .run(id, owner, name, opts.kind ?? 'imported', 'processing', type === 'glb' ? 'glb' : type, src.id, JSON.stringify(config), '{}', now, now);
+    .run(id, owner, name, opts.kind ?? 'imported', 'processing', type === 'glb' ? 'glb' : type, src.id, JSON.stringify(config), JSON.stringify(opts.conversion ? { conversion: opts.conversion } : {}), now, now);
   enqueue(ctx, owner, id);
   return avatarSummary(getAvatarRow(ctx, owner, id));
 }
@@ -342,6 +342,7 @@ function assertConfigMedia(ctx: AppContext, owner: string, config: AvatarConfig,
     if (safeJson<{ adult?: boolean }>(media.meta, {}).adult === true && isMinorAvatar(ctx, owner, config, avatarId)) throw new HttpError(403, REFUSED);
   }
   for (const outfit of config.outfits) for (const media of [outfit.model, outfit.modelLow]) if (media && !ctx.db.prepare("SELECT 1 FROM media WHERE id = ? AND owner_id = ? AND kind LIKE 'model%'").get(media, owner)) throw new HttpError(400, 'An outfit points at a missing model file');
+  for (const garment of config.garments) for (const variant of garment.variants) for (const media of [variant.model, variant.modelLow]) if (media && !media.startsWith('/avatar/packs/') && !ctx.db.prepare("SELECT 1 FROM media WHERE id = ? AND owner_id = ? AND kind LIKE 'model%'").get(media, owner)) throw new HttpError(400, 'A garment variant points at a missing model file');
 }
 
 export async function replaceNativeBody(ctx: AppContext, owner: string, id: string, bytes: Buffer) {
@@ -402,7 +403,8 @@ export function deleteAvatar(ctx: AppContext, owner: string, id: string) {
     delete game.avatar3d;
     ctx.db.prepare('UPDATE characters SET game = ? WHERE id = ?').run(JSON.stringify(game), c.id);
   }
-  return { ok: true, unlinked: chars.length };
+  const personas = ctx.db.prepare("UPDATE personas SET data = json_remove(data, '$.avatar3d') WHERE owner_id = ? AND json_extract(data, '$.avatar3d') = ?").run(owner, id);
+  return { ok: true, unlinked: chars.length + personas.changes };
 }
 
 /** Adds a whole-model outfit (level 1): a model file with the same skeleton. */

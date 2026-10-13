@@ -115,6 +115,7 @@ export interface PersonaDTO {
     expressions?: Record<string, string>;
     engine?: { resourceProfile?: 'hybrid' | 'ap' | 'mp'; className?: string; startingLevel?: number };
     lockedToCharacters?: string[];
+    avatar3d?: string | null;
   };
   createdAt: number;
   updatedAt: number;

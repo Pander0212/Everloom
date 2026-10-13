@@ -4,7 +4,7 @@
  * the weather and the kind of place. A character whose model can't load is reported so the stage
  * shows its picture instead.
  */
-import { AvatarConfigSchema, resolveWardrobe, wearGarments, type AvatarRecipe, type Emotion, type GarmentRecipe } from '@everloom/engine';
+import { AvatarConfigSchema, resolveWardrobe, wearGarments, type AvatarRecipe, type CharacterSpec, type Emotion, type GarmentRecipe } from '@everloom/engine';
 import { useQueries, useQuery } from '@tanstack/react-query';
 import { useEffect, useReducer, useRef } from 'react';
 import { avatarKeys, type AvatarDetail } from '@/features/avatars/api';
@@ -32,6 +32,7 @@ export interface CastMember {
   /** A saved avatar; or none, with a recipe made from the character's description (code-made). */
   avatarId: string | null;
   recipe?: AvatarRecipe | null;
+  creator?: CharacterSpec;
   slot?: Slot;
   emotion: string;
   speaking: boolean;
@@ -157,7 +158,7 @@ export default function StageLayer({ cast, speakerId, scene, onFail, paired = nu
   const configOfRef = useRef(configOf);
   configOfRef.current = configOf;
   dressedRef.current = dressed;
-  const castKey = cast.map((c) => `${c.id}:${c.avatarId ?? JSON.stringify(c.recipe)}:${detailOf(c)?.updatedAt ?? ''}:${dressed.get(c.id)?.outfit?.model ?? JSON.stringify(dressed.get(c.id)?.outfit?.makehumanProxies ?? [])}:${(c.wearing ?? []).map((i) => (garmentOf.has(i.name) ? i.name : '')).join(',')}`).join('|');
+  const castKey = cast.map((c) => `${c.id}:${c.avatarId ?? JSON.stringify(c.creator ?? c.recipe)}:${detailOf(c)?.updatedAt ?? ''}:${dressed.get(c.id)?.outfit?.model ?? JSON.stringify(dressed.get(c.id)?.outfit?.makehumanProxies ?? [])}:${(c.wearing ?? []).map((i) => (garmentOf.has(i.name) ? i.name : '')).join(',')}`).join('|');
   useEffect(() => {
     const s = stage.current;
     if (!s) return;
@@ -168,18 +169,18 @@ export default function StageLayer({ cast, speakerId, scene, onFail, paired = nu
       const d = detailOf(c);
       // Code-made: an avatar of kind "code", or a recipe from the description (no saved avatar).
       const recipe = recipeOf(c, d ? (d.kind === 'code' ? d.config.recipe : null) : c.recipe);
-      if (!d && !recipe) continue;
+      if (!d && !recipe && !c.creator) continue;
       const cfg = d?.config ?? AvatarConfigSchema.parse({ look: 'toon' });
       const w = dressed.get(c.id);
       const outfitModel = !recipe && w?.outfit?.model ? `/media/${(low && w.outfit.modelLow) || w.outfit.model}` : null;
-      const stamp = recipe ? `code:${JSON.stringify(recipe)}:${low}` : `${d!.id}:${d!.updatedAt}:${low}:${outfitModel ?? JSON.stringify(w?.outfit?.makehumanProxies ?? [])}`;
+      const stamp = c.creator ? `creator:${JSON.stringify(c.creator)}` : recipe ? `code:${JSON.stringify(recipe)}:${low}` : `${d!.id}:${d!.updatedAt}:${low}:${outfitModel ?? JSON.stringify(w?.outfit?.makehumanProxies ?? [])}`;
       if (loaded.current.get(c.id) === stamp) continue;
-      if (!recipe && (d!.status !== 'ready' || !d!.model)) {
+      if (!recipe && !c.creator && (d!.status !== 'ready' || !d!.model)) {
         if (d!.status === 'failed') failRef.current(c.id, 'failed');
         continue;
       }
       loaded.current.set(c.id, stamp);
-      const load: Promise<LoadedModel> = recipe ? loadCodeModel(recipe, { low }) : loadModel(outfitModel ?? ((low && d!.low) || d!.model!), s.renderer, { bodyShape: cfg.bodyShape, content: cfg.content, makehuman: outfitModel || !cfg.makehuman ? undefined : { ...cfg.makehuman, proxies: w?.outfit?.makehumanProxies ?? cfg.makehuman.proxies }, fallbackSource: outfitModel ? null : d!.info.conversion ? d!.model : d!.source, boneMap: cfg.boneMap, expressionMap: cfg.expressionMap, scale: cfg.scale, facing: cfg.facing, floor: cfg.floor, tints: cfg.tints });
+      const load: Promise<LoadedModel> = c.creator ? import('./creator/load').then(({ loadCreatorModel }) => loadCreatorModel(c.creator!, s.renderer)) : recipe ? loadCodeModel(recipe, { low }) : loadModel(outfitModel ?? ((low && d!.low) || d!.model!), s.renderer, { bodyShape: cfg.bodyShape, content: cfg.content, makehuman: outfitModel || !cfg.makehuman ? undefined : { ...cfg.makehuman, proxies: w?.outfit?.makehumanProxies ?? cfg.makehuman.proxies }, fallbackSource: outfitModel ? null : d!.info.conversion ? d!.model : d!.source, boneMap: cfg.boneMap, expressionMap: cfg.expressionMap, scale: cfg.scale, facing: cfg.facing, floor: cfg.floor, tints: cfg.tints });
       load
         .then(async (model) => {
           try { await configureMaterials(model.scene, { ...cfg.materialOverrides, ...dressedRef.current.get(c.id)?.outfit?.materialOverrides }); }

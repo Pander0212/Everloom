@@ -16,6 +16,7 @@ import { ev, F, fit, garment, open, preview, record, saveAvatar, settle, SWIFTSH
 
 test.use(SWIFTSHADER);
 test.beforeEach(({}, info) => test.skip(!/^(desktop-1280|phone-390)-light$/.test(info.project.name), 'heavy 3D checks run on two projects'));
+test.beforeEach(async ({ page }) => { await api(page, 'PATCH', '/api/settings', { features: { preset: 'full' } }); });
 
 test.describe('custom base models', () => {
   test.describe.configure({ timeout: 900_000 });

@@ -12,7 +12,7 @@ export const F = path.resolve('tests/fixtures/avatars');
 export const EVIDENCE = process.env.EVIDENCE ? path.resolve('docs/3d-base-evidence') : null;
 export const phone = () => test.info().project.name.startsWith('phone');
 /** Software WebGL (SwiftShader) for the heavy 3D specs. */
-export const SWIFTSHADER = { launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } };
+export const SWIFTSHADER = { launchOptions: { ...(process.env.E2E_CHROMIUM ? { executablePath: process.env.E2E_CHROMIUM } : {}), args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } };
 
 export async function ev(page: Page, name: string, target?: Locator) {
   const file = EVIDENCE ? path.join(EVIDENCE, `${name}${phone() ? '-phone' : ''}.png`) : test.info().outputPath(`${name}.png`);

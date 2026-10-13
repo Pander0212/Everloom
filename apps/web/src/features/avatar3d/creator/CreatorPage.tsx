@@ -1,3 +1,4 @@
+import { CreatorPresets } from './Presets';
 /**
  * Characters › 3D avatars › Make › Character creator: build an anime character on Everloom's own
  * bases (body and face sliders, eyes, skin and makeup, hair from the hair system, clothing
@@ -7,18 +8,19 @@
 import { CHARACTER_BASES, CHARACTER_SLIDERS, CharacterSpecSchema, CLOTH_PATTERNS, CLOTHING_TEMPLATES, HAIR_PARTS, HAIR_PRESETS, type CharacterSpec, type ClothingItem } from '@everloom/engine';
 import { ArrowLeft, Download, Plus, Save, Trash2, Upload } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { useNavigate, useParams } from 'react-router';
+import { useNavigate, useParams, useSearchParams } from 'react-router';
 import * as THREE from 'three';
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js';
 import { Page } from '@/app/Shell';
-import { api, get, upload } from '@/lib/api';
+import { api, get, upload, post, patch } from '@/lib/api';
 import { toast, toastError } from '@/lib/store';
-import { Button, Field, FileButton, IconButton, Input, Segmented, Select, Slider, Spinner, Switch, TabPanel, Tabs, useDesktop } from '@/ui';
+import { Button, Field, FileButton, IconButton, Input, Segmented, Select, Slider, Spinner, Switch, TabPanel, Tabs, Textarea, useDesktop } from '@/ui';
 import type { AvatarDetail } from '@/features/avatars/api';
 import { applyLook } from '../runtime/materials';
 import { webTexture } from '../runtime/textures';
 import { createCharacter, loadAnatomy, type CharacterModel } from './build';
 import { uvTemplate } from './clothes';
+import { CreatorCatalog } from './Catalog';
 
 const TABS = [
   { value: 'base', label: 'Base' },
@@ -109,6 +111,10 @@ function Viewer({ model, toon, framing, version }: { model: CharacterModel | nul
 export default function CreatorPage() {
   const { id } = useParams<{ id?: string }>();
   const navigate = useNavigate();
+  const [search] = useSearchParams();
+  const sourceCharacter = search.get('character');
+  const [description, setDescription] = useState('');
+  const [recipeMinor, setRecipeMinor] = useState(false);
   const desktop = useDesktop();
   const [spec, setSpec] = useState<CharacterSpec>(() => CharacterSpecSchema.parse({}));
   const [name, setName] = useState('New character');
@@ -119,19 +125,32 @@ export default function CreatorPage() {
   const [error, setError] = useState<string | null>(null);
   const [existing, setExisting] = useState<AvatarDetail | null>(null);
   const [anatomyPack, setAnatomyPack] = useState<boolean | null>(null);
+  const [anatomyLayers, setAnatomyLayers] = useState<Record<string, string[]>>({});
+  const [anatomyModels, setAnatomyModels] = useState<Record<string, string[]>>({});
   const textures = useRef(new Map<string, THREE.Texture>());
   const [version, bump] = useState(0);
+
+  const generate = async (reroll = false) => {
+    setBusy(true); setError(null);
+    try {
+      const result = await post<{ name: string; spec: CharacterSpec; minor: boolean }>('/api/avatars/creator-recipe', { ...(sourceCharacter ? { characterId: sourceCharacter } : { name, text: description }), reroll });
+      setSpec(CharacterSpecSchema.parse(result.spec)); setName(result.name); setRecipeMinor(result.minor);
+    } catch (e) { setError((e as Error).message); }
+    finally { setBusy(false); }
+  };
+  useEffect(() => { if (sourceCharacter && !id) void generate(); }, [sourceCharacter, id]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Editing a saved character: its recipe and name.
   useEffect(() => {
     if (!id) return;
     void get<AvatarDetail>(`/api/avatars/${id}`).then((a) => {
       setExisting(a);
+      setRecipeMinor(a.adultAllowed === false);
       setName(a.name);
       if (a.config.character) setSpec(CharacterSpecSchema.parse(a.config.character));
     }).catch(toastError);
   }, [id]);
-  useEffect(() => { void get<{ installed: boolean }>('/api/anatomy-pack').then((r) => setAnatomyPack(r.installed)).catch(() => setAnatomyPack(false)); }, []);
+  useEffect(() => { void get<{ installed: boolean; bases?: Record<string, { models?: Record<string, string>; layers?: Record<string, string> }> }>('/api/anatomy-pack').then((r) => { setAnatomyPack(r.installed); setAnatomyLayers(Object.fromEntries(Object.entries(r.bases ?? {}).map(([base, b]) => [base, Object.keys(b.layers ?? {})]))); setAnatomyModels(Object.fromEntries(Object.entries(r.bases ?? {}).map(([base, b]) => [base, Object.keys(b.models ?? {})]))); }).catch(() => setAnatomyPack(false)); }, []);
 
   // A new model when the base changes (or the anatomy pack's shape keys are first wanted);
   // otherwise the live one is updated in place.
@@ -162,11 +181,12 @@ export default function CreatorPage() {
     setBusy(true);
     setError(null);
     try {
-      const config = { ...(existing?.config ?? {}), character: spec, look: spec.skin.toon ? 'toon' as const : 'pbr' as const, content: { ...(existing?.config.content ?? { adult: false, confirmedAdult: false, description: '' }), age: spec.body.age } };
+      const config = { ...(existing?.config ?? {}), character: spec, look: spec.skin.toon ? 'toon' as const : 'pbr' as const, content: { ...(existing?.config.content ?? { adult: false, confirmedAdult: false, description: '' }), age: recipeMinor ? 17 : spec.body.age } };
       const glb = await model.exportGlb(config);
       const a = existing
         ? await api<AvatarDetail>(`/api/avatars/${existing.id}/native-model`, { method: 'PUT', raw: glb, signal: AbortSignal.timeout(180000) })
         : await api<AvatarDetail>('/api/avatars/native', { raw: glb, query: { name: name.trim() || 'New character' }, signal: AbortSignal.timeout(180000) });
+      if (sourceCharacter) await patch(`/api/characters/${sourceCharacter}`, { game: { avatar3d: a.id, display: '3d' } });
       toast({ title: existing ? 'Character updated' : 'Character saved', lines: ['Open it to set its motions, check it on the stage, or export it as VRM.'] });
       navigate(`/characters/avatars/${a.id}`);
     } catch (e) {
@@ -214,9 +234,15 @@ export default function CreatorPage() {
     >
       {error ? <p role="alert" className="mb-3 text-sm text-danger">{error}</p> : null}
       <div className={desktop ? 'grid grid-cols-[minmax(0,1.1fr)_minmax(340px,1fr)] gap-6' : 'flex flex-col gap-3'}>
-        <div className={desktop ? 'sticky top-[68px] self-start' : 'sticky top-[60px] z-10 -mx-4 bg-bg px-4 pb-1'}>{preview}</div>
+        <div className={desktop ? 'sticky top-[68px] self-start' : '-mx-4 bg-bg px-4 pb-1'}>{preview}</div>
         <Tabs tabs={TABS} value={tab} onChange={setTab}>
           <div className="flex flex-col gap-4 pt-4">
+      <CreatorPresets spec={spec} apply={value => setSpec(recipeMinor ? { ...value, anatomy: CharacterSpecSchema.parse({}).anatomy, clothes: spec.clothes } : value)} />
+      {!existing ? <div className="mb-4 grid gap-2">
+        {!sourceCharacter ? <Field label="Create from a description"><Textarea value={description} onChange={e => setDescription(e.target.value)} maxLength={20000} placeholder="Appearance, hairstyle and clothing…" /></Field> : null}
+        <Button disabled={busy || (!sourceCharacter && !description.trim())} onClick={() => void generate(true)}>{sourceCharacter ? 'Re-roll appearance' : 'Preview appearance'}</Button>
+        <p className="text-xs text-fg-2">Review and adjust the preview, then save to accept it.</p>
+      </div> : null}
             <TabPanel value="base">
               <div className="flex flex-col gap-4">
                 <Field label="Name"><Input aria-label="Character name" value={name} maxLength={80} onChange={(e) => setName(e.target.value)} /></Field>
@@ -254,6 +280,7 @@ export default function CreatorPage() {
             </TabPanel>
             <TabPanel value="hair">
               <div className="flex flex-col gap-3">
+                <CreatorCatalog kind="hair" choose={id => { const p = HAIR_PRESETS.find(x => x.id === id); if (p) set(s => ({ ...s, hair: { ...s.hair, ...p.hair } })); }} />
                 <Field label="Hairstyle"><Select aria-label="Hairstyle" value={HAIR_PRESETS.find((p) => p.hair.front === spec.hair.front && p.hair.back === spec.hair.back && p.hair.side === spec.hair.side)?.id ?? ''} onChange={(e) => { const p = HAIR_PRESETS.find((x) => x.id === e.target.value); if (p) set((s) => ({ ...s, hair: { ...s.hair, ...p.hair } })); }}>
                   <option value="">Mixed</option>
                   {HAIR_PRESETS.map((p) => <option key={p.id} value={p.id}>{p.label}</option>)}
@@ -287,6 +314,7 @@ export default function CreatorPage() {
             </TabPanel>
             <TabPanel value="clothes">
               <div className="flex flex-col gap-3">
+                <CreatorCatalog kind="clothes" disabled={spec.clothes.length >= 12} choose={id => set(s => { if (s.clothes.length < 12) s.clothes.push({ template: id as ClothingItem['template'], color: '#4a5a7a', accent: '#e8e4dc', pattern: 'plain', texture: null }); return s; })} />
                 <p className="text-sm text-fg-2">Templates are made from the body itself, so they follow every slider. Paint your own on the body's UV template and drop the picture on an item.</p>
                 <Button variant="secondary" icon={Download} onClick={saveUvTemplate} disabled={!model}>Save the UV template</Button>
                 {spec.clothes.map((c, i) => (
@@ -309,20 +337,30 @@ export default function CreatorPage() {
             </TabPanel>
             <TabPanel value="anatomy">
               <div className="flex flex-col gap-3" data-testid="creator-anatomy">
-                {anatomyPack ? (
+                {anatomyPack && !recipeMinor ? (
                   <>
                     <label className="flex items-center justify-between gap-3 text-sm">Anatomy<Switch label="Anatomy" checked={spec.anatomy.enabled} onChange={(v) => set((s) => { s.anatomy.enabled = v; return s; })} /></label>
                     {spec.anatomy.enabled ? (
                       <>
+                        {anatomyLayers[spec.base]?.includes('areolaDistance') ? <>
                         <Range label="Areola size" value={spec.anatomy.areolaSize} min={0} max={1} onChange={(v) => set((s) => { s.anatomy.areolaSize = v; return s; })} />
                         <Colour label="Areola colour" value={spec.anatomy.areolaColor} onChange={(v) => set((s) => { s.anatomy.areolaColor = v; return s; })} />
-                        <Range label="Nipple size" value={spec.anatomy.nippleSize} min={0} max={1} onChange={(v) => set((s) => { s.anatomy.nippleSize = v; return s; })} />
-                        <Range label="Puffiness" value={spec.anatomy.puffiness} min={0} max={1} onChange={(v) => set((s) => { s.anatomy.puffiness = v; return s; })} />
+                        </> : null}
+                        {model?.body.morphTargetDictionary?.Nipples !== undefined ? <Range label="Nipple size" value={spec.anatomy.nippleSize} min={0} max={1} onChange={(v) => set((s) => { s.anatomy.nippleSize = v; return s; })} /> : null}
+                        {model?.body.morphTargetDictionary?.Puffiness !== undefined ? <Range label="Puffiness" value={spec.anatomy.puffiness} min={0} max={1} onChange={(v) => set((s) => { s.anatomy.puffiness = v; return s; })} /> : null}
+                        {(anatomyModels[spec.base] ?? []).length ? <>
+                          <Field label="Anatomical model"><Select aria-label="Anatomical model" value={spec.anatomy.genitalPreset ?? ''} onChange={e => set(s => { s.anatomy.genitalPreset = e.target.value || null; return s; })}><option value="">None</option>{(anatomyModels[spec.base] ?? []).filter(k => k !== 'internal').map(k => <option key={k} value={k}>{k === 'male' ? 'Male' : 'Female'}</option>)}</Select></Field>
+                          {(spec.anatomy.genitalPreset === 'male' ? [['length', 'Length'], ['girth', 'Girth'], ['testicleSize', 'Testicle size'], ['erection', 'Erection'], ['circumcised', 'Circumcised']] : spec.anatomy.genitalPreset === 'female' ? [['vulvaSize', 'Vulva size'], ['labiaFullness', 'Labia fullness']] : []).map(([key, label]) => <Range key={key} label={label!} min={0} max={1} value={spec.anatomy.genitalShape[key!] ?? 0} onChange={v => set(s => { s.anatomy.genitalShape[key!] = v; return s; })} />)}
+                          {(anatomyModels[spec.base] ?? []).includes('internal') ? <>
+                            <label className="flex items-center justify-between gap-3 text-sm">Internal anatomy<Switch label="Internal anatomy" checked={(spec.anatomy.genitalShape.internal ?? 0) > 0} onChange={v => set(s => { s.anatomy.genitalShape.internal = v ? 1 : 0; return s; })} /></label>
+                            <label className="flex items-center justify-between gap-3 text-sm">Cutaway view<Switch label="Cutaway view" checked={(spec.anatomy.genitalShape.cutaway ?? 0) > 0} onChange={v => set(s => { s.anatomy.genitalShape.cutaway = v ? 1 : 0; return s; })} /></label>
+                          </> : null}
+                        </> : null}
                       </>
                     ) : null}
                   </>
                 ) : (
-                  <p className="text-sm text-fg-2">Anatomy editing comes from the anatomy pack, installed like any other pack (Settings › 3D characters › Anatomy pack). It isn't part of Everloom's download. Once installed it works here directly.</p>
+                  recipeMinor ? <p className="text-sm text-fg-2">Anatomy editing is unavailable for characters under 18.</p> : <p className="text-sm text-fg-2">Anatomy editing comes from the anatomy pack, installed like any other pack (Settings › 3D characters › Anatomy pack). It isn't part of Everloom's download. Once installed it works here directly.</p>
                 )}
               </div>
             </TabPanel>

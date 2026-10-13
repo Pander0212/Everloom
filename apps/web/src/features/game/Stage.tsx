@@ -1,3 +1,4 @@
+import { useNpcLooks } from '@/features/avatar3d/creator/npc-looks';
 import type { CampaignDTO, CharacterDTO, ChatDTO, MessageDTO, Op, StageAnim, StageLayer } from '@everloom/engine';
 import { useFeatureOn } from '@/lib/features';
 import { stripInlineTags } from '@everloom/engine';
@@ -10,7 +11,7 @@ import { cx } from '@/lib/format';
 import { renderStory } from '@/lib/render';
 import { t } from '@/lib/motion';
 import { qk, useGroups, usePersonas, useSettings } from '@/lib/queries';
-import { Avatar, IconButton, Popover, Sheet, useDesktop } from '@/ui';
+import { Avatar, Button, IconButton, Popover, Sheet, useDesktop } from '@/ui';
 import type { MessageActions } from '@/features/story/Message';
 import { Atmosphere } from './Atmosphere';
 import { useGame } from './context';
@@ -147,6 +148,8 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const [failed3d, setFailed3d] = useState<Record<string, string>>({});
   const codeNpcs = usePrefs3D((p) => p.codeNpcs);
   const experimentalProcedural = usePrefs3D((p) => p.experimentalProcedural);
+  const npcLooks = useNpcLooks(campaign?.state, avatarsOn && !spritesOnly && hasWebGL2());
+  const persona3d = avatarsOn && !spritesOnly && hasWebGL2() && persona?.data.avatar3d && !failed3d[persona.id] ? persona : null;
   /**
    * 3D when the character has an avatar or is set to 3D; characters with no picture at all (most
    * NPCs) get a code-made figure from their description.
@@ -203,13 +206,14 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
 
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden bg-surface-2">
+      {npcLooks.pending.length ? <div className="absolute right-3 top-3 z-20 flex flex-col gap-2">{npcLooks.pending.map(n => <Button key={n.id} size="sm" onClick={() => npcLooks.accept(n.id)}>Create 3D look for {n.name}</Button>)}</div> : null}
       <motion.div className="absolute inset-0" animate={(sceneAnim ?? undefined) as any}>
         {/* Scene */}
         <div className="absolute inset-0">
           {bg ? <img src={bg} alt="" className="h-full w-full object-cover" /> : <div className="h-full w-full" style={{ background: 'radial-gradient(120% 90% at 50% 20%, var(--surface-3), var(--bg))' }} />}
           {weatherOn ? <Atmosphere state={campaign?.state ?? null} /> : null}
         </div>
-        {chars.some(uses3d) ? (
+        {(persona3d || npcLooks.cast.length > 0 || chars.some(uses3d)) ? (
           <Suspense fallback={null}>
             <StageLayer3D
               className="pointer-events-none absolute inset-0"
@@ -224,7 +228,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
                 const who = p.who.map((n) => chars.find((c) => normalizeName(c.name) === normalizeName(n) && uses3d(c))?.id);
                 return who.every(Boolean) ? { clip: p.clip, cue: p.cue, who: who as string[] } : null;
               })()}
-              cast={chars.filter(uses3d).flatMap((c) => {
+              cast={[...npcLooks.cast, ...(persona3d ? [{ id: persona3d.id, avatarId: persona3d.data.avatar3d!, emotion: 'neutral', speaking: m?.role === 'user', pose: campaign?.state?.stage?.avatars?.[normalizeName(persona3d.name)]?.pose, outfit: campaign?.state?.stage?.avatars?.[normalizeName(persona3d.name)]?.outfit, equipped: Object.values(campaign?.state?.inventory ?? {}).filter(i => !i.holder && i.equipped).map(i => i.name) }] : []), ...chars.filter(uses3d).flatMap((c) => {
                 const layer = layerFor(c);
                 if (directed && (!layer || layer.position === 'off')) return [];
                 const active = speaker?.id === c.id || chars.length === 1;
@@ -234,7 +238,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
                 const all = avs?.everyone;
                 const av = own ? { ...own, pose: own.pose ?? all?.pose ?? null, emote: [own.emote, all?.emote].filter(Boolean).sort((a, b) => cueNo(b!.cue) - cueNo(a!.cue))[0] ?? null } : all;
                 return [{ id: c.id, avatarId: c.game?.avatar3d ?? null, recipe: c.game?.avatar3d ? null : recipeFor(c), slot: layer?.position, emotion: layer?.expression ?? (active ? emotion : 'neutral'), speaking: speakingId === c.id, emote: av?.emote ?? null, auto: autoEmote(c), pose: av?.pose ?? (battle?.status === 'active' ? 'ready' : null), outfit: own?.outfit ?? all?.outfit ?? null, equipped: equippedNames(c), wearing: equippedItems(c).map((i) => ({ name: i.name, desc: i.desc, category: i.category, slot: i.slot, tags: i.tags })) }];
-              })}
+              })]}
             />
           </Suspense>
         ) : null}

@@ -262,3 +262,11 @@ Licenses checked by reading each project's LICENSE file; details in
 - Test textures (`tests/fixtures/textures/quarters.*`) and the format fixtures
   (`tests/fixtures/models/formats/`, `tests/fixtures/avatars/motions/`) are made by Everloom's
   tools from its own CC0 test models.
+
+### Creator catalog and optional parametric geometry
+
+Creator catalog thumbnails in `apps/web/public/avatar/creator-thumbnails` are rendered by `tools/avatars/render-creator-thumbnails.mjs` from the built-in CC0 bases and Everloom's procedural hair/clothing described above. No Tripo output or private sample appears in them. `tools/avatars/build-anatomy-pack.ts` generates original parametric geometry under CC0-1.0; those optional generated models remain outside this repository.
+
+### VRCFury serialized metadata research (2026-10-12)
+
+The importer recognizes SPS plug/socket type identities and serialized field names for metadata preservation. Research source: [VRCFury](https://github.com/VRCFury/VRCFury), commit `d048773de971881fb14c5f3b468e59ba2406a2dd`, `VRCFuryHapticPlug.cs`, `VRCFuryHapticSocket.cs`, and their `.meta` files. The [license](https://github.com/VRCFury/VRCFury/blob/d048773de971881fb14c5f3b468e59ba2406a2dd/LICENSE.md) provides separate personal, commercial and VRCA/VRCW terms; its commercial terms prohibit redistribution and derivative implementations of VRCFury, and the SPS shader's commercial runtime use is limited to VRChat packages. No VRCFury source, shader, patch or asset is bundled. Reading an owner's serialized data does not implement the SPS shader or its depth actions; Everloom reports that limitation.

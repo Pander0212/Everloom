@@ -1,7 +1,10 @@
 import { api, expect, test } from './fixtures';
 
-test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } });
+test.use({ launchOptions: { ...(process.env.E2E_CHROMIUM ? { executablePath: process.env.E2E_CHROMIUM } : {}), args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } });
 test.beforeEach(({}, info) => test.skip(!/^(desktop-1280|phone-390)-light$/.test(info.project.name), 'The creator runs on two projects'));
+test.beforeEach(async ({ page }) => {
+  await api(page, 'PATCH', '/api/settings', { features: { preset: 'full' } });
+});
 
 const shot = (page: import('@playwright/test').Page, name: string) => page.getByTestId('creator-preview').screenshot({ path: `docs/3d-import/evidence/creator-${name}-${test.info().project.name}.png` });
 const ready = (page: import('@playwright/test').Page) => expect(page.getByTestId('creator-preview')).toHaveAttribute('data-state', 'ready', { timeout: 60_000 });
@@ -21,7 +24,7 @@ test('the character creator: own base, sliders, hair, eyes, makeup, clothes; sav
   for (let i = 0; i < 20; i++) await page.keyboard.press('ArrowRight');
   // Hair from the hair system.
   await page.getByRole('tab', { name: 'Hair' }).click();
-  await page.getByLabel('Hairstyle').selectOption({ label: 'Twin tails' });
+  await page.getByLabel('Hairstyle', { exact: true }).selectOption({ label: 'Twin tails' });
   await page.getByLabel('Hair colour').fill('#d06090');
   // Eyes and makeup.
   await page.getByRole('tab', { name: 'Eyes' }).click();
@@ -98,7 +101,8 @@ test('anatomy: the pack installs like any pack and the Anatomy tab works with no
   await ready(page);
   await page.getByRole('tab', { name: 'Anatomy' }).click();
   // No confirmation, no setting: the switch is simply there.
-  await page.getByRole('switch', { name: 'Anatomy' }).click({ force: true });
+  await page.getByRole('switch', { name: 'Anatomy', exact: true }).click();
+  await expect(page.getByRole('switch', { name: 'Anatomy', exact: true })).toBeChecked();
   await expect(page.getByRole('slider').first()).toBeVisible();
   await ready(page);
   await expect(page.getByRole('dialog')).toHaveCount(0);
@@ -109,4 +113,68 @@ test('anatomy: the pack installs like any pack and the Anatomy tab works with no
   expect(saved.adult).toBe(true);
   await page.request.delete('/api/anatomy-pack', { headers: { 'x-csrf-token': (await (await page.request.get('/api/auth/status')).json()).csrf } });
   expect(errors).toEqual([]);
+});
+
+test('generated anatomy pack retains its internal model through creator save', async ({ page, errors }) => {
+  const file = process.env.EVERLOOM_ANATOMY_PACK;
+  test.skip(!file, 'Optional generated pack kept outside the repository');
+  test.setTimeout(180_000);
+  const { readFileSync } = await import('node:fs');
+  const { parseGlb } = await import('../../apps/server/src/services/avatars/glb.js');
+  await page.goto('/settings/3d');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByTestId('anatomy-pack-install').click();
+  await (await chooser).setFiles({ name: 'anatomy-pack.zip', mimeType: 'application/zip', buffer: readFileSync(file!) });
+  await expect(page.getByText('Everloom parametric anatomy')).toBeVisible();
+  await page.goto('/characters/creator');
+  await ready(page);
+  await page.getByRole('tab', { name: 'Anatomy', exact: true }).click();
+  await page.getByRole('switch', { name: 'Anatomy', exact: true }).check();
+  await ready(page);
+  await page.getByRole('switch', { name: 'Internal anatomy', exact: true }).check();
+  await page.getByRole('switch', { name: 'Cutaway view', exact: true }).check();
+  await expect(page.getByLabel('Anatomical model')).toHaveValue('');
+  await page.getByTestId('creator-save').click();
+  await expect(page).toHaveURL(/\/characters\/avatars\/av_/, { timeout: 120_000 });
+  const saved = await api(page, 'GET', `/api/avatars/${page.url().split('/').pop()}`);
+  expect(saved.config.character.anatomy.genitalShape).toMatchObject({ internal: 1, cutaway: 1 });
+  const glb = parseGlb(await (await page.request.get(saved.model)).body());
+  expect(glb.json.nodes?.some(n => n.name === 'Anatomy_internal')).toBe(true);
+  expect(glb.json.nodes?.some(n => n.name === 'Anatomy_male' || n.name === 'Anatomy_female')).toBe(false);
+  await api(page, 'DELETE', '/api/anatomy-pack');
+  expect(errors).toEqual([]);
+});
+
+test('creator catalogs search, filter, apply parts and retain favourites after reload', async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.goto('/characters/creator');
+  await ready(page);
+  await page.getByRole('tab', { name: 'Hair', exact: true }).click();
+  const hair = page.getByTestId('creator-catalog-hair');
+  await hair.locator('summary').click();
+  await hair.getByLabel('Search hairstyles').fill('bob');
+  await hair.getByLabel('Filter hairstyles by tag').selectOption('bob');
+  await expect(hair.getByRole('button', { name: 'Use Bob', exact: true })).toBeVisible();
+  await expect(hair.getByRole('button', { name: 'Use Twin tails', exact: true })).toHaveCount(0);
+  await hair.getByRole('button', { name: 'Favourite Bob', exact: true }).click();
+  await hair.getByRole('button', { name: 'Use Bob', exact: true }).click();
+  await expect(page.getByLabel('Hairstyle', { exact: true })).toHaveValue('bob');
+  await page.reload();
+  await ready(page);
+  await page.getByRole('tab', { name: 'Hair', exact: true }).click();
+  await hair.locator('summary').click();
+  await hair.getByRole('button', { name: 'Favourites only' }).click();
+  await expect(hair.getByRole('button', { name: 'Use Bob', exact: true })).toBeVisible();
+  await expect(hair.getByRole('button', { name: /^Use / })).toHaveCount(1);
+  await expect(hair.locator('img')).toHaveJSProperty('complete', true);
+  await expect(hair.locator('img')).not.toHaveJSProperty('naturalWidth', 0);
+  await hair.screenshot({ path: `docs/3d-unity-fix/evidence/catalog-hair-${test.info().project.name}.png` });
+  await page.getByRole('tab', { name: 'Clothes', exact: true }).click();
+  const clothes = page.getByTestId('creator-catalog-clothes');
+  await clothes.locator('summary').click();
+  await clothes.getByLabel('Search clothing').fill('dress');
+  await clothes.getByRole('button', { name: 'Add Dress', exact: true }).click();
+  await expect(page.getByTestId('creator-cloth').last().getByRole('combobox').first()).toHaveValue('dress');
+  await clothes.getByLabel('Search clothing').fill('does-not-exist');
+  await expect(clothes.getByText('No parts match these filters.')).toBeVisible();
 });

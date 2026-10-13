@@ -24,6 +24,8 @@ export type ComponentKind =
   | 'maBoneProxy'
   | 'maOther'
   | 'pipeline'
+  | 'spsPlug'
+  | 'spsSocket'
   | 'unknown';
 
 type MB = Extract<SceneComp, { type: 'MonoBehaviour' }>;
@@ -35,6 +37,9 @@ const has = (f: YamlMap, ...keys: string[]) => keys.every((k) => k in f);
  * fileID 11500000). From watari-basis' KnownScriptIdentities (MIT, see CREDITS.md).
  */
 const KNOWN: Record<string, ComponentKind> = {
+  // Serialized type identities only; no VRCFury implementation or shaders are included.
+  '2d4cd252f8c146639507ecd55bc2b48a:11500000': 'spsPlug',
+  '703106f8586c4f64b5aa39b6b4676684:11500000': 'spsSocket',
   '2a2c05204084d904aa4945ccff20d8e5:1661641543': 'physBone',
   '2a2c05204084d904aa4945ccff20d8e5:-1631200402': 'physBoneCollider',
   '67cc4cb7839cd3741b63733d5adf0442:542108242': 'avatarDescriptor',
@@ -56,6 +61,8 @@ export function identify(c: MB): ComponentKind {
   const known = c.script?.guid ? KNOWN[`${c.script.guid}:${c.script.fileID}`] : undefined;
   if (known) return known;
   const f = c.fields;
+  if (has(f, 'enableSps', 'spsAutorig', 'autoLength', 'autoRadius')) return 'spsPlug';
+  if (has(f, 'enableHandTouchZone2', 'addLight', 'depthActions2', 'enableAuto')) return 'spsSocket';
   if (has(f, 'VisemeBlendShapes') || has(f, 'ViewPosition', 'lipSync')) return 'avatarDescriptor';
   if (has(f, 'rootTransform', 'pull', 'spring') || has(f, 'rootTransform', 'integrationType')) return 'physBone';
   if (has(f, 'shapeType', 'radius', 'height') && ('rootTransform' in f || 'insideBounds' in f)) return 'physBoneCollider';
