@@ -70,16 +70,16 @@ def open_blend(path):
         o.hide_viewport = False
         # "Disable selection" would make select_set() do nothing, and the export takes the selection.
         o.hide_select = False
+    # What renders must also be selectable: visibility drivers (outfit toggles) and hidden
+    # collections would leave it out of the export.
+    for o in keep:
+        from_core.make_selectable(o)
+    layer.update()
     for o in layer.objects:
         try:
-            o.hide_set(False)
             o.select_set(o in keep)
         except RuntimeError:
             pass
-    for o in arms:
-        if o.name not in in_layer:
-            bpy.context.scene.collection.objects.link(o)
-            o.select_set(True)
     missing = sorted({i.name for i in bpy.data.images if i.users and i.source == "FILE" and not i.packed_file and i.filepath and not os.path.exists(bpy.path.abspath(i.filepath))})[:20]
     libs = sum(1 for l in bpy.data.libraries if not os.path.exists(bpy.path.abspath(l.filepath)))
     skipped = sum(1 for o in bpy.data.objects if o.type in RENDERABLE and o not in keep)
@@ -173,7 +173,14 @@ def op_convert(job):
     removed = clean() if not blend else 0
     out = inside(job, job["output"])
     validation = export_glb(out, animations=False, selection=blend, prepare=True)
-    return {"removed": removed, "validation": validation, **extra, **summary(), "sourceActions": actions}
+    info = {**summary(), "sourceActions": actions}
+    # A small test-pose picture for the import report; never a reason to fail the import.
+    if job.get("render", True):
+        try:
+            validation["render"] = core().render_check(out)
+        except Exception as e:  # noqa: BLE001
+            validation["renderError"] = str(e)[:200]
+    return {"removed": removed, "validation": validation, **extra, **info}
 
 
 def op_motion(job):

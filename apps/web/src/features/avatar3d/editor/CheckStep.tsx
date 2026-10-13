@@ -49,6 +49,8 @@ export function CheckStep({ avatar, handle }: { avatar: AvatarDetail; handle: Pr
   const problems = (info.warnings ?? []).filter((w) => w.level === 'problem');
   const heavy = (info.warnings ?? []).filter((w) => w.level === 'heavy');
   const notes = (info.warnings ?? []).filter((w) => w.level === 'info');
+  // The Blender export's test-pose render (only images it made itself: PNG data URLs).
+  const checkShots = (((info as { conversion?: { validation?: { render?: unknown } } }).conversion?.validation?.render ?? []) as unknown[]).filter((s): s is string => typeof s === 'string' && s.startsWith('data:image/png;base64,'));
   return (
     <div className="flex flex-col gap-5">
       <div>
@@ -108,6 +110,17 @@ export function CheckStep({ avatar, handle }: { avatar: AvatarDetail; handle: Pr
             </p>
           ))}
         </div>
+      ) : null}
+
+      {checkShots.length ? (
+        <figure className="flex flex-col gap-1" data-testid="blend-check-render">
+          <div className="flex gap-2">
+            {checkShots.map((src, i) => (
+              <img key={i} src={src} alt={i ? 'Test pose from the side' : 'Test pose from the front'} width={160} height={160} className="h-40 w-40 rounded-md border border-line object-contain" />
+            ))}
+          </div>
+          <figcaption className="text-xs text-fg-2">Blender's test pose of the converted model (every chain bent a little): tears or stretched parts would show here.</figcaption>
+        </figure>
       ) : null}
 
       <dl className="grid grid-cols-2 gap-x-4 gap-y-1 text-sm sm:grid-cols-3">

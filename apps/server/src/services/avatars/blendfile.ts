@@ -121,6 +121,17 @@ export function newerThan(file: string | null, blender: string | null): boolean 
   return !!file && !!blender && vnum(file) > vnum(blender);
 }
 
+/** The export core's report (export_model's return value), as far as the notes read it. */
+interface ExportReport {
+  skeleton?: { bones: number; reparented: number; clips: string[] };
+  check?: { ok: boolean; joints: number; missingBones: string[]; parentMismatches: string[]; worstBoneError: number; verticesChecked: number; unweightedVertices: number; maxInfluences: number; boundsError: number | null; objectsOff?: string[] };
+  rigidSkinned?: string[];
+  converted?: string[];
+  materialsSimplified?: string[];
+  modifiersNotApplied?: string[];
+  weights?: { filled: number; trimmed: number };
+}
+
 /** Plain-words notes about what Blender found in a .blend (for the import report). */
 export function blendNotes(result: Record<string, unknown>, fileVersion: string | null = null, via = 'Blender on this server'): Array<{ code: string; message: string; level: 'info' | 'problem' }> {
   const source = result.blend as { version?: unknown } | undefined;
@@ -129,11 +140,32 @@ export function blendNotes(result: Record<string, unknown>, fileVersion: string 
   const head: Array<{ code: string; message: string; level: 'info' | 'problem' }> = [];
   if (conv) head.push({ code: 'blend_converter', message: `Converted by Blender ${conv} (${via})${fileVersion ? `; the file was saved with Blender ${fileVersion}` : ''}: meshes, armature, weights, shape keys and materials.`, level: 'info' });
   if (newerThan(fileVersion, conv)) head.push({ code: 'blend_newer', message: `The file is from a newer Blender (${fileVersion}) than the converter (${conv}); newer features may be missing. Install Blender ${fileVersion} or newer for a faithful import.`, level: 'problem' });
-  const actions = Array.isArray(result.actions) ? (result.actions as string[]) : [];
-  if (actions.length) head.push({ code: 'blend_actions', message: `${actions.length} animation${actions.length === 1 ? '' : 's'} in the file (${actions.slice(0, 4).join(', ')}${actions.length > 4 ? '…' : ''}): import ${actions.length === 1 ? 'it' : 'them'} as motions in Settings › 3D characters › Motion clips with the same file.`, level: 'info' });
-  const b = result.blend as { missingTextures?: string[]; missingLibraries?: number; skipped?: number; subdivRemoved?: number; modifiersNotApplied?: number } | undefined;
-  if (!b) return head;
   const out: Array<{ code: string; message: string; level: 'info' | 'problem' }> = head;
+  // The shared export's own report (tools/blender-addon/everloom/export_core.py): what it changed
+  // and its read-back check of the GLB against Blender.
+  const v = result.validation as ExportReport | undefined;
+  const clips = v?.skeleton?.clips ?? [];
+  if (clips.length) out.push({ code: 'blend_clips', message: `${clips.length} animation${clips.length === 1 ? '' : 's'} from the file came with the model (${clips.slice(0, 4).join(', ')}${clips.length > 4 ? '…' : ''}): ${clips.length === 1 ? 'it plays' : 'they play'} as emotes ("From its file" in the emote picker).`, level: 'info' });
+  else {
+    const actions = Array.isArray(result.actions) ? (result.actions as string[]) : [];
+    if (actions.length && !v) out.push({ code: 'blend_actions', message: `${actions.length} animation${actions.length === 1 ? '' : 's'} in the file (${actions.slice(0, 4).join(', ')}${actions.length > 4 ? '…' : ''}): import ${actions.length === 1 ? 'it' : 'them'} as motions in Settings › 3D characters › Motion clips with the same file.`, level: 'info' });
+  }
+  if (v?.check) {
+    const c = v.check;
+    if (c.ok) out.push({ code: 'blend_check', message: `Checked against Blender: ${c.joints} bones in place (largest difference ${Math.round(c.worstBoneError * 1000 * 10) / 10} mm), parents as planned, every one of ${c.verticesChecked.toLocaleString('en')} skinned vertices weighted, at most ${c.maxInfluences} bones per vertex, same size.`, level: 'info' });
+    else {
+      const why = [c.missingBones.length ? `${c.missingBones.length} bones missing` : '', c.parentMismatches.length ? `${c.parentMismatches.length} bones under a different parent` : '', c.unweightedVertices ? `${c.unweightedVertices} vertices without weights` : '', c.maxInfluences > 4 ? `${c.maxInfluences} bones on one vertex` : '', c.boundsError !== null && c.boundsError >= 0.05 ? `size differs by ${Math.round(c.boundsError * 100)}%${c.objectsOff?.length ? ` (${c.objectsOff.join(', ')})` : ''}` : ''].filter(Boolean);
+      out.push({ code: 'blend_check', message: `The converted model differs from Blender's: ${why.join('; ')}. Check it on the stage; report the file if it looks wrong.`, level: 'problem' });
+    }
+  }
+  if (v?.skeleton?.reparented) out.push({ code: 'blend_skeleton', message: `The rig drives its deform bones through controls: ${v.skeleton.reparented} bone${v.skeleton.reparented === 1 ? ' was' : 's were'} given the parent ${v.skeleton.reparented === 1 ? 'it follows' : 'they follow'}, and only the ${v.skeleton.bones} deforming bones were kept.`, level: 'info' });
+  if (v?.rigidSkinned?.length) out.push({ code: 'blend_rigid', message: `Parts that follow a bone rigidly were bound to it: ${v.rigidSkinned.slice(0, 4).join(', ')}${v.rigidSkinned.length > 4 ? '…' : ''}.`, level: 'info' });
+  if (v?.converted?.length) out.push({ code: 'blend_converted', message: `Turned into meshes: ${v.converted.slice(0, 4).join('; ')}${v.converted.length > 4 ? '…' : ''}.`, level: 'info' });
+  if (v?.materialsSimplified?.length) out.push({ code: 'blend_materials', message: `${v.materialsSimplified.length} material${v.materialsSimplified.length === 1 ? ' uses' : 's use'} shader nodes glTF can't carry; ${v.materialsSimplified.length === 1 ? 'it shows' : 'they show'} ${v.materialsSimplified.length === 1 ? 'its' : 'their'} colour texture or colour instead (${v.materialsSimplified.slice(0, 3).join(', ')}${v.materialsSimplified.length > 3 ? '…' : ''}).`, level: 'info' });
+  if (v?.modifiersNotApplied?.length) out.push({ code: 'blend_modifiers', message: `Some modifiers couldn't be applied: ${v.modifiersNotApplied.slice(0, 3).join('; ')}. Apply them in Blender if the shape looks wrong.`, level: 'info' });
+  if (v?.weights?.filled) out.push({ code: 'blend_weights', message: `${v.weights.filled} vertices had no bone weights and took their neighbours'.`, level: 'info' });
+  const b = result.blend as { missingTextures?: string[]; missingLibraries?: number; skipped?: number; subdivRemoved?: number; modifiersNotApplied?: number } | undefined;
+  if (!b) return out;
   if (b.missingTextures?.length) out.push({ code: 'blend_missing_textures', message: `${b.missingTextures.length} texture${b.missingTextures.length === 1 ? ' was' : 's were'} not found (${b.missingTextures.slice(0, 3).join(', ')}${b.missingTextures.length > 3 ? '…' : ''}). Pack them into the .blend (File › External Data › Pack Resources) or zip the .blend with its texture folders.`, level: 'problem' });
   if (b.missingLibraries) out.push({ code: 'blend_missing_libraries', message: `${b.missingLibraries} linked .blend file${b.missingLibraries === 1 ? ' is' : 's are'} missing; linked parts are left out. Make them local in Blender (Object › Relations › Make Local) or include them in the zip.`, level: 'problem' });
   if (b.skipped) out.push({ code: 'blend_skipped', message: `${b.skipped} object${b.skipped === 1 ? ' was' : 's were'} left out (cameras, lights, and anything hidden from render).`, level: 'info' });

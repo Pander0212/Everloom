@@ -265,6 +265,22 @@ full spec, with a checklist for model makers, is [docs/avatars.md](docs/avatars.
 - **Realistic:** if Blender 4.2+ is on your server, MPFB (MakeHuman) makes realistic humans from
   sliders, with clothes you can take off (one button installs MPFB and its CC0 assets).
 
+**Not only humans.** A pony, a dragon, a snake or any rigged creature imports and moves. Everloom
+reads the skeleton's shape (legs to the ground, front and hind, wings, tails, head, jaw) and picks
+its body type: humanoid, four-legged, four-legged with wings, two-legged creature or dragon,
+serpent, or other (change it on the Bones tab). Creatures play the clips from their own file,
+breathe, look around, swing their tails and settle their wings, and have their own emotes: nod,
+wag tail, flap wings, hop, rear up, roar, sit, lie down. Human dances are only offered to bodies
+they fit; when the story asks a pony to laugh, it wags its tail. See
+[docs/3d-import/creatures.md](docs/3d-import/creatures.md).
+
+**Blender files, checked.** Every `.blend` goes through one export script that applies modifiers
+(shape keys kept), turns curves and particle hair into meshes, binds parts that hang off a bone,
+rebuilds control rigs (Auto-Rig Pro, Rigify) into a clean deform skeleton, bakes the file's
+animations, and then reads the result back and compares it with Blender's own data. The import
+report says what it changed and whether the check passed
+([docs/3d-import/blender-diagnosis.md](docs/3d-import/blender-diagnosis.md)).
+
 **Which files work.** GLB and VRM (0.x and 1.0) load in the browser. So do OBJ (with its `.mtl`
 and textures), DAE, FBX, PMX/PMD with VMD/VPD motions, BVH and VRMA motions, and textures in PNG,
 JPEG, WebP, TGA, PSD, DDS and KTX2. Zip, 7z and RAR archives are unpacked first (a password-protected

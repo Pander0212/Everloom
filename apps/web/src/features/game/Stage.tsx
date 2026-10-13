@@ -296,7 +296,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
           </div>
         </Popover>
         ) : null}
-        {chars.some(uses3d) ? <EmotePicker cast={chars.filter(uses3d).map((c) => ({ id: c.id, name: c.name }))} /> : null}
+        {chars.some(uses3d) ? <EmotePicker cast={chars.filter(uses3d).map((c) => ({ id: c.id, name: c.name, avatarId: c.game?.avatar3d ?? null }))} /> : null}
         {chars.some(uses3d) ? <IconButton icon={Rotate3d} label={inspect3d ? 'Stop looking around' : 'Look around'} active={inspect3d} className="!bg-surface/90 shadow-1" onClick={() => setInspect3d((v) => !v)} /> : null}
       </div>
       <div className="relative z-10 mt-auto">

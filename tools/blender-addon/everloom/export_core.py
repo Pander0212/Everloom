@@ -188,11 +188,24 @@ def convert_non_mesh(objects, report, max_strands=3000):
                 out.append(new)
                 _log(report, "converted", "%s (hair curves, %s) to a mesh" % (obj.name, kept))
             elif obj.type == "MESH":
-                for ps in list(obj.particle_systems):
+                for mod in [m for m in obj.modifiers if m.type == "PARTICLE_SYSTEM"]:
+                    ps = mod.particle_system
                     st = ps.settings
-                    if st.type != "HAIR" or st.render_type != "PATH" or not len(ps.particles):
+                    if st.type != "HAIR" or st.render_type != "PATH":
                         continue
-                    strands = [[obj.matrix_world @ k.co_local for k in p.hair_keys] for p in ps.particles]
+                    # Blender's own conversion (the strands as the depsgraph makes them, child
+                    # hairs included): a mesh of edges, one polyline per strand.
+                    before = set(bpy.data.objects)
+                    with bpy.context.temp_override(object=obj, active_object=obj, selected_objects=[obj], selected_editable_objects=[obj]):
+                        bpy.ops.object.modifier_convert(modifier=mod.name)
+                    made = [o for o in bpy.data.objects if o not in before and o.type == "MESH"]
+                    if not made:
+                        continue
+                    edges = made[0]
+                    strands = strands_from_edges(edges.data, edges.matrix_world)
+                    bpy.data.objects.remove(edges, do_unlink=True)
+                    if not strands:
+                        continue
                     step = max(1, len(strands) // max_strands)
                     radius = 0.0015
                     if hasattr(st, "root_radius") and hasattr(st, "radius_scale"):
@@ -534,6 +547,9 @@ def clip_actions(arm):
     for act in bpy.data.actions:
         if act in used_by_constraints:
             continue
+        # An old pose library (Blender 2.9x) keeps one pose per frame: poses, not a motion.
+        if len(getattr(act, "pose_markers", [])) or act.name.lower().startswith("poselib"):
+            continue
         hits = sum(1 for fc in bone_curves(act) if fc.data_path.startswith('pose.bones["') and fc.data_path.split('"')[1] in names)
         start, end = act.frame_range
         if hits and end - start >= 1:
@@ -729,8 +745,13 @@ def _readable(out):
     if not links:
         return True
     node = links[0].from_node
-    if node.type in ("BSDF_PRINCIPLED", "EMISSION", "BSDF_DIFFUSE"):
+    if node.type in ("BSDF_PRINCIPLED", "BSDF_DIFFUSE"):
         return True
+    if node.type == "EMISSION":
+        # Plain emission (a colour, or straight from a texture) exports; a toon ramp feeding it
+        # (shader to RGB, colour ramps, mixes) comes out as a flat glow.
+        col = node.inputs["Color"].links
+        return not col or col[0].from_node.type == "TEX_IMAGE"
     if node.type == "MIX_SHADER":
         kinds = {l.from_node.type for i in list(node.inputs)[1:] for l in i.links}
         return "BSDF_PRINCIPLED" in kinds and kinds <= {"BSDF_PRINCIPLED", "BSDF_TRANSPARENT", "EMISSION", "BSDF_DIFFUSE"}
@@ -1028,9 +1049,10 @@ def prepare_scene(objects, animations=True, report=None):
     bpy.context.view_layer.update()
     layer = {o.name for o in bpy.context.view_layer.objects}
     extra = convert_non_mesh([o for o in objects if o.type in NON_MESH and renders(o, layer)] + [o for o in objects if o.type == "MESH" and o.particle_systems], report)
-    for o in [o for o in objects if o.type in NON_MESH]:
+    gone = [o for o in objects if o.type in NON_MESH]
+    objects = [o for o in objects if o.type not in NON_MESH] + extra
+    for o in gone:
         bpy.data.objects.remove(o, do_unlink=True)
-    objects = [o for o in objects if o.name in bpy.data.objects] + extra
     meshes = [o for o in objects if o.type == "MESH"]
     for o in meshes:
         apply_modifiers(o, report)
@@ -1129,6 +1151,72 @@ def export_model(path, animations=False, selection=False, extras=False, prepare=
         if check["missingBones"]:
             raise RuntimeError("Export lost bones: " + ", ".join(check["missingBones"]))
     return result
+
+
+def render_check(path, size=200, samples=6):
+    """A small picture of the converted character in a test pose, front and side, for the import
+    report: each chain off the body bends a little, so a bad skin shows as a tear or a stretch.
+    Cycles on the CPU (no graphics card needed). Changes the scene; call after exporting."""
+    import base64
+    from mathutils import Euler, Vector
+    scene = bpy.context.scene
+    # What was exported is still selected; nothing else is drawn.
+    chosen = set(bpy.context.selected_objects)
+    for o in scene.objects:
+        o.hide_render = o not in chosen
+    rig = next((o for o in chosen if o.type == "ARMATURE"), None)
+    meshes = [o for o in chosen if o.type == "MESH"]
+    if not meshes:
+        return None
+    if rig:
+        rig.data.pose_position = "POSE"
+        for pb in rig.pose.bones:
+            pb.rotation_mode = "XYZ"
+            depth = len(pb.parent_recursive)
+            # Bend each bone a little (more toward the ends): limbs, tails, wings and the spine all move.
+            if depth >= 1 and pb.children:
+                pb.rotation_euler = Euler((0.18 + 0.03 * min(depth, 6), 0, 0.08), "XYZ")
+    bpy.context.view_layer.update()
+    lo = Vector((math.inf,) * 3)
+    hi = Vector((-math.inf,) * 3)
+    dg = bpy.context.evaluated_depsgraph_get()
+    for o in meshes:
+        ev = o.evaluated_get(dg)
+        for c in ev.bound_box:
+            w = ev.matrix_world @ Vector(c)
+            lo = Vector(map(min, lo, w))
+            hi = Vector(map(max, hi, w))
+    centre = (lo + hi) / 2
+    radius = max((hi - lo).length / 2, 0.01)
+    scene.render.engine = "CYCLES"
+    scene.cycles.device = "CPU"
+    scene.cycles.samples = samples
+    scene.cycles.use_denoising = False
+    scene.render.resolution_x = scene.render.resolution_y = size
+    scene.render.film_transparent = False
+    scene.render.image_settings.file_format = "PNG"
+    world = bpy.data.worlds.new("CheckWorld")
+    world.use_nodes = True
+    world.node_tree.nodes["Background"].inputs[0].default_value = (0.92, 0.92, 0.94, 1)
+    world.node_tree.nodes["Background"].inputs[1].default_value = 1.4
+    scene.world = world
+    cam = bpy.data.objects.new("CheckCam", bpy.data.cameras.new("CheckCam"))
+    scene.collection.objects.link(cam)
+    scene.camera = cam
+    cam.data.lens = 50
+    dist = radius / math.tan(cam.data.angle / 2) * 1.05
+    shots = []
+    out_dir = os.path.dirname(os.path.abspath(path))
+    for i, (dx, dy) in enumerate(((0, -1), (1, 0))):
+        cam.location = centre + Vector((dx * dist, dy * dist, radius * 0.15))
+        cam.rotation_euler = (centre - cam.location).to_track_quat("-Z", "Y").to_euler()
+        f = os.path.join(out_dir, "check_%d.png" % i)
+        scene.render.filepath = f
+        bpy.ops.render.render(write_still=True)
+        with open(f, "rb") as fh:
+            shots.append("data:image/png;base64," + base64.b64encode(fh.read()).decode())
+        os.remove(f)
+    return shots
 
 
 def export_copy(path, selection_names=None, animations=False, extras=False, timeout=1200):

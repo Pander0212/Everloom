@@ -170,6 +170,17 @@ export function automap(input: AutomapInput): AutomapResult {
     used.add(analysis.head);
     byBone.set(analysis.head, { kind: 'humanoid', role: 'head', confidence: 0.85, why: humanoid.head.why });
   }
+  // A pony's "thigh" or "upper arm" by name is a leg of a four-legged body: no humanoid motion
+  // plays on it, so only the face slots stay humanoid; the limbs become the body's own roles.
+  if (!HUMANOID_MOTION_FAMILIES.has(analysis.family)) {
+    for (const slot of Object.keys(humanoid) as HumanBone[]) {
+      if (slot === 'head' || slot === 'neck' || slot === 'jaw' || slot === 'leftEye' || slot === 'rightEye') continue;
+      const bone = humanoid[slot]!.bone;
+      delete humanoid[slot];
+      used.delete(bone);
+      byBone.delete(bone);
+    }
+  }
   const missing = REQUIRED_BONES.filter((b) => !humanoid[b]);
   // A pony has no arms: missing humanoid bones are only worth a look on humanoid-like bodies.
   if (HUMANOID_MOTION_FAMILIES.has(analysis.family)) for (const m of missing) review.push({ bone: m, why: `No bone found for ${m}.` });

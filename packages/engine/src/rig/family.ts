@@ -268,8 +268,12 @@ export function analyzeSkeleton(input: FamilyBone[], opts: { humanoidCore?: bool
         const best = next.sort((a, b) => score(b) - score(a))[0]!;
         if (score(best) <= fwd(cur) + (P(cur)[1] - ground) * 0.5 - size * 0.01) break;
         cur = best;
-        if ((kids.get(cur) ?? []).length >= 3 && P(cur)[1] > ground + height * 0.4) break;
+        // A face: several children, all close by (a chest branching into arms is not one).
+        const compact = Math.max(...subtree(cur).map((x) => len(sub(P(x), P(cur))))) < height * 0.2;
+        if ((kids.get(cur) ?? []).length >= 3 && compact && P(cur)[1] > ground + height * 0.4) break;
       }
+      // An end bone past the head (HeadTop_End) isn't the head: its parent is.
+      if (!(kids.get(cur) ?? []).length && parentOf(cur) && parentOf(cur) !== from) cur = parentOf(cur)!;
       if (cur !== from) head = cur;
     }
   }
@@ -314,6 +318,7 @@ export function analyzeSkeleton(input: FamilyBone[], opts: { humanoidCore?: bool
     return out;
   };
   const headSet = new Set(head ? subtree(head) : []);
+  const lateral: { side: LimbSide; bones: string[]; hand: boolean; reach: number }[] = [];
   // Named wings and tails start anywhere (wings often hang from the shoulder); a typo or a prefix
   // doesn't hide them ("c_Wilngs_01", "TailBase").
   const loose = (n: string, words: string[]) => words.some((w) => n.toLowerCase().replace(/[^a-z]/g, '').includes(w));
@@ -356,11 +361,17 @@ export function analyzeSkeleton(input: FamilyBone[], opts: { humanoidCore?: bool
       wings.push({ side: sideOf(end), bones: chain });
       continue;
     }
-    if (sideways > size * 0.08) {
-      const armLike = named(n, W.arm) || chain.some((x) => named(x, W.arm)) || fingers >= 3 || (branching >= 4 && branching <= 6 && chain.length <= 6);
-      if (armLike && !(opts.humanoidCore === false && sideways > size * 0.45)) arms.push({ side: sideOf(end), bones: chain });
-      else wings.push({ side: sideOf(end), bones: chain });
-    }
+    if (sideways > size * 0.08) lateral.push({ side: sideOf(end), bones: chain, hand: named(n, W.arm) || chain.some((x) => named(x, W.arm)) || fingers >= 3 || (branching >= 3 && branching <= 6), reach: sideways });
+  }
+  // Chains to the sides of the body: on each side the one with a hand (fingers, or an arm's name)
+  // is the arm; an upright two-legged body with no such chain uses its nearest one as the arm;
+  // the rest are wings.
+  for (const side of ['L', 'R', 'C'] as const) {
+    const mine = lateral.filter((l) => l.side === side).sort((a, b) => Number(b.hand) - Number(a.hand) || a.reach - b.reach);
+    const armIdx = mine.findIndex((l) => l.hand);
+    const twoLegged = legLimbs.length === 2;
+    const arm = armIdx >= 0 ? armIdx : upright && twoLegged && side !== 'C' ? 0 : -1;
+    mine.forEach((l, i) => (i === arm ? arms : wings).push({ side: l.side, bones: l.bones }));
   }
   if (head) {
     for (const n of subtree(head)) {

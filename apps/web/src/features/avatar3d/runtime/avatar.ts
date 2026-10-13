@@ -12,7 +12,7 @@
  *   5. the canonical pose is applied to the model (canonical.ts), then the face (expression,
  *      blinking, mouth shapes; all smoothed so nothing pops), then hair and cloth springs.
  */
-import { HELPER_FOLLOW, ROLE_PHYSICS, type RigMapping } from '@everloom/engine';
+import { emoteForBody, HELPER_FOLLOW, HUMANOID_MOTION_FAMILIES, ROLE_PHYSICS, type RigMapping } from '@everloom/engine';
 import * as THREE from 'three';
 import { VRMSpringBoneColliderShapeCapsule, type VRMSpringBoneCollider } from '@pixiv/three-vrm';
 import { BUILTIN_EMOTES, faceWeights, type Appearance, type Emotion, type HumanBone, type Physics, type SpringSettings, type Viseme } from '@everloom/engine';
@@ -20,6 +20,7 @@ import type { SkinPainter } from './skin';
 import { applyCanonical, emptyPose, prepareRig, setHelpers, type CanonicalPose, type RigInfo } from './canonical';
 import { blendPose, copyPose, sampleClip, UPPER_BODY, type Clip } from './clip';
 import { clipIdFor, getClip } from './clips';
+import { CreatureMotion } from './creature';
 import { applyRestPose, withRestPose, type LoadedModel } from './loader';
 import { applyLook, type Look, type LookOptions } from './materials';
 import { MorphController } from './morphs';
@@ -139,6 +140,16 @@ export class Avatar {
   private baseFace: Emotion | null = null;
   /** Faces for emotes that aren't built in (imported clips). */
   static faces: Record<string, Emotion> = {};
+  /**
+   * A body that isn't human (a pony, a dragon, a snake) moves through this instead of the humanoid
+   * layers; on a humanoid with a tail or wings, or with clips in its file, it runs as an overlay
+   * (docs/3d-import/creatures.md).
+   */
+  readonly creature: CreatureMotion | null = null;
+  /** The creature runs the whole body. */
+  get isCreature() {
+    return !!this.creature?.full;
+  }
   private faceOf(id: string): Emotion | null {
     return Avatar.faces[id] ?? BUILTIN_EMOTES.find((e) => e.id === id)?.emotion ?? null;
   }
@@ -182,6 +193,13 @@ export class Avatar {
     // Models built facing away (VRM 0.x, MMD) are turned to face the camera. Retargeting works in
     // the rig's own frame, so this changes nothing else.
     if (Math.abs(this.rig.facing.w) < 0.5) model.scene.rotation.y += Math.PI;
+    const family = options.rig?.family ?? 'humanoid';
+    const core = (['hips', 'spine', 'head', 'leftUpperArm', 'rightUpperArm', 'leftUpperLeg', 'rightUpperLeg'] as const).every((b) => model.bones[b]);
+    const full = !(HUMANOID_MOTION_FAMILIES.has(family) && core);
+    const extras = (options.rig?.roles ?? []).some((r) => r.role === 'tail' || r.role === 'wings') || (model.gltf?.animations?.length ?? 0) > 0;
+    if (full || extras) this.creature = new CreatureMotion(model, options.rig, { full, humanoidCore: core });
+    // Long bodies (four legs, a serpent) stand three-quarters to the camera, so their length reads.
+    if (full && (family === 'quadruped' || family === 'wingedQuadruped' || family === 'serpent')) model.scene.rotation.y += (32 * Math.PI) / 180;
     this.baseYaw = model.scene.rotation.y;
     // The model's feet stand on the group's origin.
     model.scene.updateMatrixWorld(true);
@@ -190,6 +208,8 @@ export class Avatar {
     this.headTopOffset = headY === undefined ? model.height * 0.1 : Math.max(0, box.max.y - headY);
     this.framingWidth = model.height * 0.18;
     for (const mesh of model.meshes) if (/head|face|hair/i.test(mesh.name)) this.framingWidth = Math.max(this.framingWidth, new THREE.Box3().setFromObject(mesh).getSize(new THREE.Vector3()).x * 1.12);
+    // A creature is framed by its whole outline (wings, a long body), not by a head.
+    if (this.creature?.full) this.framingWidth = Math.max(this.framingWidth, box.getSize(new THREE.Vector3()).x * 0.9);
     model.scene.position.y -= box.min.y - model.floor;
     this.setLook(options.look, { outlines: options.outlines });
     if (options.budget) { this.physics.maxPoints = options.budget.points; this.physics.hz = options.budget.hz || 30; }
@@ -236,6 +256,14 @@ export class Avatar {
   /** Changes the held pose (idle, sit, a dance…), cross-fading over `fade` seconds. */
   async setBase(emoteId: string, fade = 0.6, speed = 1) {
     const ticket = ++this.pending;
+    if (this.creature?.full) {
+      // The nearest held pose this body has (a pony kneels by lying down).
+      const id = emoteForBody(emoteId, this.creature.fits) ?? 'idle';
+      this.creature.setBase(id);
+      this.basePoseId = id;
+      this.baseFace = this.faceOf(emoteId);
+      return;
+    }
     const id = clipIdFor(emoteId);
     // Sitting down and getting up have their own transitions.
     if (id === 'sit' && this.basePoseId !== 'sit' && this.basePoseId !== 'sit_talk') {
@@ -261,6 +289,23 @@ export class Avatar {
 
   /** Plays a one-shot emote over the base pose. Loops (dances, sitting) become the base instead. */
   async emote(emoteId: string, opts: { loop?: boolean } = {}) {
+    if (this.creature) {
+      // The file's own clips play on any body; a creature does its nearest equivalent of the rest.
+      if (emoteId.startsWith('own_')) return this.creature.emote(emoteId);
+      if (this.creature.full) {
+        const id = emoteForBody(emoteId, this.creature.fits);
+        if (!id) return false;
+        if (id === 'sit' || id === 'lie_down' || id === 'sleep' || id === 'prance') {
+          await this.setBase(id);
+          return true;
+        }
+        const face = this.faceOf(emoteId);
+        this.shotFace = face;
+        setTimeout(() => { if (this.shotFace === face) this.shotFace = null; }, 2000);
+        return this.creature.emote(id);
+      }
+      if (this.creature.fits.has(emoteId) && (emoteId === 'wag_tail' || emoteId === 'flap_wings')) return this.creature.emote(emoteId);
+    }
     const clip = await getClip(clipIdFor(emoteId));
     if (!clip) return false;
     if (clip.loop || opts.loop) {
@@ -320,6 +365,20 @@ export class Avatar {
       this.measurePose(dt);
       return;
     }
+    if (this.creature?.full) {
+      // A creature's own motion: clips, held poses, emotes and life (creature.ts).
+      const target = this.lookAt ?? (camera ? camera.getWorldPosition(new THREE.Vector3()) : null);
+      const mouth = this.speaking ? Math.min(1, Math.max(0, ...Object.values(this.visemes).map((v) => v ?? 0)) * 1.4) : 0;
+      this.creature.update(dt, { lookAt: target, mouth, speaking: this.speaking });
+      this.busy = this.creature.busy || this.speaking;
+      this.postPose?.(this, dt);
+      this.measurePose(dt);
+      if (this.morphs.update(dt)) this.busy = true;
+      this.face(dt);
+      if (this.options.physics && !this.physicsPaused) this.physics.update(dt);
+      else if (!this.options.physics) this.physics.rest();
+      return;
+    }
     const pose = this.pose;
     // 1. base and what's fading out of it.
     const base = this.base;
@@ -360,8 +419,9 @@ export class Avatar {
     // 4. procedural life (not over a fixed check pose).
     if (this.override) copyPose(this.override, pose);
     else this.procedural(pose, dt, camera);
-    // 5. the model.
-    applyCanonical(this.rig, pose);
+    // 5. the model (the file's own clip, while one plays, moves the whole body instead).
+    if (!this.creature?.clipPlaying) applyCanonical(this.rig, pose);
+    this.creature?.update(dt, { lookAt: null, mouth: 0, speaking: false });
     this.postPose?.(this, dt);
     this.measurePose(dt);
     if (this.morphs.update(dt)) this.busy = true;
@@ -496,10 +556,16 @@ export class Avatar {
     if (vrm && vrm.joints.size) this.addVrmSprings();
     else {
       this.addSpringChains(this.model.secondaryChains.filter((c) => !CHEST.test(c[0]!.name) && !roleBones.has(c[0]!)));
+      const creature = this.creature;
+      const driven = new Set<THREE.Object3D>(creature ? [...creature.parts.tails.flat(), ...creature.parts.wings.flatMap((w) => w.bones), ...(creature.full ? creature.parts.ears.flatMap((e) => e.bones) : [])] : []);
       for (const c of roleChains) {
         if (c.kind === 'chest') continue; // breasts: setupChest
+        // A creature's wings are its own (they flap, fold and carry the body): no spring.
+        if (creature?.full && c.bones.some((b) => creature.parts.wings.some((w) => w.bones.includes(b)))) continue;
         const id = this.addSpringChains([c.bones], jointSettings({}, this.options.stiffness, this.options.gravity, c.kind === 'butt' ? 'butt' : c.kind === 'belly' ? 'belly' : c.kind))[0];
         if (id !== undefined && (c.kind === 'butt' || c.kind === 'belly')) this.chestChains.push(id);
+        // Tails and ears the creature moves: the spring sways around the animated pose.
+        if (id !== undefined && c.bones.some((b) => driven.has(b))) this.physics.setFollow(id, true);
       }
     }
     this.roleBreasts = roleChains.filter((c) => c.kind === 'chest').map((c) => c.bones);

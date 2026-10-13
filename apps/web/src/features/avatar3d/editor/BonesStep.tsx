@@ -7,7 +7,7 @@
  *  - Test poses: T-pose, A-pose, arms up, squat, a shake for the breast physics, a short walk.
  * See docs/3d-import/bones.md.
  */
-import { AvatarConfigSchema, BoneMapSchema, HUMANOID_BONES, REQUIRED_BONES, RIG_ROLES, RigMappingSchema, automap, type AutomapBone, type AvatarConfig, type HumanBone, type RigMapping, type RigRole } from '@everloom/engine';
+import { AvatarConfigSchema, BoneMapSchema, FAMILY_LABELS, HUMANOID_BONES, HUMANOID_MOTION_FAMILIES, REQUIRED_BONES, RIG_ROLES, RigMappingSchema, SKELETON_FAMILIES, automap, type AutomapBone, type AvatarConfig, type HumanBone, type RigMapping, type RigRole, type SkeletonFamily } from '@everloom/engine';
 import { ArrowDown, ArrowUp, ListTree, RotateCcw, Search, Wand2 } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import * as THREE from 'three';
@@ -33,7 +33,11 @@ const GROUPS: Array<{ label: string; bones: HumanBone[]; folded?: boolean }> = [
 const ROLE_LABEL: Record<RigRole, string> = {
   breast: 'Breast', butt: 'Butt', belly: 'Belly', thighHelper: 'Thigh helper', upperArmHelper: 'Upper-arm helper', forearmHelper: 'Forearm helper', shoulderHelper: 'Shoulder helper',
   hair: 'Hair', skirt: 'Skirt', coat: 'Coat tail', tail: 'Tail', ears: 'Ears', wings: 'Wings', eyelid: 'Eyelid', tongue: 'Tongue', teeth: 'Teeth', accessory: 'Accessory',
+  root: 'Root', pelvis: 'Pelvis', neck: 'Neck', head: 'Head', jaw: 'Jaw', eye: 'Eye', frontLeg: 'Front leg', hindLeg: 'Hind leg', leg: 'Leg', arm: 'Arm', extraLimb: 'Extra limb',
 };
+
+/** Test moves for bodies that aren't human (creature.ts makes them from the roles). */
+const CREATURE_TESTS: Array<[string, string]> = [['idle', 'Idle'], ['nod', 'Nod'], ['shake_head', 'Shake head'], ['wag_tail', 'Wag tail'], ['flap_wings', 'Flap wings'], ['hop', 'Hop'], ['rear_up', 'Rear up'], ['roar', 'Roar'], ['sit', 'Sit'], ['lie_down', 'Lie down']];
 
 /** "leftUpperArm" → "Upper arm"; "leftIndexProximal" → "Index 1". */
 function label(b: HumanBone): string {
@@ -242,11 +246,15 @@ export function BonesStep({ avatar, config, set, handle }: { avatar: AvatarDetai
 
   const rerun = () => {
     if (!handle) return;
-    const r = automap({ bones: skeletonOf(handle.model.scene), humanoid: config.boneMap, humanoidSource: 'your current mapping' });
+    // A body type you chose stays chosen.
+    const r = automap({ bones: skeletonOf(handle.model.scene), humanoid: config.boneMap, humanoidSource: 'your current mapping', family: rig.familySource === 'owner' ? rig.family : null });
     set({ rig: r.rig, boneMap: { ...r.boneMap, ...config.boneMap } });
   };
 
-  const missing = REQUIRED_BONES.filter((b) => !config.boneMap[b]);
+  const humanoidBody = HUMANOID_MOTION_FAMILIES.has(rig.family);
+  // A pony has no arms: missing humanoid bones only matter on humanoid-like bodies.
+  const missing = humanoidBody ? REQUIRED_BONES.filter((b) => !config.boneMap[b]) : [];
+  const setFamily = (family: SkeletonFamily) => set({ rig: RigMappingSchema.parse({ ...rig, family, familySource: 'owner', familyWhy: 'chosen by you' }) });
   const review = [...info.values()].filter((i) => i.confidence < 0.6).length;
   const unmapped = names.filter((n) => !info.has(n)).length;
 
@@ -350,12 +358,23 @@ export function BonesStep({ avatar, config, set, handle }: { avatar: AvatarDetai
         Every bone of the model: the humanoid core, the spine (any number of bones), and roles like breasts, butt, hair, skirt, tail and helpers. Roles drive physics, body sliders and retargeting. Tap a bone in the list or near its dot in the 3D view.
       </p>
       <div className="flex flex-wrap items-center gap-2">
-        <Badge tone={missing.length ? 'danger' : 'success'}>{missing.length ? `Missing: ${missing.map(label).join(', ')}` : 'Main bones mapped'}</Badge>
+        {humanoidBody ? <Badge tone={missing.length ? 'danger' : 'success'}>{missing.length ? `Missing: ${missing.map(label).join(', ')}` : 'Main bones mapped'}</Badge> : null}
         <Badge>{names.length} bones</Badge>
         {review ? <Badge tone="warning">{review} to review</Badge> : null}
         {unmapped ? <Badge>{unmapped} unmapped</Badge> : null}
         {rig.base ? <Badge>{rig.base}</Badge> : null}
       </div>
+      <label className="flex flex-wrap items-center gap-2 text-sm" data-testid="body-type">
+        <span className="font-medium">Body type</span>
+        <Select aria-label="Body type" value={rig.family} onChange={(e) => setFamily(e.target.value as SkeletonFamily)} className="w-auto">
+          {SKELETON_FAMILIES.map((f) => (
+            <option key={f} value={f}>
+              {FAMILY_LABELS[f]}
+            </option>
+          ))}
+        </Select>
+        <span className="text-xs text-fg-2">{rig.familySource === 'owner' ? 'Chosen by you' : rig.familyWhy ? `Found: ${rig.familyWhy}` : ''}</span>
+      </label>
       <div className="flex flex-wrap gap-2">
         <Button size="sm" variant="secondary" icon={Wand2} disabled={!handle} onClick={rerun}>
           Map automatically
@@ -386,7 +405,17 @@ export function BonesStep({ avatar, config, set, handle }: { avatar: AvatarDetai
         </Button>
       </div>
       <div className="flex flex-wrap items-center gap-3">
-        <Segmented label="Test pose" value={pose} onChange={(v) => setPose(v as typeof pose)} options={[{ value: 'idle', label: 'Idle' }, { value: 'tpose', label: 'T-pose' }, { value: 'apose', label: 'A-pose' }, { value: 'armsUp', label: 'Arms up' }, { value: 'squat', label: 'Squat' }, { value: 'shake', label: 'Shake' }, { value: 'walk', label: 'Walk' }]} />
+        {humanoidBody && !handle?.avatar.isCreature ? (
+          <Segmented label="Test pose" value={pose} onChange={(v) => setPose(v as typeof pose)} options={[{ value: 'idle', label: 'Idle' }, { value: 'tpose', label: 'T-pose' }, { value: 'apose', label: 'A-pose' }, { value: 'armsUp', label: 'Arms up' }, { value: 'squat', label: 'Squat' }, { value: 'shake', label: 'Shake' }, { value: 'walk', label: 'Walk' }]} />
+        ) : (
+          <div className="flex flex-wrap gap-1" role="group" aria-label="Test moves" data-testid="creature-tests">
+            {CREATURE_TESTS.filter(([id]) => handle?.avatar.creature?.fits.has(id) ?? true).map(([id, text]) => (
+              <Button key={id} size="sm" variant="secondary" disabled={!handle} onClick={() => void (id === 'idle' || id === 'sit' || id === 'lie_down' ? handle?.avatar.setBase(id) : handle?.avatar.emote(id))}>
+                {text}
+              </Button>
+            ))}
+          </div>
+        )}
         <Switch label="Show bones" checked={showBones} onChange={setShowBones} />
         <span className="text-sm text-fg-2">Show bones</span>
       </div>

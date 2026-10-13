@@ -20,5 +20,7 @@ export default defineConfig({
       dependencies: ['setup'],
       use: { browserName, viewport: { width, height: width === 390 ? 844 : 800 }, hasTouch: width === 390, storageState: 'tests/e2e/.artifacts/auth.json', launchOptions: browserName === 'chromium' ? { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } : { firefoxUserPrefs: { 'webgl.force-enabled': true } } },
     }))),
+    // The owner's own .blend samples: runs only where they are (see the spec).
+    { name: 'creatures', testMatch: /creatures\.spec\.ts/, dependencies: ['setup'], use: { browserName: 'chromium', viewport: { width: 1280, height: 800 }, storageState: 'tests/e2e/.artifacts/auth.json', launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } } },
   ],
 });

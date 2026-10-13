@@ -46,6 +46,13 @@ interface Joint {
   boneAxis: THREE.Vector3;
   length: number;
   rest: THREE.Quaternion;
+  /** The rotation it had when added (rest() and removing the chain go back to it). */
+  bind: THREE.Quaternion;
+  /**
+   * Swings around the pose an animation gives it each frame, instead of a fixed rest (a tail that a
+   * creature wags, with the spring's own sway on top). Only for bones something sets every frame.
+   */
+  follow: boolean;
   prev: THREE.Vector3;
   curr: THREE.Vector3;
   settings: JointSettings;
@@ -136,13 +143,13 @@ export class SpringSolver {
       bone.updateWorldMatrix(true, false);
       const curr = tailLocal.clone().applyMatrix4(bone.matrixWorld);
       const head = _head.setFromMatrixPosition(bone.matrixWorld);
-      this.joints.push({ bone, tailLocal, boneAxis: tailLocal.clone().normalize(), length: curr.distanceTo(head), rest: bone.quaternion.clone(), prev: curr.clone(), curr, settings: s, colliders, slack: colliders.map((c) => restDepth(curr, c, s.radius)), chain, phase: Math.random() * Math.PI * 2 });
+      this.joints.push({ bone, tailLocal, boneAxis: tailLocal.clone().normalize(), length: curr.distanceTo(head), rest: bone.quaternion.clone(), bind: bone.quaternion.clone(), follow: false, prev: curr.clone(), curr, settings: s, colliders, slack: colliders.map((c) => restDepth(curr, c, s.radius)), chain, phase: Math.random() * Math.PI * 2 });
     }
     return chain;
   }
 
   removeChain(chain: number) {
-    for (const j of this.joints) if (j.chain === chain) j.bone.quaternion.copy(j.rest);
+    for (const j of this.joints) if (j.chain === chain) j.bone.quaternion.copy(j.bind);
     this.joints = this.joints.filter((j) => j.chain !== chain);
   }
 
@@ -169,12 +176,22 @@ export class SpringSolver {
 
   /** Puts every simulated bone back at rest (physics off). */
   rest() {
-    for (const j of this.joints) j.bone.quaternion.copy(j.rest);
+    for (const j of this.joints) j.bone.quaternion.copy(j.bind);
+  }
+
+  /** Makes a chain swing around its animated pose (see Joint.follow). */
+  setFollow(chain: number, on: boolean) {
+    for (const j of this.joints) if (j.chain === chain) {
+      j.follow = on;
+      if (!on) j.rest.copy(j.bind);
+    }
   }
 
   /** Advances by dt seconds of real time in fixed steps (at most four per frame). */
   update(dt: number) {
     if (!this.joints.length || this.hz <= 0) return;
+    // The animated pose of this frame, before the steps overwrite it.
+    for (const j of this.joints) if (j.follow) j.rest.copy(j.bone.quaternion);
     const h = 1 / this.hz;
     this.acc = Math.min(this.acc + dt, h * 4);
     let steps = 0;

@@ -216,7 +216,7 @@ async function processAvatar(ctx: AppContext, owner: string, id: string, opts: P
       const job = blendJobFiles(src.bytes, `model.${ext === 'zip' ? 'zip' : 'blend'}`);
       fileVersion = blendVersion(job.files[job.input]!);
       try {
-        const r = await runBlenderJob(ctx, owner, { op: 'convert', files: job.files, input: job.input, output: 'output.glb', timeoutMs: 8 * 60_000 });
+        const r = await runBlenderJob(ctx, owner, { op: 'convert', files: job.files, input: job.input, output: 'output.glb', timeoutMs: 20 * 60_000 });
         glb = r.output;
         conversion = r.result;
       } catch (e) {

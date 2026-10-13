@@ -1335,3 +1335,46 @@ SPS research is recorded in CREDITS.md. Only serialized attachment metadata is p
 Phone acceptance exposed controls covered by the sticky 44vh preview. The phone preview now scrolls with the document; desktop retains its side-by-side sticky preview. Creator tests enable the 3D feature before visiting its settings page and interact with the native anatomy checkbox without forced clicks.
 
 Screenshot inspection also exposed a dress seam at the hips: the skirt cone started below the waist and had no body morphs. It now starts at the waist and uses closest-surface barycentric transfer for body shape deltas. A geometry regression verifies transfer to both bodice and skirt; phone screenshots are checked separately for the visual result.
+
+## Blender imports and non-human characters (2026-10-13)
+
+Two owner files (a winged pony, an Auto-Rig Pro dragon) and six others were diagnosed against
+Blender's own data ([blender-diagnosis.md](3d-import/blender-diagnosis.md)). The failures were not
+one bug: the auto-mapper threw on a 756-bone rig (the role list overflowed its schema), parts with
+"disable selection", driven visibility or a hidden collection were silently left out of the export,
+control rigs placed their deform bones only through constraints, modifiers were skipped on every
+shape-keyed mesh, bone-parented parts had no weights, and toon materials exported white.
+
+- **One export script, destructive, run on a throwaway scene.** Applying modifiers and rebuilding
+  the skeleton can't be undone reliably in the open file, so `export_model` changes the scene it is
+  given: the server worker opens the .blend in a fresh process, and the add-on saves a copy and
+  exports it in a background Blender (`export_copy`). The narrow Rigify repair is replaced by a
+  general rule.
+- **Deform parents** come from, in order: full-strength copy/child-of constraint targets walked to
+  the nearest kept bone or a kept bone that copies them; joint contact (a bone's head at another's
+  tail) for bones a control rig places; twist and helper bones never become parents; stray roots
+  join the bone nearest their head. Ordinary hierarchies keep their own parents. Only deform bones
+  are kept, as Blender's armature modifier ignores the others.
+- **Validation is a read-back, not a re-import**: the GLB's joints, parents, rest heads, weights and
+  per-object bounds are compared with facts gathered just before export, in the same process. A
+  small test-pose render (Cycles on the CPU, a few samples, front and side) goes into the import
+  report as the visual check; it works on a VPS without a graphics card, and a render failure never
+  fails the import.
+- **Families from shape, names as a bonus.** Feet are found where chains reach the ground; legs,
+  front/hind, pelvis, chest, spine, neck and head follow from the tree. Wings and tails are detected
+  geometrically only on non-humanoid bodies: on a humanoid core, chains off the body are far more
+  often hair, dresses and capes. The owner can override the family; the override survives re-mapping.
+- **Creatures don't use the humanoid canonical pose.** A pony's "thigh" mapped as a human upper leg
+  would make every humanoid clip wrong. Non-humanoid families keep only face slots in the humanoid map
+  and move through `CreatureMotion` (own clips, procedural life, family emotes) in the body's own
+  frame. Two-legged creatures with a mapped core keep humanoid motion plus a tail/wing overlay.
+- **One state system kept.** Creature emotes are ordinary built-in emotes (`wag_tail`, `flap_wings`,
+  … and `own_1`…`own_9` for a file's clips), validated and stored like the others, message-bound and
+  rolled back on swipe. The story's humanoid emotes are translated on the stage, not in the state:
+  a pony asked to laugh wags its tail; the stored op still says "laugh".
+- **Springs follow animation for driven chains.** The solver's rest was fixed at setup, so it
+  overwrote any procedural tail motion; chains a creature animates now swing around the animated
+  pose. Large wings get no spring.
+- **Fan-made samples stay private.** Their diagnosis is described in words; screenshots and clips of
+  them are written to the git-ignored `docs/3d-import/evidence/private/`. Committed evidence comes
+  from the synthetic fixtures.

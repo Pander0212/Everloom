@@ -27,6 +27,14 @@ export interface EmoteInfo {
   tags?: string[];
   /** The face it wears while playing (a laugh looks happy). */
   emotion?: Emotion;
+  /**
+   * Which bodies it is for (docs/3d-import/creatures.md). Unset: humanoid motions. 'creature': made
+   * from a body's parts (a tail wags, wings flap), for any body that has them. 'own': plays one of
+   * the character's own clips from its file.
+   */
+  body?: 'creature' | 'own';
+  /** Parts a creature emote needs (any one of them). */
+  needs?: ReadonlyArray<'head' | 'tail' | 'wings' | 'legs' | 'fourLegs' | 'jaw' | 'body'>;
 }
 
 export const EMOTE_ID = /^[a-z][a-z0-9_]{0,39}$/;
@@ -84,7 +92,106 @@ export const BUILTIN_EMOTES: EmoteInfo[] = [
   e('defend', 'Defend', 'battle', false, 'bundled', ['block', 'parry', 'guard']),
   e('victory', 'Victory', 'battle', false, 'authored', ['win', 'triumph', 'fist pump'], undefined, 'pride'),
   e('defeat', 'Defeat', 'battle', false, 'bundled', ['lose', 'fall', 'knocked out'], undefined, 'sadness'),
+  // Creatures (and any body with the parts): made procedurally from the bone roles.
+  c('wag_tail', 'Wag tail', 'emotion', false, ['wags tail', 'tail wag', 'wag'], ['tail'], 'joy'),
+  c('flap_wings', 'Flap wings', 'social', false, ['flaps wings', 'spread wings', 'flap'], ['wings'], 'joy'),
+  c('hop', 'Hop', 'emotion', false, ['hops', 'jump', 'bounce happily'], ['legs'], 'joy'),
+  c('rear_up', 'Rear up', 'battle', false, ['rears up', 'rear', 'rise up'], ['fourLegs', 'legs', 'body'], 'pride'),
+  c('roar', 'Roar', 'battle', false, ['roars', 'growl', 'snarl', 'howl', 'neigh'], ['head', 'jaw'], 'anger'),
+  c('tilt_head', 'Tilt head', 'emotion', false, ['tilts head', 'head tilt', 'curious'], ['head'], 'curiosity'),
+  c('droop', 'Droop', 'emotion', false, ['droops', 'sad', 'head down', 'mope'], ['head'], 'sadness'),
+  c('prance', 'Prance', 'dance', true, ['prances', 'trot in place'], ['legs']),
+  // The character's own clips (from its file), in the file's order.
+  ...Array.from({ length: 9 }, (_, i) => ({ ...e(`own_${i + 1}`, `Own clip ${i + 1}`, 'social', false, 'authored'), body: 'own' as const })),
 ];
+
+function c(id: string, label: string, category: EmoteCategory, loop: boolean, aliases: string[], needs: NonNullable<EmoteInfo['needs']>, emotion?: Emotion): EmoteInfo {
+  return { ...e(id, label, category, loop, 'authored', aliases, undefined, emotion), body: 'creature', needs };
+}
+
+/** What a body has, for choosing the emotes that fit it. */
+export interface BodyParts {
+  /** Can play humanoid clips (a humanoid core is mapped and the family allows it). */
+  humanoid: boolean;
+  head: boolean;
+  jaw: boolean;
+  tail: boolean;
+  wings: boolean;
+  /** Legs to stand on (any number). */
+  legs: boolean;
+  fourLegs: boolean;
+  /** Names of the clips in its own file (own_1 is the first). */
+  clips: readonly string[];
+}
+
+/**
+ * A saved avatar's body from its mapping (what the picker shows before the model loads): the
+ * family, the roles and the humanoid core decide it; `clips` are the animations in its file.
+ */
+export function bodyFromMapping(rig: { family?: string; roles?: ReadonlyArray<{ role: string }> } | null | undefined, boneMap: Partial<Record<string, string>> = {}, clips: readonly string[] = []): BodyParts {
+  const roles = new Set((rig?.roles ?? []).map((r) => r.role));
+  const family = rig?.family ?? 'humanoid';
+  const core = ['hips', 'spine', 'head', 'leftUpperArm', 'rightUpperArm', 'leftUpperLeg', 'rightUpperLeg'].every((b) => boneMap[b]);
+  const humanoid = (family === 'humanoid' || family === 'bipedCreature') && core;
+  return {
+    humanoid,
+    head: roles.has('head') || !!boneMap.head,
+    jaw: roles.has('jaw') || !!boneMap.jaw,
+    tail: roles.has('tail'),
+    wings: roles.has('wings'),
+    legs: humanoid || roles.has('frontLeg') || roles.has('hindLeg') || roles.has('leg'),
+    fourLegs: roles.has('frontLeg') && roles.has('hindLeg'),
+    clips,
+  };
+}
+
+/** The emotes that fit a body: humanoid motions only on humanoid-like bodies, creature ones where the parts exist. */
+export function emotesForBody(installed: readonly EmoteInfo[], body: BodyParts): EmoteInfo[] {
+  return installed.flatMap((x) => {
+    if (x.body === 'own') {
+      const n = Number(x.id.slice(4)) - 1;
+      const name = body.clips[n];
+      return name ? [{ ...x, label: name }] : [];
+    }
+    if (x.body === 'creature') {
+      const has = (x.needs ?? []).some((p) => (p === 'body' ? true : body[p]));
+      // A humanoid keeps its own versions of these (it nods with its clips); creature-only parts still show.
+      if (body.humanoid && (x.needs ?? []).every((p) => p === 'head' || p === 'legs' || p === 'body' || p === 'jaw' || p === 'fourLegs')) return [];
+      return has ? [x] : [];
+    }
+    if (body.humanoid) return [x];
+    // Shared ones a creature body performs with its own parts.
+    const needs = CREATURE_SHARED[x.id];
+    return needs && needs.some((p) => (p === 'body' ? true : body[p])) ? [x] : [];
+  });
+}
+
+/** Humanoid emotes the creature runtime also performs, and the parts each needs. */
+export const CREATURE_SHARED: Record<string, NonNullable<EmoteInfo['needs']>> = {
+  idle: ['body'], nod: ['head'], shake_head: ['head'], bow: ['head'], sit: ['legs'], lie_down: ['legs', 'body'], sleep: ['legs', 'body'],
+};
+
+/**
+ * What a non-humanoid body does when the story asks for a humanoid emote: the nearest thing its
+ * parts can do (a pony "laughs" with a hop and a tail wag), in order of preference.
+ */
+export const CREATURE_EQUIVALENT: Record<string, string[]> = {
+  idle: ['idle'], idle_relaxed: ['idle'], idle_shy: ['droop', 'idle'], idle_confident: ['idle'], idle_tired: ['droop', 'idle'],
+  laugh: ['wag_tail', 'hop', 'nod'], cry: ['droop'], angry: ['roar', 'shake_head'], embarrassed: ['droop', 'tilt_head'], surprised: ['rear_up', 'hop', 'tilt_head'],
+  scared: ['droop', 'shake_head'], thinking: ['tilt_head'], sigh: ['droop'],
+  wave: ['flap_wings', 'nod'], nod: ['nod'], shake_head: ['shake_head'], bow: ['bow', 'nod'], clap: ['hop', 'wag_tail', 'nod'], shrug: ['tilt_head'], point: ['nod'],
+  hug: ['nod'], cheer: ['flap_wings', 'hop', 'wag_tail'], drink: ['nod'],
+  sit: ['sit'], lie_down: ['lie_down'], sleep: ['sleep'], kneel: ['lie_down', 'sit'], walk_in: ['idle'], walk_out: ['idle'],
+  dance: ['prance', 'hop'], dance_sway: ['prance'], dance_bounce: ['prance', 'hop'], dance_arms: ['flap_wings', 'prance'],
+  ready: ['roar'], attack: ['rear_up', 'roar'], punch: ['rear_up'], cast: ['roar'], hit: ['droop'], defend: ['droop'], victory: ['rear_up', 'flap_wings', 'roar'], defeat: ['lie_down'],
+};
+
+/** The id a body plays for a requested emote: itself if it fits, else the first equivalent that does. */
+export function emoteForBody(id: string, fits: ReadonlySet<string>): string | null {
+  if (fits.has(id)) return id;
+  for (const alt of CREATURE_EQUIVALENT[id] ?? []) if (fits.has(alt)) return alt;
+  return null;
+}
 
 /** Emotes that persist (a pose) rather than play once. */
 export const isPoseEmote = (x: EmoteInfo) => x.loop && x.category !== 'talk';
@@ -106,8 +213,10 @@ export const EMOTE_FOR: Record<string, string> = {
 
 /** The line the tracker prompt gets: the exact ids it may use. */
 export function emoteOpReference(installed: readonly EmoteInfo[]): string {
-  const one = installed.filter((x) => !isPoseEmote(x)).map((x) => x.id);
-  const pose = installed.filter(isPoseEmote).map((x) => x.id);
+  // A character's own clips are picked on the stage, not named by the story.
+  const listed = installed.filter((x) => x.body !== 'own');
+  const one = listed.filter((x) => !isPoseEmote(x)).map((x) => x.id);
+  const pose = listed.filter(isPoseEmote).map((x) => x.id);
   return `- {"type":"avatar.emote","who":"Mara Quill","emote":"wave"}  a 3D character does something visible once; emote is one of: ${one.join(', ')}\n- {"type":"avatar.pose","who":"Mara Quill","pose":"sit"}  a held pose until changed ("pose":null to stand); pose is one of: ${pose.join(', ')}. "who":"everyone" for the whole scene (a group dance)`;
 }
 
