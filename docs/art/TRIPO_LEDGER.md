@@ -43,3 +43,13 @@ clothing with prints may need the texture, decided per item. Exporting is free.
 | 8 | 2026-10-14 | hair-ponytail-low | 228-nano-z-image-turbo-parts-hair-ponytail-low.jpg | 24620 | 24560 | pending | HD H3.1, parts (Detailed), private; 51 parts incl. stand-in head; 48.5k triangles |
 | 9 | 2026-10-14 | hair-twintails | 229-nano-z-image-turbo-parts-hair-twintails.jpg | 24560 | 24500 | pending | HD H3.1, parts (Detailed), private; 34 parts, no stand-in; 47.9k triangles |
 | 10 | 2026-10-14 | hair-braid-single | 230-nano-z-image-turbo-parts-hair-braid-single.jpg | 24500 | 24440 | pending | HD H3.1, parts (Detailed), private; 31 parts incl. stand-in head and neck; 47.6k triangles |
+| 11 | 2026-10-14 | hair-twin-braids | 234-nano-z-image-turbo-parts-hair-twin-braids.jpg | 24440 | 24380 | pending | HD H3.1, parts (Detailed), private; 55 parts incl. stand-in head; 47.7k triangles |
+| 12 | 2026-10-14 | hair-bun-top | 232-nano-z-image-turbo-parts-hair-bun-top.jpg | 24380 | 24320 | pending | HD H3.1, parts (Detailed), private; 68 parts incl. stand-in head; 40.2k triangles |
+| 13 | 2026-10-14 | hair-double-buns | 233-nano-z-image-turbo-parts-hair-double-buns.jpg | 24320 | 24260 | pending | HD H3.1, parts (Detailed), private; 40 parts, no stand-in; 47.1k triangles |
+| 14 | 2026-10-14 | hair-curly-long | 236-nano-z-image-turbo-parts-hair-curly-long.jpg | 24260 | 24200 | pending | HD H3.1, parts (Detailed), private; 64 parts incl. stand-in head; 48.3k triangles |
+| 15 | 2026-10-14 | hair-curly-short | 248-nano-z-image-turbo-parts-hair-curly-short.jpg | 24200 | 24140 | pending | HD H3.1, parts (Detailed), private; 31 parts; 48.2k triangles; came out tousled rather than curly |
+| 16 | 2026-10-14 | hair-hime | 238-nano-z-image-turbo-parts-hair-hime.jpg | 24140 | 24080 | pending | HD H3.1, parts (Detailed), private; 54 parts incl. stand-in head; 45.7k triangles |
+| 17 | 2026-10-14 | hair-shoulder-layers | 239-nano-z-image-turbo-parts-hair-shoulder-layers.jpg | 24080 | 24020 | pending | HD H3.1, parts (Detailed), private; 26 parts incl. stand-in head; 48.5k triangles |
+| 18 | 2026-10-14 | hair-side-ponytail | 240-nano-z-image-turbo-parts-hair-side-ponytail.jpg | 24020 | 23960 | pending | HD H3.1, parts (Detailed), private; 45 parts incl. stand-in head; 47.0k triangles |
+| 19 | 2026-10-14 | hair-undercut | 241-nano-z-image-turbo-parts-hair-undercut.jpg | 23960 | 23900 | pending | HD H3.1, parts (Detailed), private; 27 parts incl. stand-in head; 46.6k triangles; came out shaggy rather than an undercut |
+| 20 | 2026-10-14 | hair-spiky | 242-nano-z-image-turbo-parts-hair-spiky.jpg | 23900 | 23840 | pending | HD H3.1, parts (Detailed), private; 51 parts incl. stand-in head; 48.5k triangles |

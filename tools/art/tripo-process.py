@@ -272,6 +272,33 @@ def remove_smooth(o, seed, most):
     return len(seen)
 
 
+def stand_in_hits(tree, owner, centre, r):
+    """The pieces of a stand-in head met from `centre` (down to a chin, forward to a face), or None."""
+    met = {}
+    for name, d in (("down", Vector((0, 0, -1))), ("front", Vector((0, -1, 0))), ("diagonal", Vector((0, -0.7, -0.7)).normalized())):
+        loc, _n, idx, dist = tree.ray_cast(centre, d)
+        if loc is not None:
+            met[name] = (owner[idx], dist)
+    if os.environ.get("TRIPO_DEBUG"):
+        print("STANDIN", tuple(round(x, 3) for x in centre), round(r, 3), {k: (v[0][0].name, round(v[1], 3)) for k, v in met.items()})
+    down, front = met.get("down"), met.get("front")
+    if not down or not front:
+        return None
+    same = down[0][0] is front[0][0]
+    close = down[1] < r * 1.3 and front[1] < r * 1.3
+    # A stand-in with a neck: the face is close, the way down runs inside the neck to its end.
+    necked = not close and front[1] < r * 1.3 and "diagonal" in met and met["diagonal"][1] < r * 1.6 and down[1] < r * 2.5
+    if not (same or close or necked):
+        return None
+    hits = {}
+    for (o, face), dist in met.values():
+        if same and o is down[0][0] or (close or necked) and dist < r * (1.6 if necked else 1.3):
+            hits.setdefault(o, face)
+    if necked:
+        hits.setdefault(down[0][0], down[0][1])
+    return hits
+
+
 def drop_enclosing(meshes, report):
     """
     Stand-in heads, before fitting (a stand-in fills the hollow the fit measures). From the middle
@@ -292,27 +319,31 @@ def drop_enclosing(meshes, report):
     band = [p for p in verts if p.z > hi.z - (hi.z - lo.z) * 0.25]
     blo, bhi = box(band)
 
-    # The middle of the skull under the crown (the cap is about a head and a bit wide).
-    w = bhi.x - blo.x
-    centre = Vector(((blo.x + bhi.x) / 2, (blo.y + bhi.y) / 2, hi.z - w * 0.45))
-    r = w * 0.4
+    # The middle of the skull under the crown (the cap is about a head and a bit wide). The crown is
+    # the highest slice nearly as wide as the head: a bun or an ahoge on top is not the crown.
+    slices = []
+    for i in range(24):
+        z0 = hi.z - (hi.z - lo.z) * 0.6 * i / 23
+        sl = [p for p in verts if abs(p.z - z0) < (hi.z - lo.z) * 0.015]
+        if len(sl) > 8:
+            slices.append((z0, max(p.x for p in sl) - min(p.x for p in sl), sl))
+    w = max(x[1] for x in slices) if slices else bhi.x - blo.x
+    crown = next((x for x in slices if x[1] >= w * 0.6), None)
+    top = crown[0] if crown else hi.z
+    cx = (min(p.x for p in crown[2]) + max(p.x for p in crown[2])) / 2 if crown else (blo.x + bhi.x) / 2
+    cy = (min(p.y for p in crown[2]) + max(p.y for p in crown[2])) / 2 if crown else (blo.y + bhi.y) / 2
+    # Two guesses at the middle of the skull: under the crown slice, and under the top band (as wide
+    # as the cap). The first that finds a stand-in is taken.
+    wb = bhi.x - blo.x
+    guesses = [(Vector((cx, cy, top - w * 0.45)), w * 0.4), (Vector(((blo.x + bhi.x) / 2, (blo.y + bhi.y) / 2, hi.z - wb * 0.45)), wb * 0.4)]
     report["standInHead"] = []
-    met = {}
-    for name, d in (("down", Vector((0, 0, -1))), ("front", Vector((0, -1, 0))), ("diagonal", Vector((0, -0.7, -0.7)).normalized())):
-        loc, _n, idx, dist = tree.ray_cast(centre, d)
-        if loc is not None:
-            met[name] = (owner[idx], dist)
-    down, front = met.get("down"), met.get("front")
-    if not down or not front:
+    hits = None
+    for centre, r in guesses:
+        hits = stand_in_hits(tree, owner, centre, r)
+        if hits:
+            break
+    if not hits:
         return
-    same = down[0][0] is front[0][0]
-    close = down[1] < r * 1.3 and front[1] < r * 1.3
-    if not (same or close):
-        return
-    hits = {}
-    for (o, face), dist in met.values():
-        if same and o is down[0][0] or close and dist < r * 1.3:
-            hits.setdefault(o, face)
     pts = []
     for o, face in hits.items():
         pts += [v.co.copy() for v in o.data.vertices]
@@ -395,7 +426,8 @@ def fit_hair(meshes, arm, body, report):
     ends = {i: lowest(d) for i, d in enumerate(sides)}
     front = 3
     best = max((0, 1), key=lambda i: ends[i])
-    if ends[best] - ends[3] > r * 0.6 and ends[best] - ends[1 - best] > r * 0.6:
+    # A stand-in head was found by its face at -Y: that is the front.
+    if not report.get("_standIn") and ends[best] - ends[3] > r * 0.6 and ends[best] - ends[1 - best] > r * 0.6:
         front = best
     if front != 3:
         rot = Matrix.Rotation(-math.pi / 2 if front == 0 else math.pi / 2, 3, "Z")
@@ -687,15 +719,18 @@ def strand(o, root_tree, anchor):
     return pts, root, pts[tip_i], max(ds)
 
 
-def chain_weights(o, pts, root, tip, bones, anchor_bone, pin=0.12):
-    """Each vertex to the bone along the strand it lies on, the root end pinned to the anchor bone."""
+def chain_weights(o, pts, root, tip, bones, anchor_bone, pin=0.12, stick=None):
+    """
+    Each vertex to the bone along the strand it lies on; the root end, and whatever lies on the scalp
+    (`stick`: 0..1 per vertex), pinned to the anchor bone.
+    """
     axis = tip - root
     length = max(axis.length, 1e-6)
     axis = axis / length
     n = len(bones)
     gs = [o.vertex_groups.get(b) or o.vertex_groups.new(name=b) for b in bones]
     ga = o.vertex_groups.get(anchor_bone) or o.vertex_groups.new(name=anchor_bone)
-    for v, p in zip(o.data.vertices, pts):
+    for v, p, st in zip(o.data.vertices, pts, stick or [0.0] * len(pts)):
         t = min(1.0, max(0.0, (p - root).dot(axis) / length))
         s = t * n
         i = min(int(s), n - 1)
@@ -705,7 +740,7 @@ def chain_weights(o, pts, root, tip, bones, anchor_bone, pin=0.12):
         if f > 0.6 and i + 1 < n:
             b = (f - 0.6) / 0.4 * 0.5
             w = {i: 1 - b, i + 1: b}
-        a = max(0.0, 1 - t / pin) if pin > 0 else 0.0
+        a = max(max(0.0, 1 - t / pin) if pin > 0 else 0.0, st)
         for j, x in w.items():
             gs[j].add([v.index], x * (1 - a), "REPLACE")
         if a > 0:
@@ -728,20 +763,31 @@ def chain_points(pts, root, tip, n):
 def rig_hair(meshes, arm, target, report):
     """Swing chains for the hair: one per hanging part, the rest rigid on the head."""
     head_tree = BVHTree.FromObject(target, bpy.context.evaluated_depsgraph_get())
+    neck_z = (arm.matrix_world @ arm.data.bones["neck_01"].tail_local).z
+
+    def sticks(pts):
+        # On the scalp (within 2 cm, fading out by 4 cm, above the neck): stays with the head.
+        out = []
+        for p in pts:
+            d = head_tree.find_nearest(p)[3] if p.z > neck_z else None
+            out.append(0.0 if d is None else min(1.0, max(0.0, (0.04 - d) / 0.02)))
+        return out
+
     info = []
     for o in meshes:
         pts, root, tip, far = strand(o, head_tree, "head")
         hang = (tip - root).length
         info.append((o, pts, root, tip, far, hang))
     # Swing: the piece reaches away from the scalp (bangs, locks, tails); a cap stays on the head.
-    swing = [x for x in info if x[4] > 0.035 and x[5] > 0.05]
+    # Only what hangs down swings: the tip well below the root. Caps and crown pieces stay put.
+    swing = [x for x in info if x[4] > 0.035 and x[5] > 0.05 and x[2].z - x[3].z > max(0.04, x[5] * 0.4)]
     swing.sort(key=lambda x: -x[5])
     chains, rigid = swing[:MAX_CHAINS], [x for x in info if x not in swing[:MAX_CHAINS]]
     names = []
     for n, (o, pts, root, tip, _far, hang) in enumerate(chains):
         count = max(2, min(6, round(hang / 0.04)))
         bones = add_chain(arm, "head", f"hair_{n}", chain_points(pts, root, tip, count))
-        chain_weights(o, pts, root, tip, bones, "head")
+        chain_weights(o, pts, root, tip, bones, "head", stick=sticks(pts))
         names.append(bones)
     # Pieces with no chain of their own: rigid on the head, or (if they hang) the nearest chain's weights.
     if chains:
@@ -757,12 +803,17 @@ def rig_hair(meshes, arm, target, report):
         if not chains or far < 0.035:
             g.add([v.index for v in o.data.vertices], 1.0, "REPLACE")
             continue
-        for v, p in zip(o.data.vertices, pts):
+        for v, p, st in zip(o.data.vertices, pts, sticks(pts)):
             _co, j, _d = kd.find(p)
             src, i = owner[j]
+            acc = {}
             for ge in src.data.vertices[i].groups:
                 name = src.vertex_groups[ge.group].name
-                (o.vertex_groups.get(name) or o.vertex_groups.new(name=name)).add([v.index], ge.weight, "REPLACE")
+                acc[name] = acc.get(name, 0) + ge.weight * (1 - st)
+            acc["head"] = acc.get("head", 0) + st
+            for name, wt in acc.items():
+                if wt > 0:
+                    (o.vertex_groups.get(name) or o.vertex_groups.new(name=name)).add([v.index], wt, "REPLACE")
     report["chains"] = len(names)
     report["chainBones"] = sum(len(b) for b in names)
     report["rigidPieces"] = sum(1 for x in rigid if not chains or x[4] < 0.035)

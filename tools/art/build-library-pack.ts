@@ -4,7 +4,7 @@
  * The packs hold the owner's Tripo outputs and stay private: they are written to
  * ~/Everloom-Tripo/packs, never the repository.
  *
- *   npx tsx tools/art/build-library-pack.ts [--rating all-ages|adult] [--in ~/Everloom-Tripo/processed] [--out ~/Everloom-Tripo/packs]
+ *   npx tsx tools/art/build-library-pack.ts [--rating all-ages|adult] [--only name,name] [--in ~/Everloom-Tripo/processed] [--out ~/Everloom-Tripo/packs]
  *
  * A part is in a pack when it was processed for that base and is kept in docs/art/TRIPO_LEDGER.md
  * ("yes"; --pending also takes items still under review); 18+ parts (the queue's `adult` flag) go only into the adult pack, which also carries
@@ -45,12 +45,12 @@ const GROUP: Record<string, { trait: string; name: string }> = {
   hands: { trait: 'HANDS', name: 'Gloves' },
 };
 
-/** Ledger rows: item → kept. */
-function kept(): Map<string, boolean> {
-  const out = new Map<string, boolean>();
+/** Ledger rows: item → its Kept column (yes, no, pending). */
+function kept(): Map<string, string> {
+  const out = new Map<string, string>();
   for (const line of readFileSync(path.join(ROOT, 'docs/art/TRIPO_LEDGER.md'), 'utf8').split('\n')) {
     const c = line.split('|').map((s) => s.trim());
-    if (/^\d+$/.test(c[1] ?? '')) out.set(c[3]!, /^yes/i.test(c[7] ?? ''));
+    if (/^\d+$/.test(c[1] ?? '')) out.set(c[3]!, (c[7] ?? '').toLowerCase());
   }
   return out;
 }
@@ -69,12 +69,15 @@ async function main() {
     const groups = new Map<string, PackManifest['traits'][number]>();
     files[`body/${base}.glb`] = readFileSync(path.join(ROOT, 'apps/web/public/avatar/bases', `${base}.glb`));
     const skipped: string[] = [];
+    const only = process.argv.includes('--only') ? new Set(arg('only', '').split(',')) : null;
     for (const name of readdirSync(IN).sort()) {
+      if (only && !only.has(name)) continue;
       const report = path.join(IN, name, `${base}.json`);
       if (!existsSync(report)) continue;
       const r = JSON.parse(readFileSync(report, 'utf8')) as { slot: string; colour?: string; chains?: number };
       const q = queue.items.find((x) => x.id === name);
-      if (!keep.get(name) && !(process.argv.includes("--pending") && keep.has(name))) { skipped.push(`${name} (not kept in the ledger)`); continue; }
+      const status = keep.get(name) ?? '';
+      if (!status.startsWith('yes') && !(process.argv.includes('--pending') && status.startsWith('pending'))) { skipped.push(`${name} (not kept in the ledger)`); continue; }
       if (q?.adult && RATING !== 'adult') continue;
       const g = GROUP[r.slot];
       if (!g) { skipped.push(`${name} (slot ${r.slot})`); continue; }
