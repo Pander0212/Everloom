@@ -159,13 +159,12 @@ def decimate(meshes, budget, report):
     report["triangles"] = tris(meshes)
 
 
-def strip_fused_head(meshes, report):
+def strip_fused_head(meshes, report, most=0.4):
     """
     A stand-in head fused to the hair (one piece; Tripo's parts mode keeps it separate): a ray up
     through the middle from below meets a solid chin instead of the hollow under the crown. The smooth
     surface it hits is grown out to the creases where strands start and removed.
     """
-    report["fusedHead"] = 0
     for o in meshes:
         pts = [v.co for v in o.data.vertices]
         lo, hi = box(pts)
@@ -188,14 +187,14 @@ def strip_fused_head(meshes, report):
         while todo:
             f = todo.pop()
             area += f.calc_area()
-            if area > total * 0.4:
+            if area > total * most:
                 break
             for e in f.edges:
                 for g in e.link_faces:
                     if g.index not in seen and f.normal.angle(g.normal, 0) < math.radians(25):
                         seen.add(g.index)
                         todo.append(g)
-        if area > total * 0.4 or area < total * 0.02:
+        if area > total * most or area < total * 0.02:
             report["fusedHeadSkipped"] = round(area / total, 3)
             bm.free()
             continue
@@ -204,7 +203,7 @@ def strip_fused_head(meshes, report):
         bm.to_mesh(o.data)
         bm.free()
         o.data.update()
-        report["fusedHead"] += len(seen)
+        report["fusedHead"] = report.get("fusedHead", 0) + len(seen)
 
 
 def shrink_textures(report):
@@ -240,71 +239,179 @@ def move(meshes, k, offset):
         o.data.update()
 
 
+def drop_enclosing(meshes, report):
+    """
+    Separate stand-in heads, before fitting (a stand-in fills the hollow the fit measures): from the
+    middle of the hollow under the crown, rays down (chin) and forward (face) both meet the same
+    piece. Hair leaves the face and the underside open.
+    """
+    pts = [v.co for o in meshes for v in o.data.vertices]
+    lo, hi = box(pts)
+    band = [p for p in pts if p.z > hi.z - (hi.z - lo.z) * 0.3]
+    blo, bhi = box(band)
+    w = bhi.x - blo.x
+    centre = Vector(((blo.x + bhi.x) / 2, (blo.y + bhi.y) / 2, hi.z - w * 0.45))
+    trees = [(o, BVHTree.FromPolygons([v.co for v in o.data.vertices], [list(p.vertices) for p in o.data.polygons])) for o in meshes]
+
+    def first(d):
+        best = None
+        for o, t in trees:
+            loc, _n, _i, dist = t.ray_cast(centre, d)
+            if loc is not None and (best is None or dist < best[1]):
+                best = (o, dist)
+        return best[0] if best else None
+
+    down, front = first(Vector((0, 0, -1))), first(Vector((0, -1, 0)))
+    gone = []
+    if down is not None and down is front:
+        report["_standIn"] = box([v.co.copy() for v in down.data.vertices])
+        # Tripo sometimes leaves locks (the middle of a fringe) in the head piece: only its smooth
+        # shell goes, and the piece only if nothing of note is left.
+        strip_fused_head([down], report, most=0.98)
+        gone.append(down.name)
+        if len(down.data.polygons) < 60:
+            meshes.remove(down)
+            bpy.data.objects.remove(down, do_unlink=True)
+    report["standInHead"] = gone
+
+
+def hollow(points, tree, lo, hi, covered, steps=14):
+    """The largest sphere clear of the surface in `tree` within the box lo..hi that `covered(centre, r)` accepts."""
+    best = (None, 0.0)
+    span = hi - lo
+    for rnd in range(3):
+        cands = []
+        for i in range(steps):
+            for j in range(steps):
+                for k in range(steps):
+                    cands.append(lo + Vector((span.x * (i + 0.5) / steps, span.y * (j + 0.5) / steps, span.z * (k + 0.5) / steps)))
+        for c in cands:
+            # Distance to the surface itself (between vertices too), not to the nearest vertex.
+            hit = tree.find_nearest(c)
+            r = hit[3] if hit[0] is not None else 0.0
+            if r > best[1] and covered(c, r):
+                best = (c, r)
+        if best[0] is None:
+            return None, 0.0
+        # Again, finer, around the best so far.
+        span = span * 0.3
+        lo = best[0] - span / 2
+        hi = best[0] + span / 2
+    return best
+
+
 def fit_hair(meshes, arm, body, report):
     """
-    Sets the hair on the skull by its inside: rays from within the hair find the inner crown and the
-    inner width at temple height, which are matched to the head's top and widest point (repeated, as
-    the temple height inside the hair depends on the scale). The outer width is only the first guess:
-    a rounded crown or wide flares mislead it.
+    Sets the hair on the skull, in this order of trust:
+      1. a stand-in head Tripo modelled under the hair (its box goes on the base's head);
+      2. the hair's inside: rays from the hollow under the crown find the inner crown and the inner
+         width at temple height, matched to the head's top and widest point (repeated, as the
+         temple height inside the hair depends on the scale);
+      3. the hollow alone: the largest sphere clear of the hair under the crown, on the same sphere
+         inside the base's skull.
+    The hollow also gives the front: the side where the hair stops highest (the fringe). Tripo
+    sometimes turns a model sideways; it is turned back to face -Y (only quarter turns: a fringe and
+    a short nape are too alike to tell front from back).
     """
+    from mathutils import Matrix  # type: ignore
+
+    def gather():
+        vs, ps = [], []
+        for o in meshes:
+            base = len(vs)
+            vs += [v.co.copy() for v in o.data.vertices]
+            ps += [[base + i for i in p.vertices] for p in o.data.polygons]
+        return vs, BVHTree.FromPolygons(vs, ps)
+
+    verts, tree = gather()
+    lo, hi = box(verts)
+    band = [p for p in verts if p.z > hi.z - (hi.z - lo.z) * 0.25]
+    blo, bhi = box(band)
+    cap = max(bhi.x - blo.x, bhi.y - blo.y)
+    sides = [Vector((1, 0, 0)), Vector((-1, 0, 0)), Vector((0, 1, 0)), Vector((0, -1, 0))]
+
+    def hair_covered(c, r):
+        up = tree.ray_cast(c, Vector((0, 0, 1)))
+        if up[0] is None or up[3] > r * 1.2:
+            return False
+        return sum(1 for d in sides if tree.ray_cast(c, d)[0] is not None) >= 3
+
+    centre, r = hollow(verts, tree, Vector((blo.x, blo.y, hi.z - cap * 1.1)), Vector((bhi.x, bhi.y, hi.z)), hair_covered)
+    if centre is None:
+        centre, r = Vector(((blo.x + bhi.x) / 2, (blo.y + bhi.y) / 2, hi.z - cap * 0.45)), cap * 0.38
+
+    def lowest(d):
+        zs = [p.z for p in verts if Vector((p.x - centre.x, p.y - centre.y, 0)).length > r * 0.5 and Vector((p.x - centre.x, p.y - centre.y, 0)).normalized().dot(d) > 0.9]
+        return min(zs) if zs else hi.z
+    ends = {i: lowest(d) for i, d in enumerate(sides)}
+    front = 3
+    best = max((0, 1), key=lambda i: ends[i])
+    if ends[best] - ends[3] > r * 0.6 and ends[best] - ends[1 - best] > r * 0.6:
+        front = best
+    if front != 3:
+        rot = Matrix.Rotation(-math.pi / 2 if front == 0 else math.pi / 2, 3, "Z")
+        for o in meshes:
+            for v in o.data.vertices:
+                v.co = rot @ (v.co - centre) + centre
+            o.data.update()
+        verts, tree = gather()
+        lo, hi = box(verts)
+
+    # The base head: its top, its widest slice (the temples) and the skull's hollow.
     head = region(arm, body, ["head"])
     hlo, hhi = box(head)
-    # The skull's widest slice (the temples), its half width and centre.
-    best = None
-    for k in range(20):
-        z0 = hlo.z + (hhi.z - hlo.z) * (0.35 + k * 0.03)
+    widest = None
+    for i in range(20):
+        z0 = hlo.z + (hhi.z - hlo.z) * (0.35 + i * 0.03)
         sl = [p for p in head if abs(p.z - z0) < 0.006]
         if len(sl) < 8:
             continue
         w = (max(p.x for p in sl) - min(p.x for p in sl)) / 2
-        if not best or w > best[1]:
-            best = (z0, w, sum(p.y for p in sl) / len(sl), (max(p.y for p in sl) + min(p.y for p in sl)) / 2)
-    temple_z, half_w, _mean_y, mid_y = best
+        if not widest or w > widest[1]:
+            widest = (z0, w, (max(p.y for p in sl) + min(p.y for p in sl)) / 2)
+    temple_z, half_w, mid_y = widest
     head_cx = (hlo.x + hhi.x) / 2
     drop = hhi.z - temple_z
+    btree = BVHTree.FromObject(body, bpy.context.evaluated_depsgraph_get())
+    skull, rb = hollow(head, btree, Vector((hlo.x, hlo.y, (hlo.z + hhi.z) / 2)), hhi, lambda c, _r: all(btree.ray_cast(c, d)[0] is not None for d in sides + [Vector((0, 0, 1))]), steps=10)
+    if skull is None:
+        skull, rb = Vector((head_cx, mid_y, hhi.z - half_w)), half_w
 
-    verts, polys = [], []
-    for o in meshes:
-        base = len(verts)
-        verts += [v.co.copy() for v in o.data.vertices]
-        polys += [[base + i for i in p.vertices] for p in o.data.polygons]
-    tree = BVHTree.FromPolygons(verts, polys)
-    lo, hi = box(verts)
-    band = [p for p in verts if p.z > hi.z - (hi.z - lo.z) * 0.3]
-    blo, bhi = box(band)
-    k = half_w * 2 * 1.28 / max(1e-6, bhi.x - blo.x)
-    cx, cy = (blo.x + bhi.x) / 2, (blo.y + bhi.y) / 2
-    crown = Vector((cx, cy, hi.z - 0.012 / k))
-    how = "outer width"
+    sb = report.pop("_standIn", None)
+    if sb is not None and front == 3:
+        slo, shi = sb
+        k = ((hhi.x - hlo.x) / max(1e-6, shi.x - slo.x) + (hhi.y - hlo.y) / max(1e-6, shi.y - slo.y)) / 2
+        move(meshes, k, Vector((head_cx, (hlo.y + hhi.y) / 2, hhi.z)) - Vector(((slo.x + shi.x) / 2, (slo.y + shi.y) / 2, shi.z)) * k)
+        report["fit"] = {"scale": round(k, 4), "how": "stand-in head", "front": "-Y"}
+        return
 
-    def ray(o, d):
-        loc, _n, _i, dist = tree.ray_cast(o, d)
-        return loc, dist
-
+    k = rb * 1.04 / max(r, 1e-6)
+    cx, cy = centre.x, centre.y
+    crown = None
+    how = "hollow"
     for _ in range(4):
-        # The inner crown: straight up from well inside.
-        start = Vector((cx, cy, hi.z - (drop * 1.2) / k))
-        top, _d = ray(start, Vector((0, 0, 1)))
+        start = Vector((cx, cy, centre.z))
+        top = tree.ray_cast(start, Vector((0, 0, 1)))[0]
         if top is None:
             break
         level = Vector((cx, cy, top.z - drop / k))
-        left, dl = ray(level, Vector((-1, 0, 0)))
-        right, dr = ray(level, Vector((1, 0, 0)))
-        front, df = ray(level, Vector((0, -1, 0)))
-        back, db = ray(level, Vector((0, 1, 0)))
+        left = tree.ray_cast(level, Vector((-1, 0, 0)))[0]
+        right = tree.ray_cast(level, Vector((1, 0, 0)))[0]
+        fr = tree.ray_cast(level, Vector((0, -1, 0)))[0]
+        bk = tree.ray_cast(level, Vector((0, 1, 0)))[0]
         if left is None or right is None:
-            crown = top
             break
-        inner = (right.x - left.x) / 2
-        k = half_w * 1.04 / max(1e-6, inner)
+        k = half_w * 1.04 / max(1e-6, (right.x - left.x) / 2)
         cx = (left.x + right.x) / 2
-        if front is not None and back is not None:
-            cy = (front.y + back.y) / 2
+        if fr is not None and bk is not None:
+            cy = (fr.y + bk.y) / 2
         crown = top
         how = "inner fit"
-    target = Vector((head_cx, mid_y, hhi.z + 0.003))
-    move(meshes, k, target - Vector((cx, cy, crown.z)) * k)
-    report["fit"] = {"scale": round(k, 4), "headWidth": round(half_w * 2, 4), "how": how}
+    if crown is not None:
+        move(meshes, k, Vector((head_cx, mid_y, hhi.z + 0.003)) - Vector((cx, cy, crown.z)) * k)
+    else:
+        move(meshes, k, skull - centre * k)
+    report["fit"] = {"scale": round(k, 4), "how": how, "front": ["+X", "-X", "+Y", "-Y"][front]}
 
 
 def fit_span(meshes, arm, slot, report):
@@ -813,8 +920,11 @@ def main():
     meshes = clean(meshes, report)
     decimate(meshes, int(a.get("budget", BUDGET.get(slot, 20000))), report)
     shrink_textures(report)
-    if slot in ("hair", "head") and len(meshes) <= 2:
-        strip_fused_head(meshes, report)
+    if slot in ("hair", "head"):
+        if len(meshes) >= 2:
+            drop_enclosing(meshes, report)
+        if len(meshes) <= 2:
+            strip_fused_head(meshes, report)
 
     if slot == "hair":
         fit_hair(meshes, arm, body, report)
@@ -822,7 +932,9 @@ def main():
         fit_span(meshes, arm, slot, report)
     target = body_target(body)
     tree = BVHTree.FromObject(target, bpy.context.evaluated_depsgraph_get())
-    meshes = drop_standins(meshes, tree, report)
+    # Hair: stand-ins went before the fit; a lock dipping into the forehead is wrapped out, not dropped.
+    if slot != "hair":
+        meshes = drop_standins(meshes, tree, report)
     if not meshes:
         raise SystemExit("nothing left after dropping stand-ins")
     wrap(meshes, target, 0.004 if slot == "hair" else 0.006)

@@ -35,3 +35,6 @@ clothing with prints may need the texture, decided per item. Exporting is free.
 |---|---|---|---|---|---|---|---|
 | 1 | 2026-10-14 | hair-bob-blunt | 220-nano-z-image-turbo-parts-hair-bob-test.jpg | 25035 | 24980 | yes | reviewed in motion (8 sector chains; fused stand-in face removed);  HD model, H3.1, private; 1.91M triangles, 4K texture, 63 MB GLB |
 | 2 | 2026-10-14 | hair-short-messy | 221-nano-z-image-turbo-parts-hair-short-messy.jpg | 24980 | 24920 | yes | reviewed in motion (24 chains, tips swing ~2–5 cm in a dance);  HD model H3.1, Generate in Parts (Detailed), private; segmentation free; 44 strand parts, 48.6k triangles, 1.25 MB GLB; parts mode makes geometry only (Tripo texture would be +30, not used: hair takes the Everloom toon material) |
+| 3 | 2026-10-14 | hair-pixie | 222-nano-z-image-turbo-parts-hair-pixie.jpg | 24920 | 24860 | pending | HD H3.1, parts (Detailed), private; 25 parts incl. a separate stand-in head; 46.4k triangles |
+| 4 | 2026-10-14 | hair-long-straight | 224-nano-z-image-turbo-parts-hair-long-straight.jpg | 24860 | 24800 | pending | HD H3.1, parts (Detailed), private; 44 parts; 45.2k triangles |
+| 5 | 2026-10-14 | hair-long-straight-bangs | 225-nano-z-image-turbo-parts-hair-long-straight-bangs.jpg | 24800 | 24740 | pending | HD H3.1, parts (Detailed), private; 122 parts; 43.6k triangles |
