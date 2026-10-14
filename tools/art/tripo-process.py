@@ -239,40 +239,89 @@ def move(meshes, k, offset):
         o.data.update()
 
 
+def remove_smooth(o, seed, most):
+    """Removes the smooth surface around face `seed` (grown to creases, at most `most` of the area)."""
+    bm = bmesh.new()
+    bm.from_mesh(o.data)
+    bm.faces.ensure_lookup_table()
+    total = sum(f.calc_area() for f in bm.faces)
+    seen = {seed}
+    todo = [bm.faces[seed]]
+    area = 0.0
+    while todo:
+        f = todo.pop()
+        area += f.calc_area()
+        if area > total * most:
+            break
+        for e in f.edges:
+            for g in e.link_faces:
+                if g.index not in seen and f.normal.angle(g.normal, 0) < math.radians(25):
+                    seen.add(g.index)
+                    todo.append(g)
+    if area > total * most:
+        # Smooth all over: the whole piece is shell.
+        seen = {f.index for f in bm.faces}
+    elif area < total * 0.02:
+        bm.free()
+        return 0
+    bmesh.ops.delete(bm, geom=[bm.faces[i] for i in seen], context="FACES")
+    bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+    bm.to_mesh(o.data)
+    bm.free()
+    o.data.update()
+    return len(seen)
+
+
 def drop_enclosing(meshes, report):
     """
-    Separate stand-in heads, before fitting (a stand-in fills the hollow the fit measures): from the
-    middle of the hollow under the crown, rays down (chin) and forward (face) both meet the same
-    piece. Hair leaves the face and the underside open.
+    Stand-in heads, before fitting (a stand-in fills the hollow the fit measures). From the middle
+    of the hollow under the crown, whatever is met close by going down (a chin) or forward (a face)
+    is the stand-in's shell; Tripo may cut it into several pieces, and may leave locks (the middle of
+    a fringe) on them. Each such piece loses its smooth shell, grown from where the ray met it; a
+    piece with nothing of note left goes. The stand-in's points guide the fit.
     """
-    pts = [v.co for o in meshes for v in o.data.vertices]
-    lo, hi = box(pts)
-    band = [p for p in pts if p.z > hi.z - (hi.z - lo.z) * 0.3]
+    verts, polys, owner = [], [], []
+    for o in meshes:
+        base = len(verts)
+        verts += [v.co.copy() for v in o.data.vertices]
+        for p in o.data.polygons:
+            polys.append([base + i for i in p.vertices])
+            owner.append((o, p.index))
+    tree = BVHTree.FromPolygons(verts, polys)
+    lo, hi = box(verts)
+    band = [p for p in verts if p.z > hi.z - (hi.z - lo.z) * 0.25]
     blo, bhi = box(band)
+
+    # The middle of the skull under the crown (the cap is about a head and a bit wide).
     w = bhi.x - blo.x
     centre = Vector(((blo.x + bhi.x) / 2, (blo.y + bhi.y) / 2, hi.z - w * 0.45))
-    trees = [(o, BVHTree.FromPolygons([v.co for v in o.data.vertices], [list(p.vertices) for p in o.data.polygons])) for o in meshes]
-
-    def first(d):
-        best = None
-        for o, t in trees:
-            loc, _n, _i, dist = t.ray_cast(centre, d)
-            if loc is not None and (best is None or dist < best[1]):
-                best = (o, dist)
-        return best[0] if best else None
-
-    down, front = first(Vector((0, 0, -1))), first(Vector((0, -1, 0)))
-    gone = []
-    if down is not None and down is front:
-        report["_standIn"] = box([v.co.copy() for v in down.data.vertices])
-        # Tripo sometimes leaves locks (the middle of a fringe) in the head piece: only its smooth
-        # shell goes, and the piece only if nothing of note is left.
-        strip_fused_head([down], report, most=0.98)
-        gone.append(down.name)
-        if len(down.data.polygons) < 60:
-            meshes.remove(down)
-            bpy.data.objects.remove(down, do_unlink=True)
-    report["standInHead"] = gone
+    r = w * 0.4
+    report["standInHead"] = []
+    met = {}
+    for name, d in (("down", Vector((0, 0, -1))), ("front", Vector((0, -1, 0))), ("diagonal", Vector((0, -0.7, -0.7)).normalized())):
+        loc, _n, idx, dist = tree.ray_cast(centre, d)
+        if loc is not None:
+            met[name] = (owner[idx], dist)
+    down, front = met.get("down"), met.get("front")
+    if not down or not front:
+        return
+    same = down[0][0] is front[0][0]
+    close = down[1] < r * 1.3 and front[1] < r * 1.3
+    if not (same or close):
+        return
+    hits = {}
+    for (o, face), dist in met.values():
+        if same and o is down[0][0] or close and dist < r * 1.3:
+            hits.setdefault(o, face)
+    pts = []
+    for o, face in hits.items():
+        pts += [v.co.copy() for v in o.data.vertices]
+        report["fusedHead"] = report.get("fusedHead", 0) + remove_smooth(o, face, 0.98)
+        report["standInHead"].append(o.name)
+        if len(o.data.polygons) < 60:
+            meshes.remove(o)
+            bpy.data.objects.remove(o, do_unlink=True)
+    report["_standIn"] = pts
 
 
 def hollow(points, tree, lo, hi, covered, steps=14):
@@ -356,6 +405,8 @@ def fit_hair(meshes, arm, body, report):
             o.data.update()
         verts, tree = gather()
         lo, hi = box(verts)
+        if "_standIn" in report:
+            report["_standIn"] = [rot @ (p - centre) + centre for p in report["_standIn"]]
 
     # The base head: its top, its widest slice (the temples) and the skull's hollow.
     head = region(arm, body, ["head"])
@@ -378,11 +429,11 @@ def fit_hair(meshes, arm, body, report):
         skull, rb = Vector((head_cx, mid_y, hhi.z - half_w)), half_w
 
     sb = report.pop("_standIn", None)
-    if sb is not None and front == 3:
-        slo, shi = sb
+    if sb:
+        slo, shi = box(sb)
         k = ((hhi.x - hlo.x) / max(1e-6, shi.x - slo.x) + (hhi.y - hlo.y) / max(1e-6, shi.y - slo.y)) / 2
         move(meshes, k, Vector((head_cx, (hlo.y + hhi.y) / 2, hhi.z)) - Vector(((slo.x + shi.x) / 2, (slo.y + shi.y) / 2, shi.z)) * k)
-        report["fit"] = {"scale": round(k, 4), "how": "stand-in head", "front": "-Y"}
+        report["fit"] = {"scale": round(k, 4), "how": "stand-in head", "front": ["+X", "-X", "+Y", "-Y"][front]}
         return
 
     k = rb * 1.04 / max(r, 1e-6)
@@ -474,8 +525,75 @@ def drop_standins(meshes, tree, report):
     return meshes
 
 
-def wrap(meshes, target, offset):
+def drop_face_shell(meshes, tree, arm, body, report):
+    """
+    What is left of a stand-in face after the fit (Tripo may cut a stand-in into more pieces than
+    the rays meet, or fuse bits of it into fringe pieces): every triangle lying on the skin of the
+    face (front of the head, below the brow), then pieces with next to nothing left. Bangs hang
+    clear of the skin; a shell matched to the head sits on it.
+    """
+    head = region(arm, body, ["head"])
+    hlo, hhi = box(head)
+    brow = hhi.z - (hhi.z - hlo.z) * 0.35
+    mid_y = (hlo.y + hhi.y) / 2
+    removed = 0
+    for o in list(meshes):
+        mw = o.matrix_world
+        on = []
+        for v in o.data.vertices:
+            p = mw @ v.co
+            hit = tree.find_nearest(p) if hlo.z < p.z < brow and p.y < mid_y else (None,)
+            on.append(hit[0] is not None and hit[3] < 0.004)
+        bm = bmesh.new()
+        bm.from_mesh(o.data)
+        doomed = [f for f in bm.faces if all(on[v.index] for v in f.verts)]
+        if doomed:
+            removed += len(doomed)
+            bmesh.ops.delete(bm, geom=doomed, context="FACES")
+            bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+            bm.to_mesh(o.data)
+            o.data.update()
+        bm.free()
+        if len(o.data.polygons) < 30:
+            meshes.remove(o)
+            bpy.data.objects.remove(o, do_unlink=True)
+    report["faceShell"] = removed
+    return meshes
+
+
+def wrap(meshes, target, offset, smooth=False):
+    """
+    Whatever is inside the skin goes just outside it. With `smooth` (hair), the push spreads over
+    each lock, so a lock hanging over the chest moves forward as one instead of its tips being
+    pressed flat onto the skin; a second wrap then fixes what is still inside.
+    """
     for o in meshes:
+        before = [v.co.copy() for v in o.data.vertices] if smooth else None
+        m = o.modifiers.new("Wrap", "SHRINKWRAP")
+        m.target = target
+        m.wrap_method = "NEAREST_SURFACEPOINT"
+        m.wrap_mode = "OUTSIDE"
+        m.offset = offset
+        bpy.context.view_layer.objects.active = o
+        bpy.ops.object.modifier_apply(modifier=m.name)
+        if not smooth:
+            continue
+        push = [v.co - b for v, b in zip(o.data.vertices, before)]
+        if max((p.length for p in push), default=0) < 1e-5:
+            continue
+        nbr = [[] for _ in push]
+        for e in o.data.edges:
+            a, b = e.vertices
+            nbr[a].append(b)
+            nbr[b].append(a)
+        # Spread the biggest pushes to their neighbours, then soften.
+        for _ in range(12):
+            push = [max([push[i]] + [push[j] for j in nbr[i]], key=lambda x: x.length) for i in range(len(push))]
+        for _ in range(6):
+            push = [(push[i] + sum((push[j] for j in nbr[i]), Vector())) / (1 + len(nbr[i])) for i in range(len(push))]
+        for v, b, p in zip(o.data.vertices, before, push):
+            v.co = b + p
+        o.data.update()
         m = o.modifiers.new("Wrap", "SHRINKWRAP")
         m.target = target
         m.wrap_method = "NEAREST_SURFACEPOINT"
@@ -935,9 +1053,11 @@ def main():
     # Hair: stand-ins went before the fit; a lock dipping into the forehead is wrapped out, not dropped.
     if slot != "hair":
         meshes = drop_standins(meshes, tree, report)
+    elif report.get("standInHead"):
+        meshes = drop_face_shell(meshes, tree, arm, body, report)
     if not meshes:
         raise SystemExit("nothing left after dropping stand-ins")
-    wrap(meshes, target, 0.004 if slot == "hair" else 0.006)
+    wrap(meshes, target, 0.004 if slot == "hair" else 0.006, smooth=slot == "hair")
     surface = Surface(target, body)
 
     if slot == "hair":
