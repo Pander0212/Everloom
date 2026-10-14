@@ -29,8 +29,14 @@ tousled rather than curly, hair-undercut shaggy rather than an undercut.
   pieces stay on the head, anything lying on the scalp is pinned to it.
 
 **Checked:** thumbnails of all 19 on both bases (anime-f, anime-m); all 19 loaded in the parts maker
-from a review pack, danced, with chain motion measured (no NaN, no runaway tips) and the worst case
-(long hair with bangs) looked at frame by frame after the rigging fix.
+from the built pack and danced, with the motion of every chain tip measured against the head: no
+NaN, no runaway tips; short styles move a few centimetres (spiky 6, short curly 3), long hair 20–40.
+The first motion check found crown pieces flung off the head in a dance; fixed (only hanging pieces
+swing, the scalp is pinned, locks are rooted at the skull) and looked at frame by frame again.
+
+**Packs:** `~/Everloom-Tripo/packs/everloom-library-anime-f.zip` (19 parts, 14.8 MB) and
+`…-anime-m.zip` (14.4 MB), meshopt-compressed; imported in the local app for the review. Not
+shared anywhere.
 
 **Next:** clothing (tops, jackets, dresses, skirts) — first one or two items to test the body-span
 fit and skirt chains before a batch; then footwear, accessories, fantasy parts; the 18+ parts after
