@@ -557,7 +557,7 @@ def drop_standins(meshes, tree, report):
     return meshes
 
 
-def drop_face_shell(meshes, tree, arm, body, report):
+def drop_face_shell(meshes, tree, arm, body, report, pieces=None, anywhere=False):
     """
     What is left of a stand-in face after the fit (Tripo may cut a stand-in into more pieces than
     the rays meet, or fuse bits of it into fringe pieces): every triangle lying on the skin of the
@@ -569,13 +569,15 @@ def drop_face_shell(meshes, tree, arm, body, report):
     brow = hhi.z - (hhi.z - hlo.z) * 0.35
     mid_y = (hlo.y + hhi.y) / 2
     removed = 0
-    for o in list(meshes):
+    for o in list(pieces if pieces is not None else meshes):
         mw = o.matrix_world
         on = []
         for v in o.data.vertices:
             p = mw @ v.co
-            hit = tree.find_nearest(p) if hlo.z < p.z < brow and p.y < mid_y else (None,)
-            on.append(hit[0] is not None and hit[3] < 0.004)
+            # A known stand-in piece: whatever lies on the head's skin is shell, not only the face.
+            near = hlo.z < p.z if anywhere else (hlo.z < p.z < brow and p.y < mid_y)
+            hit = tree.find_nearest(p) if near else (None,)
+            on.append(hit[0] is not None and hit[3] < (0.008 if anywhere else 0.004))
         bm = bmesh.new()
         bm.from_mesh(o.data)
         doomed = [f for f in bm.faces if all(on[v.index] for v in f.verts)]
@@ -589,7 +591,7 @@ def drop_face_shell(meshes, tree, arm, body, report):
         if len(o.data.polygons) < 30:
             meshes.remove(o)
             bpy.data.objects.remove(o, do_unlink=True)
-    report["faceShell"] = removed
+    report["faceShell"] = report.get("faceShell", 0) + removed
     return meshes
 
 
@@ -1095,11 +1097,36 @@ def main():
     meshes = clean(meshes, report)
     decimate(meshes, int(a.get("budget", BUDGET.get(slot, 20000))), report)
     shrink_textures(report)
-    if slot in ("hair", "head"):
+    if os.environ.get("TRIPO_DEBUG"):
+        print("STAGE decimated", len(meshes), sum(len(o.data.polygons) for o in meshes))
+    # What a person saw in the model (tools/art/tripo-pieces.py): which pieces are Tripo's stand-in
+    # head. "standIn" pieces go after guiding the fit; "standInStrip" pieces also carry hair (a lock
+    # fused to a face), so only what lies on the skin after the fit goes.
+    sidecar = os.path.splitext(os.path.expanduser(a["input"]))[0] + ".json"
+    seen = json.load(open(sidecar)) if os.path.exists(sidecar) else None
+    strip_pieces = []
+    if seen is not None:
+        report["seen"] = seen
+        whole = [o for o in meshes if o.name in set(seen.get("standIn", []))]
+        strip_pieces = [o for o in meshes if o.name in set(seen.get("standInStrip", []))]
+        guide = whole + strip_pieces
+        report["standInHead"] = [o.name for o in guide]
+        if guide:
+            report["_standIn"] = [o.matrix_world @ v.co for o in guide for v in o.data.vertices]
+        for o in whole:
+            meshes.remove(o)
+            bpy.data.objects.remove(o, do_unlink=True)
+        # One piece with the stand-in fused in (no parts): its smooth shell is cut out.
+        if seen.get("fused"):
+            strip_fused_head(meshes, report)
+    elif slot in ("hair", "head"):
+        report["warning"] = "no sidecar: the stand-in head was guessed"
         if len(meshes) >= 2:
             drop_enclosing(meshes, report)
         if len(meshes) <= 2:
             strip_fused_head(meshes, report)
+    if os.environ.get("TRIPO_DEBUG"):
+        print("STAGE standins", len(meshes), sum(len(o.data.polygons) for o in meshes))
 
     if slot == "hair":
         fit_hair(meshes, arm, body, report)
@@ -1112,9 +1139,16 @@ def main():
         meshes = drop_standins(meshes, tree, report)
     elif report.get("standInHead"):
         meshes = drop_face_shell(meshes, tree, arm, body, report)
+        live = [o for o in strip_pieces if o in meshes]
+        if live:
+            meshes = drop_face_shell(meshes, tree, arm, body, report, pieces=live, anywhere=True)
     if not meshes:
         raise SystemExit("nothing left after dropping stand-ins")
+    if os.environ.get("TRIPO_DEBUG"):
+        print("STAGE faceshell", len(meshes), sum(len(o.data.polygons) for o in meshes))
     wrap(meshes, target, 0.004 if slot == "hair" else 0.006, smooth=slot == "hair")
+    if os.environ.get("TRIPO_DEBUG"):
+        print("STAGE wrapped", len(meshes), sum(len(o.data.polygons) for o in meshes))
     surface = Surface(target, body)
 
     if slot == "hair":
