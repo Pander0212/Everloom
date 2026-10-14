@@ -708,12 +708,16 @@ def add_chain(arm, parent, prefix, pts):
     return names
 
 
-def strand(o, root_tree, anchor):
-    """A piece's root (nearest the anchor surface), tip (farthest from the root) and its run."""
+def strand(o, root_tree, skull):
+    """
+    A piece's root (the end nearest the middle of the skull: a lock lying on the back starts at the
+    head, not where it touches the back), tip (farthest from the root), and how far it gets from the
+    skin.
+    """
     mw = o.matrix_world
     pts = [mw @ v.co for v in o.data.vertices]
     ds = [root_tree.find_nearest(p)[3] or 0 for p in pts]
-    near = sorted(range(len(pts)), key=lambda i: ds[i])[: max(3, len(pts) // 50)]
+    near = sorted(range(len(pts)), key=lambda i: (pts[i] - skull).length)[: max(3, len(pts) // 50)]
     root = sum((pts[i] for i in near), Vector()) / len(near)
     tip_i = max(range(len(pts)), key=lambda i: (pts[i] - root).length)
     return pts, root, pts[tip_i], max(ds)
@@ -764,6 +768,8 @@ def rig_hair(meshes, arm, target, report):
     """Swing chains for the hair: one per hanging part, the rest rigid on the head."""
     head_tree = BVHTree.FromObject(target, bpy.context.evaluated_depsgraph_get())
     neck_z = (arm.matrix_world @ arm.data.bones["neck_01"].tail_local).z
+    hb = arm.data.bones["head"]
+    skull = arm.matrix_world @ ((hb.head_local + hb.tail_local) / 2)
 
     def sticks(pts):
         # On the scalp (within 2 cm, fading out by 4 cm, above the neck): stays with the head.
@@ -775,7 +781,7 @@ def rig_hair(meshes, arm, target, report):
 
     info = []
     for o in meshes:
-        pts, root, tip, far = strand(o, head_tree, "head")
+        pts, root, tip, far = strand(o, head_tree, skull)
         hang = (tip - root).length
         info.append((o, pts, root, tip, far, hang))
     # Swing: the piece reaches away from the scalp (bangs, locks, tails); a cap stays on the head.
