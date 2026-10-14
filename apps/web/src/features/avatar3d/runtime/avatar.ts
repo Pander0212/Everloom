@@ -12,7 +12,7 @@
  *   5. the canonical pose is applied to the model (canonical.ts), then the face (expression,
  *      blinking, mouth shapes; all smoothed so nothing pops), then hair and cloth springs.
  */
-import { emoteForBody, HELPER_FOLLOW, HUMANOID_MOTION_FAMILIES, ROLE_PHYSICS, type RigMapping } from '@everloom/engine';
+import { emoteForBody, HELPER_FOLLOW, HUMANOID_EQUIVALENT, HUMANOID_MOTION_FAMILIES, ROLE_PHYSICS, type RigMapping } from '@everloom/engine';
 import * as THREE from 'three';
 import { VRMSpringBoneColliderShapeCapsule, type VRMSpringBoneCollider } from '@pixiv/three-vrm';
 import { BUILTIN_EMOTES, faceWeights, type Appearance, type Emotion, type HumanBone, type Physics, type SpringSettings, type Viseme } from '@everloom/engine';
@@ -288,7 +288,7 @@ export class Avatar {
   }
 
   /** Plays a one-shot emote over the base pose. Loops (dances, sitting) become the base instead. */
-  async emote(emoteId: string, opts: { loop?: boolean } = {}) {
+  async emote(emoteId: string, opts: { loop?: boolean } = {}): Promise<boolean> {
     if (this.creature) {
       // The file's own clips play on any body; a creature does its nearest equivalent of the rest.
       if (emoteId.startsWith('own_')) return this.creature.emote(emoteId);
@@ -306,6 +306,8 @@ export class Avatar {
       }
       if (this.creature.fits.has(emoteId) && (emoteId === 'wag_tail' || emoteId === 'flap_wings')) return this.creature.emote(emoteId);
     }
+    // A creature emote asked of a humanoid (the story said "hop"): its nearest humanoid clip.
+    if (HUMANOID_EQUIVALENT[emoteId] && !(await getClip(clipIdFor(emoteId)))) return this.emote(HUMANOID_EQUIVALENT[emoteId]!, opts);
     const clip = await getClip(clipIdFor(emoteId));
     if (!clip) return false;
     if (clip.loop || opts.loop) {

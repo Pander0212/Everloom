@@ -164,7 +164,8 @@ const EXPECTED: Record<string, string> = {
   'Nexavali 4.0 NSFW Shareable.blend': 'bipedCreature',
 };
 describe.skipIf(!has || !existsSync(SAMPLES))("the owner's .blend samples", () => {
-  beforeAll(() => { if (!dir) dir = mkdtempSync(path.join(tmpdir(), 'everloom-creatures-')); });
+  beforeAll(() => { dir = mkdtempSync(path.join(tmpdir(), 'everloom-samples-')); });
+  afterAll(() => rmSync(dir, { recursive: true, force: true }));
   for (const [file, family] of Object.entries(EXPECTED)) {
     it.skipIf(!existsSync(path.join(SAMPLES, file)))(`${file}: converts, passes the check, is a ${family}`, async () => {
       const { result, glb } = await convert(path.join(SAMPLES, file));

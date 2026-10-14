@@ -15,14 +15,14 @@ const OFF_FLOOR = new Set(['lie_down', 'sleep', 'defeat', 'cheer', 'victory', 's
 
 describe('emote clips', () => {
   it('every built-in emote has a clip', () => {
-    for (const e of BUILTIN_EMOTES) expect(existsSync(new URL(`apps/web/public/avatar/clips/${clipIdFor(e.id)}.json`, ROOT)), e.id).toBe(true);
+    for (const e of BUILTIN_EMOTES.filter((x) => !x.body)) expect(existsSync(new URL(`apps/web/public/avatar/clips/${clipIdFor(e.id)}.json`, ROOT)), e.id).toBe(true);
   });
 
   it('play on a real rig without breaking it; standing ones keep the feet down', async () => {
     const g = await loadGlb('tests/fixtures/avatars/models/mannequin-f.glb');
     const rig = prepareRig(g.scene, bonesOf(g.scene));
     const floor = footClearance(rig, 0) * rig.hipsHeight;
-    for (const e of BUILTIN_EMOTES) {
+    for (const e of BUILTIN_EMOTES.filter((x) => !x.body)) {
       const c = clip(clipIdFor(e.id));
       for (let i = 0; i <= 8; i++) {
         applyCanonical(rig, sampleClip(c, (c.duration * i) / 8));
@@ -40,7 +40,7 @@ describe('emote clips', () => {
   });
 
   it('dances loop at their tempo', () => {
-    for (const e of BUILTIN_EMOTES.filter((x) => x.category === 'dance' && x.source === 'authored')) {
+    for (const e of BUILTIN_EMOTES.filter((x) => !x.body && x.category === 'dance' && x.source === 'authored')) {
       const c = clip(e.id);
       const beats = c.duration / (60 / e.bpm!);
       expect(Math.abs(beats - Math.round(beats)), e.id).toBeLessThan(0.05);

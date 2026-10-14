@@ -465,20 +465,24 @@ def plan_deform_rig(arm):
             seen.add(p)
             p = parents.get(p)
         parents[name] = p
-    # One skeleton, one root: stray roots join the kept bone nearest their head. The main root is
-    # named like one (root, hips, pelvis, centre), else holds the most bones.
+    # A control rig's stray deform roots join the kept bone their head touches (a spine that a
+    # control placed at the hips). A root that touches nothing (a separate face-control rig beside
+    # the body) stays a root of its own. The main root is named like one, else holds the most bones.
     roots = [n for n in keep if parents[n] is None]
     if len(roots) > 1:
         size = {r: len([n for n in keep if r in _chain_up(n, parents)]) for r in roots}
         rootish = ("root", "hip", "pelvis", "cog", "center", "centre", "torso")
         main = max(roots, key=lambda r: (any(w in r.lower() for w in rootish), size[r]))
+        span = max((b.head_local - bones[main].head_local).length for b in bones) or 1.0
         for r in roots:
-            if r == main:
+            if r == main or not (bones[r].parent is None or bones[r].parent.name not in keep) or attach.get(r) is None:
                 continue
             below = {n for n in keep if r in _chain_up(n, parents)}
             h = bones[r].head_local
-            near = min((n for n in keep if n not in below), key=lambda n: min((bones[n].head_local - h).length, (bones[n].tail_local - h).length), default=None)
-            parents[r] = near
+            dist = lambda n: min((bones[n].head_local - h).length, (bones[n].tail_local - h).length)  # noqa: E731
+            near = min((n for n in keep if n not in below), key=dist, default=None)
+            if near is not None and dist(near) <= 0.02 * span:
+                parents[r] = near
     # Never a loop: a bone that would close one keeps its original deform ancestor.
     for name in sorted(parents):
         seen, p = {name}, parents[name]
@@ -580,7 +584,7 @@ def build_deform_rig(arm, meshes, report, animations=True, max_frames=1200):
     rig = bpy.data.objects.new(name + "_deform", data)
     bpy.context.scene.collection.objects.link(rig)
     rig.matrix_world = arm.matrix_world.copy()
-    for o in bpy.context.view_layer.objects:
+    for o in [x for x in bpy.context.view_layer.objects if x is not None]:
         o.select_set(False)
     bpy.context.view_layer.objects.active = rig
     order = [b.name for b in arm.data.bones if b.name in keep]
@@ -740,21 +744,38 @@ def _upstream(tree, start, depth=0):
     return seen
 
 
+def _plain_texture(node):
+    """An image texture, possibly behind reroutes (what the glTF exporter follows)."""
+    for _ in range(4):
+        if node.type == "TEX_IMAGE":
+            return True
+        if node.type == "REROUTE" and node.inputs[0].links:
+            node = node.inputs[0].links[0].from_node
+            continue
+        return False
+    return False
+
+
 def _readable(out):
     links = out.inputs["Surface"].links
     if not links:
         return True
     node = links[0].from_node
     if node.type in ("BSDF_PRINCIPLED", "BSDF_DIFFUSE"):
-        return True
+        # The exporter follows a colour straight from a texture (or a plain colour); one built in
+        # nodes (mixes, groups, ramps) exports white, so that one is baked.
+        col = node.inputs[0].links
+        return not col or _plain_texture(col[0].from_node)
     if node.type == "EMISSION":
         # Plain emission (a colour, or straight from a texture) exports; a toon ramp feeding it
         # (shader to RGB, colour ramps, mixes) comes out as a flat glow.
         col = node.inputs["Color"].links
         return not col or col[0].from_node.type == "TEX_IMAGE"
     if node.type == "MIX_SHADER":
-        kinds = {l.from_node.type for i in list(node.inputs)[1:] for l in i.links}
-        return "BSDF_PRINCIPLED" in kinds and kinds <= {"BSDF_PRINCIPLED", "BSDF_TRANSPARENT", "EMISSION", "BSDF_DIFFUSE"}
+        shaders = [l.from_node for i in list(node.inputs)[1:] for l in i.links]
+        kinds = {n.type for n in shaders}
+        colours_ok = all(not n.inputs[0].links or _plain_texture(n.inputs[0].links[0].from_node) for n in shaders if n.type in ("BSDF_PRINCIPLED", "BSDF_DIFFUSE"))
+        return "BSDF_PRINCIPLED" in kinds and kinds <= {"BSDF_PRINCIPLED", "BSDF_TRANSPARENT", "EMISSION", "BSDF_DIFFUSE"} and colours_ok
     return False
 
 
@@ -788,48 +809,242 @@ def _flat_colour(mat, nodes):
     return c if any(abs(x - 0.8) > 0.01 for x in c[:3]) else None
 
 
-def simplify_materials(meshes, report):
-    """Toon and custom node setups become a Principled BSDF with the material's colour texture."""
-    done = set()
+def _active_output(mat):
+    if not mat or not mat.use_nodes or not mat.node_tree:
+        return None
+    outs = [n for n in mat.node_tree.nodes if n.type == "OUTPUT_MATERIAL"]
+    return next((n for n in outs if n.is_active_output), outs[0] if outs else None)
+
+
+COLOUR_INPUTS = ("color", "colour", "base color", "base colour", "albedo", "diffuse", "main color", "tint")
+
+
+def _colour_source(nt, out):
+    """The socket that carries a material's colour: the first colour input (named like one)
+    that something feeds, on the shaders and groups nearest the output."""
+    seen, todo = set(), [out]
+    while todo:
+        n = todo.pop(0)
+        if n.name in seen:
+            continue
+        seen.add(n.name)
+        if n is not out:
+            for i in n.inputs:
+                if i.type == "RGBA" and i.is_linked and i.name.strip().lower() in COLOUR_INPUTS:
+                    return i.links[0].from_socket
+        for i in n.inputs:
+            if i.type == "SHADER" or n is out:
+                for l in i.links:
+                    todo.append(l.from_node)
+    return None
+
+
+def _bake_pass(users, images, kind, prepare=None):
+    """One Cycles bake into `images` ({material name: image}) on these objects; every other
+    material on them bakes into a throwaway image (Blender needs an active image everywhere)."""
+    if not users:
+        return "nothing to bake"
+    added, undo = [], []
+    dummy = bpy.data.images.new("__bake_dummy", 8, 8)
+    try:
+        for o in users:
+            uv = o.data.uv_layers
+            uv.active = next((l for l in uv if l.active_render), uv.active)
+            for s in o.material_slots:
+                m = s.material
+                if not m:
+                    continue
+                if not m.use_nodes:
+                    m.use_nodes = True
+                nt = m.node_tree
+                node = nt.nodes.new("ShaderNodeTexImage")
+                node.image = images.get(m.name, dummy)
+                nt.nodes.active = node
+                added.append((nt, node))
+                if prepare and m.name in images and m.name not in [u[0] for u in undo]:
+                    undo.append((m.name, prepare(m)))
+        for o in [x for x in bpy.context.view_layer.objects if x is not None]:
+            o.select_set(False)
+        for o in users:
+            make_selectable(o)
+            o.select_set(True)
+        bpy.context.view_layer.objects.active = users[0]
+        if kind == "DIFFUSE":
+            bpy.ops.object.bake(type="DIFFUSE", pass_filter={"COLOR"}, use_clear=True, margin=8)
+        else:
+            bpy.ops.object.bake(type="EMIT", use_clear=True, margin=8)
+        return None
+    except RuntimeError as e:
+        return str(e)[:160]
+    finally:
+        for nt, node in added:
+            nt.nodes.remove(node)
+        for _name, restore in undo:
+            if restore:
+                restore()
+        bpy.data.images.remove(dummy)
+
+
+def _empty(img):
+    import numpy as np
+    px = np.empty(len(img.pixels), dtype=np.float32)
+    img.pixels.foreach_get(px)
+    return float(px.reshape(-1, 4)[:, :3].max()) < 0.02
+
+
+def bake_colours(meshes, mats, report, size=1024):
+    """The colour each material shows, baked into a texture by Cycles, for colours built in nodes
+    (textures mixed with colour nodes, masks, node groups) that no single texture holds. First the
+    diffuse colour pass (no lighting, no shading); where that is empty (the colour reaches the
+    surface through custom shader groups, transparency or toon setups), the material's colour
+    socket is baked through an emission. Returns {material name: image}."""
+    names = {m.name for m in mats}
+    users = [o for o in meshes if o.data.uv_layers and any(s.material and s.material.name in names for s in o.material_slots)]
+    if not users:
+        return {}
+    scene = bpy.context.scene
+    saved = (scene.render.engine, scene.cycles.device, scene.cycles.samples)
+    scene.render.engine = "CYCLES"
+    scene.cycles.device = "CPU"
+    scene.cycles.samples = 1
+    images = {n: bpy.data.images.new(n[:50] + "_colour", size, size, alpha=False) for n in names}
+    good = {}
+    try:
+        err = _bake_pass(users, images, "DIFFUSE")
+        if err:
+            _log(report, "bakeFailed", err)
+        _log(report, "bakeDiffuse", "users=%s" % [o.name for o in users])
+        rest = {}
+        for n, img in images.items():
+            if not err and not _empty(img):
+                good[n] = img
+            else:
+                rest[n] = img
+
+        def emit(m):
+            """Every output shows the colour socket as emission; returns how to undo it."""
+            nt = m.node_tree
+            src = _colour_source(nt, _active_output(m))
+            _log(report, "bakeEmit", "%s: %s" % (m.name, "%s.%s" % (src.node.name, src.name) if src else "no colour socket"))
+            if src is None:
+                return None
+            em = nt.nodes.new("ShaderNodeEmission")
+            nt.links.new(src, em.inputs["Color"])
+            saved_links = []
+            for out in [n for n in nt.nodes if n.type == "OUTPUT_MATERIAL"]:
+                for l in list(out.inputs["Surface"].links):
+                    saved_links.append((l.from_socket, out.inputs["Surface"]))
+                    nt.links.remove(l)
+                nt.links.new(em.outputs[0], out.inputs["Surface"])
+
+            def undo():
+                for out in [n for n in nt.nodes if n.type == "OUTPUT_MATERIAL"]:
+                    for l in list(out.inputs["Surface"].links):
+                        nt.links.remove(l)
+                for a, b in saved_links:
+                    nt.links.new(a, b)
+                nt.nodes.remove(em)
+            return undo
+        if rest:
+            err = _bake_pass([o for o in users if any(s.material and s.material.name in rest for s in o.material_slots)], rest, "EMIT", prepare=emit)
+            if err:
+                _log(report, "bakeFailed", err)
+            for n, img in rest.items():
+                if not err and not _empty(img):
+                    good[n] = img
+    finally:
+        scene.render.engine, scene.cycles.device, scene.cycles.samples = saved
+    for n, img in images.items():
+        if n in good:
+            img.pack()
+        else:
+            bpy.data.images.remove(img)
+    return good
+
+
+def simplify_materials(meshes, report, bake=True):
+    """Materials glTF can't read (toon setups, colours built in node groups) become a Principled
+    BSDF with their baked colour, else their main colour texture, else a flat colour."""
+    todo, seen = [], {}
     for obj in meshes:
         for slot in obj.material_slots:
             mat = slot.material
-            if not mat or mat.name in done or not mat.use_nodes or not mat.node_tree:
+            if not mat:
                 continue
-            done.add(mat.name)
-            nt = mat.node_tree
-            outs = [n for n in nt.nodes if n.type == "OUTPUT_MATERIAL"]
-            out = next((n for n in outs if n.is_active_output), outs[0] if outs else None)
-            if not out or _readable(out):
+            if mat.name in seen:
+                # A baked material used by a second object gets its own copy: their UVs would
+                # overlap in one shared texture.
+                if bake and seen[mat.name] and obj.data.uv_layers and slot.link in ("OBJECT", "DATA"):
+                    copy = mat.copy()
+                    copy.name = mat.name + "." + obj.name[:20]
+                    slot.material = copy
+                    todo.append(copy)
                 continue
-            nodes = _upstream(nt, out)
-            images = sorted((n for n in nodes if n.type == "TEX_IMAGE" and n.image), key=_colour_score, reverse=True)
-            colour = _flat_colour(mat, nodes)
-            bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
-            bsdf.location = (out.location.x - 300, out.location.y - 400)
-            bsdf.inputs["Roughness"].default_value = 0.85
-            if "Specular IOR Level" in bsdf.inputs:
-                bsdf.inputs["Specular IOR Level"].default_value = 0.2
-            if images and _colour_score(images[0]) > -5:
-                src = images[0]
-                tex = nt.nodes.new("ShaderNodeTexImage")
-                tex.image = src.image
-                tex.interpolation = src.interpolation
-                tex.location = (bsdf.location.x - 300, bsdf.location.y)
-                nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
-                blended = getattr(mat, "surface_render_method", "") == "BLENDED" or getattr(mat, "blend_method", "OPAQUE") in ("BLEND", "CLIP", "HASHED")
-                if blended and src.image.alpha_mode != "NONE":
-                    nt.links.new(tex.outputs["Alpha"], bsdf.inputs["Alpha"])
-                how = "its colour texture %s" % src.image.name
-            elif colour:
-                bsdf.inputs["Base Color"].default_value = tuple(colour[:3]) + (1.0,)
-                how = "a flat colour"
-            else:
-                how = "plain grey"
-            for l in list(out.inputs["Surface"].links):
+            out = _active_output(mat)
+            seen[mat.name] = bool(out and not _readable(out))
+            if seen[mat.name]:
+                todo.append(mat)
+    baked = {}
+    if bake and todo:
+        # A bake problem is reported, never a reason to fail the import.
+        try:
+            baked = bake_colours(meshes, todo, report)
+        except Exception as e:  # noqa: BLE001
+            _log(report, "bakeFailed", str(e)[:160])
+    for mat in todo:
+        nt = mat.node_tree
+        out = _active_output(mat)
+        nodes = _upstream(nt, out)
+        images = sorted((n for n in nodes if n.type == "TEX_IMAGE" and n.image), key=_colour_score, reverse=True)
+        colour = _flat_colour(mat, nodes)
+        bsdf = nt.nodes.new("ShaderNodeBsdfPrincipled")
+        bsdf.location = (out.location.x - 300, out.location.y - 400)
+        bsdf.inputs["Roughness"].default_value = 0.85
+        if "Specular IOR Level" in bsdf.inputs:
+            bsdf.inputs["Specular IOR Level"].default_value = 0.2
+        blended = getattr(mat, "surface_render_method", "") == "BLENDED" or getattr(mat, "blend_method", "OPAQUE") in ("BLEND", "CLIP", "HASHED")
+        if mat.name in baked:
+            tex = nt.nodes.new("ShaderNodeTexImage")
+            tex.image = baked[mat.name]
+            tex.location = (bsdf.location.x - 300, bsdf.location.y)
+            nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+            # Cut-out hair and lashes keep their texture's alpha.
+            # (Not from a huge image: the exporter would merge colour and alpha at that size.)
+            if blended and images and images[0].image.alpha_mode != "NONE" and max(images[0].image.size) <= 2048:
+                a = nt.nodes.new("ShaderNodeTexImage")
+                a.image = images[0].image
+                nt.links.new(a.outputs["Alpha"], bsdf.inputs["Alpha"])
+            how = "its colours, baked"
+        elif images and _colour_score(images[0]) > -5:
+            src = images[0]
+            tex = nt.nodes.new("ShaderNodeTexImage")
+            tex.image = src.image
+            tex.interpolation = src.interpolation
+            tex.location = (bsdf.location.x - 300, bsdf.location.y)
+            nt.links.new(tex.outputs["Color"], bsdf.inputs["Base Color"])
+            if blended and src.image.alpha_mode != "NONE":
+                nt.links.new(tex.outputs["Alpha"], bsdf.inputs["Alpha"])
+            how = "its colour texture %s" % src.image.name
+        elif colour:
+            bsdf.inputs["Base Color"].default_value = tuple(colour[:3]) + (1.0,)
+            how = "a flat colour"
+        else:
+            how = "plain grey"
+        # Every output (EEVEE and Cycles ones alike): exporters differ in which they read.
+        for o in [n for n in nt.nodes if n.type == "OUTPUT_MATERIAL"]:
+            for l in list(o.inputs["Surface"].links):
                 nt.links.remove(l)
-            nt.links.new(bsdf.outputs[0], out.inputs["Surface"])
-            _log(report, "materialsSimplified", "%s (%s)" % (mat.name, how))
+            nt.links.new(bsdf.outputs[0], o.inputs["Surface"])
+        # Only the new shader and its textures stay: the glTF exporter takes the first Principled
+        # BSDF it finds, which could be one of the old ones.
+        # One output for every engine: with an EEVEE and a Cycles output, the exporter can read the
+        # wrong one and export white.
+        out.target = "ALL"
+        out.is_active_output = True
+        keep = {bsdf, out} | {l.from_node for i in bsdf.inputs for l in i.links}
+        for n in [n for n in nt.nodes if n not in keep]:
+            nt.nodes.remove(n)
+        _log(report, "materialsSimplified", "%s (%s)" % (mat.name, how))
 
 
 def pack_textures(report):
@@ -1037,6 +1252,36 @@ def make_selectable(obj):
         pass
 
 
+def freeze_material_drivers(report):
+    """Material colours driven from the rig (a "skin colour" property on a control bone) keep the
+    value they have now: the rig is replaced later, and a driver without its target reads zero."""
+    frozen = 0
+    trees = [m.node_tree for m in bpy.data.materials if m.node_tree] + list(bpy.data.node_groups)
+    for tree in trees:
+        ad = tree.animation_data
+        if not ad:
+            continue
+        for d in list(ad.drivers):
+            path, idx = d.data_path, d.array_index
+            try:
+                value = tree.path_resolve(path)
+                keep = value[idx] if hasattr(value, "__len__") else value
+            except (ValueError, TypeError, IndexError):
+                continue
+            ad.drivers.remove(d)
+            try:
+                if hasattr(value, "__len__"):
+                    tree.path_resolve(path)[idx] = keep
+                else:
+                    prop = path.rsplit(".", 1)
+                    setattr(tree.path_resolve(prop[0]) if len(prop) == 2 else tree, prop[-1], keep)
+                frozen += 1
+            except (ValueError, TypeError, IndexError, AttributeError):
+                pass
+    if frozen:
+        report["materialDriversFrozen"] = frozen
+
+
 def prepare_scene(objects, animations=True, report=None):
     """Steps 1–6 on these objects (the scene is changed). Returns (meshes, rig, planned parents)."""
     report = report if report is not None else {}
@@ -1047,6 +1292,7 @@ def prepare_scene(objects, animations=True, report=None):
         if o.type == "ARMATURE":
             o.data.pose_position = "REST"
     bpy.context.view_layer.update()
+    freeze_material_drivers(report)
     layer = {o.name for o in bpy.context.view_layer.objects}
     extra = convert_non_mesh([o for o in objects if o.type in NON_MESH and renders(o, layer)] + [o for o in objects if o.type == "MESH" and o.particle_systems], report)
     gone = [o for o in objects if o.type in NON_MESH]
@@ -1116,7 +1362,7 @@ def export_model(path, animations=False, selection=False, extras=False, prepare=
     for o in chosen:
         make_selectable(o)
     bpy.context.view_layer.update()
-    for o in bpy.context.view_layer.objects:
+    for o in [x for x in bpy.context.view_layer.objects if x is not None]:
         try:
             o.select_set(o in chosen)
         except RuntimeError:
@@ -1153,7 +1399,7 @@ def export_model(path, animations=False, selection=False, extras=False, prepare=
     return result
 
 
-def render_check(path, size=200, samples=6):
+def render_check(path, size=200, samples=16):
     """A small picture of the converted character in a test pose, front and side, for the import
     report: each chain off the body bends a little, so a bad skin shows as a tear or a stretch.
     Cycles on the CPU (no graphics card needed). Changes the scene; call after exporting."""
@@ -1191,14 +1437,14 @@ def render_check(path, size=200, samples=6):
     scene.render.engine = "CYCLES"
     scene.cycles.device = "CPU"
     scene.cycles.samples = samples
-    scene.cycles.use_denoising = False
+    scene.cycles.use_denoising = True  # OpenImageDenoise runs on the CPU
     scene.render.resolution_x = scene.render.resolution_y = size
     scene.render.film_transparent = False
     scene.render.image_settings.file_format = "PNG"
     world = bpy.data.worlds.new("CheckWorld")
     world.use_nodes = True
     world.node_tree.nodes["Background"].inputs[0].default_value = (0.92, 0.92, 0.94, 1)
-    world.node_tree.nodes["Background"].inputs[1].default_value = 1.4
+    world.node_tree.nodes["Background"].inputs[1].default_value = 2.6
     scene.world = world
     cam = bpy.data.objects.new("CheckCam", bpy.data.cameras.new("CheckCam"))
     scene.collection.objects.link(cam)

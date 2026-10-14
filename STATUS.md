@@ -2,6 +2,43 @@
 
 Snapshot of what's built, what's partial, and how it was tested. Everloom 0.1.0.
 
+## Blender imports fixed, characters that aren't human (2026-10-14)
+
+Eight owner `.blend` files were diagnosed against Blender 5.2's own data
+([docs/3d-import/blender-diagnosis.md](docs/3d-import/blender-diagnosis.md)); all now convert, pass
+the read-back check and move on the stage. Non-human bodies are a feature:
+[docs/3d-import/creatures.md](docs/3d-import/creatures.md).
+
+### Done ✅
+- **One export script** (`tools/blender-addon/everloom/export_core.py`) for the server, rented and
+  add-on exports: modifiers applied with shape keys kept; curves and particle hair to meshes; rigid
+  bone-parented parts skinned; a deform-only skeleton rebuilt from control rigs (Auto-Rig Pro,
+  Rigify); the file's clips baked; weights ≤ 4 and filled; materials glTF can't read **baked** to
+  textures by Cycles (rig-driven colours frozen first); hidden, unselectable and driven-visibility
+  parts exported; a read-back check (bones, parents, rest positions, weights, bounds) and a
+  test-pose render in the import report.
+- **Skeleton families**: humanoid, four-legged, four-legged with wings, two-legged creature or
+  dragon, serpent, other; detected from the shape (names optional), changeable on the Bones tab.
+  New roles: root, pelvis, neck, head, jaw, eye, front/hind leg, leg, arm, extra limb. Rigs whose
+  names say nothing get their humanoid core from structure.
+- **Creature motion**: own clips as emotes, breathing, sway, look-at, tail and wing life, ear
+  twitches, jaw lip-sync, family emotes (nod, shake head, tilt head, droop, bow, wag tail, flap
+  wings, hop, rear up, roar, sit, lie down, sleep, prance). Story emotes are translated to the
+  nearest thing the body can do; the emote picker offers only what fits. Springs follow animated
+  chains. Long bodies stand three-quarters on the stage and are framed whole.
+
+### Partial or not built
+- Four samples miss texture files outside the .blend (zip the .blend with its texture folders).
+- Creature wings move procedurally only (no springs on wing membranes).
+- Very heavy files (a 129k-triangle, 99 MB GLB) import but rely on the existing low-detail copy on phones.
+
+### Tests
+- Vitest: all files pass after updating the emote-clip test to humanoid emotes; new
+  `packages/engine/test/family.test.ts` (10), `apps/web/test/creature.test.ts` (5),
+  `apps/server/test/blender-creatures.test.ts` (17 synthetic fixtures + the owner's samples, needs Blender).
+- Acceptance: `tests/e2e/creatures.spec.ts` (owner samples; screenshots and video in the git-ignored
+  `docs/3d-import/evidence/private/`).
+
 ## Unity/creator follow-up (2026-10-12, in progress)
 
 Resumable imports, a persistent GUID library, grouped colour variants, Blender 5.2 export repairs,

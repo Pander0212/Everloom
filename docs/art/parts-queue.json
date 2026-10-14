@@ -1,0 +1,414 @@
+{
+  "about": "The 3D parts library's queue (docs/art/TRIPO_LEDGER.md): each item's reference image is made from its category's template with its subject; references go to ~/Everloom-Tripo/refs, never the repo.",
+  "templates": {
+    "hair": "Anime style 3D character asset reference. A single hairstyle only, worn on an invisible head: no face, no head, no skin, no body visible, just the hair itself floating in its worn shape. {subject}. Neutral light grey hair colour, smooth clean strands. Three-quarter front view, centered, the whole hairstyle in frame with margin around it. Clean cel-shaded anime rendering, soft even studio lighting, plain white background, no shadows, no text, no watermark.",
+    "clothing": "Anime style 3D clothing asset reference. A single {subject}, shown as a ghost-mannequin product shot: the garment holds its worn 3D shape on an invisible body; no person, no skin, no head, no hands, no mannequin, no hanger visible. Front view, centered, the whole garment in frame with margin around it. Simple clean shapes, solid plain colours, clean cel-shaded anime rendering, soft even studio lighting, plain white background, no shadows, no text, no logo, no watermark.",
+    "footwear": "Anime style 3D clothing asset reference. A single {subject}, one shoe only, standing on its own as if worn by an invisible foot: no foot, no leg, no skin visible. Three-quarter front view, centered, the whole shoe in frame with margin around it. Simple clean shapes, solid plain colours, clean cel-shaded anime rendering, soft even studio lighting, plain white background, no shadows, no text, no logo, no watermark.",
+    "accessory": "Anime style 3D accessory asset reference. A single {subject}, isolated on its own, no person, no head, no hands, no mannequin visible. Three-quarter front view, centered, the whole object in frame with margin around it. Simple clean shapes, solid plain colours, clean cel-shaded anime rendering, soft even studio lighting, plain white background, no shadows, no text, no logo, no watermark.",
+    "fantasy": "Anime style 3D character asset reference. {subject}, shown on its own in its worn shape as if on an invisible character: no head, no face, no skin, no body visible. Three-quarter front view, centered, the whole part in frame with margin around it. Clean cel-shaded anime rendering, soft even studio lighting, plain white background, no shadows, no text, no watermark.",
+    "product": "Catalogue product photo for a 3D asset: {subject}, isolated on a plain white background, centered, the whole item in frame with margin around it, three-quarter view, soft even studio lighting, no shadows, simple clean anime-style shapes and solid plain colours, nothing else in the picture, no text, no logo, no watermark."
+  },
+  "items": [
+    {
+      "id": "hair-bob-blunt",
+      "category": "hair",
+      "subject": "Short bob haircut with straight blunt bangs, chin length"
+    },
+    {
+      "id": "hair-short-messy",
+      "category": "hair",
+      "subject": "Short messy boyish haircut with tousled layered bangs"
+    },
+    {
+      "id": "hair-pixie",
+      "category": "hair",
+      "subject": "Short pixie cut with long side-swept bangs"
+    },
+    {
+      "id": "hair-long-straight",
+      "category": "hair",
+      "subject": "Long straight hair reaching the waist, center part, no bangs"
+    },
+    {
+      "id": "hair-long-straight-bangs",
+      "category": "hair",
+      "subject": "Long straight hair reaching the waist with full straight bangs"
+    },
+    {
+      "id": "hair-long-wavy",
+      "category": "hair",
+      "subject": "Long loose wavy hair past the shoulders with side-swept bangs"
+    },
+    {
+      "id": "hair-ponytail-high",
+      "category": "hair",
+      "subject": "High ponytail tied at the back of the head, long tail reaching the shoulder blades, short side bangs"
+    },
+    {
+      "id": "hair-ponytail-low",
+      "category": "hair",
+      "subject": "Low ponytail at the nape of the neck, smooth hair, soft curtain bangs"
+    },
+    {
+      "id": "hair-twintails",
+      "category": "hair",
+      "subject": "Long twin tails tied high on both sides of the head, straight bangs"
+    },
+    {
+      "id": "hair-twintails-low",
+      "category": "hair",
+      "subject": "Low twin tails tied below the ears, wispy bangs"
+    },
+    {
+      "id": "hair-braid-single",
+      "category": "hair",
+      "subject": "One long single braid hanging down the back, side bangs"
+    },
+    {
+      "id": "hair-twin-braids",
+      "category": "hair",
+      "subject": "Two long braids hanging over the shoulders, center part; the inside of the hair is empty white space, no face and no skin colour anywhere"
+    },
+    {
+      "id": "hair-bun-top",
+      "category": "hair",
+      "subject": "Hair gathered into a round bun on top of the head, loose face-framing strands"
+    },
+    {
+      "id": "hair-double-buns",
+      "category": "hair",
+      "subject": "Two small round buns on top of the head with short loose hair below, straight bangs"
+    },
+    {
+      "id": "hair-curly-long",
+      "category": "hair",
+      "subject": "Long voluminous curly hair with big spiral curls, no bangs"
+    },
+    {
+      "id": "hair-curly-short",
+      "category": "hair",
+      "subject": "Short curly hair with rounded volume and curly bangs; the inside of the hair is empty white space, no face, no head and no skin colour anywhere"
+    },
+    {
+      "id": "hair-hime",
+      "category": "hair",
+      "subject": "Hime cut: long straight hair with blunt bangs and straight cheek-length side locks"
+    },
+    {
+      "id": "hair-shoulder-layers",
+      "category": "hair",
+      "subject": "Shoulder-length layered hair with flipped ends and curtain bangs"
+    },
+    {
+      "id": "hair-side-ponytail",
+      "category": "hair",
+      "subject": "Side ponytail tied on the left side of the head, swept bangs"
+    },
+    {
+      "id": "hair-undercut",
+      "category": "hair",
+      "subject": "Short undercut hairstyle with longer swept top"
+    },
+    {
+      "id": "hair-spiky",
+      "category": "hair",
+      "subject": "Short spiky anime hero hairstyle with pointed strands"
+    },
+    {
+      "id": "hair-long-male",
+      "category": "hair",
+      "subject": "Shoulder-length straight hair tied loosely at the nape, long side bangs, masculine style"
+    },
+    {
+      "id": "hair-ahoge-bob",
+      "category": "hair",
+      "subject": "Rounded bob with a single upright ahoge strand on top and side bangs; the inside of the hair is empty white space, no face, no head and no skin colour anywhere"
+    },
+    {
+      "id": "hair-drills",
+      "category": "hair",
+      "subject": "Ojou-sama hairstyle: long hair with two big tight spiral corkscrew drill curls hanging on each side of the head, like springs, straight bangs; the inside of the hair is empty white space, no face, no head and no skin colour anywhere"
+    },
+    {
+      "id": "top-tshirt",
+      "category": "clothing",
+      "subject": "plain short-sleeved crew-neck t-shirt"
+    },
+    {
+      "id": "top-blouse",
+      "category": "clothing",
+      "subject": "white long-sleeved blouse with a soft collar and buttons"
+    },
+    {
+      "id": "top-hoodie",
+      "category": "clothing",
+      "subject": "loose pullover hoodie with the hood down and a front pocket"
+    },
+    {
+      "id": "top-sweater",
+      "category": "clothing",
+      "subject": "chunky knit crew-neck sweater"
+    },
+    {
+      "id": "top-tank",
+      "category": "clothing",
+      "subject": "simple tank top"
+    },
+    {
+      "id": "jacket-denim",
+      "category": "clothing",
+      "subject": "open denim jacket with long sleeves"
+    },
+    {
+      "id": "jacket-leather",
+      "category": "clothing",
+      "subject": "short black leather biker jacket, open front"
+    },
+    {
+      "id": "coat-long",
+      "category": "clothing",
+      "subject": "long wool coat reaching the knees, buttoned front, long sleeves"
+    },
+    {
+      "id": "dress-sundress",
+      "category": "clothing",
+      "subject": "sleeveless sundress with a flared knee-length skirt"
+    },
+    {
+      "id": "dress-gown",
+      "category": "clothing",
+      "subject": "elegant floor-length evening gown with thin straps"
+    },
+    {
+      "id": "skirt-pleated",
+      "category": "clothing",
+      "subject": "pleated school skirt, knee length"
+    },
+    {
+      "id": "skirt-mini",
+      "category": "clothing",
+      "subject": "short A-line mini skirt"
+    },
+    {
+      "id": "pants-jeans",
+      "category": "clothing",
+      "subject": "pair of straight-leg blue jeans"
+    },
+    {
+      "id": "pants-slacks",
+      "category": "clothing",
+      "subject": "pair of tailored dark trousers"
+    },
+    {
+      "id": "shorts-denim",
+      "category": "clothing",
+      "subject": "pair of denim shorts"
+    },
+    {
+      "id": "leggings",
+      "category": "clothing",
+      "subject": "pair of plain black leggings"
+    },
+    {
+      "id": "swim-onepiece",
+      "category": "product",
+      "subject": "a navy one-piece swimsuit shown on an invisible ghost mannequin, the swimsuit alone in its worn 3D shape"
+    },
+    {
+      "id": "socks-knee",
+      "category": "clothing",
+      "subject": "pair of knee-high socks"
+    },
+    {
+      "id": "stockings-thigh",
+      "category": "clothing",
+      "subject": "pair of sheer black thigh-high stockings standing upright side by side; hollow inside, no legs, no feet and no skin colour anywhere"
+    },
+    {
+      "id": "fantasy-tunic",
+      "category": "clothing",
+      "subject": "medieval fantasy adventurer tunic with a belt and long sleeves"
+    },
+    {
+      "id": "fantasy-robe",
+      "category": "clothing",
+      "subject": "long fantasy mage robe with wide sleeves and a hood down"
+    },
+    {
+      "id": "fantasy-armor",
+      "category": "clothing",
+      "subject": "light fantasy breastplate armor with shoulder guards"
+    },
+    {
+      "id": "scifi-bodysuit",
+      "category": "clothing",
+      "subject": "sleek sci-fi pilot jacket with panel lines and a high collar"
+    },
+    {
+      "id": "scifi-coat",
+      "category": "clothing",
+      "subject": "long futuristic sci-fi trench coat with armored shoulder panels, bright cyan glowing seam lines and a high tech collar"
+    },
+    {
+      "id": "shoe-sneaker",
+      "category": "footwear",
+      "subject": "white sneaker"
+    },
+    {
+      "id": "shoe-boot-ankle",
+      "category": "footwear",
+      "subject": "brown leather ankle boot"
+    },
+    {
+      "id": "shoe-boot-knee",
+      "category": "product",
+      "subject": "one empty black knee-high leather boot standing upright",
+      "model": "qwen-image"
+    },
+    {
+      "id": "shoe-heel",
+      "category": "product",
+      "subject": "an empty red high-heeled pump shoe",
+      "model": "qwen-image"
+    },
+    {
+      "id": "shoe-loafer",
+      "category": "product",
+      "subject": "an empty brown school loafer shoe",
+      "model": "qwen-image"
+    },
+    {
+      "id": "hat-beanie",
+      "category": "accessory",
+      "subject": "knitted beanie hat"
+    },
+    {
+      "id": "hat-witch",
+      "category": "accessory",
+      "subject": "pointed witch hat with a wide brim"
+    },
+    {
+      "id": "hat-cap",
+      "category": "accessory",
+      "subject": "baseball cap"
+    },
+    {
+      "id": "glasses-round",
+      "category": "accessory",
+      "subject": "pair of round glasses"
+    },
+    {
+      "id": "earrings-hoop",
+      "category": "accessory",
+      "subject": "pair of gold hoop earrings"
+    },
+    {
+      "id": "necklace-pendant",
+      "category": "accessory",
+      "subject": "necklace with a small heart pendant, laid in a round loop"
+    },
+    {
+      "id": "choker",
+      "category": "accessory",
+      "subject": "black ribbon choker in a closed ring shape"
+    },
+    {
+      "id": "bag-shoulder",
+      "category": "accessory",
+      "subject": "small leather shoulder bag with a strap"
+    },
+    {
+      "id": "belt",
+      "category": "accessory",
+      "subject": "leather belt with a metal buckle, closed in a ring"
+    },
+    {
+      "id": "gloves",
+      "category": "accessory",
+      "subject": "pair of fingerless gloves"
+    },
+    {
+      "id": "ears-elf",
+      "category": "product",
+      "subject": "a pair of detached pointed elf ear tips, a cosplay costume prop, the two ears side by side",
+      "model": "qwen-image"
+    },
+    {
+      "id": "ears-cat",
+      "category": "fantasy",
+      "subject": "A pair of fluffy cat ears on a hidden headband"
+    },
+    {
+      "id": "ears-fox",
+      "category": "product",
+      "subject": "a fox-ear headband costume accessory: a black headband with two large orange fox ears",
+      "model": "qwen-image"
+    },
+    {
+      "id": "ears-wolf",
+      "category": "fantasy",
+      "subject": "A pair of wolf ears on a hidden headband"
+    },
+    {
+      "id": "ears-bunny",
+      "category": "product",
+      "subject": "a bunny-ear headband costume accessory: a white headband with two tall white rabbit ears",
+      "model": "qwen-image"
+    },
+    {
+      "id": "horns-curled",
+      "category": "fantasy",
+      "subject": "A pair of curled ram-like demon horns"
+    },
+    {
+      "id": "horns-straight",
+      "category": "fantasy",
+      "subject": "A pair of straight swept-back dragon horns"
+    },
+    {
+      "id": "horns-small",
+      "category": "fantasy",
+      "subject": "A pair of small pointed oni horns"
+    },
+    {
+      "id": "tail-cat",
+      "category": "product",
+      "subject": "a detached long slender black cat tail, a costume accessory, curving upward",
+      "model": "qwen-image"
+    },
+    {
+      "id": "tail-fox",
+      "category": "product",
+      "subject": "a detached big fluffy orange fox tail with a white tip, a costume accessory",
+      "model": "qwen-image"
+    },
+    {
+      "id": "tail-dragon",
+      "category": "product",
+      "subject": "a detached thick green scaly dragon tail, a costume accessory, gently curved",
+      "model": "qwen-image"
+    },
+    {
+      "id": "tail-demon",
+      "category": "product",
+      "subject": "a detached thin black demon tail ending in a spade-shaped tip, a costume accessory",
+      "model": "qwen-image"
+    },
+    {
+      "id": "wings-feather",
+      "category": "fantasy",
+      "subject": "A pair of white feathered angel wings, spread"
+    },
+    {
+      "id": "wings-bat",
+      "category": "product",
+      "subject": "a pair of detached dark red bat-like demon wings, spread, a costume accessory",
+      "model": "qwen-image"
+    },
+    {
+      "id": "wings-insect",
+      "category": "fantasy",
+      "subject": "A pair of translucent fairy insect wings"
+    }
+  ]
+}

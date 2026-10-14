@@ -153,8 +153,24 @@ export function automap(input: AutomapInput): AutomapResult {
   }
   // The body's shape (legs to the ground, wings, tails…): which family it is, and the humanoid
   // core from structure alone when names didn't give it (a rig named "MThigh.L", "Bone.012"…).
-  const coreByName = REQUIRED_BONES.every((b) => humanoid[b]);
-  const analysis = analyzeSkeleton(bones, { humanoidCore: coreByName });
+  // A "head" by name that sits no higher than the chest (a face or genital control named oddly) isn't one.
+  const posOf = (n?: string) => (n ? byName.get(n)?.pos : undefined);
+  const headPos = posOf(humanoid.head?.bone);
+  const torsoY = (['hips', 'spine', 'chest', 'upperChest', 'neck'] as const).map((s) => posOf(humanoid[s]?.bone)?.[1]).filter((y): y is number => y !== undefined);
+  if (headPos && torsoY.length && headPos[1] <= Math.max(...torsoY)) {
+    used.delete(humanoid.head!.bone);
+    byBone.delete(humanoid.head!.bone);
+    delete humanoid.head;
+  }
+  let coreByName = REQUIRED_BONES.every((b) => humanoid[b]);
+  let analysis = analyzeSkeleton(bones, { humanoidCore: coreByName });
+  if (!humanoid.head && analysis.head && !used.has(analysis.head) && REQUIRED_BONES.every((b) => b === 'head' || humanoid[b])) {
+    humanoid.head = { bone: analysis.head, confidence: 0.85, why: 'where the neck ends' };
+    used.add(analysis.head);
+    byBone.set(analysis.head, { kind: 'humanoid', role: 'head', confidence: 0.85, why: humanoid.head.why });
+    coreByName = true;
+    analysis = analyzeSkeleton(bones, { humanoidCore: true });
+  }
   if (input.family) {
     analysis.family = input.family;
     analysis.why = ['chosen by you'];

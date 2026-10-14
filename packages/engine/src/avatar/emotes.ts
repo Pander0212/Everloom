@@ -186,6 +186,11 @@ export const CREATURE_EQUIVALENT: Record<string, string[]> = {
   ready: ['roar'], attack: ['rear_up', 'roar'], punch: ['rear_up'], cast: ['roar'], hit: ['droop'], defend: ['droop'], victory: ['rear_up', 'flap_wings', 'roar'], defeat: ['lie_down'],
 };
 
+/** What a humanoid plays when the story asks for a creature emote it has no clip for. */
+export const HUMANOID_EQUIVALENT: Record<string, string> = {
+  hop: 'cheer', roar: 'angry', droop: 'sigh', tilt_head: 'thinking', rear_up: 'surprised', prance: 'dance', wag_tail: 'laugh', flap_wings: 'cheer',
+};
+
 /** The id a body plays for a requested emote: itself if it fits, else the first equivalent that does. */
 export function emoteForBody(id: string, fits: ReadonlySet<string>): string | null {
   if (fits.has(id)) return id;

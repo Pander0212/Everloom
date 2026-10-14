@@ -270,3 +270,18 @@ Creator catalog thumbnails in `apps/web/public/avatar/creator-thumbnails` are re
 ### VRCFury serialized metadata research (2026-10-12)
 
 The importer recognizes SPS plug/socket type identities and serialized field names for metadata preservation. Research source: [VRCFury](https://github.com/VRCFury/VRCFury), commit `d048773de971881fb14c5f3b468e59ba2406a2dd`, `VRCFuryHapticPlug.cs`, `VRCFuryHapticSocket.cs`, and their `.meta` files. The [license](https://github.com/VRCFury/VRCFury/blob/d048773de971881fb14c5f3b468e59ba2406a2dd/LICENSE.md) provides separate personal, commercial and VRCA/VRCW terms; its commercial terms prohibit redistribution and derivative implementations of VRCFury, and the SPS shader's commercial runtime use is limited to VRChat packages. No VRCFury source, shader, patch or asset is bundled. Reading an owner's serialized data does not implement the SPS shader or its depth actions; Everloom reports that limitation.
+
+## 3D parts library (Tripo AI) and reference images
+
+- **Reference images** for the parts library are generated with the owner's NanoGPT subscription
+  models (Z Image Turbo, Qwen Image; logged in `docs/art/LEDGER.md`, labels `parts-…`). NanoGPT's
+  terms assign the output to the user. They stay in `~/Everloom-Tripo/refs`, outside the repository.
+- **3D parts** are made by the owner in Tripo Studio with a paid subscription; under Tripo's terms
+  (§5.2.2) a paid user owns the outputs. They are processed into download packs (an all-ages pack and
+  a separate 18+ pack) built from the git-ignored `samples/tripo/`; **no generated model is ever
+  committed**. Every model is listed in `docs/art/TRIPO_LEDGER.md`.
+- **Fan-made models of existing characters** (the owner's own `.blend` samples used to diagnose the
+  Blender import) are for the owner's private use: never in the repository, packs, exports or
+  showcase material. Screenshots of them stay in the git-ignored `docs/3d-import/evidence/private/`.
+- Blender 5.2 LTS (GPL-2.0-or-later) is used as a tool to convert and check models; it is not
+  shipped with the repository.

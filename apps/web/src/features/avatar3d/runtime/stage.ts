@@ -455,7 +455,9 @@ export class Stage3D {
     const cx = (minX + maxX) / 2 * 0.7 + (speaker ? speaker.x * 0.3 : (minX + maxX) / 2 * 0.3);
     // Everyone lying down: the whole body, from a little above.
     const allLying = list.every((e) => e.avatar.lying);
-    const frame = allLying ? { y: 0.12, span: 0.7 } : { portrait: { y: 0.9, span: 0.28 }, half: { y: 0.7, span: 0.62 }, full: { y: 0.5, span: 1.15 } }[this.framing];
+    // A creature reads as its whole body (a pony's head alone says little): at least most of it.
+    const creature = list.some((e) => e.avatar.isCreature);
+    const frame = allLying ? { y: 0.12, span: 0.7 } : creature && this.framing !== 'full' ? { y: 0.55, span: 1.05 } : { portrait: { y: 0.9, span: 0.28 }, half: { y: 0.7, span: 0.62 }, full: { y: 0.5, span: 1.15 } }[this.framing];
     const spanY = h * frame.span;
     const spanX = (maxX - minX) + Math.max(h * (allLying ? 1.3 : this.framing === 'portrait' ? 0.24 : 0.62), ...list.map(entry => entry.avatar.framingWidth));
     const fovY = (this.camera.fov * Math.PI) / 180;
