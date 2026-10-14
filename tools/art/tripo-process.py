@@ -34,7 +34,7 @@ import sys
 
 import bmesh  # type: ignore
 import bpy  # type: ignore
-from mathutils import Vector  # type: ignore
+from mathutils import Matrix, Vector  # type: ignore
 from mathutils.bvhtree import BVHTree  # type: ignore
 from mathutils.kdtree import KDTree  # type: ignore
 
@@ -511,6 +511,191 @@ def fit_span(meshes, arm, slot, report):
     centre = arm.matrix_world @ arm.data.bones["spine_01"].head_local
     move(meshes, k, Vector((centre.x - (plo.x + phi.x) / 2 * k, centre.y - (plo.y + phi.y) / 2 * k, bottom - plo.z * k)))
     report["fit"] = {"scale": round(k, 4)}
+
+
+def bust_pose(arm, on=True):
+    """The pose of tools/art/base-bust.py (upper arms lowered 55 degrees), or back to rest."""
+    for side, sgn in (("l", -1), ("r", 1)):
+        b = arm.pose.bones.get(f"upperarm_{side}")
+        if b:
+            b.rotation_mode = "XYZ"
+            b.rotation_euler = (0, 0, math.radians(55) * sgn if on else 0)
+    bpy.context.view_layer.update()
+
+
+def bust_frame(arm):
+    """Where tools/art/base-bust.py framed the bust: its centre and the width of the square picture."""
+    head = arm.matrix_world @ arm.data.bones["head"].head_local
+    top = arm.matrix_world @ arm.data.bones["head"].tail_local
+    return Vector((0, head.y, (head.z + top.z) / 2 - 0.06)), 0.62
+
+
+def similarity(src, dst, scale=True):
+    """Rotation, translation (and scale) taking points src onto dst (Umeyama), as a 4x4 matrix."""
+    import numpy as np
+
+    a = np.array(src)
+    b = np.array(dst)
+    ma, mb = a.mean(0), b.mean(0)
+    ac, bc = a - ma, b - mb
+    u, s, vt = np.linalg.svd(bc.T @ ac / len(a))
+    d = np.eye(3)
+    if np.linalg.det(u @ vt) < 0:
+        d[2, 2] = -1
+    r = u @ d @ vt
+    k = np.trace(np.diag(s) @ d) / max(1e-12, (ac ** 2).sum() / len(a)) if scale else 1.0
+    t = mb - k * r @ ma
+    m = Matrix.Identity(4)
+    for i in range(3):
+        for j in range(3):
+            m[i][j] = k * r[i, j]
+        m[i][3] = t[i]
+    return m
+
+
+def picture_top(path):
+    """How far down the picture (0 top, 1 bottom) its first non-white row is: the top of the model."""
+    img = bpy.data.images.load(path)
+    w, h = img.size
+    px = img.pixels[:]
+    top = 1.0
+    for row in range(h - 1, -1, -1):
+        base = row * w * 4
+        if any(px[base + i * 4] < 0.85 for i in range(0, w, 2)):
+            top = (h - 1 - row) / h
+            break
+    bpy.data.images.remove(img)
+    return top
+
+
+def align_bust(meshes, arm, body, report, picture=None, named=None):
+    """
+    The model is a hairstyle Tripo made on our own bust (tools/art/base-bust.py): the bust is placed
+    back on the base by its shoulders and then registered to the skin (iterative closest points,
+    the hair ignored as outliers); every piece lying on the skin is the bust and goes. What remains is
+    the hair, where it sits on this base.
+    """
+    from mathutils import Matrix  # type: ignore  # noqa: F401
+
+    c, w = bust_frame(arm)
+    # The base as it stood for the picture: arms lowered (the skin below is the posed skin).
+    bust_pose(arm, True)
+    dg = bpy.context.evaluated_depsgraph_get()
+    posed = body.evaluated_get(dg).to_mesh()
+    skin = [body.matrix_world @ v.co for v in posed.vertices]
+    polys = [list(p.vertices) for p in posed.polygons]
+    tree = BVHTree.FromPolygons(skin, polys)
+    # Where hair may lie on the skin: the scalp (the head, above the brow or behind the face).
+    gi = body.vertex_groups["head"].index if "head" in body.vertex_groups else -1
+    headw = [sum(e.weight for e in v.groups if e.group == gi) for v in body.data.vertices]
+    hpts = [p for p, hw in zip(skin, headw) if hw > 0.5]
+    hlo, hhi = box(hpts)
+    brow = hhi.z - (hhi.z - hlo.z) * 0.35
+    mid_y = (hlo.y + hhi.y) / 2
+    scalp = [hw > 0.5 and (p.z > brow or p.y > mid_y) for p, hw in zip(skin, headw)]
+    body.evaluated_get(dg).to_mesh_clear()
+    pts = [o.matrix_world @ v.co for o in meshes for v in o.data.vertices]
+    lo, hi = box(pts)
+    # The bottom of the model is the bottom edge of the picture, where the bust is cut.
+    cut = [p for p in pts if p.z < lo.z + (hi.z - lo.z) * 0.03]
+    clo, chi = box(cut)
+    z0 = c.z - w / 2
+    band = [p for p in skin if abs(p.z - z0) < 0.01 and abs(p.x) < w / 2]
+    blo, bhi = box(band)
+    k = (bhi.x - blo.x) / max(1e-6, chi.x - clo.x)
+    if picture:
+        # Tripo sizes the model to fit its box: its height is the picture from the top of the hair to
+        # the bottom edge, which the picture tells exactly.
+        k = w * (1 - picture_top(picture)) / max(1e-6, hi.z - lo.z)
+    m = Matrix.Translation(Vector(((blo.x + bhi.x) / 2, (blo.y + bhi.y) / 2, z0))) @ Matrix.Scale(k, 4) @ Matrix.Translation(-Vector(((clo.x + chi.x) / 2, (clo.y + chi.y) / 2, lo.z)))
+    step = max(1, len(pts) // 4000)
+    sample = pts[::step]
+    used = 0
+    for it in range(25):
+        moved = [m @ p for p in sample]
+        src, dst = [], []
+        lim = 0.03 if it < 8 else 0.012
+        for p0, p in zip(sample, moved):
+            hit = tree.find_nearest(p)
+            if hit[0] is not None and hit[3] < lim:
+                src.append(tuple(p0))
+                dst.append(tuple(hit[0]))
+        if len(src) < 50:
+            break
+        # Scale is known: only rotation and position are solved (letting scale go shrinks the bust).
+        m = similarity([tuple(m @ Vector(p)) for p in src], dst, scale=False) @ m
+        used = len(src)
+    for o in meshes:
+        o.data.transform(o.matrix_world)
+        o.matrix_world = Matrix.Identity(4)
+        o.data.transform(m)
+        o.data.update()
+    if named is not None:
+        # A person named the bust's pieces (tools/art/tripo-pieces.py): exactly those go.
+        gone = [o for o in meshes if o.name in set(named)]
+        # Small bits of the bust not worth naming (a nose, lips): whole pieces lying on bare skin.
+        for o in meshes:
+            if o in gone:
+                continue
+            bare = 0
+            for v in o.data.vertices:
+                hit = tree.find_nearest(v.co)
+                if hit[0] is not None and hit[3] < 0.006 and not scalp[polys[hit[2]][0]]:
+                    bare += 1
+            if bare > 0.7 * len(o.data.vertices):
+                gone.append(o)
+        for o in gone:
+            meshes.remove(o)
+            bpy.data.objects.remove(o, do_unlink=True)
+        bust_pose(arm, False)
+        report["bust"] = {"scale": round(m.to_scale().x, 4), "matched": used, "bustPieces": len(gone), "named": True}
+        return meshes
+    # Pieces lying on the skin are the bust. Of the rest, what lies on skin where no hair grows (the
+    # face, the neck, the shoulders) is bust fused to hair and goes; on the scalp, hair lies close
+    # to the skin and stays.
+    gone, faces = [], 0
+    for o in list(meshes):
+        on, bare = [], []
+        for v in o.data.vertices:
+            hit = tree.find_nearest(v.co)
+            near = hit[0] is not None and hit[3] < 0.005
+            on.append(near)
+            bare.append(near and not scalp[polys[hit[2]][0]])
+        share = sum(bare) / max(1, len(bare))
+        if share > 0.5 or sum(on) / max(1, len(on)) > 0.9:
+            gone.append(o.name)
+            meshes.remove(o)
+            bpy.data.objects.remove(o, do_unlink=True)
+            continue
+        bm = bmesh.new()
+        bm.from_mesh(o.data)
+        doomed = [f for f in bm.faces if all(bare[v.index] for v in f.verts)]
+        if doomed:
+            faces += len(doomed)
+            bmesh.ops.delete(bm, geom=doomed, context="FACES")
+            bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
+            bm.to_mesh(o.data)
+            o.data.update()
+        bm.free()
+        if len(o.data.polygons) < 20:
+            meshes.remove(o)
+            bpy.data.objects.remove(o, do_unlink=True)
+    bust_pose(arm, False)
+    report["bust"] = {"scale": round(m.to_scale().x, 4), "matched": used, "bustPieces": len(gone), "fusedFaces": faces}
+    return meshes
+
+
+def head_to_head(meshes, arm_a, body_a, arm_b, body_b, report):
+    """Carries hair placed on one base's head over to another base's head (same scale idea)."""
+    a = region(arm_a, body_a, ["head"])
+    b = region(arm_b, body_b, ["head"])
+    alo, ahi = box(a)
+    blo, bhi = box(b)
+    k = ((bhi.x - blo.x) / (ahi.x - alo.x) + (bhi.y - blo.y) / (ahi.y - alo.y) + (bhi.z - blo.z) / (ahi.z - alo.z)) / 3
+    ca = Vector(((alo.x + ahi.x) / 2, (alo.y + ahi.y) / 2, ahi.z))
+    cb = Vector(((blo.x + bhi.x) / 2, (blo.y + bhi.y) / 2, bhi.z))
+    move(meshes, k, cb - ca * k)
+    report["headToHead"] = round(k, 4)
 
 
 def body_target(body):
@@ -1095,6 +1280,26 @@ def main():
     arm, body = load_base(a["base"])
     meshes = load_part(os.path.expanduser(a["input"]))
     meshes = clean(meshes, report)
+    sidecar = os.path.splitext(os.path.expanduser(a["input"]))[0] + ".json"
+    seen = json.load(open(sidecar)) if os.path.exists(sidecar) else None
+    placed = False
+    if seen and seen.get("bust"):
+        # Made on our own bust: registered to it (before decimating, so the bust doesn't use the budget).
+        report["seen"] = seen
+        pic = os.path.join(os.path.dirname(sidecar), "..", seen["picture"]) if seen.get("picture") else None
+        if seen["bust"] == base_name:
+            meshes = align_bust(meshes, arm, body, report, pic, seen.get("standIn"))
+        else:
+            before = set(bpy.data.objects)
+            bpy.ops.import_scene.gltf(filepath=os.path.join(os.path.dirname(os.path.abspath(a["base"])), seen["bust"] + ".glb"))
+            extra = [o for o in bpy.data.objects if o not in before]
+            arm_b = next(o for o in extra if o.type == "ARMATURE")
+            body_b = max((o for o in extra if o.type == "MESH" and o.data.shape_keys), key=lambda o: len(o.data.vertices))
+            meshes = align_bust(meshes, arm_b, body_b, report, pic, seen.get("standIn"))
+            head_to_head(meshes, arm_b, body_b, arm, body, report)
+            for o in extra:
+                bpy.data.objects.remove(o, do_unlink=True)
+        placed = True
     decimate(meshes, int(a.get("budget", BUDGET.get(slot, 20000))), report)
     shrink_textures(report)
     if os.environ.get("TRIPO_DEBUG"):
@@ -1102,10 +1307,10 @@ def main():
     # What a person saw in the model (tools/art/tripo-pieces.py): which pieces are Tripo's stand-in
     # head. "standIn" pieces go after guiding the fit; "standInStrip" pieces also carry hair (a lock
     # fused to a face), so only what lies on the skin after the fit goes.
-    sidecar = os.path.splitext(os.path.expanduser(a["input"]))[0] + ".json"
-    seen = json.load(open(sidecar)) if os.path.exists(sidecar) else None
     strip_pieces = []
-    if seen is not None:
+    if placed:
+        pass
+    elif seen is not None:
         report["seen"] = seen
         whole = [o for o in meshes if o.name in set(seen.get("standIn", []))]
         strip_pieces = [o for o in meshes if o.name in set(seen.get("standInStrip", []))]
@@ -1128,7 +1333,9 @@ def main():
     if os.environ.get("TRIPO_DEBUG"):
         print("STAGE standins", len(meshes), sum(len(o.data.polygons) for o in meshes))
 
-    if slot == "hair":
+    if placed:
+        report["fit"] = {"how": "own bust"}
+    elif slot == "hair":
         fit_hair(meshes, arm, body, report)
     elif slot in SPAN:
         fit_span(meshes, arm, slot, report)
