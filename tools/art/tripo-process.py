@@ -523,11 +523,11 @@ def bust_pose(arm, on=True):
     bpy.context.view_layer.update()
 
 
-def bust_frame(arm):
+def bust_frame(arm, span=0.62):
     """Where tools/art/base-bust.py framed the bust: its centre and the width of the square picture."""
     head = arm.matrix_world @ arm.data.bones["head"].head_local
     top = arm.matrix_world @ arm.data.bones["head"].tail_local
-    return Vector((0, head.y, (head.z + top.z) / 2 - 0.06)), 0.62
+    return Vector((0, head.y, (head.z + top.z) / 2 - 0.06 + 0.31 - span / 2)), span
 
 
 def similarity(src, dst, scale=True):
@@ -568,7 +568,7 @@ def picture_top(path):
     return top
 
 
-def align_bust(meshes, arm, body, report, picture=None, named=None):
+def align_bust(meshes, arm, body, report, picture=None, named=None, span=0.62):
     """
     The model is a hairstyle Tripo made on our own bust (tools/art/base-bust.py): the bust is placed
     back on the base by its shoulders and then registered to the skin (iterative closest points,
@@ -577,7 +577,7 @@ def align_bust(meshes, arm, body, report, picture=None, named=None):
     """
     from mathutils import Matrix  # type: ignore  # noqa: F401
 
-    c, w = bust_frame(arm)
+    c, w = bust_frame(arm, span)
     # The base as it stood for the picture: arms lowered (the skin below is the posed skin).
     bust_pose(arm, True)
     dg = bpy.context.evaluated_depsgraph_get()
@@ -637,11 +637,19 @@ def align_bust(meshes, arm, body, report, picture=None, named=None):
         for o in meshes:
             if o in gone:
                 continue
-            bare = 0
+            bare, ds = 0, []
             for v in o.data.vertices:
                 hit = tree.find_nearest(v.co)
-                if hit[0] is not None and hit[3] < 0.006 and not scalp[polys[hit[2]][0]]:
+                if hit[0] is None:
+                    continue
+                ds.append(hit[3])
+                if hit[3] < 0.006 and not scalp[polys[hit[2]][0]]:
                     bare += 1
+            ds.sort()
+            med = ds[len(ds) // 2] if ds else 1
+            if os.environ.get("TRIPO_DEBUG") and bare > 0.3 * len(o.data.vertices):
+                print("SKINPIECE", o.name, round(bare / len(o.data.vertices), 2), round(med, 4))
+            # Mostly over bare skin (face, ears, neck), hugging it: bust, not hair (bangs hang off it).
             if bare > 0.7 * len(o.data.vertices):
                 gone.append(o)
         for o in gone:
@@ -1288,14 +1296,14 @@ def main():
         report["seen"] = seen
         pic = os.path.join(os.path.dirname(sidecar), "..", seen["picture"]) if seen.get("picture") else None
         if seen["bust"] == base_name:
-            meshes = align_bust(meshes, arm, body, report, pic, seen.get("standIn"))
+            meshes = align_bust(meshes, arm, body, report, pic, seen.get("standIn"), float(seen.get("span", 0.62)))
         else:
             before = set(bpy.data.objects)
             bpy.ops.import_scene.gltf(filepath=os.path.join(os.path.dirname(os.path.abspath(a["base"])), seen["bust"] + ".glb"))
             extra = [o for o in bpy.data.objects if o not in before]
             arm_b = next(o for o in extra if o.type == "ARMATURE")
             body_b = max((o for o in extra if o.type == "MESH" and o.data.shape_keys), key=lambda o: len(o.data.vertices))
-            meshes = align_bust(meshes, arm_b, body_b, report, pic, seen.get("standIn"))
+            meshes = align_bust(meshes, arm_b, body_b, report, pic, seen.get("standIn"), float(seen.get("span", 0.62)))
             head_to_head(meshes, arm_b, body_b, arm, body, report)
             for o in extra:
                 bpy.data.objects.remove(o, do_unlink=True)

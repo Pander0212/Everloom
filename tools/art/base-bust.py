@@ -4,7 +4,10 @@ image editor draws a hairstyle onto, so Tripo models the hair around exactly thi
 head, cut off afterwards, places the hair on the base).
 
     blender --background --factory-startup --python tools/art/base-bust.py -- \
-        --base apps/web/public/avatar/bases/anime-f.glb --out bust-f.png [--view front|three-quarter] [--size 1024]
+        --base apps/web/public/avatar/bases/anime-f.glb --out bust-f.png [--span 0.62] [--view front|three-quarter] [--size 1024]
+
+--span is how much of the body the square picture shows, from just above the head down (0.62: head
+and shoulders; 1.0: to the waist, for long hair).
 """
 import math
 import sys
@@ -52,11 +55,13 @@ if scene.render.engine != "BLENDER_WORKBENCH":
 
 head = arm.matrix_world @ arm.data.bones["head"].head_local
 top = arm.matrix_world @ arm.data.bones["head"].tail_local
-c = Vector((0, head.y, (head.z + top.z) / 2 - 0.06))
+span = float(opt.get("span", 0.62))
+# The top of the picture stays just above the head; a longer span reaches further down.
+c = Vector((0, head.y, (head.z + top.z) / 2 - 0.06 + 0.31 - span / 2))
 cam = bpy.data.objects.new("Cam", bpy.data.cameras.new("Cam"))
 scene.collection.objects.link(cam)
 cam.data.type = "ORTHO"
-cam.data.ortho_scale = 0.62
+cam.data.ortho_scale = span
 ang = math.radians(30 if opt.get("view") == "three-quarter" else 0)
 d = Vector((math.sin(ang), -math.cos(ang), 0))
 cam.location = c + d * 2

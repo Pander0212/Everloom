@@ -42,3 +42,17 @@ shared anywhere.
 fit and skirt chains before a batch; then footwear, accessories, fantasy parts; the 18+ parts after
 the all-ages set. Missing references to redo with Qwen: swim-onepiece, shoe-loafer, gloves,
 ears-wolf, horns-small, tail-cat, tail-fox, tail-dragon, wings-insect.
+
+### Later on 2026-10-14 — four-side review and the new method
+
+The owner found most hairstyles didn't fit (short curly missing its back). A four-side review
+(tools/art/tripo-views.py) rejected 11 of 19; 8 kept. New method, proven on short curly: render our
+bald base bust (tools/art/base-bust.py; --span 1.0 for long hair), let Tripo's free image tool draw the
+hairstyle on it, generate the whole model (30), check it from four sides, only then segment (40), name
+the bust pieces (tools/art/tripo-pieces.py → sidecar JSON) and process: the hair is registered by the
+bust, so it lands where it was drawn. Credits now 23 700.
+
+**Next session:** finish hair-short-messy-v2 (name leftover pieces), then redo pixie, spiky, undercut,
+double buns (short bust) and twintails, hime, long straight, low/high ponytail, shoulder layers (long
+bust). Base body: Tripo's terms forbid "obscene" content, so explicit anatomy is made locally in
+Blender (morphs on our base), not on Tripo; Tripo can do a better clothed/neutral base and auto-rig (20).
