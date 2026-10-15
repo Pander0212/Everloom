@@ -265,7 +265,8 @@ if spec.get("mode") == "graft":
     bm = bmesh.new()
     bm.from_mesh(part.data)
     bm.verts.ensure_lookup_table()
-    doomed = [fc for fc in bm.faces if any(inzone[v.index] > 1.0 or not facing[v.index] for v in fc.verts)]
+    keep_back = bool(spec.get("keepBack"))
+    doomed = [fc for fc in bm.faces if any(inzone[v.index] > 1.0 or not (facing[v.index] or keep_back) for v in fc.verts)]
     bmesh.ops.delete(bm, geom=doomed, context="FACES")
     bmesh.ops.delete(bm, geom=[v for v in bm.verts if not v.link_faces], context="VERTS")
     bm.verts.ensure_lookup_table()
@@ -420,11 +421,25 @@ def sphere_key(name, feature, fn):
     print("KEY", name, n)
 
 
-sphere_key("Vulva_Full", "vulva", lambda v, p, c, r: bnorm[v.index] * r * 0.35)
-sphere_key("Vulva_Spread", "vulva", lambda v, p, c, r: Vector((math.copysign(r * 0.45, p.x - mid_x) * min(1, abs(p.x - mid_x) / (r * 0.25)), 0, 0)))
-sphere_key("Labia_Size", "vulva", lambda v, p, c, r: bnorm[v.index] * r * 0.3 * min(1, abs(p.x - mid_x) / (r * 0.15)))
-sphere_key("Anus_Size", "anus", lambda v, p, c, r: (p - c) * 0.6)
-sphere_key("Anus_Open", "anus", lambda v, p, c, r: -bnorm[v.index] * r * 0.8 * max(0, 1 - (p - c).length / (r * 0.45)) + (p - c) * 0.35)
+if "sliders" in spec:
+    # Generic sliders: inflate (along the skin normal), scale (away from the feature centre),
+    # stretch (along a direction, more the further along it).
+    for sl in spec["sliders"]:
+        amt = float(sl.get("amount", 0.3))
+        kind = sl["kind"]
+        if kind == "inflate":
+            sphere_key(sl["name"], sl["feature"], lambda v, p, c, r, amt=amt: bnorm[v.index] * r * amt)
+        elif kind == "scale":
+            sphere_key(sl["name"], sl["feature"], lambda v, p, c, r, amt=amt: (p - c) * amt)
+        elif kind == "stretch":
+            dvec = Vector(sl["dir"]).normalized()
+            sphere_key(sl["name"], sl["feature"], lambda v, p, c, r, amt=amt, dvec=dvec: dvec * max(0.0, (p - c).dot(dvec)) * amt)
+else:
+    sphere_key("Vulva_Full", "vulva", lambda v, p, c, r: bnorm[v.index] * r * 0.35)
+    sphere_key("Vulva_Spread", "vulva", lambda v, p, c, r: Vector((math.copysign(r * 0.45, p.x - mid_x) * min(1, abs(p.x - mid_x) / (r * 0.25)), 0, 0)))
+    sphere_key("Labia_Size", "vulva", lambda v, p, c, r: bnorm[v.index] * r * 0.3 * min(1, abs(p.x - mid_x) / (r * 0.15)))
+    sphere_key("Anus_Size", "anus", lambda v, p, c, r: (p - c) * 0.6)
+    sphere_key("Anus_Open", "anus", lambda v, p, c, r: -bnorm[v.index] * r * 0.8 * max(0, 1 - (p - c).length / (r * 0.45)) + (p - c) * 0.35)
 
 # 4. Export the body.
 if part is not None:
