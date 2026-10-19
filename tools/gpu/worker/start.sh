@@ -12,7 +12,7 @@ apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 pyt
   libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 libjpeg-dev build-essential ninja-build >/opt/worker/setup.system.log 2>&1
 python3 worker/server.py &
 export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.6}"
-export MAX_JOBS="${MAX_JOBS:-8}"
+export MAX_JOBS="${MAX_JOBS:-4}"
 export HF_HUB_ENABLE_HF_TRANSFER=0
 for m in $MODELS; do
   ( echo "starting" > stage.$m

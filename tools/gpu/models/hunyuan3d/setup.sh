@@ -16,6 +16,9 @@ cd Hunyuan3D-2.1
 git rev-parse HEAD > /opt/worker/hunyuan3d.rev
 grep -v -E '^(--extra-index-url|gradio|fastapi|uvicorn|bpy|deepspeed|tb_nightly|pythreejs)' requirements.txt > /tmp/hy-req.txt
 pip install -q -r /tmp/hy-req.txt
+# basicsr 1.4.2 imports a torchvision module removed in torchvision 0.17; the usual one-line fix.
+D=$(python -c 'import os, basicsr; print(os.path.dirname(basicsr.__file__))')
+sed -i 's/torchvision.transforms.functional_tensor/torchvision.transforms.functional/' "$D/data/degradations.py"
 cd hy3dpaint/custom_rasterizer && pip install -q . --no-build-isolation && cd ../..
 cd hy3dpaint/DifferentiableRenderer && bash compile_mesh_painter.sh && cd ../..
 mkdir -p hy3dpaint/ckpt

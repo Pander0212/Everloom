@@ -31,7 +31,7 @@ export const LEDGER = path.join(root, 'docs/3d-gen/runpod-ledger.json');
 export const LEDGER_MD = path.join(root, 'docs/3d-gen/RUNPOD_LEDGER.md');
 const IMAGE = 'nvidia/cuda:12.4.1-devel-ubuntu22.04';
 /** Container disk: two torch installs, compiled extensions and ~35 GB of weights. */
-const DISK_GB = 90;
+const DISK_GB = Number(process.env.EVERLOOM_GPU_DISK_GB || 75);
 /** RunPod bills container disk while the pod runs; added to the hourly price for the guard. */
 const DISK_PER_HR = 0.02;
 
@@ -89,13 +89,18 @@ export async function runSession(job, deps) {
   const t0 = now();
   const W = job.bundle ?? deps.bundle?.() ?? bundle();
   try {
+    // Cards come and go: try every choice, then wait a minute and try again (job.deployRetries times).
+    const rounds = Math.max(1, job.deployRetries ?? 15);
+    for (let attempt = 0; attempt < rounds && !pod?.id; attempt++) {
+    if (attempt) { say(`no card free yet; trying again in a minute (${attempt}/${rounds - 1})`); await sleep(60_000); }
     for (const c of choices) {
+      if (pod?.id) break;
       const price = round(c.price + DISK_PER_HR);
       const check = budgetCheck({ ledger, balanceUsd: balance, capUsd, pricePerHr: price, maxMinutes });
       if (!check.ok) { say(`${c.name} (${c.cloud}, $${c.price}/h): refused, ${check.reason}`); continue; }
       try {
         const d = await gql('mutation($input: PodFindAndDeployOnDemandInput) { podFindAndDeployOnDemand(input: $input) { id costPerHr } }', { input: {
-          cloudType: c.cloud, gpuCount: 1, gpuTypeId: c.id, volumeInGb: 0, containerDiskInGb: DISK_GB, minVcpuCount: 4, minMemoryInGb: 30,
+          cloudType: c.cloud, gpuCount: 1, gpuTypeId: c.id, volumeInGb: 0, containerDiskInGb: DISK_GB, minVcpuCount: 2, minMemoryInGb: 16,
           name: `${POD_PREFIX}${job.job}`.slice(0, 60), imageName: IMAGE, ports: '8000/http', startSsh: false,
           dockerArgs: `bash -c 'mkdir -p /opt/worker && cd /opt/worker && printf %s "$W_BUNDLE" | base64 -d | tar -xz && W_BUNDLE="$W_BUNDLE" bash worker/start.sh'`,
           env: [{ key: 'WORKER_TOKEN', value: token }, { key: 'W_BUNDLE', value: W }, { key: 'MODELS', value: models.join(' ') }, { key: 'MAX_SECONDS', value: String(maxMinutes * 60) }, { key: 'IDLE_SECONDS', value: '600' }, { key: 'TORCH_CUDA_ARCH_LIST', value: job.cudaArch ?? '8.6' }],
@@ -109,6 +114,7 @@ export async function runSession(job, deps) {
         if (!budgetCheck({ ledger, balanceUsd: balance, capUsd, pricePerHr: actual, maxMinutes }).ok) { say(`pod came at $${actual}/h, over budget: terminating`); throw new Error('the pod was dearer than listed'); }
         break;
       }
+    }
     }
     if (!pod?.id) throw new Error('no GPU was available within the budget');
     ledger.sessions.push(entry);

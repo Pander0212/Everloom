@@ -13,7 +13,7 @@ python3 -m venv $V
 pip install -q --upgrade pip wheel setuptools
 pip install -q torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
 pip install -q xformers==0.0.29.post3 --index-url https://download.pytorch.org/whl/cu124
-pip install -q imageio imageio-ffmpeg tqdm easydict opencv-python-headless ninja trimesh "transformers>=4.56" zstandard kornia timm pillow huggingface_hub safetensors scipy
+pip install -q imageio imageio-ffmpeg tqdm easydict opencv-python-headless ninja trimesh "transformers>=4.56" zstandard kornia timm einops pillow huggingface_hub safetensors scipy
 pip install -q git+https://github.com/EasternJournalist/utils3d.git@9a4eb15e4021b67b12c460c7057d642626897ec8
 mkdir -p /opt/src && cd /opt/src
 git clone -q -b $REV --recursive https://github.com/microsoft/TRELLIS.2.git
