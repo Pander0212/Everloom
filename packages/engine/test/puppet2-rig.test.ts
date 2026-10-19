@@ -115,6 +115,13 @@ describe('puppets v2 auto-rig', () => {
     expect(mid.shin_L!.tip[1]).toBeLessThan(760);
   });
 
+  it('bends the knees outward when the body crouches (front view)', () => {
+    const b = rig.pose({ time: 0.2, animations: ['jump'], physics: false }).bones;
+    expect(b.shin_L!.x).toBeGreaterThan(b.thigh_L!.x - 0.5);
+    expect(b.shin_R!.x).toBeLessThan(b.thigh_R!.x + 0.5);
+    expect(b.shin_L!.x - b.shin_R!.x).toBeGreaterThan(60);
+  });
+
   it('settles the body physics after a jump', () => {
     const during = rig.pose({ time: 0.65, animations: ['jump'] });
     expect(Math.abs(during.params.BustY!)).toBeGreaterThan(0.05);

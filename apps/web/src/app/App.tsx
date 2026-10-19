@@ -34,6 +34,7 @@ const DesignPage = lazy(() => import('@/features/design/DesignPage'));
 const ExtensionScreen = lazy(() => import('@/scripting/ExtensionScreen'));
 const Lab3D = lazy(() => import('@/features/avatar3d/Lab3D'));
 const PuppetLab = lazy(() => import('@/features/puppets/PuppetLab'));
+const PuppetV2Lab = lazy(() => import('@/features/puppets/v2/PuppetV2Lab'));
 const AvatarsPage = lazy(() => import('@/features/avatars/AvatarsPage'));
 const AvatarEditor = lazy(() => import('@/features/avatar3d/AvatarEditor'));
 const CharacterCreator = lazy(() => import('@/features/avatar3d/creator/CreatorPage'));
@@ -89,6 +90,7 @@ function AuthedApp() {
         <Route path="/design" element={<DesignPage />} />
         <Route path="/lab/3d" element={<Lab3D />} />
         <Route path="/lab/puppets" element={<PuppetLab />} />
+        <Route path="/lab/puppets2" element={<PuppetV2Lab />} />
         <Route element={<Shell />}>
           <Route index element={<ChatsPage />} />
           <Route path="characters" element={<CharactersPage />} />

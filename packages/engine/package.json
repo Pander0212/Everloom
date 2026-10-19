@@ -11,7 +11,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./guard": "./src/scripting/guard.ts",
-    "./unity": "./src/unity/index.ts"
+    "./unity": "./src/unity/index.ts",
+    "./puppet2": "./src/puppet2/index.ts"
   },
   "scripts": {
     "test": "vitest run",

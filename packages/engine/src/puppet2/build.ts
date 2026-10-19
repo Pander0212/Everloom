@@ -143,7 +143,7 @@ export function buildCharacter(input: CharacterInput): Model {
   }
   const ik: NonNullable<ModelInput['ik']> = [];
   for (const s of ['L', 'R']) {
-    ik.push({ id: `legIk_${s}`, bones: [`thigh_${s}`, `shin_${s}`], target: `footTarget_${s}`, mix: 1, bendPositive: view === 'side' ? SIDE_KNEE_BEND : s === 'R', stretch: true, softness: 0.01 * H });
+    ik.push({ id: `legIk_${s}`, bones: [`thigh_${s}`, `shin_${s}`], target: `footTarget_${s}`, mix: 1, bendPositive: view === 'side' ? SIDE_KNEE_BEND : s === 'L', stretch: true, softness: 0.01 * H });
     ik.push({ id: `armIk_${s}`, bones: [`upperarm_${s}`, `forearm_${s}`], target: `handTarget_${s}`, mix: 0, bendPositive: s === 'L', softness: 0.02 * H });
   }
   // Physics: pendulums moved by the body's motion, whose swing drives the bounce parameters. Rev2D's
