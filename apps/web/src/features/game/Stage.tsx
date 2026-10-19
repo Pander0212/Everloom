@@ -22,6 +22,7 @@ import { FX_LIST, useSceneMotion } from './StageFx';
 const Live2DSprite = lazy(() => import('./Live2DSprite'));
 // Only fetched when a character on stage has a 3D avatar and 3D is on for this device.
 const StageLayer3D = lazy(() => import('@/features/avatar3d/StageLayer'));
+const StagePuppets2 = lazy(() => import('@/features/puppets/v2/StageLayer'));
 
 
 /** Gentle life on the sprite: breathing while idle, a small bob while its line is being spoken. */
@@ -116,6 +117,7 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   const directed = layers.length > 0;
   // 3D characters: feature on, this device allows it, the character has an avatar and wants 3D.
   const avatarsOn = useFeatureOn('avatars3d');
+  const puppetsOn = useFeatureOn('puppets');
   const stageWide = useDesktop();
   const [inspect3d, setInspect3d] = useState(false);
   /** Names of what a character has equipped (as a party member), for item-linked outfits. */
@@ -145,14 +147,21 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
   };
   const spritesOnly = usePrefs3D((p) => p.spritesOnly);
   const [failed3d, setFailed3d] = useState<Record<string, string>>({});
+  const [failedP2, setFailedP2] = useState<Record<string, string>>({});
   const codeNpcs = usePrefs3D((p) => p.codeNpcs);
   const experimentalProcedural = usePrefs3D((p) => p.experimentalProcedural);
   /**
    * 3D when the character has an avatar or is set to 3D; characters with no picture at all (most
    * NPCs) get a code-made figure from their description.
    */
+  /** A full-body puppet (Puppets v2) when the character has one and is not set to another display. */
+  const usesPuppet2 = (c: CharacterDTO) => {
+    const display = c.game?.display ?? 'auto';
+    return puppetsOn && !spritesOnly && !!c.game?.puppet2 && !failedP2[c.id] && (display === 'auto' || display === 'puppet') && hasWebGL2();
+  };
   const uses3d = (c: CharacterDTO) => {
     const display = c.game?.display ?? 'auto';
+    if (usesPuppet2(c)) return false;
     if (!avatarsOn || spritesOnly || failed3d[c.id] || display === 'sprite' || display === 'live2d' || !hasWebGL2()) return false;
     return !!c.game?.avatar3d || (experimentalProcedural && (display === '3d' || (codeNpcs && !spriteFor(c, 'neutral') && !(live2dOn && live2d.data?.models[c.id]))));
   };
@@ -238,12 +247,30 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
             />
           </Suspense>
         ) : null}
+        {chars.some(usesPuppet2) ? (
+          <Suspense fallback={null}>
+            <StagePuppets2
+              className="pointer-events-none absolute inset-0 h-full w-full"
+              safeBottom={stageWide ? 0.3 : 0.36}
+              onFail={(id, reason) => setFailedP2((f) => (f[id] ? f : { ...f, [id]: reason }))}
+              cast={chars.filter(usesPuppet2).flatMap((c) => {
+                const layer = layerFor(c);
+                if (directed && (!layer || layer.position === 'off')) return [];
+                const avs = campaign?.state?.stage?.avatars;
+                const own = avs?.[normalizeName(c.name)];
+                const all = avs?.everyone;
+                const emote = [own?.emote, all?.emote].filter(Boolean).sort((a, b) => cueNo(b!.cue) - cueNo(a!.cue))[0] ?? null;
+                return [{ id: c.id, puppet: c.game!.puppet2!, slot: layer?.position, emote, pose: own?.pose ?? all?.pose ?? null, outfit: own?.outfit ?? all?.outfit ?? null }];
+              })}
+            />
+          </Suspense>
+        ) : null}
         {/* Sprites: placed by the director when it has spoken, otherwise side by side */}
         <div className={cx('pointer-events-none absolute inset-x-0 bottom-0 top-0 px-2 pb-[38%] sm:pb-[22%]', !directed && 'flex items-end justify-center gap-0')}>
           {chars.map((c) => {
             const layer = layerFor(c);
             if (directed && (!layer || layer.position === 'off')) return null;
-            if (uses3d(c)) return null;
+            if (uses3d(c) || usesPuppet2(c)) return null;
             const active = speaker?.id === c.id || chars.length === 1;
             const expr = layer?.expression ?? (active ? emotion : 'neutral');
             const src = spriteFor(c, expr);

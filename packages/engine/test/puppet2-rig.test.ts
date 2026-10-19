@@ -187,3 +187,21 @@ describe('puppets v2 retargeting', () => {
     expect(aim.keys[0]![1]).toBeCloseTo(-140);
   });
 });
+
+describe('puppets v2 story cues', async () => {
+  const { emoteCue, poseMotion, hiddenParts } = await import('../src/puppet2/story.js');
+  it('maps story emotes and poses onto library motions, and nothing else', () => {
+    const ids = new Set(MOTIONS.map((m) => m.id));
+    expect(emoteCue('wave')).toEqual({ kind: 'gesture', motion: 'wave_L' });
+    expect(emoteCue('dance')).toBeNull();
+    for (const k of ['wave', 'nod', 'bow', 'cheer', 'surprised', 'point', 'angry']) { const c = emoteCue(k)!; expect(c.kind === 'walk' || ids.has(c.motion)).toBe(true); }
+    expect(poseMotion('idle_confident')).toBe('handsOnHips');
+    expect(poseMotion('sit')).toBe('idle');
+  });
+  it('wears one outfit at a time and shows adult layers only undressed', () => {
+    const parts = [{ id: 'body' }, { id: 'nude', adult: true }, { id: 'top', outfit: 'casual' }, { id: 'dress', outfit: 'formal' }];
+    expect([...hiddenParts(parts, null)].sort()).toEqual(['dress', 'nude']);
+    expect([...hiddenParts(parts, 'formal')].sort()).toEqual(['nude', 'top']);
+    expect([...hiddenParts(parts, 'none')].sort()).toEqual(['dress', 'top']);
+  });
+});

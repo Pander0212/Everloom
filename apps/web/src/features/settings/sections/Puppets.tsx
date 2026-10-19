@@ -10,12 +10,14 @@ import { Button, confirm, Field, FileButton, IconButton, Input, ListRow, Segment
 import { Section } from '../common';
 
 interface PuppetRow { id: string; name: string; rating: 'all-ages' | '18+'; createdAt: number; parts: number; url: string }
+interface Puppet2Row { id: string; name: string; rating: 'all-ages' | '18+'; views: string[]; outfits: string[]; layers: number; createdAt: number }
 interface Job { id: string; state: 'running' | 'done' | 'failed'; progress: number; stage: string; error: string | null; puppet: string | null }
 
 export default function PuppetsSection() {
   const qc = useQueryClient();
   const navigate = useNavigate();
   const puppets = useQuery({ queryKey: ['puppets'], queryFn: () => get<PuppetRow[]>('/api/puppets') });
+  const bodies = useQuery({ queryKey: ['puppets2'], queryFn: () => get<Puppet2Row[]>('/api/puppets2') });
   const conns = useConnections();
   const hasLayering = (conns.data ?? []).some((c) => c.provider.startsWith('layers-'));
   const [name, setName] = useState('');
@@ -48,6 +50,12 @@ export default function PuppetsSection() {
     setImporting(true);
     try { await upload('/api/puppets/import', f, query()); await qc.invalidateQueries({ queryKey: ['puppets'] }); } catch (e) { toastError(e); } finally { setImporting(false); }
   };
+  const importPack = async (files: File[]) => {
+    const f = files[0];
+    if (!f) return;
+    setImporting(true);
+    try { await upload('/api/puppets2/import', f, name.trim() ? { name: name.trim(), rating } : { rating }); await qc.invalidateQueries({ queryKey: ['puppets2'] }); } catch (e) { toastError(e); } finally { setImporting(false); }
+  };
   const open = (p: PuppetRow) => navigate(`/lab/puppets?puppet=${encodeURIComponent(p.url)}`);
 
   return (
@@ -75,6 +83,20 @@ export default function PuppetsSection() {
 
       <Section title="Import puppets" description="A layered drawing from Clip Studio Paint (.clip) or Photoshop (.psd), with the character facing you and one layer per part named like Face, Front hair, Back hair, Eye white, Iris, Eyelash, Eyebrow, Mouth, Arms, Top, Bottom, Legs (English or Japanese: 顔, 前髪, 後ろ髪…; folders count, so Hair › Back works). Or a zip of finished puppets (each a puppet.json with its pictures; one zip can hold many), or a layering result from tools/see-through-worker (it holds <name>/layers.json).">
         <FileButton variant="secondary" icon={Layers} accept=".clip,.psd,.zip,application/zip" onFiles={importZip} disabled={importing}>{importing ? 'Importing…' : 'Import a drawing or zip'}</FileButton>
+      </Section>
+
+      <Section title="Full-body puppets" description="Characters that walk, wave with bending arms, turn and move with body physics. Import a character pack (a zip with character.json and one picture per layer, made by the Puppets v2 pipeline or by hand: docs/puppets-v2/pipeline.md); each view is rigged automatically. Adult layers belong in 18+ packs and are never shown on a character who is, or is described as, under 18.">
+        <div className="flex flex-col gap-3">
+          <FileButton variant="secondary" icon={Layers} accept=".zip,application/zip" onFiles={importPack} disabled={importing}>{importing ? 'Importing…' : 'Import a character pack'}</FileButton>
+          {bodies.data?.length ? (
+            <div className="flex flex-col" data-testid="puppets2-list">
+              {bodies.data.map((p) => (
+                <ListRow key={p.id} title={p.name} subtitle={`${p.rating === '18+' ? '18+ · ' : ''}${p.views.join(', ')} · ${p.layers} layers${p.outfits.length ? ` · outfits: ${p.outfits.join(', ')}` : ''}`} onClick={() => navigate(`/lab/puppets2?p2=${p.id}`)}
+                  trailing={<IconButton icon={Trash2} label={`Delete ${p.name}`} onClick={async (e) => { e.stopPropagation(); if (await confirm({ title: `Delete ${p.name}?`, confirmLabel: 'Delete', danger: true })) { try { await del(`/api/puppets2/${p.id}`); await qc.invalidateQueries({ queryKey: ['puppets2'] }); } catch (err) { toastError(err); } } }} />} />
+              ))}
+            </div>
+          ) : null}
+        </div>
       </Section>
 
       <Section title="Your puppets">

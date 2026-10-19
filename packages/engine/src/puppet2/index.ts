@@ -6,3 +6,4 @@ export * from './testfigure.js';
 export { Rig, Player, buildRenderList, type RenderListOptions } from './rev2d/rig.js';
 export { validateModel, parseModelText, formatDiagnostics } from './rev2d/validate.js';
 export type { Model, ModelInput, Pose, RenderList, DrawItem, Animation, AnimationLayer, PoseOptions } from './rev2d/types.js';
+export * from './story.js';

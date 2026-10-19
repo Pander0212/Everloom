@@ -48,8 +48,10 @@ export interface CharacterGame {
   chatMode?: FeaturePreset | null;
   /** A 3D avatar (its id) shown on the stage when 3D characters are on. */
   avatar3d?: string;
-  /** How this character appears on the stage: 3D, Live2D, sprites, or the richest available. */
-  display?: 'auto' | '3d' | 'live2d' | 'sprite';
+  /** A full-body puppet (Puppets v2, its id) shown on the stage. */
+  puppet2?: string;
+  /** How this character appears on the stage: 3D, a puppet, Live2D, sprites, or the richest available. */
+  display?: 'auto' | '3d' | 'puppet' | 'live2d' | 'sprite';
 }
 
 export interface CharacterSummary {

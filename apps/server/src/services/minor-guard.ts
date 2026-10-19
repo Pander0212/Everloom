@@ -15,6 +15,7 @@
  */
 import { ageYears, AvatarConfigSchema, type AvatarConfig, type CardData, type CharacterGame } from '@everloom/engine';
 import { HttpError, type AppContext } from '../context.js';
+import { getPuppet2 } from './puppets2/store.js';
 
 /** The one message a refusal gives. */
 export const REFUSED = 'Explicit content is never applied to a character under 18 or described as a child.';
@@ -82,4 +83,11 @@ export function assertLinkAllowed(ctx: AppContext, owner: string, avatar: string
   const config = AvatarConfigSchema.parse(JSON.parse(row.config));
   if (!hasExplicitContent(config)) return;
   if (avatarMinorReason(config) || cardMinorReason(card, game)) throw new HttpError(400, REFUSED);
+}
+
+/** Linking a character card to a full-body puppet: refused when the puppet has adult layers and the card is a minor. */
+export function assertPuppet2LinkAllowed(ctx: AppContext, owner: string, puppet: string, card: CardData, game: CharacterGame): void {
+  const meta = getPuppet2(ctx, owner, puppet);
+  if (!meta?.adult) return;
+  if (cardMinorReason(card, game)) throw new HttpError(400, REFUSED);
 }

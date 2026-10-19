@@ -7,7 +7,8 @@
 import { buildCharacter, testFigure, type FigureShape, type Model, type TestFigure } from '@everloom/engine/puppet2';
 import { useEffect, useRef, useState } from 'react';
 import { Button, Select } from '@/ui';
-import { Puppet2Stage, type ViewSource } from './stage';
+import { Puppet2Stage, type View2, type ViewSource } from './stage';
+import { loadPuppet } from './StageLayer';
 
 declare global {
   interface Window { __puppet2Lab?: { stage: Puppet2Stage; ready: number } }
@@ -80,6 +81,7 @@ export default function PuppetV2Lab() {
   const [clothes, setClothes] = useState(true);
   const q = new URLSearchParams(location.search);
   const url = q.get('model');
+  const p2 = q.get('p2');
 
   useEffect(() => {
     let s: Puppet2Stage;
@@ -104,10 +106,10 @@ export default function PuppetV2Lab() {
       try {
         for (const id of s.ids()) s.remove(id);
         for (let i = 0; i < count; i++) {
-          const views = url ? { front: await loadModel(url) } : testViews(i === 1 ? 1.15 : 1);
+          const views: Partial<Record<View2, ViewSource>> = p2 ? (await loadPuppet(p2)).views : url ? { front: await loadModel(url) } : testViews(i === 1 ? 1.15 : 1);
           if (!live) return;
           const p = s.add(`p${i + 1}`, views, { x: SPOTS[count - 1]![i]!, height: count === 1 ? 0.9 : 0.78, floor: 0.97 });
-          const m = views.front.model;
+          const m = (views.front ?? Object.values(views)[0]!).model;
           setMotions(m.animations.map((a) => a.id));
           setParams(m.parameters);
           void p;
@@ -117,7 +119,7 @@ export default function PuppetV2Lab() {
       } catch (e) { setError((e as Error).message); }
     })();
     return () => { live = false; };
-  }, [count, url]);
+  }, [count, url, p2]);
 
   const all = (fn: (id: string) => void) => { for (const id of stage.current?.ids() ?? []) fn(id); };
   const BASE = new Set(['idle', 'walk', 'armsCrossed', 'handsOnHips', 'armsUp']);
