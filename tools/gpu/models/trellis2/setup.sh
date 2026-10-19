@@ -13,7 +13,7 @@ python3 -m venv $V
 pip install -q --upgrade pip wheel setuptools
 pip install -q torch==2.6.0 torchvision==0.21.0 --index-url https://download.pytorch.org/whl/cu124
 pip install -q xformers==0.0.29.post3 --index-url https://download.pytorch.org/whl/cu124
-pip install -q imageio imageio-ffmpeg tqdm easydict opencv-python-headless ninja trimesh "transformers>=4.56" zstandard kornia timm einops pillow huggingface_hub safetensors scipy
+pip install -q imageio imageio-ffmpeg tqdm easydict opencv-python-headless ninja trimesh "transformers==4.57.1" zstandard kornia timm einops pillow huggingface_hub safetensors scipy
 pip install -q git+https://github.com/EasternJournalist/utils3d.git@9a4eb15e4021b67b12c460c7057d642626897ec8
 mkdir -p /opt/src && cd /opt/src
 git clone -q -b $REV --recursive https://github.com/microsoft/TRELLIS.2.git
@@ -38,4 +38,17 @@ a["models"]["sparse_structure_decoder"] = "/opt/weights/TRELLIS-image-large/ckpt
 a["image_cond_model"]["args"]["model_name"] = "/opt/weights/dinov3-vitl16"
 a["rembg_model"]["args"]["model_name"] = "/opt/weights/BiRefNet"
 json.dump(c, open(p, "w"), indent=1)
+EOF
+# Import everything run.py needs (no weights loaded), so a missing module fails the setup, not a job.
+cd /opt/src/TRELLIS.2
+ATTN_BACKEND=xformers python - <<'EOF'
+import o_voxel, cumesh, flex_gemm, nvdiffrast.torch, einops  # noqa: F401
+from trellis2.pipelines import Trellis2ImageTo3DPipeline  # noqa: F401
+from trellis2.pipelines.rembg import BiRefNet  # noqa: F401
+# TRELLIS.2 walks DINOv3's layers itself (model.layer): newer transformers renamed them.
+import torch
+from transformers import DINOv3ViTConfig, DINOv3ViTModel
+m = DINOv3ViTModel(DINOv3ViTConfig(hidden_size=64, num_hidden_layers=1, num_attention_heads=2, intermediate_size=128))
+assert hasattr(m, "layer"), "this transformers version has no DINOv3ViTModel.layer"
+print("imports ok")
 EOF

@@ -15,6 +15,9 @@ os.makedirs(out, exist_ok=True)
 t = time.time()
 pipe = Trellis2ImageTo3DPipeline.from_pretrained("/opt/weights/TRELLIS.2-4B")
 pipe.cuda()
+# Newer transformers load BiRefNet in its checkpoint's half precision; TRELLIS.2 feeds it float32.
+if getattr(pipe, "rembg_model", None) is not None:
+    pipe.rembg_model.model.float()
 print(f"loaded in {time.time() - t:.0f}s", flush=True)
 report = {}
 names = opts.get("only") or sorted(n for n in os.listdir(src) if n.lower().endswith((".png", ".jpg", ".jpeg", ".webp")))

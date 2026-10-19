@@ -11,6 +11,9 @@ export DEBIAN_FRONTEND=noninteractive
 apt-get update -qq && apt-get install -y -qq --no-install-recommends python3 python3-venv python3-dev git git-lfs curl ca-certificates \
   libgl1 libglib2.0-0 libsm6 libxext6 libxrender1 libjpeg-dev build-essential ninja-build >/opt/worker/setup.system.log 2>&1
 python3 worker/server.py &
+# A host with a broken GPU fails here, in seconds, instead of after the whole setup.
+if python3 -c "import ctypes,sys; sys.exit(ctypes.CDLL('libcuda.so.1').cuInit(0))" 2>/dev/null; then echo "ok $(nvidia-smi --query-gpu=name,driver_version,memory.total --format=csv,noheader 2>/dev/null)" > stage.gpu
+else echo "failed: CUDA does not start on this host ($(nvidia-smi --query-gpu=name --format=csv,noheader 2>&1 | head -c 120))" > stage.gpu; wait; fi
 export TORCH_CUDA_ARCH_LIST="${TORCH_CUDA_ARCH_LIST:-8.6}"
 export MAX_JOBS="${MAX_JOBS:-4}"
 export HF_HUB_ENABLE_HF_TRANSFER=0

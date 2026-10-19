@@ -17,7 +17,7 @@ git rev-parse HEAD > /opt/worker/hunyuan3d.rev
 grep -v -E '^(--extra-index-url|gradio|fastapi|uvicorn|bpy|deepspeed|tb_nightly|pythreejs)' requirements.txt > /tmp/hy-req.txt
 pip install -q -r /tmp/hy-req.txt
 # basicsr 1.4.2 imports a torchvision module removed in torchvision 0.17; the usual one-line fix.
-D=$(python -c 'import os, basicsr; print(os.path.dirname(basicsr.__file__))')
+D=$(python -c 'import importlib.util, os; print(os.path.dirname(importlib.util.find_spec("basicsr").origin))')  # without importing it
 sed -i 's/torchvision.transforms.functional_tensor/torchvision.transforms.functional/' "$D/data/degradations.py"
 cd hy3dpaint/custom_rasterizer && pip install -q . --no-build-isolation && cd ../..
 cd hy3dpaint/DifferentiableRenderer && bash compile_mesh_painter.sh && cd ../..
@@ -27,4 +27,17 @@ python - <<'EOF'
 from huggingface_hub import snapshot_download
 snapshot_download("tencent/Hunyuan3D-2.1")
 snapshot_download("facebook/dinov2-giant")
+EOF
+pip install -q "setuptools<70"  # the paint code still imports pkg_resources (removed from newer setuptools)
+# Import everything run.py needs (no weights loaded), so a missing module fails the setup, not a job.
+python - <<'EOF'
+import sys, types
+sys.modules.setdefault("bpy", types.ModuleType("bpy"))
+sys.path[:0] = ["hy3dshape", "hy3dpaint", "."]
+import pkg_resources, realesrgan, basicsr  # noqa: F401
+import textureGenPipeline, hunyuanpaintpbr  # noqa: F401
+from hy3dshape.rembg import BackgroundRemover  # noqa: F401
+from hy3dshape.pipelines import Hunyuan3DDiTFlowMatchingPipeline  # noqa: F401
+import custom_rasterizer  # noqa: F401
+print("imports ok")
 EOF

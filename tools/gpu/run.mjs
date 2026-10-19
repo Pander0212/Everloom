@@ -34,6 +34,8 @@ const IMAGE = 'nvidia/cuda:12.4.1-devel-ubuntu22.04';
 const DISK_GB = Number(process.env.EVERLOOM_GPU_DISK_GB || 75);
 /** RunPod bills container disk while the pod runs; added to the hourly price for the guard. */
 const DISK_PER_HR = 0.02;
+/** CUDA architecture of the rented card, so extensions are compiled for it alone (much faster). */
+export const cudaArch = (name) => (/4090|L40|Ada|L4\b/i.test(name) ? '8.9' : /H100|H200/i.test(name) ? '9.0' : /A100/i.test(name) ? '8.0' : '8.6');
 
 export function makeApi(key, fetchImpl = fetch) {
   return async function gql(query, variables = {}) {
@@ -100,10 +102,10 @@ export async function runSession(job, deps) {
       if (!check.ok) { say(`${c.name} (${c.cloud}, $${c.price}/h): refused, ${check.reason}`); continue; }
       try {
         const d = await gql('mutation($input: PodFindAndDeployOnDemandInput) { podFindAndDeployOnDemand(input: $input) { id costPerHr } }', { input: {
-          cloudType: c.cloud, gpuCount: 1, gpuTypeId: c.id, volumeInGb: 0, containerDiskInGb: DISK_GB, minVcpuCount: 2, minMemoryInGb: 16,
+          cloudType: c.cloud, gpuCount: 1, gpuTypeId: c.id, allowedCudaVersions: ['12.4', '12.5', '12.6', '12.7', '12.8', '12.9', '13.0'], volumeInGb: 0, containerDiskInGb: DISK_GB, minVcpuCount: 2, minMemoryInGb: 16,
           name: `${POD_PREFIX}${job.job}`.slice(0, 60), imageName: IMAGE, ports: '8000/http', startSsh: false,
           dockerArgs: `bash -c 'mkdir -p /opt/worker && cd /opt/worker && printf %s "$W_BUNDLE" | base64 -d | tar -xz && W_BUNDLE="$W_BUNDLE" bash worker/start.sh'`,
-          env: [{ key: 'WORKER_TOKEN', value: token }, { key: 'W_BUNDLE', value: W }, { key: 'MODELS', value: models.join(' ') }, { key: 'MAX_SECONDS', value: String(maxMinutes * 60) }, { key: 'IDLE_SECONDS', value: '600' }, { key: 'TORCH_CUDA_ARCH_LIST', value: job.cudaArch ?? '8.6' }],
+          env: [{ key: 'WORKER_TOKEN', value: token }, { key: 'W_BUNDLE', value: W }, { key: 'MODELS', value: models.join(' ') }, { key: 'MAX_SECONDS', value: String(maxMinutes * 60) }, { key: 'IDLE_SECONDS', value: '600' }, { key: 'TORCH_CUDA_ARCH_LIST', value: job.cudaArch ?? cudaArch(c.name) }],
         } });
         pod = d.podFindAndDeployOnDemand;
         if (pod?.id) deps.onPod?.(pod.id);
@@ -131,6 +133,7 @@ export async function runSession(job, deps) {
       try { const r = await call('/health'); if (r.ok) health = await r.json(); } catch { /* not up yet */ }
       const st = JSON.stringify(health?.stages ?? {});
       if (st !== lastStages) { say(`[${Math.round((now() - t0) / 60000)} min] ${st}`); lastStages = st; }
+      if (/^failed/.test(health?.stages?.gpu ?? '')) throw new Error(`bad host: ${health.stages.gpu}`);
       if (health && models.every((m) => /^(ready|failed)/.test(health.stages?.[m] ?? ''))) break;
     }
     const ready = models.filter((m) => health?.stages?.[m] === 'ready');
@@ -209,7 +212,11 @@ async function main() {
       const stop = async () => { console.error('interrupted: terminating the pod'); if (current) await terminate(gql, current).catch(() => {}); await cleanup(gql).catch(() => {}); process.exit(130); };
       process.once('SIGINT', stop);
       process.once('SIGTERM', stop);
-      await runSession(job, { gql, capUsd, secrets: [key], onPod: (id) => { current = id; } });
+      // A host whose GPU doesn't start is caught in the first minutes; try another one (twice at most).
+      for (let i = 0; ; i++) {
+        try { await runSession(job, { gql, capUsd, secrets: [key], onPod: (id) => { current = id; } }); break; }
+        catch (e) { if (i < 2 && /^bad host/.test(String(e.message))) { console.log(`${e.message}: trying another host`); continue; } throw e; }
+      }
     }
   } else {
     console.error('usage: run.mjs status | cleanup | estimate <job.json> | run <job.json>');
