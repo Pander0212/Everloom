@@ -21,6 +21,7 @@ import { ownerForToken } from '../services/bridge.js';
 import { parse } from '../util/validate.js';
 import { installMakeHuman, makeHumanStatus, importHumanAssets } from '../services/avatars/makehuman.js';
 import { anatomyPackStatus, installAnatomyPack, removeAnatomyPack } from '../services/avatars/anatomy.js';
+import { baseBodyPackStatus, installBaseBodyPack, removeBaseBodyPack } from '../services/avatars/base-bodies.js';
 import { exportBrowserModel } from '../services/avatars/browser-export.js';
 import { replaceNativeBody } from '../services/avatars/service.js';
 import { checkAvatarContent } from '../services/avatars/service.js';
@@ -35,6 +36,12 @@ export function registerAvatarRoutes(app: FastifyInstance, ctx: AppContext) {
     return installAnatomyPack(ctx, owner(req), req.body);
   });
   app.delete('/api/anatomy-pack', async req => removeAnatomyPack(ctx, owner(req)));
+  app.get('/api/base-body-pack', async req => baseBodyPackStatus(ctx, owner(req)));
+  app.post('/api/base-body-pack', { bodyLimit: 200 * 1024 * 1024 }, async req => {
+    if (!Buffer.isBuffer(req.body)) throw new HttpError(400, 'Send the base-body pack zip as binary data.');
+    return installBaseBodyPack(ctx, owner(req), req.body);
+  });
+  app.delete('/api/base-body-pack', async req => removeBaseBodyPack(ctx, owner(req)));
   app.post('/api/makehuman/assets', { bodyLimit: 100 * 1024 * 1024 }, async req => {
     if (!Buffer.isBuffer(req.body)) throw new HttpError(400, 'Send an asset ZIP as binary data.');
     const options = parse(z.object({ kind: z.enum(['clothes', 'hair', 'targets', 'rigs', 'skins', 'eyes', 'eyebrows', 'eyelashes', 'teeth', 'tongue']), label: z.string().min(1).max(80), adult: z.enum(['true', 'false']).transform(v => v === 'true'), rightsConfirmed: z.enum(['true', 'false']).transform(v => v === 'true') }), req.query);

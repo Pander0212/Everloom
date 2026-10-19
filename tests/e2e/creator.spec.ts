@@ -110,3 +110,30 @@ test('anatomy: the pack installs like any pack and the Anatomy tab works with no
   await page.request.delete('/api/anatomy-pack', { headers: { 'x-csrf-token': (await (await page.request.get('/api/auth/status')).json()).csrf } });
   expect(errors).toEqual([]);
 });
+
+test('a base-body pack: the creator builds on its bodies; the all-ages pack keeps underwear on', async ({ page, errors }) => {
+  test.setTimeout(180_000);
+  const { readFileSync } = await import('node:fs');
+  const { strToU8, zipSync } = await import('fflate');
+  // A stand-in pack made here from the bundled base (generated packs never enter the repository).
+  const body = new Uint8Array(readFileSync('apps/web/public/avatar/bases/anime-f.glb'));
+  const zip = Buffer.from(zipSync({ 'bodies.json': strToU8(JSON.stringify({ format: 'everloom-base-bodies', version: 1, name: 'Test bodies', license: 'CC0', underwearFixed: true, bases: { 'anime-f': 'f.glb' } })), 'f.glb': body }));
+  await page.goto('/settings/3d');
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByTestId('base-body-pack-install').click();
+  await (await chooser).setFiles({ name: 'bodies.zip', mimeType: 'application/zip', buffer: zip });
+  await expect(page.getByText('Test bodies')).toBeVisible();
+  const fromPack = page.waitForResponse((r) => /\/media\//.test(r.url()) && r.ok());
+  await page.goto('/characters/creator');
+  await fromPack;
+  await ready(page);
+  // Underwear can't be removed, and the anatomy tab explains why it isn't used.
+  await page.getByRole('tab', { name: 'Clothes' }).click();
+  await expect(page.getByRole('button', { name: 'Remove item 1' })).toBeDisabled();
+  await expect(page.getByRole('button', { name: 'Remove item 2' })).toBeDisabled();
+  await page.getByRole('tab', { name: 'Anatomy' }).click();
+  await expect(page.getByText(/keeps underwear on/)).toBeVisible();
+  const csrf = (await (await page.request.get('/api/auth/status')).json()).csrf;
+  await page.request.delete('/api/base-body-pack', { headers: { 'x-csrf-token': csrf } });
+  expect(errors).toEqual([]);
+});

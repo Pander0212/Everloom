@@ -14,8 +14,9 @@ import { buildHair, fitHead, type HeadShape } from './hair';
 import { canvasTexture, eyeUVs, measure, paintAreola, paintEye, paintSkin, type Landmarks } from './paint';
 
 const baseBytes = new Map<string, Promise<ArrayBuffer>>();
-function fetchBase(id: CharacterSpec['base']): Promise<ArrayBuffer> {
-  const file = CHARACTER_BASES.find((b) => b.id === id)!.file;
+/** The bundled base, or the installed base-body pack's version of it (`url`). */
+function fetchBase(id: CharacterSpec['base'], url?: string): Promise<ArrayBuffer> {
+  const file = url ?? CHARACTER_BASES.find((b) => b.id === id)!.file;
   let p = baseBytes.get(file);
   if (!p) {
     p = fetch(file).then((r) => { if (!r.ok) throw new Error(`The ${id} base could not be loaded (HTTP ${r.status}).`); return r.arrayBuffer(); });
@@ -58,9 +59,9 @@ export async function loadAnatomy(base: CharacterSpec['base']): Promise<AnatomyD
   return { shapeKeys, areolaDistance };
 }
 
-export async function createCharacter(first: CharacterSpec, textures: Map<string, THREE.Texture> = new Map(), anatomy: AnatomyData | null = null): Promise<CharacterModel> {
+export async function createCharacter(first: CharacterSpec, textures: Map<string, THREE.Texture> = new Map(), anatomy: AnatomyData | null = null, baseUrl?: string): Promise<CharacterModel> {
   const loader = new GLTFLoader().setMeshoptDecoder(MeshoptDecoder);
-  const gltf = await loader.parseAsync(await fetchBase(first.base), '');
+  const gltf = await loader.parseAsync(await fetchBase(first.base, baseUrl), '');
   const root = new THREE.Group();
   root.name = 'Character';
   const model = gltf.scene;

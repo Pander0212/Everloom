@@ -31,6 +31,17 @@ const TABS = [
   { value: 'anatomy', label: 'Anatomy' },
 ];
 
+interface BodyPack { installed: boolean; name?: string; underwearFixed?: boolean; bases?: Partial<Record<CharacterSpec['base'], string>> }
+const UNDERWEAR: ClothingItem['template'][] = ['bra', 'briefs'];
+/** The all-ages body pack keeps underwear on: briefs always, and a bra on the female base. */
+function withFixedUnderwear(spec: CharacterSpec, fixed: boolean): CharacterSpec {
+  if (!fixed) return spec;
+  const need: ClothingItem['template'][] = spec.base === 'anime-f' ? ['bra', 'briefs'] : ['briefs'];
+  const missing = need.filter((t) => !spec.clothes.some((c) => c.template === t));
+  if (!missing.length && !spec.anatomy.enabled) return spec;
+  return { ...spec, anatomy: { ...spec.anatomy, enabled: false }, clothes: [...missing.map((template) => ({ template, color: '#e8e4dc', accent: '#e8e4dc', pattern: 'plain' as const, texture: null })), ...spec.clothes] };
+}
+
 function Colour({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
     <label className="flex items-center justify-between gap-3 text-sm">
@@ -132,14 +143,20 @@ export default function CreatorPage() {
     }).catch(toastError);
   }, [id]);
   useEffect(() => { void get<{ installed: boolean }>('/api/anatomy-pack').then((r) => setAnatomyPack(r.installed)).catch(() => setAnatomyPack(false)); }, []);
+  // The base-body pack (generated, improved bodies; docs/3d-gen): used instead of the bundled bases.
+  const [bodies, setBodies] = useState<BodyPack | null>(null);
+  useEffect(() => { void get<BodyPack>('/api/base-body-pack').then(setBodies).catch(() => setBodies({ installed: false })); }, []);
+  const underwearFixed = !!(bodies?.installed && bodies.underwearFixed);
 
   // A new model when the base changes (or the anatomy pack's shape keys are first wanted);
   // otherwise the live one is updated in place.
   const baseRef = useRef<string | null>(null);
   useEffect(() => {
     let cancelled = false;
-    const want = `${spec.base}:${spec.anatomy.enabled && anatomyPack ? 'anatomy' : ''}`;
-    if (model && (baseRef.current === want || (!spec.anatomy.enabled && baseRef.current?.startsWith(`${spec.base}:`)))) {
+    if (!bodies) return; // which base to use isn't known yet
+    const baseUrl = bodies.installed ? bodies.bases?.[spec.base] : undefined;
+    const want = `${spec.base}:${baseUrl ?? ''}:${spec.anatomy.enabled && anatomyPack ? 'anatomy' : ''}`;
+    if (model && (baseRef.current === want || (!spec.anatomy.enabled && baseRef.current?.startsWith(`${spec.base}:${baseUrl ?? ''}:`)))) {
       try { model.apply(spec); bump((n) => n + 1); } catch (e) { setError((e as Error).message); }
       return;
     }
@@ -147,13 +164,14 @@ export default function CreatorPage() {
     setModel(null);
     void (async () => {
       const anatomy = spec.anatomy.enabled && anatomyPack ? await loadAnatomy(spec.base) : null;
-      const m = await createCharacter(spec, textures.current, anatomy);
+      const m = await createCharacter(spec, textures.current, anatomy, baseUrl);
       if (cancelled) m.dispose(); else { setModel(m); setError(null); }
     })().catch((e: Error) => setError(e.message));
     return () => { cancelled = true; };
-  }, [spec, anatomyPack]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [spec, anatomyPack, bodies]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const set = (patch: (s: CharacterSpec) => CharacterSpec) => setSpec((s) => CharacterSpecSchema.parse(patch(structuredClone(s))));
+  const set = (patch: (s: CharacterSpec) => CharacterSpec) => setSpec((s) => withFixedUnderwear(CharacterSpecSchema.parse(patch(structuredClone(s))), underwearFixed));
+  useEffect(() => { if (underwearFixed) setSpec((s) => withFixedUnderwear(s, true)); }, [underwearFixed]);
   const slider = (group: 'body' | 'face', sid: string, v: number) => set((s) => { s[group].sliders[sid] = v; return s; });
   const sliders = (groups: string[]) => CHARACTER_SLIDERS.filter((s) => groups.includes(s.group) && (!s.base || s.base === spec.base));
 
@@ -292,8 +310,8 @@ export default function CreatorPage() {
                 {spec.clothes.map((c, i) => (
                   <div key={i} className="flex flex-col gap-2 rounded-lg border border-line p-3" data-testid="creator-cloth">
                     <div className="flex items-center gap-2">
-                      <Select aria-label={`Item ${i + 1}`} value={c.template} onChange={(e) => set((s) => { s.clothes[i]!.template = e.target.value as ClothingItem['template']; return s; })}>{CLOTHING_TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</Select>
-                      <IconButton icon={Trash2} label={`Remove item ${i + 1}`} onClick={() => set((s) => { s.clothes.splice(i, 1); return s; })} />
+                      <Select aria-label={`Item ${i + 1}`} value={c.template} disabled={underwearFixed && UNDERWEAR.includes(c.template)} onChange={(e) => set((s) => { s.clothes[i]!.template = e.target.value as ClothingItem['template']; return s; })}>{CLOTHING_TEMPLATES.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}</Select>
+                      <IconButton icon={Trash2} label={`Remove item ${i + 1}`} disabled={underwearFixed && UNDERWEAR.includes(c.template)} onClick={() => set((s) => { s.clothes.splice(i, 1); return s; })} />
                     </div>
                     <Colour label="Colour" value={c.color} onChange={(v) => set((s) => { s.clothes[i]!.color = v; return s; })} />
                     <Field label="Pattern"><Select aria-label={`Item ${i + 1} pattern`} value={c.pattern} onChange={(e) => set((s) => { s.clothes[i]!.pattern = e.target.value as ClothingItem['pattern']; return s; })}>{CLOTH_PATTERNS.map((p) => <option key={p} value={p}>{p}</option>)}</Select></Field>
@@ -309,7 +327,7 @@ export default function CreatorPage() {
             </TabPanel>
             <TabPanel value="anatomy">
               <div className="flex flex-col gap-3" data-testid="creator-anatomy">
-                {anatomyPack ? (
+                {underwearFixed ? <p className="text-sm text-fg-2">The installed body pack ({bodies?.name}) keeps underwear on, so this tab isn't used.</p> : anatomyPack ? (
                   <>
                     <label className="flex items-center justify-between gap-3 text-sm">Anatomy<Switch label="Anatomy" checked={spec.anatomy.enabled} onChange={(v) => set((s) => { s.anatomy.enabled = v; return s; })} /></label>
                     {spec.anatomy.enabled ? (

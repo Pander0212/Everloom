@@ -41,6 +41,7 @@ export default function ThreeDSection() {
         </Button>
       </Section>
 
+      <BaseBodyPackSection />
       <AnatomyPackSection />
 
       <Section title="Diagnostics" description="Check importing on this server and device.">
@@ -351,6 +352,27 @@ function BlenderInstall() {
         <span className="text-xs text-fg-3">Other ways: the Windows app uses a Blender you installed; or export GLB from Blender.</span>
       </div>
     </div>
+  );
+}
+
+/** The base-body pack (generated bodies, a separate download): the creator builds on them when installed. */
+function BaseBodyPackSection() {
+  const q = useQuery({ queryKey: ['base-body-pack'], queryFn: () => get<{ installed: boolean; name?: string; license?: string; underwearFixed?: boolean }>('/api/base-body-pack') });
+  const [busy, setBusy] = useState(false);
+  const install = async (files: File[]) => {
+    const f = files[0];
+    if (!f) return;
+    setBusy(true);
+    try { await upload('/api/base-body-pack', f); await q.refetch(); } catch (e) { toastError(e); } finally { setBusy(false); }
+  };
+  return (
+    <Section title="Base-body pack" description="Improved bodies for the character creator, made with Everloom's 3D generation. A separate download; new characters are built on them once installed. Saved characters keep the body they were made with.">
+      {q.data?.installed ? (
+        <ListRow title={q.data.name ?? 'Base-body pack'} subtitle={`${q.data.license ?? ''}${q.data.underwearFixed ? ' · underwear stays on' : ''}`} trailing={<IconButton icon={Trash2} label="Remove the base-body pack" onClick={async () => { if (await confirm({ title: 'Remove the base-body pack?', confirmLabel: 'Remove', danger: true })) { try { await del('/api/base-body-pack'); await q.refetch(); } catch (e) { toastError(e); } } }} />} />
+      ) : (
+        <FileButton variant="secondary" icon={Upload} accept=".zip,application/zip" loading={busy} onFiles={(f) => void install(f)} data-testid="base-body-pack-install">Install a base-body pack</FileButton>
+      )}
+    </Section>
   );
 }
 
