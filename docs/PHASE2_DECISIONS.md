@@ -1313,3 +1313,38 @@ Research with licenses: [docs/3d-import/research.md](3d-import/research.md).
   VRM 1.0 with the license the owner fills in, private by default.
 - **Bone sliders:** when the bone mapping has breast or butt bones, the chest and butt sliders scale
   those bones (so their springs keep working), even if the file also has shape keys for them.
+
+## Puppets v2: the runtime (October 2026)
+
+**Decided by a test, not by reading.** Both candidates were cloned (Rev2D at `f144581`, 2026-10-06;
+iki at `cad3736`, 2026-10-17; both MIT, licenses read) and their suites run here: **iki 1,471 of 1,473
+passed (2 skipped, 0 failed)**, **Rev2D 2,644 of 2,715 passed (68 skipped, 3 failed: a Windows `.cmd`
+shim test and two file-server tests, none in the rig engine)**, the same numbers the owner found.
+
+The same synthetic test character (torso, two-segment arms with hands, two-segment legs with feet,
+breasts; shapes only, no art; the scripts are in `docs/puppets-v2/evidence/`) was built in both and
+played on a phone viewport (390 px, 4× CPU slowdown, software WebGL):
+
+| Criterion | Rev2D | iki |
+|---|---|---|
+| Wave, elbow to ~120° | ✅ one skinned mesh across shoulder and elbow: the bend is a curve, no hole at 140° (zoom: `runtime-test-rev2d-elbow.png`); a thin crease on the inside, which corrective shapes can soften | ⚠️ rigid upper arm and forearm on rotation deformers with an elbow cap; the cap shows as a separate shape |
+| Both arms above the head | ✅ | ✅ (rigid segments) |
+| Arms crossed (draw order) | ✅ `part.z` is bindable: the right arm moves in front | ⚠️ `order` is static: needs a duplicate arm faded in by opacity, which still read wrong in the test |
+| Walk cycle | ✅ IK legs with the planted foot locked (`stretch` absorbs the bob); front-view lifts foreshorten the thigh, since a front-view knee can only bend sideways | ⚠️ hinge legs only, no IK, no foot locking: gaps open at the knees |
+| Spring physics (jiggle) | ✅ pendulum → parameter → breast bones | ✅ spring → parameter |
+| 60 fps, 3 characters, phone profile | ✅ **59.9 fps**, 5.6 ms CPU per frame (3 × ~5,200 triangles) with the Rev2D evaluator drawn by a small WebGL batcher (antialiasing off, pixel ratio 1); 20 fps with MSAA at pixel ratio 2 on the software GPU here | ✅ **59.9 fps**, 1.0 ms CPU (rigid quads) |
+| Bones with weighted meshes, IK | ✅ both | ❌ neither (its README: face and hair; arms as rotation deformers) |
+| Web player | ❌ only a stub (`src/player` is empty); the core evaluator and a CPU rasteriser exist | ✅ WebGL2 player |
+
+One caveat on fairness: my iki build had a pivot mistake that detaches the waving arm in the side-by-
+side picture (`runtime-test-compare.jpg`). The structural results above don't depend on it.
+
+**Decision: combine, with Rev2D as the base.** Everloom adopts **Rev2D's model format and its core
+evaluator** (bones, linear-blend skinning, warps, keyform bindings with bindable draw order, two-bone
+IK with softness/stretch, pendulum physics, layered animations with per-track offsets), drawn by
+**Everloom's own WebGL renderer** (the batching approach already used for v1 puppets; antialiasing off
+and pixel ratio ≤ 1.5 on phones). iki's player isn't needed; its ideas (host-driven parameters, fold
+checks) are kept in mind. Because Rev2D has one author and a squashed history, its core is **vendored at
+a pinned commit** into the engine with its MIT license, so Everloom doesn't depend on the upstream
+staying alive; fixes go upstream where accepted. Existing v1 puppets (warps, rotations, keyforms) are
+converted to the new format by a converter, not dropped.

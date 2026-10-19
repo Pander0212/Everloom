@@ -262,3 +262,12 @@ Licenses checked by reading each project's LICENSE file; details in
 - Test textures (`tests/fixtures/textures/quarters.*`) and the format fixtures
   (`tests/fixtures/models/formats/`, `tests/fixtures/avatars/motions/`) are made by Everloom's
   tools from its own CC0 test models.
+
+## Puppets v2 (October 2026)
+
+- **Rev2D** (MIT, Copyright (c) 2026 RevStudio), https://github.com/RevStudio/Rev2D, commit
+  `f144581cdf1f12d781379c4df90d262b8c2dfa3d`: the model format and core rig evaluator (bones,
+  skinning, warps, bindings, IK, physics, animations) that Everloom's full-body puppets use; vendored
+  with its license.
+- **iki** (MIT, Copyright (c) 2026 Zeikar), https://github.com/zeikar/iki, commit `cad3736`: tested as
+  the alternative runtime (docs/PHASE2_DECISIONS.md › Puppets v2); not shipped.
