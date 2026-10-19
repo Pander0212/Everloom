@@ -33,3 +33,6 @@ tests/ux/.artifacts/
 # The anatomy pack is a separate download, never committed.
 *anatomy-pack*.zip
 everloom-anatomy-pack/
+
+# Generated 3D work (docs/3d-gen): never committed
+samples/gen/

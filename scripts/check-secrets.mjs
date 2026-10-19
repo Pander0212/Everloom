@@ -24,6 +24,25 @@ export function loadHashes(root, env = process.env.EVERLOOM_SECRET_HASHES ?? '')
   return list;
 }
 
+/**
+ * Key shapes that never belong in the repository, whoever's key it is: RunPod (rpa_…), NanoGPT
+ * (sk-nano-<uuid>), Hugging Face (hf_…), OpenAI/Anthropic-style (sk-…, long). Placeholders such as
+ * "rpa_…" or "sk-nano-xxxx" are too short or not key-shaped and pass.
+ */
+export const KEY_PATTERNS = [
+  /\brpa_[A-Z0-9]{30,}[A-Za-z0-9]*/,
+  /\bsk-nano-[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b/,
+  /\bhf_[A-Za-z0-9]{30,}\b/,
+  /\bsk-(?:ant-|proj-)?[A-Za-z0-9_-]{40,}\b/,
+];
+
+/** Line numbers where a key-shaped string appears. */
+export function findKeyShapes(text) {
+  const lines = [];
+  text.split('\n').forEach((line, i) => { if (KEY_PATTERNS.some((re) => re.test(line))) lines.push(i + 1); });
+  return lines;
+}
+
 /** Positions of any listed secret in the text (by hash; the secret itself is never needed). */
 export function findSecrets(text, hashes) {
   if (!hashes.length) return [];
@@ -43,9 +62,10 @@ export function findSecrets(text, hashes) {
 }
 
 function main() {
-  const root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8' }).trim();
+  let root;
+  try { root = execFileSync('git', ['rev-parse', '--show-toplevel'], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim(); }
+  catch { return 0; } // not a git checkout (a Docker build): there are no tracked files to check
   const hashes = loadHashes(root);
-  if (!hashes.length) return 0;
   const all = process.argv.includes('--all');
   const files = (all ? execFileSync('git', ['ls-files'], { cwd: root, encoding: 'utf8' }) : execFileSync('git', ['diff', '--cached', '--name-only', '--diff-filter=ACMR'], { cwd: root, encoding: 'utf8' })).split('\n').filter(Boolean);
   const bad = [];
@@ -60,6 +80,7 @@ function main() {
     if (buf.subarray(0, 8192).includes(0)) continue;
     const text = buf.toString('utf8');
     for (const at of findSecrets(text, hashes)) bad.push(`${f}:${text.slice(0, at).split('\n').length}`);
+    if (!/(^|\/)check-secrets\.mjs$|secret-scan\.test\.ts$/.test(f)) for (const line of findKeyShapes(text)) bad.push(`${f}:${line} (key-shaped)`);
   }
   if (bad.length) {
     console.error(`Commit refused: an API key is in ${bad.join(', ')}. Remove it (keys never go in the repository).`);
