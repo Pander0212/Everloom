@@ -37,7 +37,8 @@ def load(path):
     if path.endswith(".zip"):
         d = tempfile.mkdtemp()
         zipfile.ZipFile(path).extractall(d)
-        obj = next(os.path.join(d, n) for n in os.listdir(d) if n.endswith(".obj"))
+        objs = sorted(n for n in os.listdir(d) if n.endswith(".obj"))
+        obj = os.path.join(d, "textured.obj" if "textured.obj" in objs else objs[0])
         bpy.ops.wm.obj_import(filepath=obj)
         # Hunyuan3D writes PBR maps next to the OBJ: connect metallic/roughness if the MTL left them out.
         for m in bpy.data.materials:

@@ -4875,6 +4875,204 @@
     "usdAfter": 3.28538711
    },
    "file": "218-nano-step-image-edit-2-expr-selene-angry.png"
+  },
+  {
+   "n": 219,
+   "date": "2026-10-19",
+   "at": "2026-10-19T11:58:57.276Z",
+   "service": "nano",
+   "model": "qwen-image",
+   "label": "bench-boots",
+   "prompt": "A pair of brown leather knee-high lace-up boots standing side by side. single object, isolated, centered, front view, whole object in frame, flat even studio lighting, no shadows, plain light grey background, product shot, anime game asset style, clean shapes, soft cel shading, no text",
+   "res": "1024x1024",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": null,
+   "meter": {
+    "usedBefore": 2,
+    "usedAfter": 3,
+    "usdBefore": 2.65538711,
+    "usdAfter": 2.65538711
+   },
+   "file": "219-nano-qwen-image-bench-boots.jpg"
+  },
+  {
+   "n": 220,
+   "date": "2026-10-19",
+   "at": "2026-10-19T12:00:28.999Z",
+   "service": "nano",
+   "model": "qwen-image",
+   "label": "bench-skirt",
+   "prompt": "A navy pleated school-style skirt, knee length, shown as a ghost-mannequin clothing product shot (no person, hollow inside). single object, isolated, centered, front view, whole object in frame, flat even studio lighting, no shadows, plain light grey background, product shot, anime game asset style, clean shapes, soft cel shading, no text",
+   "res": "1024x1024",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": null,
+   "meter": {
+    "usedBefore": 3,
+    "usedAfter": 4,
+    "usdBefore": 2.65538711,
+    "usdAfter": 2.65538711
+   },
+   "file": "220-nano-qwen-image-bench-skirt.jpg"
+  },
+  {
+   "n": 221,
+   "date": "2026-10-19",
+   "at": "2026-10-19T12:01:33.670Z",
+   "service": "nano",
+   "model": "qwen-image",
+   "label": "bench-hair",
+   "prompt": "A long straight silver hairstyle with bangs, a wig on its own without a head or face, three-quarter view. single object, isolated, centered, front view, whole object in frame, flat even studio lighting, no shadows, plain light grey background, product shot, anime game asset style, clean shapes, soft cel shading, no text",
+   "res": "1024x1024",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": null,
+   "meter": {
+    "usedBefore": 4,
+    "usedAfter": 5,
+    "usdBefore": 2.65538711,
+    "usdAfter": 2.65538711
+   },
+   "file": "221-nano-qwen-image-bench-hair.jpg"
+  },
+  {
+   "n": 222,
+   "date": "2026-10-19",
+   "at": "2026-10-19T12:02:39.861Z",
+   "service": "nano",
+   "model": "qwen-image",
+   "label": "bench-jacket",
+   "prompt": "A short cropped dark-green fantasy adventurer's jacket with brass buttons and a high collar, shown as a ghost-mannequin clothing product shot (no person, hollow inside). single object, isolated, centered, front view, whole object in frame, flat even studio lighting, no shadows, plain light grey background, product shot, anime game asset style, clean shapes, soft cel shading, no text",
+   "res": "1024x1024",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": null,
+   "meter": {
+    "usedBefore": 5,
+    "usedAfter": 6,
+    "usdBefore": 2.65538711,
+    "usdAfter": 2.65538711
+   },
+   "file": "222-nano-qwen-image-bench-jacket.jpg"
+  },
+  {
+   "n": 223,
+   "date": "2026-10-19",
+   "at": "2026-10-19T12:04:09.823Z",
+   "service": "nano",
+   "model": "qwen-image",
+   "label": "bench-accessory",
+   "prompt": "A cute anime-style magical girl hair ornament: a pink ribbon bow with a golden star charm. single object, isolated, centered, front view, whole object in frame, flat even studio lighting, no shadows, plain light grey background, product shot, anime game asset style, clean shapes, soft cel shading, no text",
+   "res": "1024x1024",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": null,
+   "meter": {
+    "usedBefore": 6,
+    "usedAfter": 7,
+    "usdBefore": 2.65538711,
+    "usdAfter": 2.65538711
+   },
+   "file": "223-nano-qwen-image-bench-accessory.jpg"
+  },
+  {
+   "n": 224,
+   "date": "2026-10-19",
+   "at": "2026-10-19T12:05:30.997Z",
+   "service": "nano",
+   "model": "qwen-image",
+   "label": "bench-horns",
+   "prompt": "A pair of curved black demon horns with ridges, separate from any head. single object, isolated, centered, front view, whole object in frame, flat even studio lighting, no shadows, plain light grey background, product shot, anime game asset style, clean shapes, soft cel shading, no text",
+   "res": "1024x1024",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": null,
+   "meter": {
+    "usedBefore": 7,
+    "usedAfter": 8,
+    "usdBefore": 2.65538711,
+    "usdAfter": 2.65538711
+   },
+   "file": "224-nano-qwen-image-bench-horns.jpg"
+  },
+  {
+   "n": 225,
+   "date": "2026-10-19",
+   "at": "2026-10-19T12:06:55.685Z",
+   "service": "nano",
+   "model": "qwen-image",
+   "label": "bench-wings",
+   "prompt": "A pair of large white feathered angel wings, spread, seen from the back, separate from any body. single object, isolated, centered, front view, whole object in frame, flat even studio lighting, no shadows, plain light grey background, product shot, anime game asset style, clean shapes, soft cel shading, no text",
+   "res": "1024x1024",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": null,
+   "meter": {
+    "usedBefore": 8,
+    "usedAfter": 9,
+    "usdBefore": 2.65538711,
+    "usdAfter": 2.65538711
+   },
+   "file": "225-nano-qwen-image-bench-wings.jpg"
+  },
+  {
+   "n": 226,
+   "date": "2026-10-19",
+   "at": "2026-10-19T12:08:17.899Z",
+   "service": "nano",
+   "model": "qwen-image",
+   "label": "body-f",
+   "prompt": "An adult woman in her late twenties, about 7.5 heads tall, average athletic build with natural adult proportions, wearing a plain simple light-grey sports bra and plain light-grey briefs. full body, standing in a symmetric A-pose, arms straight and held 30 degrees away from the body, legs straight and slightly apart, fingers spread, palms facing the thighs, neutral face, mouth closed, looking straight at the viewer, front view, the whole body from head to feet in frame with space around it, barefoot, hair tied back tightly, flat even studio lighting, no shadows, plain light grey background, semi-realistic anime 3D character reference sheet style, smooth skin shading",
+   "res": "832x1248",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": null,
+   "meter": {
+    "usedBefore": 9,
+    "usedAfter": 10,
+    "usdBefore": 2.65538711,
+    "usdAfter": 2.65538711
+   },
+   "file": "226-nano-qwen-image-body-f.jpg"
+  },
+  {
+   "n": 227,
+   "date": "2026-10-19",
+   "at": "2026-10-19T12:08:57.075Z",
+   "service": "nano",
+   "model": "qwen-image",
+   "label": "body-m",
+   "prompt": "An adult man in his early thirties, about 7.5 heads tall, average athletic build with natural adult proportions, wearing plain simple light-grey boxer briefs. full body, standing in a symmetric A-pose, arms straight and held 30 degrees away from the body, legs straight and slightly apart, fingers spread, palms facing the thighs, neutral face, mouth closed, looking straight at the viewer, front view, the whole body from head to feet in frame with space around it, barefoot, hair tied back tightly, flat even studio lighting, no shadows, plain light grey background, semi-realistic anime 3D character reference sheet style, smooth skin shading",
+   "res": "832x1248",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": null,
+   "meter": {
+    "usedBefore": 10,
+    "usedAfter": 11,
+    "usdBefore": 2.65538711,
+    "usdAfter": 2.65538711
+   },
+   "file": "227-nano-qwen-image-body-m.jpg"
   }
  ],
  "resumed": [

@@ -1,0 +1,183 @@
+{
+ "sessions": [
+  {
+   "date": "2026-10-19",
+   "job": "bench-1",
+   "models": [
+    "trellis2",
+    "hunyuan3d"
+   ],
+   "inputs": [
+    "body-f.jpg",
+    "body-m.jpg",
+    "jacket.jpg",
+    "skirt.jpg",
+    "boots.jpg",
+    "hair.jpg",
+    "horns.jpg",
+    "wings.jpg",
+    "accessory.jpg"
+   ],
+   "gpu": "RTX 3090",
+   "cloud": "COMMUNITY",
+   "pricePerHr": 0.24,
+   "worstCaseUsd": null,
+   "start": "2026-10-19T12:16:43.443Z",
+   "stop": "2026-10-19T12:34:02.739Z",
+   "seconds": 1040,
+   "costUsd": 0.069,
+   "balanceBefore": 3.0288830338,
+   "balanceAfter": 2.9733810894,
+   "result": "ok: trellis2 0 files, hunyuan3d 0 files"
+  },
+  {
+   "date": "2026-10-19",
+   "job": "bench-3",
+   "models": [
+    "trellis2",
+    "hunyuan3d"
+   ],
+   "inputs": [
+    "body-f.jpg",
+    "body-m.jpg",
+    "jacket.jpg",
+    "skirt.jpg",
+    "boots.jpg",
+    "hair.jpg",
+    "horns.jpg",
+    "wings.jpg",
+    "accessory.jpg"
+   ],
+   "gpu": "RTX 4090",
+   "cloud": "COMMUNITY",
+   "pricePerHr": 0.36,
+   "worstCaseUsd": null,
+   "start": "2026-10-19T12:35:20.761Z",
+   "stop": "2026-10-19T13:09:02.019Z",
+   "seconds": 2023,
+   "costUsd": 0.202,
+   "balanceBefore": 2.9733810894,
+   "balanceAfter": 2.7823261227,
+   "result": "ok: trellis2 0 files; setup failed: hunyuan3d"
+  },
+  {
+   "date": "2026-10-19",
+   "job": "bench-4",
+   "models": [
+    "trellis2",
+    "hunyuan3d"
+   ],
+   "inputs": [
+    "body-f.jpg",
+    "body-m.jpg",
+    "jacket.jpg",
+    "skirt.jpg",
+    "boots.jpg",
+    "hair.jpg",
+    "horns.jpg",
+    "wings.jpg",
+    "accessory.jpg"
+   ],
+   "gpu": "RTX 3090",
+   "cloud": "COMMUNITY",
+   "pricePerHr": 0.24,
+   "worstCaseUsd": null,
+   "start": "2026-10-19T13:09:36.319Z",
+   "stop": "2026-10-19T13:39:29.442Z",
+   "seconds": 1794,
+   "costUsd": 0.12,
+   "balanceBefore": 2.7823261227,
+   "balanceAfter": 2.6633443005,
+   "result": "ok: trellis2 1 files, hunyuan3d 9 files"
+  },
+  {
+   "date": "2026-10-19",
+   "job": "bench-5",
+   "models": [
+    "trellis2",
+    "hunyuan3d"
+   ],
+   "inputs": [
+    "body-f.jpg",
+    "body-m.jpg",
+    "jacket.jpg",
+    "skirt.jpg",
+    "boots.jpg",
+    "hair.jpg",
+    "horns.jpg",
+    "wings.jpg",
+    "accessory.jpg"
+   ],
+   "gpu": "RTX 4090",
+   "cloud": "COMMUNITY",
+   "pricePerHr": 0.36,
+   "worstCaseUsd": null,
+   "start": "2026-10-19T13:42:27.831Z",
+   "stop": "2026-10-19T13:43:09.422Z",
+   "seconds": 166,
+   "costUsd": 0.017,
+   "balanceBefore": 2.6633443005,
+   "balanceAfter": 2.6510106727,
+   "result": "failed: bad host: failed: CUDA does not start on this host (NVIDIA GeForce RTX 4090)"
+  },
+  {
+   "date": "2026-10-19",
+   "job": "bench-6",
+   "models": [
+    "trellis2",
+    "hunyuan3d"
+   ],
+   "inputs": [
+    "body-f.jpg",
+    "body-m.jpg",
+    "jacket.jpg",
+    "skirt.jpg",
+    "boots.jpg",
+    "hair.jpg",
+    "horns.jpg",
+    "wings.jpg",
+    "accessory.jpg"
+   ],
+   "gpu": "RTX A5000",
+   "cloud": "SECURE",
+   "pricePerHr": 0.29,
+   "worstCaseUsd": null,
+   "start": "2026-10-19T13:43:32.143Z",
+   "stop": "2026-10-19T14:18:28.591Z",
+   "seconds": 2098,
+   "costUsd": 0.169,
+   "balanceBefore": 2.6510106727,
+   "balanceAfter": 2.4943933974,
+   "result": "ok: trellis2 1 files, hunyuan3d 19 files"
+  },
+  {
+   "date": "2026-10-19",
+   "job": "bench-trellis",
+   "models": [
+    "trellis2"
+   ],
+   "inputs": [
+    "body-f.jpg",
+    "body-m.jpg",
+    "jacket.jpg",
+    "skirt.jpg",
+    "boots.jpg",
+    "hair.jpg",
+    "horns.jpg",
+    "wings.jpg",
+    "accessory.jpg"
+   ],
+   "gpu": "RTX 3090",
+   "cloud": "COMMUNITY",
+   "pricePerHr": 0.24,
+   "worstCaseUsd": null,
+   "start": "2026-10-19T14:18:39.189Z",
+   "stop": "2026-10-19T14:46:15.894Z",
+   "seconds": 1657,
+   "costUsd": 0.11,
+   "balanceBefore": 2.4943933974,
+   "balanceAfter": 2.3776573474,
+   "result": "ok: trellis2 10 files"
+  }
+ ]
+}
