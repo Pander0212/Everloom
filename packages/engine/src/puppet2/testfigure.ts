@@ -21,11 +21,11 @@ export const TEST_KEYPOINTS: Keypoints = {
   breast_L: [226, 300], breast_R: [174, 300], butt_L: [222, 452], butt_R: [178, 452],
 };
 
-/** The same figure in profile, facing screen left (near side = the character's left). */
+/** The same figure in profile, facing screen left (near side = the character's left), the arms a little forward so they don't hide the body. */
 export const TEST_KEYPOINTS_SIDE: Keypoints = {
   view: 'side', headTop: [200, 90], neck: [204, 210], chest: [200, 300], pelvis: [204, 430],
-  shoulder_L: [206, 268], elbow_L: [210, 376], wrist_L: [204, 475], hip_L: [206, 440], knee_L: [200, 605], ankle_L: [208, 765],
-  shoulder_R: [206, 268], elbow_R: [210, 376], wrist_R: [204, 475], hip_R: [206, 440], knee_R: [200, 605], ankle_R: [208, 765],
+  shoulder_L: [206, 268], elbow_L: [178, 370], wrist_L: [146, 458], hip_L: [206, 440], knee_L: [200, 605], ankle_L: [208, 765],
+  shoulder_R: [206, 268], elbow_R: [178, 370], wrist_R: [146, 458], hip_R: [206, 440], knee_R: [200, 605], ankle_R: [208, 765],
   breast_L: [178, 302], breast_R: [178, 302], butt_L: [232, 456], butt_R: [232, 456],
 };
 
@@ -94,7 +94,7 @@ function sideFigure(o: { legScale?: number; clothes?: boolean }): TestFigure {
     add(`foot${s}`, `foot_${s}`, [{ type: 'ellipse', cx: kp[`ankle_${s}`][0] - 16, cy: kp[`ankle_${s}`][1] + 12, rx: 26, ry: 11, color: SHOE }], z + 1);
   }
   add('armR', 'arm_R', [{ type: 'capsule', pts: [kp.shoulder_R, kp.elbow_R, kp.wrist_R], w: [32, 26, 22], color: '#d9a78c' }], 3);
-  add('handR', 'hand_R', [{ type: 'ellipse', cx: kp.wrist_R[0] - 2, cy: kp.wrist_R[1] + 20, rx: 11, ry: 18, color: '#d9a78c' }], 3);
+  add('handR', 'hand_R', [{ type: 'ellipse', cx: kp.wrist_R[0] - 8, cy: kp.wrist_R[1] + 17, rx: 11, ry: 18, color: '#d9a78c' }], 3);
   add('torso', 'torso', [{ type: 'capsule', pts: [[204, 250], [200, 330], [208, 440]], w: [70, 62, 84], color: SKIN }]);
   add('butt', 'butt_L', [{ type: 'ellipse', cx: kp.butt_L![0], cy: kp.butt_L![1], rx: 26, ry: 30, color: SKIN }], 12);
   add('breast', 'breast_L', [{ type: 'ellipse', cx: kp.breast_L![0] + 6, cy: kp.breast_L![1] + 4, rx: 18, ry: 22, color: SKIN }]);
@@ -107,6 +107,6 @@ function sideFigure(o: { legScale?: number; clothes?: boolean }): TestFigure {
     add('shorts', 'bottomwear', [{ type: 'capsule', pts: [[206, 420], [208, 470]], w: [88, 96], color: SHORTS }], undefined, { outfit: 'casual' });
   }
   add('armL', 'arm_L', [{ type: 'capsule', pts: [kp.shoulder_L, kp.elbow_L, kp.wrist_L], w: [34, 28, 24], color: SKIN }]);
-  add('handL', 'hand_L', [{ type: 'ellipse', cx: kp.wrist_L[0] - 2, cy: kp.wrist_L[1] + 20, rx: 12, ry: 19, color: SKIN2 }]);
+  add('handL', 'hand_L', [{ type: 'ellipse', cx: kp.wrist_L[0] - 8, cy: kp.wrist_L[1] + 17, rx: 12, ry: 19, color: SKIN2 }]);
   return { input: { name: 'Test figure (side)', width: 400, height: H, keypoints: kp, layers, textures: layers.map((l) => ({ id: l.texture, path: `${l.texture}.png`, width: l.rect[2], height: l.rect[3] })) }, paint };
 }
