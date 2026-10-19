@@ -260,7 +260,8 @@ export default function Stage({ chat, messages, campaign, busy, actions, streamT
                 const own = avs?.[normalizeName(c.name)];
                 const all = avs?.everyone;
                 const emote = [own?.emote, all?.emote].filter(Boolean).sort((a, b) => cueNo(b!.cue) - cueNo(a!.cue))[0] ?? null;
-                return [{ id: c.id, puppet: c.game!.puppet2!, slot: layer?.position, emote, pose: own?.pose ?? all?.pose ?? null, outfit: own?.outfit ?? all?.outfit ?? null }];
+                const active = speaker?.id === c.id || chars.length === 1;
+                return [{ id: c.id, puppet: c.game!.puppet2!, slot: layer?.position, emote, pose: own?.pose ?? all?.pose ?? null, outfit: own?.outfit ?? all?.outfit ?? null, speaking: speakingId === c.id, emotion: layer?.expression ?? (active ? emotion : 'neutral') }];
               })}
             />
           </Suspense>

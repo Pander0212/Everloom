@@ -32,6 +32,10 @@ export interface Puppet2 {
   params: Record<string, number>;
   hidden: Set<string>;
   alpha: number;
+  /** Talking (lip-sync from the line being spoken), the face's expression index, and blinking. */
+  speaking: boolean;
+  expression: number;
+  life: { blinkAt: number; mouthAt: number; mouth: number };
 }
 
 const FADE = 0.3, TURN = 0.25;
@@ -73,7 +77,8 @@ export class Puppet2Stage {
     const first = (['front', 'threeQuarter', 'side', 'back'] as View2[]).find((v) => vs[v]);
     if (!first) throw new Error('A puppet needs at least one view.');
     const p: Puppet2 = { id, views: vs, view: first, turning: null, x: 0.5, floor: 0.97, height: 0.9, flip: false, ...place,
-      base: { id: 'idle', at: this.time }, prevBase: null, gesture: null, walkTo: null, params: {}, hidden: new Set(), alpha: 1 };
+      base: { id: 'idle', at: this.time }, prevBase: null, gesture: null, walkTo: null, params: {}, hidden: new Set(), alpha: 1,
+      speaking: false, expression: 0, life: { blinkAt: this.time + 1 + Math.random() * 3, mouthAt: 0, mouth: 0 } };
     this.puppets.set(id, p);
     return p;
   }
@@ -153,6 +158,19 @@ export class Puppet2Stage {
     }
   }
 
+  /**
+   * Face life: a blink every 2–6 s (0.15 s), the mouth cycling through shapes while the character
+   * speaks (a new shape every ~0.1 s, closed now and then, as syllables do), and the expression.
+   */
+  private face(p: Puppet2): Record<string, number> {
+    const t = this.time, L = p.life;
+    if (t > L.blinkAt + 0.15) L.blinkAt = t + 2 + Math.random() * 4;
+    const blink = t >= L.blinkAt ? 1 - Math.abs((t - L.blinkAt) / 0.075 - 1) : 0;
+    if (!p.speaking) L.mouth = 0;
+    else if (t >= L.mouthAt) { L.mouth = Math.random() < 0.25 ? 0 : 1 + Math.floor(Math.random() * 5); L.mouthAt = t + 0.08 + Math.random() * 0.07; }
+    return { EyeClose: Math.max(0, blink), Mouth: L.mouth, Expression: p.expression };
+  }
+
   private draws(): Draw2[] {
     const W = this.canvas.width, H = this.canvas.height;
     const out: Draw2[] = [];
@@ -164,7 +182,7 @@ export class Puppet2Stage {
       for (const [view, a] of shown) {
         const v = p.views[view];
         if (!v || a <= 0) continue;
-        const pose = v.player.update({ time: this.time, animations: this.layers(p, v), params: p.params });
+        const pose = v.player.update({ time: this.time, animations: this.layers(p, v), params: { ...this.face(p), ...p.params } });
         const list = buildRenderList(v.rig, pose);
         const s = (p.height * H) / v.rig.model.meta.height, fx = p.flip ? -1 : 1;
         out.push({ list, textures: v.textures, alpha: a * p.alpha, hidden: p.hidden, matrix: [fx * s, 0, 0, s, p.x * W - fx * s * v.rootX, p.floor * H - s * v.rootY] });

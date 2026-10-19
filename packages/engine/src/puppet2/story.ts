@@ -54,3 +54,15 @@ export function hiddenParts(parts: ReadonlyArray<{ id: string; outfit?: string; 
   }
   return out;
 }
+
+/** The story's emotions (game/emotion.ts) → the Expression parameter (build.ts EXPRESSIONS). */
+const EMOTION_EXPRESSION: Record<string, number> = {
+  joy: 1, amusement: 1, pride: 1, relief: 1, love: 1, excitement: 1, gratitude: 1,
+  anger: 2, annoyance: 2, disgust: 2,
+  sadness: 3, disappointment: 3, grief: 3, remorse: 3,
+  surprise: 4, fear: 4, confusion: 4, nervousness: 4,
+  embarrassment: 5, desire: 5,
+};
+export function expressionIndex(emotion: string | null | undefined): number {
+  return (emotion && EMOTION_EXPRESSION[emotion]) || 0;
+}

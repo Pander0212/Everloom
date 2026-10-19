@@ -6,7 +6,8 @@ auto-rigs on import (apps/server/src/services/puppets2/store.ts).
 
     python3 tools/puppets2/decompose.py --image base.png --view front --out samples/gen/puppets2/ines \
         [--layers seethrough/ines] [--keypoints kp.json] [--adult-image nude.png] \
-        [--outfit casual --outfit-image dressed.png] [--name Ines] [--rating 18+] [--zip]
+        [--outfit-image casual=dressed.png] [--variant smile=smile.png --variant wave_L=wave.png] \
+        [--name Ines] [--rating 18+] [--zip]
 
 Steps
   1. keypoints: RTMPose (Halpe-26: head top, neck, mid-hip, feet; rtmlib, Apache-2.0, CPU) unless
@@ -128,24 +129,30 @@ def regions(shape, kp):
     half = 0.5 * np.linalg.norm(g('shoulder_L') - g('shoulder_R'))
     below_neck = py > g('neck')[1] - 0.15 * half
     torso = chain_dist(px, py, [g('pelvis'), g('chest'), g('neck')])
+    # Hands start a little before the wrist (the wrist crease belongs to the hand sprite).
+    wrist_in = lambda s: g(f'wrist_{s}') + (g(f'elbow_{s}') - g(f'wrist_{s}')) * 0.08
     d = [
         np.where(below_neck, np.maximum(torso - half * 0.75, 0), torso),
         chain_dist(px, py, [g('neck'), g('headTop')]) * 0.8,
-        chain_dist(px, py, [g('shoulder_L'), g('elbow_L'), g('wrist_L'), hand('L')]),
-        chain_dist(px, py, [g('shoulder_R'), g('elbow_R'), g('wrist_R'), hand('R')]),
+        chain_dist(px, py, [g('shoulder_L'), g('elbow_L'), wrist_in('L')]),
+        chain_dist(px, py, [g('shoulder_R'), g('elbow_R'), wrist_in('R')]),
         chain_dist(px, py, [g('hip_L'), g('knee_L'), g('ankle_L'), foot('L')]),
         chain_dist(px, py, [g('hip_R'), g('knee_R'), g('ankle_R'), foot('R')]),
+        chain_dist(px, py, [wrist_in('L'), hand('L')]) * 0.95,
+        chain_dist(px, py, [wrist_in('R'), hand('R')]) * 0.95,
     ]
     return np.argmin(np.stack(d), axis=0).astype(np.uint8)
 
 
-REGION_ROLES = {0: 'torso', 1: 'head', 2: 'arm_L', 3: 'arm_R', 4: 'leg_L', 5: 'leg_R'}
+REGION_ROLES = {0: 'torso', 1: 'head', 2: 'arm_L', 3: 'arm_R', 4: 'leg_L', 5: 'leg_R', 6: 'hand_L', 7: 'hand_R'}
+FACE_VARIANTS = {'eyes_closed', 'mouth_a', 'mouth_i', 'mouth_u', 'mouth_e', 'mouth_o', 'smile', 'angry', 'sad', 'surprised', 'blush', 'cry'}
+HAND_VARIANTS = {'open', 'wave', 'fist', 'point'}
 CLOTH_SPLIT = {  # clothing role → {region: role} when it runs down the limbs
     'topwear': {0: 'topwear', 2: 'sleeve_upper_L', 3: 'sleeve_upper_R'},
     'bottomwear': {0: 'bottomwear', 4: 'legwear_L', 5: 'legwear_R'},
     'legwear': {4: 'legwear_L', 5: 'legwear_R', 0: 'bottomwear'},
     'footwear': {4: 'footwear_L', 5: 'footwear_R'},
-    'handwear': {2: 'handwear_L', 3: 'handwear_R'},
+    'handwear': {6: 'handwear_L', 7: 'handwear_R', 2: 'handwear_L', 3: 'handwear_R'},
 }
 
 
@@ -167,25 +174,48 @@ def caps(kp, height):
 
 
 def split_layer(rgba, reg, kp, mapping, height, cap=True):
-    """Cuts one layer by region; each limb piece also takes the pixels in its root joint's cap."""
+    """
+    Cuts one layer by region; returns {role: (mask, alpha multiplier)}. Each piece also takes the
+    pixels in its joint caps; a cap given to the torso fades out from the joint (it shows only when
+    the limb in front moves away, and then a soft edge reads as skin, a hard one as a flap).
+    """
     h, w = reg.shape
     alpha = rgba[:, :, 3] > 8
     py, px = np.mgrid[0:h, 0:w]
     pieces = {}
     for region, role in mapping.items():
-        m = (reg == region) & alpha
+        own = (reg == region) & alpha
+        m = own.copy()
+        mult = np.ones((h, w), np.float32)
         if cap:
+            soft = np.zeros((h, w), np.float32)
             for creg, c, r in caps(kp, height):
-                if creg == region:
-                    m |= (np.hypot(px - c[0], py - c[1]) < r) & alpha
+                if creg != region:
+                    continue
+                d = np.hypot(px - c[0], py - c[1])
+                m |= (d < r) & alpha
+                if region == 0:
+                    soft = np.maximum(soft, np.clip((r - d) / (0.6 * r), 0, 1))
+            if region == 0:
+                mult = np.where(own, 1.0, soft).astype(np.float32)
         if m.sum() < 40:
             continue
         # Every cut overlaps its neighbour by a few pixels: filtered edges never let the background through.
-        m = cv2.dilate(m.astype(np.uint8), np.ones((7, 7), np.uint8)) > 0
-        m &= alpha
-        pieces.setdefault(role, np.zeros((h, w), bool))
-        pieces[role] |= m
+        grown = (cv2.dilate(own.astype(np.uint8), np.ones((7, 7), np.uint8)) > 0) & alpha
+        mult = np.where(grown & ~own, 1.0, mult).astype(np.float32)
+        m |= grown
+        if role in pieces:
+            pm, pmult = pieces[role]
+            pieces[role] = (pm | m, np.maximum(pmult, mult))
+        else:
+            pieces[role] = (m, mult)
     return pieces
+
+
+def with_mult(rgba, mult):
+    out = rgba.copy()
+    out[:, :, 3] = (out[:, :, 3].astype(np.float32) * mult).astype(np.uint8)
+    return out
 
 
 def inpaint_holes(rgba, mask, covered):
@@ -265,7 +295,7 @@ def gates(kp, raw, alpha, layers, view, height, min_heads=5.5):
 
 # ---------------------------------------------------------------------------------- sheet
 
-COLORS = [(230, 120, 80), (250, 210, 80), (90, 160, 240), (70, 200, 160), (180, 110, 230), (240, 100, 170)]
+COLORS = [(230, 120, 80), (250, 210, 80), (90, 160, 240), (70, 200, 160), (180, 110, 230), (240, 100, 170), (40, 90, 200), (30, 150, 110)]
 BONES = [('headTop', 'neck'), ('neck', 'chest'), ('chest', 'pelvis')] + [(a + s, b + s) for s in ('_L', '_R') for a, b in (('shoulder', 'elbow'), ('elbow', 'wrist'), ('hip', 'knee'), ('knee', 'ankle'))] + [('neck', 'shoulder_L'), ('neck', 'shoulder_R'), ('pelvis', 'hip_L'), ('pelvis', 'hip_R')]
 
 
@@ -371,16 +401,16 @@ def run(args):
         arr = src['rgba']
         if src['role'] == 'body':
             pieces = split_layer(arr, reg, kp, REGION_ROLES, height)
-            for role, m in pieces.items():
+            for role, (m, mult) in pieces.items():
                 if role == 'torso':
-                    arr2, holes = inpaint_holes(arr, m, (reg == 2) | (reg == 3))
+                    arr2, holes = inpaint_holes(arr, m, (reg == 2) | (reg == 3) | (reg == 6) | (reg == 7))
                     filled_share = float(holes.sum()) / max(1, float((m | holes).sum()))
-                    add(role, m | holes, arr2)
+                    add(role, m | holes, with_mult(arr2, np.where(holes, 1.0, mult)))
                 else:
-                    add(role, m, arr)
+                    add(role, m, with_mult(arr, mult))
         elif src['role'] in CLOTH_SPLIT:
-            for role, m in split_layer(arr, reg, kp, CLOTH_SPLIT[src['role']], height, cap=src['role'] in ('topwear',)).items():
-                add(role, m, arr, outfit=args.outfit_name)
+            for role, (m, mult) in split_layer(arr, reg, kp, CLOTH_SPLIT[src['role']], height, cap=src['role'] in ('topwear',)).items():
+                add(role, m, with_mult(arr, mult), outfit=args.outfit_name)
         else:
             add(src['role'], arr[:, :, 3] > 8, arr, outfit=args.outfit_name if src['role'] in ('headwear', 'other') else None)
 
@@ -414,24 +444,127 @@ def run(args):
                 arr[:, :, 3] = (arr[:, :, 3] * soft).astype(np.uint8)
                 add(f'breast_{side}', m, arr)
 
-    # Extra pictures of the same view: outfits (clothes = what differs from the base) and the adult layer.
-    for spec, is_adult in [(o, False) for o in args.outfit_image] + ([(f'adult={args.adult_image}', True)] if args.adult_image else []):
+    # Extra pictures of the same view (made with the edit model from the base picture, so aligned):
+    # outfits (the clothes = what differs from the base), the adult layer, and sprite variants.
+    py_, px_ = np.mgrid[0:h, 0:w]
+    hip_y = (kp['hip_L'][1] + kp['hip_R'][1]) / 2
+    waist_y = hip_y - 0.1 * (hip_y - kp['neck'][1])
+    knee_y = (kp['knee_L'][1] + kp['knee_R'][1]) / 2
+
+    def changed(other, zone=None, thresh=40):
+        d = (np.abs(other[:, :, :3].astype(int) - rgba[:, :, :3].astype(int)).sum(axis=2) > thresh) | ((other[:, :, 3] > 8) != (rgba[:, :, 3] > 8))
+        d &= other[:, :, 3] > 8
+        if zone is not None:
+            d &= zone
+        d = cv2.morphologyEx(d.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8))
+        d = cv2.morphologyEx(d, cv2.MORPH_CLOSE, np.ones((9, 9), np.uint8)) > 0
+        n, lab, stats, _ = cv2.connectedComponentsWithStats(d.astype(np.uint8))
+        keep = np.zeros_like(d)
+        for i in range(1, n):
+            if stats[i, cv2.CC_STAT_AREA] >= 30:
+                keep |= lab == i
+        return keep
+
+    def feathered(other, mask, grow=5, soft=2.5):
+        m = cv2.dilate(mask.astype(np.uint8), np.ones((grow * 2 + 1, grow * 2 + 1), np.uint8)).astype(np.float32)
+        m = cv2.GaussianBlur(m, (0, 0), soft)
+        out = other.copy()
+        out[:, :, 3] = (out[:, :, 3].astype(np.float32) * np.clip(m, 0, 1)).astype(np.uint8)
+        return out, (m > 0.02) & (other[:, :, 3] > 8)
+
+    for spec in args.outfit_image:
         name, path = spec.split('=', 1)
         other = load_rgba(path, (w, h))
-        if is_adult:
-            # The nude body over the underwear base: only torso, breasts and hips (where the underwear is).
-            pieces = split_layer(other, reg, kp, {0: 'torso'}, height, cap=False)
-            for role, m in pieces.items():
-                add(role, m, other, adult=True, suffix='_adult')
-        else:
-            diff = (np.abs(other.astype(int) - rgba.astype(int)).sum(axis=2) > 40) & (other[:, :, 3] > 8)
-            diff = cv2.morphologyEx(diff.astype(np.uint8), cv2.MORPH_OPEN, np.ones((3, 3), np.uint8)) > 0
-            masked = other.copy()
-            masked[~diff, 3] = 0
-            for role, m in split_layer(masked, reg, kp, {0: 'topwear', 2: 'sleeve_upper_L', 3: 'sleeve_upper_R', 4: 'legwear_L', 5: 'legwear_R'}, height, cap=True).items():
-                add(role, m, other, outfit=name, suffix=f'_{name}')
+        diff = changed(other)
+        if not diff.any():
+            print(f'outfit {name}: no change found')
+            continue
+        masked = other.copy()
+        masked[~diff, 3] = 0
+        # A skirt joins the legs: clothing across the gap between the thighs, halfway to the knees.
+        # (Sampled a little below the crotch, where the legs of an A-pose are apart: a short skirt
+        # still covers it, trousers leave it empty.)
+        cx = int(round(kp['pelvis'][0]))
+        skirt = False
+        for f in (0.15, 0.25, 0.35):
+            gy = int(hip_y + f * (knee_y - hip_y))
+            if rgba[gy, cx, 3] < 128:
+                skirt = bool(other[gy, cx, 3] > 128 and diff[max(0, gy - 3):gy + 4, max(0, cx - 3):cx + 4].mean() > 0.5)
+                break
+        lower = {0: 'skirt' if skirt else 'bottomwear'}
+        if skirt:
+            lower.update({4: 'skirt', 5: 'skirt'})
+        pieces = split_layer(masked, reg, kp, {0: 'topwear', 2: 'sleeve_upper_L', 3: 'sleeve_upper_R', 4: 'legwear_L', 5: 'legwear_R', 6: 'handwear_L', 7: 'handwear_R'}, height, cap=True)
+        top = pieces.pop('topwear', None)
+        if top is not None:
+            tm, tmult = top
+            pieces['topwear'] = (tm & (py_ < waist_y), tmult)
+            below = tm & (py_ >= waist_y)
+            if below.sum() > 40:
+                pieces[lower[0]] = (below | (pieces[lower[0]][0] if lower[0] in pieces else np.zeros_like(below)), tmult)
+        if skirt:
+            sk = pieces.get('skirt', (np.zeros((h, w), bool), np.ones((h, w), np.float32)))[0]
+            for side in ('legwear_L', 'legwear_R'):
+                if side in pieces:
+                    lm, _ = pieces.pop(side)
+                    sk |= lm & (py_ < knee_y)
+                    rest = lm & (py_ >= knee_y)
+                    if rest.sum() > 40:
+                        pieces['footwear_' + side[-1]] = (rest, np.ones((h, w), np.float32))
+            pieces['skirt'] = (sk, np.ones((h, w), np.float32))
+        for role, (m, mult) in pieces.items():
+            if role.startswith('handwear_'):
+                # Gloves cover most of the hand; a few changed pixels are the edit drifting.
+                hand = (reg == (6 if role.endswith('L') else 7)) & (rgba[:, :, 3] > 8)
+                if m.sum() < 0.35 * max(1, hand.sum()):
+                    continue
+            if m.sum() >= 40:
+                add(role, m, with_mult(masked, mult), outfit=name, suffix=f'_{name}')
+        # The top over the bust moves with it.
+        if args.view in ('front', 'threeQuarter') and not args.no_bust and 'topwear' in pieces:
+            r = 0.05 * height
+            for side in SIDES:
+                c = kp[f'breast_{side}']
+                dd = np.hypot((px_ - c[0]) / (r * 1.1), (py_ - c[1] - 0.25 * r) / r)
+                soft = np.clip((1.0 - dd) / 0.35, 0, 1)
+                m = (soft > 0) & pieces['topwear'][0]
+                if m.sum() > 40:
+                    add(f'chestwear_{side}', m, with_mult(masked, soft.astype(np.float32)), outfit=name, suffix=f'_{name}')
+        print(f'outfit {name}: {"skirt" if skirt else "trousers/none"}; ' + ', '.join(sorted(pieces)))
 
-    report = gates(kp, raw, alpha, [l for l in out_layers if not l['outfit'] and not l['adult']], args.view, height, args.min_heads)
+    if args.adult_image:
+        other = load_rgba(args.adult_image, (w, h))
+        pieces = split_layer(other, reg, kp, {0: 'torso'}, height, cap=False)
+        for role, (m, mult) in pieces.items():
+            add(role, m, with_mult(other, mult), adult=True, suffix='_adult')
+
+    head_zone = cv2.dilate(((reg == 1) & (rgba[:, :, 3] > 8)).astype(np.uint8), np.ones((15, 15), np.uint8)) > 0
+    for spec in args.variant:
+        name, path = spec.split('=', 1)
+        other = load_rgba(path, (w, h))
+        if name in FACE_VARIANTS:
+            diff = changed(other, head_zone, thresh=30)
+            if diff.sum() < 30:
+                print(f'variant {name}: no change found in the face')
+                continue
+            arr, m = feathered(other, diff)
+            add('face', m, arr, suffix=f'_{name}')
+            out_layers[-1]['variant'] = name
+        elif name.rsplit('_', 1)[0] in HAND_VARIANTS and name[-2:] in ('_L', '_R'):
+            pose, side = name.rsplit('_', 1)
+            hreg = 6 if side == 'L' else 7
+            c = np.array(kp[f'wrist_{side}'], float)
+            e = np.array(kp[f'elbow_{side}'], float)
+            tip = c + (c - e) * 0.45
+            zone = (chain_dist(px_.astype(np.float32), py_.astype(np.float32), [tip.astype(np.float32), c.astype(np.float32)]) < 0.05 * height) & (other[:, :, 3] > 8)
+            zone &= (reg == hreg) | (reg == 0) | (rgba[:, :, 3] < 8)
+            arr, m = feathered(other, zone, grow=1, soft=1.0)
+            add(f'hand_{side}', m, arr, suffix=f'_{pose}')
+            out_layers[-1]['variant'] = pose
+        else:
+            print(f'variant {name}: unknown (face: {sorted(FACE_VARIANTS)}; hands: <open|wave|fist|point>_<L|R>)')
+
+    report = gates(kp, raw, alpha, [l for l in out_layers if not l['outfit'] and not l['adult'] and not l.get('variant')], args.view, height, args.min_heads)
     # An arm drawn across the body hides torso that has to be invented: a little is fine, a lot shows.
     report.append({'gate': 'torso hidden by the arms (filled in)', 'value': round(filled_share, 3), 'need': '<= 0.12 (draw the arms a little away from the body)', 'pass': filled_share <= 0.12})
     os.makedirs(os.path.join(args.out, args.view), exist_ok=True)
@@ -463,6 +596,8 @@ def run(args):
             e['adult'] = True
         if l.get('z') is not None:
             e['z'] = l['z']
+        if l.get('variant'):
+            e['variant'] = l['variant']
         entries.append(e)
     cj = os.path.join(args.out, 'character.json')
     pack = json.load(open(cj)) if os.path.exists(cj) else {'name': args.name, 'rating': args.rating, 'views': {}}
@@ -490,6 +625,7 @@ if __name__ == '__main__':
     ap.add_argument('--outfit-image', action='append', default=[], metavar='NAME=PATH', help='the same pose wearing an outfit (repeatable)')
     ap.add_argument('--outfit-name', default=None, help='outfit set for clothes found in --layers')
     ap.add_argument('--adult-image', help='the same pose nude (18+ pack): its torso becomes the adult layer')
+    ap.add_argument('--variant', action='append', default=[], metavar='NAME=PATH', help='the same picture with a face or hand change: eyes_closed, mouth_a…mouth_o, smile, angry, sad, surprised, blush, cry; wave_L, open_R, fist_L, point_R… (repeatable)')
     ap.add_argument('--name', default='Character')
     ap.add_argument('--rating', default='all-ages', choices=['all-ages', '18+'])
     ap.add_argument('--min-heads', type=float, default=5.5)

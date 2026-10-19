@@ -271,3 +271,12 @@ Licenses checked by reading each project's LICENSE file; details in
   with its license.
 - **iki** (MIT, Copyright (c) 2026 Zeikar), https://github.com/zeikar/iki, commit `cad3736`: tested as
   the alternative runtime (docs/PHASE2_DECISIONS.md › Puppets v2); not shipped.
+- **rtmlib** (Apache-2.0), https://github.com/Tau-J/rtmlib, with **RTMPose** body-with-feet (Halpe-26)
+  and **YOLOX** person-detector ONNX weights from OpenMMLab (Apache-2.0): pose keypoints in
+  `tools/puppets2/decompose.py` (CPU, downloaded on first use; never redistributed).
+- **rembg** (MIT), https://github.com/danielgatis/rembg, with the **IS-Net** general-use weights
+  (DIS, Apache-2.0): background removal before decomposition (tools only; weights downloaded on first
+  use, never redistributed).
+- **OpenCV** (Apache-2.0): inpainting, morphology and contours in the decomposition tool.
+- Generated pictures (NanoGPT: Qwen-Image, Qwen-Image 2.1 edit) are made per character for the
+  owner, kept in the git-ignored `samples/gen/` and shared in packs; none are in the repository.

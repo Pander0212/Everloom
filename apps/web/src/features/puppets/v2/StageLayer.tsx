@@ -4,7 +4,7 @@
  * that state, so a swipe or a rollback puts the puppets back as they were; only a new emote cue plays
  * a gesture. A character who changes slot walks there (in profile when the puppet has a side view).
  */
-import { emoteCue, hiddenParts, poseMotion, type Model } from '@everloom/engine/puppet2';
+import { emoteCue, expressionIndex, hiddenParts, poseMotion, type Model } from '@everloom/engine/puppet2';
 import { useEffect, useRef } from 'react';
 import { get } from '@/lib/api';
 import { Puppet2Stage, type View2, type ViewSource } from './stage';
@@ -16,6 +16,8 @@ export interface PuppetCast {
   emote: { id: string; cue: string } | null;
   pose: string | null;
   outfit: string | null;
+  speaking?: boolean;
+  emotion?: string | null;
 }
 
 interface Meta { id: string; views: View2[]; parts: Partial<Record<View2, Array<{ id: string; outfit?: string; adult?: boolean }>>> }
@@ -90,6 +92,8 @@ export default function StageLayerPuppets2({ cast, className, onFail, safeBottom
         if (Math.abs(p.x - x) > 0.01 && p.walkTo === null) s.walkTo(c.id, x);
         else if (p.walkTo !== null && Math.abs(p.walkTo - x) > 0.01) s.walkTo(c.id, x);
         s.setBase(c.id, poseMotion(c.pose));
+        p.speaking = !!c.speaking;
+        p.expression = expressionIndex(c.emotion);
         const meta = metas.current.get(c.id);
         p.hidden = hiddenParts(meta?.parts[p.view] ?? meta?.parts.front ?? [], c.outfit);
         // A new emote cue plays once; an old one (already seen, or restored by a rollback) does not.

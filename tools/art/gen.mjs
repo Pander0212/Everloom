@@ -26,8 +26,12 @@ const NANO_DAILY_CAP = 95;
 // Paid NanoGPT models (the owner's balance, at most NANO_PAID_CAP_USD in total), chosen for 18+
 // work: models NanoGPT marks as allowing adult content. Each call's price is read from the model
 // list first and the balance is read before and after; an unexpected charge stops everything.
-const NANO_PAID = new Set(['wai-illustrious-sdxl', 'hidream-o1-image-dev', 'hidream-o1-image', 'seedream-v4.5', 'bytedance/seedream-v5.0-pro/edit']);
-const NANO_PAID_CAP_USD = 2.0;
+// Edit models (Puppets v2 layered generation, after the subscription edit model was retired on
+// 2026-10-19): Qwen-Image 2.1 edit and FLUX Klein edit, a few cents per picture.
+const NANO_PAID = new Set(['wai-illustrious-sdxl', 'hidream-o1-image-dev', 'hidream-o1-image', 'seedream-v4.5', 'bytedance/seedream-v5.0-pro/edit', 'qwen-image-2.1/edit', 'blackforestlabs/flux-3/klein/edit-image']);
+// Lifetime cap on paid NanoGPT spending. $2.00 for the first puppet work; the owner allowed $1.80
+// more for Puppets v2 on 2026-10-19 (EVERLOOM_NANO_PAID_CAP_USD=3.58 for that work).
+const NANO_PAID_CAP_USD = Math.min(Number(process.env.EVERLOOM_NANO_PAID_CAP_USD) || 2.0, 3.58);
 const EH_CAP_USD = 2.0;
 const NANO = 'https://api.nano-gpt.com/api';
 const EH = 'https://api.electronhub.ai/v1';
@@ -113,11 +117,12 @@ async function nanoMeter(key) {
   return { used: u.body?.dailyImages?.used, limit: u.body?.limits?.dailyImages, degraded: !!u.body?.dailyImages?.degraded, usd: Number(b.body?.usd_balance), mode: u.body?.routing?.billingMode };
 }
 
-async function nanoPrice(key, model, res) {
+async function nanoPrice(key, model, res, adult) {
   const m = await j(`${NANO}/v1/image-models`, { headers: { 'x-api-key': key } });
   const row = m.body?.data?.find((x) => x.id === model);
   if (!row) throw new Error(`NanoGPT has no image model "${model}"`);
-  if (!row.capabilities?.nsfw) throw new Error(`"${model}" is not marked as allowing adult content`);
+  // 18+ pictures only on models NanoGPT marks as allowing adult content; all-ages edits on any.
+  if (adult && !row.capabilities?.nsfw) throw new Error(`"${model}" is not marked as allowing adult content`);
   const p = row.pricing?.per_image ?? {};
   const price = (res && (p[res] ?? p[res.replace('x', '*')])) ?? p.auto ?? Math.max(...Object.values(p).filter((v) => typeof v === 'number'));
   if (!(price > 0)) throw new Error(`"${model}" has no per-image price`);
@@ -209,7 +214,7 @@ async function run() {
   if (a.service === 'nano' && NANO_PAID.has(a.model)) {
     const key = process.env.NANOGPT_API_KEY;
     if (!key) throw new Error('NANOGPT_API_KEY is not set');
-    const price = await nanoPrice(key, a.model, a.res);
+    const price = await nanoPrice(key, a.model, a.res, !!a.adult);
     const spent = nanoPaidTotal(L);
     if (spent + price > NANO_PAID_CAP_USD + 1e-9) throw new Error(`NanoGPT paid cap: $${spent} spent, this call ($${price}) would pass $${NANO_PAID_CAP_USD}`);
     const before = await nanoMeter(key);
@@ -238,7 +243,16 @@ async function run() {
     } else {
       const out = imageOut(r.body);
       if (!out) entry.error = `no image in the response: ${r.text}`;
-      else { entry.file = path.basename(await saveImage(out, fileBase.replace(/\//g, '_'))); entry.ok = true; }
+      else {
+        const saved = await saveImage(out, fileBase.replace(/\//g, '_'));
+        entry.file = path.basename(saved);
+        entry.ok = true;
+        if (a.input) {
+          const { default: sharp } = await import('sharp');
+          const [i, o] = await Promise.all([sharp(a.input).metadata(), sharp(saved).metadata()]);
+          if (i.width !== o.width || i.height !== o.height) entry.warning = `output ${o.width}x${o.height} differs from input ${i.width}x${i.height}`;
+        }
+      }
     }
   } else if (a.service === 'nano') {
     if (!NANO_MODELS.has(a.model)) throw new Error(`"${a.model}" is not on the allowed NanoGPT list`);

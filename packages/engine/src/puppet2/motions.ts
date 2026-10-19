@@ -69,6 +69,8 @@ const wave_L: Motion = {
     { kind: 'aim', bone: 'upperarm_L', keys: [[0, -40], [1, -44], [2, -40]] },
     { kind: 'bend', bone: 'forearm_L', keys: [[0, -45], [0.25, -75], [0.5, -45], [0.75, -75], [1, -45], [1.25, -75], [1.5, -45], [1.75, -75], [2, -45]] },
     { kind: 'bend', bone: 'hand_L', keys: hold(-10, 2) },
+    // The waving-hand sprite (fingers spread, palm out) when the character has one.
+    { kind: 'param', param: 'HandPose_L', keys: hold(2, 2) },
     { kind: 'param', param: 'BodyAngleZ', keys: hold(-1.5, 2) },
   ],
 };
@@ -108,6 +110,7 @@ const point_L: Motion = {
   id: 'point_L', description: 'Points sideways with the left arm.',
   duration: 1.5, loop: true, views: FRONTISH, tags: ['gesture'],
   tracks: [
+    { kind: 'param', param: 'HandPose_L', keys: hold(4, 1.5) },
     { kind: 'aim', bone: 'upperarm_L', keys: [[0, -8], [0.75, -10], [1.5, -8]] },
     { kind: 'bend', bone: 'forearm_L', keys: hold(-4, 1.5) },
     { kind: 'param', param: 'BodyAngleZ', keys: hold(-2, 1.5) },

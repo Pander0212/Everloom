@@ -50,6 +50,18 @@ describe('puppets v2 skeleton', () => {
     // Feet are IK-locked at rest: the shins end at the ankles.
     expect(pose.bones.shin_R!.tip[0]).toBeCloseTo(156, 0); expect(pose.bones.shin_R!.tip[1]).toBeCloseTo(765, 0);
   });
+  it('keeps the drawn knees at rest, whichever way they bend (no flip, no softness pull)', () => {
+    // A wide stance with the knees drawn a little inward.
+    const kp = { ...FRONT, hip_L: [234, 440], knee_L: [262, 605], ankle_L: [310, 765], hip_R: [166, 440], knee_R: [138, 605], ankle_R: [90, 765] } as Keypoints;
+    kp.knee_L = [kp.knee_L[0] - 12, kp.knee_L[1]];
+    kp.knee_R = [kp.knee_R[0] + 12, kp.knee_R[1]];
+    const b = new Rig(buildCharacter(input(kp))).pose({ physics: false }).bones;
+    for (const s of ['L', 'R'] as const) {
+      expect(b[`shin_${s}`]!.x).toBeCloseTo(kp[`knee_${s}`][0], 1);
+      expect(b[`shin_${s}`]!.y).toBeCloseTo(kp[`knee_${s}`][1], 1);
+    }
+  });
+
   it('mirrors names and measures proportions', () => {
     expect(mirrorName('upperarm_L')).toBe('upperarm_R');
     expect(mirrorName('ArmIk_R')).toBe('ArmIk_L');
@@ -132,6 +144,40 @@ describe('puppets v2 auto-rig', () => {
 
   it('switches draw order and IK by parameter only (no layer is duplicated)', () => {
     expect(new Set(model.parts.map((p) => p.id)).size).toBe(model.parts.length);
+  });
+});
+
+describe('puppets v2 sprite swaps and swinging parts', () => {
+  const layers = [...LAYERS,
+    layer('blink', 'face', [170, 130, 60, 30]), layer('mA', 'face', [185, 170, 30, 20]), layer('smile', 'face', [170, 160, 60, 40]),
+    layer('waveL', 'hand_L', [310, 440, 60, 80]), layer('skirt', 'skirt', [140, 420, 120, 120]), layer('hairB', 'hair_back', [140, 80, 120, 200]),
+  ].map((l) => ({ ...l, ...({ blink: { variant: 'eyes_closed' }, mA: { variant: 'mouth_a' }, smile: { variant: 'smile' }, waveL: { variant: 'wave' } } as Record<string, object>)[l.id] }));
+  const model = buildCharacter(input(FRONT, layers));
+  const rig = new Rig(model);
+  const op = (params: Record<string, number>, id: string) => rig.pose({ params, physics: false }).parts[id]!.opacity;
+  it('shows a variant only when its parameter selects it', () => {
+    expect(op({}, 'blink')).toBe(0);
+    expect(op({ EyeClose: 1 }, 'blink')).toBe(1);
+    expect(op({ Mouth: 1 }, 'mA')).toBe(1);
+    expect(op({ Mouth: 2 }, 'mA')).toBe(0);
+    expect(op({ Expression: 1 }, 'smile')).toBe(1);
+    expect(op({ Expression: 2 }, 'smile')).toBe(0);
+  });
+  it('swaps the waving hand in while waving, hiding the drawn hand', () => {
+    const pose = rig.pose({ time: 0.5, animations: ['wave_L'], physics: false });
+    expect(pose.parts.waveL!.opacity).toBe(1);
+    expect(pose.parts.handL!.opacity).toBe(0);
+    const rest = rig.pose({ physics: false });
+    expect(rest.parts.waveL!.opacity).toBe(0);
+    expect(rest.parts.handL!.opacity).toBe(1);
+  });
+  it('swings hair and skirt with the body and lets them settle', () => {
+    const during = rig.pose({ time: 0.5, animations: ['walk'] });
+    expect(Math.abs(during.params.HairX!) + Math.abs(during.params.SkirtX!) + Math.abs(during.params.SkirtY!)).toBeGreaterThan(0.01);
+    const after = rig.pose({ time: 8, animations: ['jump'] });
+    expect(Math.abs(after.params.SkirtY!)).toBeLessThan(0.02);
+    expect(after.bones.hair).toBeDefined();
+    expect(model.parts.find((p) => p.id === 'skirt')!.skin!.bones).toEqual(['pelvis', 'skirt']);
   });
 });
 
