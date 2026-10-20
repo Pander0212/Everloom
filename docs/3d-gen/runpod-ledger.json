@@ -708,6 +708,28 @@
    "balanceBefore": 10,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "6ac1175743f8",
+   "date": "2026-10-20",
+   "job": "b1-outfits",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.457,
+   "start": "2026-10-20T18:41:06.622Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 2.3486440233,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
