@@ -12,13 +12,14 @@ import { Button, Field, Input, Select } from '@/ui';
 import { createCodeAvatar, fillRecipe, useAvatars } from './api';
 import { usePrefs3D } from './prefs';
 
-type Choice = 'auto' | 'imported' | 'parts' | 'code' | 'puppet' | 'live2d' | 'sprite';
+type Choice = 'auto' | 'imported' | 'parts' | 'code' | 'puppet' | 'looks' | 'live2d' | 'sprite';
 const CHOICES: Array<{ value: Choice; label: string; line: string }> = [
   { value: 'auto', label: 'Automatic', line: 'Its saved 3D avatar, then Live2D, then its sprite or portrait.' },
   { value: 'imported', label: '3D model', line: 'A model imported from GLB, VRM, glTF, FBX, PMX or OBJ.' },
   { value: 'parts', label: 'Parts-made', line: 'Built in the parts maker from hair, clothes and bodies of a part pack.' },
   { value: 'code', label: 'Code-made', line: 'A simple figure built by Everloom from a few choices; no file, runs on any phone.' },
   { value: 'puppet', label: 'Full-body puppet', line: 'A 2D puppet that walks, gestures and turns (imported character pack).' },
+  { value: 'looks', label: 'Character Studio look', line: 'A paper-doll look, the same in every pose and scene (made in Character Studio looks).' },
   { value: 'live2d', label: 'Live2D', line: 'Its Live2D model, if one is installed for it.' },
   { value: 'sprite', label: 'Pictures', line: 'Its portrait and expression pictures.' },
 ];
@@ -26,18 +27,19 @@ const CHOICES: Array<{ value: Choice; label: string; line: string }> = [
 export function DisplayFields({ game, setGame, characterId }: { game: CharacterGame; setGame: (p: Partial<CharacterGame>) => void; characterId?: string }) {
   const on = useFeatureOn('avatars3d');
   const puppetsOn = useFeatureOn('puppets');
+  const looksOn = useFeatureOn('paperdoll');
   const bodies = useQuery({ queryKey: ['puppets2'], queryFn: () => get<Array<{ id: string; name: string }>>('/api/puppets2'), enabled: puppetsOn });
   const experimental = usePrefs3D(p => p.experimentalProcedural);
   const avatars = useAvatars(on);
   const navigate = useNavigate();
   const [making, setMaking] = useState(false);
   const [picked, setPicked] = useState<Choice | null>(null);
-  if (!on && !puppetsOn) return null;
+  if (!on && !puppetsOn && !looksOn) return null;
   const ready = (avatars.data ?? []).filter((a) => a.status === 'ready');
   const chosen = ready.find((a) => a.id === game.avatar3d);
   const display = game.display ?? 'auto';
   const kindOf = (k: AvatarKind | undefined): Choice => (k === 'parts' ? 'parts' : k === 'code' ? 'code' : 'imported');
-  const current: Choice = display === 'puppet' ? 'puppet' : display === 'live2d' ? 'live2d' : display === 'sprite' ? 'sprite' : display === '3d' ? (chosen ? kindOf(chosen.kind) : 'imported') : 'auto';
+  const current: Choice = display === 'puppet' ? 'puppet' : display === 'looks' ? 'looks' : display === 'live2d' ? 'live2d' : display === 'sprite' ? 'sprite' : display === '3d' ? (chosen ? kindOf(chosen.kind) : 'imported') : 'auto';
   const choice = picked ?? current;
   const kind: AvatarKind | null = choice === 'imported' ? 'imported' : choice === 'parts' ? 'parts' : choice === 'code' ? 'code' : null;
   const options = kind ? ready.filter((a) => (kind === 'imported' ? a.kind === 'imported' || a.kind === 'realistic' || a.kind === 'makehuman' || a.kind === 'character' : a.kind === kind)) : [];
@@ -46,6 +48,7 @@ export function DisplayFields({ game, setGame, characterId }: { game: CharacterG
     setPicked(c);
     if (c === 'auto') setGame({ display: 'auto' });
     else if (c === 'live2d' || c === 'sprite') setGame({ display: c });
+    else if (c === 'looks') setGame({ display: 'looks' });
     else if (c === 'puppet') setGame({ display: 'puppet', puppet2: game.puppet2 ?? bodies.data?.[0]?.id });
     else {
       // Keep the avatar if it's of this kind; otherwise the first one of the kind (code-made: none
@@ -75,7 +78,7 @@ export function DisplayFields({ game, setGame, characterId }: { game: CharacterG
     <div className="grid gap-3">
       <Field label="Recorded age"><Input aria-label="Recorded age" type="number" min={0} max={120} value={game.age ?? ''} onChange={e => setGame({ age: e.target.value === '' ? null : Number(e.target.value) })} /></Field>
       <div role="radiogroup" aria-label="On the stage" className="grid gap-2 sm:grid-cols-2" data-testid="display-picker">
-        {CHOICES.filter(c => (c.value !== 'code' || experimental || chosen?.kind === 'code') && (c.value === 'puppet' ? puppetsOn : c.value === 'auto' || c.value === 'sprite' || on)).map((c) => (
+        {CHOICES.filter(c => (c.value !== 'code' || experimental || chosen?.kind === 'code') && (c.value === 'puppet' ? puppetsOn : c.value === 'looks' ? looksOn : c.value === 'auto' || c.value === 'sprite' || on)).map((c) => (
           <button key={c.value} type="button" role="radio" aria-checked={choice === c.value} onClick={() => pick(c.value)} className={cx('pressable rounded-lg border p-3 text-left', choice === c.value ? 'border-accent bg-accent/10' : 'border-line bg-surface hover:border-line-strong')}>
             <span className="block text-sm font-medium">{c.label}</span>
             <span className="mt-0.5 block text-xs text-fg-2">{c.line}</span>
@@ -101,6 +104,9 @@ export function DisplayFields({ game, setGame, characterId }: { game: CharacterG
             {(bodies.data ?? []).map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
           </Select>
         </Field>
+      ) : null}
+      {choice === 'looks' ? (
+        <p className="text-sm text-fg-2">Make or pick the look in <Link to="/characters/looks" className="underline">Character Studio looks</Link> (From a character… fills it from this card).</p>
       ) : null}
       {choice === 'code' && characterId ? (
         <div>

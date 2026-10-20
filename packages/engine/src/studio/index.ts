@@ -6,3 +6,4 @@ export * from './color.js';
 export * from './cage.js';
 export * from './randomize.js';
 export * from './fill.js';
+export * from './story.js';

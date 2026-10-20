@@ -164,7 +164,9 @@ describe('fill from description', () => {
     const { sheet: s } = sheetFromAnswer('Mira', 'Here: {"sex":"woman","age":27,"body":{"type":"voluptuous","breast":"big","hips":"wide","skin":"pale"},"face":{"preset":"cool","eyeColor":"emerald"},"hair":{"back":"long wavy","front":"fringe","color":"silver"},"expressions":["smile","shy","nonsense"]}');
     expect(s).toMatchObject({ sex: 'female', age: 27, body: { type: 'curvy', breast: 'large', hips: 'large', skin: '#fbe3d3' }, face: { preset: 'cool', eyeColor: '#3d7a3a' }, hair: { back: 'long_wavy', front: 'bangs', color: '#c9c9cf' } });
     expect(s!.expressions).toEqual(['smile', 'shy', 'neutral']);
-    expect(sheetFromAnswer('X', 'garbage').sheet!.age).toBe(25);
+    const none = sheetFromAnswer('X', 'garbage');
+    expect(none.ageStated).toBe(false); // the owner has to enter the age
+    expect(sheetFromAnswer('X', '{"age":30}').ageStated).toBe(true);
   });
   it('gives no sheet for a character described as under 18', () => {
     expect(sheetFromAnswer('Kid', '{"sex":"female","age":15}').sheet).toBeNull();
@@ -186,5 +188,16 @@ describe('studio story ops', () => {
     const ended = applyOps(r.state, [{ type: 'studio.scene', template: null }, { type: 'studio.pose', who: 'Mira', template: null }] as never);
     expect(ended.state.stage!.studio).toEqual({ poses: {}, scene: null });
     expect(applyOps(createInitialState(), [{ type: 'studio.option', option: 'camera', value: 'wide' }] as never).errors).toHaveLength(1);
+  });
+});
+
+describe('studio story helpers', async () => {
+  const { wardrobeFromItems, expressionForEmotion } = await import('../src/studio/story.js');
+  it('equipped items pick outfit layers the template has; emotions pick expressions', () => {
+    const s = sheet({ wardrobe: { top: 'tee', shoes: 'sneakers' } });
+    const w = wardrobeFromItems(s, [{ name: 'White Blouse' }, { name: 'Sword' }, { name: 'Jeans of the north', tags: ['jeans'] }], { top: ['white_blouse', 'tee'], bottom: ['jeans', 'skirt'] });
+    expect(w).toMatchObject({ top: 'white_blouse', bottom: 'jeans', shoes: 'sneakers' });
+    expect(expressionForEmotion('joy')).toBe('smile');
+    expect(expressionForEmotion('neutral')).toBeUndefined();
   });
 });

@@ -4,7 +4,7 @@ import path from 'node:path';
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import { HttpError, owner, type AppContext } from '../context.js';
-import { deleteStudioCharacter, deleteTemplate, fillFromCharacter, getStudioCharacter, installTemplatePack, listStudioCharacters, listTemplates, rollStudioCharacter, saveStudioCharacter, studioForCharacter, templatesDir } from '../services/paperdoll/store.js';
+import { linkedStudioCharacters, deleteStudioCharacter, deleteTemplate, fillFromCharacter, getStudioCharacter, installTemplatePack, listStudioCharacters, listTemplates, rollStudioCharacter, saveStudioCharacter, studioForCharacter, templatesDir } from '../services/paperdoll/store.js';
 import { parse } from '../util/validate.js';
 import { readContentFile } from '../vault/vault.js';
 
@@ -18,6 +18,8 @@ export function registerPaperDoll(app: FastifyInstance, ctx: AppContext) {
     return listStudioCharacters(ctx, owner(req), { page: Number(q.page) || 0, perPage: Number(q.perPage) || 13 });
   });
   app.get('/api/paperdoll/characters/:id', async (req) => getStudioCharacter(ctx, owner(req), (req.params as { id: string }).id));
+  /** Every story character's look, by character id (the stage loads them in one request). */
+  app.get('/api/paperdoll/linked', async (req) => linkedStudioCharacters(ctx, owner(req)));
   app.get('/api/paperdoll/for/:characterId', async (req) => studioForCharacter(ctx, owner(req), (req.params as { characterId: string }).characterId));
   app.post('/api/paperdoll/characters', async (req) => { const b = parse(Save, req.body); return saveStudioCharacter(ctx, owner(req), { characterId: b.characterId, sheet: b.sheet }); });
   app.put('/api/paperdoll/characters/:id', async (req) => { const b = parse(Save, req.body); return saveStudioCharacter(ctx, owner(req), { id: (req.params as { id: string }).id, characterId: b.characterId, sheet: b.sheet }); });

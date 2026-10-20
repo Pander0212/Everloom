@@ -53,16 +53,20 @@ const oneOf = <T extends string>(v: unknown, xs: readonly T[], fallback: T, word
   return fallback;
 };
 
-/** Turns the model's answer into a sheet (null when it says the character is under 18). */
-export function sheetFromAnswer(name: string, answer: string): { sheet: TraitSheet | null; reason?: string } {
+/**
+ * Turns the model's answer into a sheet (null when it says the character is under 18). When no age
+ * is stated, `ageStated` is false: the sheet carries 18 as a placeholder and the owner must enter
+ * the real age before it is kept (an unstated age is never taken as adult on its own).
+ */
+export function sheetFromAnswer(name: string, answer: string): { sheet: TraitSheet | null; reason?: string; ageStated: boolean } {
   const m = answer.match(/\{[\s\S]*\}/);
   let j: Record<string, any> = {};
   try { j = m ? JSON.parse(m[0]) : {}; } catch { j = {}; }
   const age = Number(j.age);
-  if (Number.isFinite(age) && age < 18) return { sheet: null, reason: 'The description makes the character under 18: the studio only makes adults.' };
+  if (Number.isFinite(age) && age < 18) return { sheet: null, reason: 'The description makes the character under 18: the studio only makes adults.', ageStated: true };
   const sex = oneOf(j.sex, ['female', 'male'] as const, 'female', { woman: 'female', girl: 'female', man: 'male', boy: 'male' });
   const sheet = TraitSheetSchema.parse({
-    name, sex, age: Number.isFinite(age) ? Math.max(18, Math.round(age)) : 25,
+    name, sex, age: Number.isFinite(age) ? Math.round(age) : 18,
     body: {
       type: oneOf(j.body?.type, BODY_TYPES, 'average', { petite: 'slim', thin: 'slim', fit: 'athletic', toned: 'athletic', voluptuous: 'curvy', buxom: 'curvy', stocky: 'muscular', chubby: 'plus', heavy: 'plus' }),
       breast: oneOf(j.body?.breast, SIZES, 'medium', { flat: 'small', modest: 'small', big: 'large', huge: 'large' }),
@@ -82,5 +86,5 @@ export function sheetFromAnswer(name: string, answer: string): { sheet: TraitShe
     },
     expressions: Array.isArray(j.expressions) ? [...new Set(j.expressions.map((e: unknown) => oneOf(e, CATALOG.expression.map((x) => x.id), 'neutral')))] : undefined,
   });
-  return { sheet };
+  return { sheet, ageStated: Number.isFinite(age) };
 }

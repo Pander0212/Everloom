@@ -51,7 +51,7 @@ export interface CharacterGame {
   /** A full-body puppet (Puppets v2, its id) shown on the stage. */
   puppet2?: string;
   /** How this character appears on the stage: 3D, a puppet, Live2D, sprites, or the richest available. */
-  display?: 'auto' | '3d' | 'puppet' | 'live2d' | 'sprite';
+  display?: 'auto' | '3d' | 'puppet' | 'looks' | 'live2d' | 'sprite';
 }
 
 export interface CharacterSummary {

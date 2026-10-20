@@ -45,6 +45,11 @@ export function getStudioCharacter(ctx: AppContext, owner: string, id: string): 
   return row2(r);
 }
 
+export function linkedStudioCharacters(ctx: AppContext, owner: string): Record<string, TraitSheet> {
+  const rows = ctx.db.prepare('SELECT * FROM studio_characters WHERE owner_id = ? AND character_id IS NOT NULL').all(owner) as Parameters<typeof row2>[0][];
+  return Object.fromEntries(rows.map((r) => [r.character_id!, row2(r).sheet]));
+}
+
 export function studioForCharacter(ctx: AppContext, owner: string, characterId: string): StudioCharacter | null {
   const r = ctx.db.prepare('SELECT * FROM studio_characters WHERE owner_id = ? AND character_id = ?').get(owner, characterId) as Parameters<typeof row2>[0] | undefined;
   return r ? row2(r) : null;
@@ -89,16 +94,24 @@ function outfitSets(t: TemplateMeta) {
   return tops.flatMap((top) => (bottoms.length ? bottoms.map((b) => ({ id: `${top}+${b}`, items: { top, bottom: b, shoes: w.shoes?.[0] ?? null } })) : [{ id: top, items: { top } }]));
 }
 
-/** Fill a sheet from a character's card with the utility model (reviewed by the owner, not saved). */
-export async function fillFromCharacter(ctx: AppContext, owner: string, characterId: string): Promise<TraitSheet> {
+/**
+ * Fill a sheet from a character's card with the utility model (reviewed by the owner, not saved).
+ * The age comes from the card's recorded age, else the model's reading of the text; when neither
+ * states one, `ageStated` is false and the owner enters it before saving.
+ */
+export async function fillFromCharacter(ctx: AppContext, owner: string, characterId: string): Promise<{ sheet: TraitSheet; ageStated: boolean }> {
   const r = ctx.db.prepare('SELECT name, card, game FROM characters WHERE id = ? AND owner_id = ?').get(characterId, owner) as { name: string; card: string; game: string } | undefined;
   if (!r) throw new HttpError(404, 'Character not found');
   const card = JSON.parse(r.card), game = JSON.parse(r.game);
   if (cardMinorReason(card, game)) throw new HttpError(400, `${REFUSED} The Character Studio only makes adults.`);
-  const answer = await utilityJson<unknown>(ctx, owner, 'You describe how a character looks, for a character creator. Reply with JSON only.', fillPrompt({ name: r.name, description: card.description ?? '', personality: card.personality ?? '' }), 600, 'studio look');
-  const { sheet, reason } = sheetFromAnswer(r.name, JSON.stringify(answer));
+  const answer = await utilityJson<unknown>(ctx, owner, 'You describe how a character looks, for a character creator. Reply with JSON only. Give an age only if the text states or clearly implies one; otherwise leave it out.', fillPrompt({ name: r.name, description: card.description ?? '', personality: card.personality ?? '' }), 600, 'studio look');
+  const { sheet, reason, ageStated } = sheetFromAnswer(r.name, JSON.stringify(answer));
   if (!sheet) throw new HttpError(400, reason ?? 'No sheet');
-  return { ...sheet, age: game?.age && game.age >= 18 ? game.age : sheet.age };
+  if (typeof game?.age === 'number') {
+    if (game.age < 18) throw new HttpError(400, `${REFUSED} The Character Studio only makes adults.`);
+    return { sheet: { ...sheet, age: game.age }, ageStated: true };
+  }
+  return { sheet, ageStated };
 }
 
 // ---------------------------------------------------------------- templates

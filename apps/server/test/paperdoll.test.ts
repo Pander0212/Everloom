@@ -72,10 +72,14 @@ it('fills a sheet from a card with the utility model, never for a minor', async 
   const adult = (await c.req('POST', '/api/characters', { card: { name: 'Sena', first_mes: 'Hi', description: 'A 28-year-old engineer with a silver bob.' } })).json;
   const filled = await c.req('POST', `/api/paperdoll/fill/${adult.id}`);
   expect(filled.status, filled.body).toBe(200);
-  expect(filled.json).toMatchObject({ name: 'Sena', age: 28, hair: { back: 'bob', color: '#c9c9cf' } });
-  const linked = await c.req('POST', '/api/paperdoll/characters', { characterId: adult.id, sheet: filled.json });
+  expect(filled.json).toMatchObject({ ageStated: true, sheet: { name: 'Sena', age: 28, hair: { back: 'bob', color: '#c9c9cf' } } });
+  const linked = await c.req('POST', '/api/paperdoll/characters', { characterId: adult.id, sheet: filled.json.sheet });
   expect(linked.json.kind).toBe('story');
   expect((await c.req('GET', `/api/paperdoll/for/${adult.id}`)).json.id).toBe(linked.json.id);
+  // No age stated anywhere: the fill says so (the owner must enter it), and never invents an adult.
+  vi.mocked(utility.utilityJson).mockResolvedValueOnce({ sex: 'female', hair: { back: 'bob' } } as never);
+  const vague = (await c.req('POST', '/api/characters', { card: { name: 'Ash', first_mes: 'Hi', description: 'A traveller.' } })).json;
+  expect((await c.req('POST', `/api/paperdoll/fill/${vague.id}`)).json.ageStated).toBe(false);
   // A card describing a minor gets neither a fill nor a linked sheet.
   const young = (await c.req('POST', '/api/characters', { card: { name: 'Pip', first_mes: 'Hi', description: 'A 14-year-old.' } })).json;
   expect((await c.req('POST', `/api/paperdoll/fill/${young.id}`)).status).toBe(400);
