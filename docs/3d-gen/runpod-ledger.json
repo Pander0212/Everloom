@@ -903,6 +903,28 @@
    "balanceBefore": 8.7622079526,
    "balanceAfter": 8.4868539888,
    "result": "ok: qi2edit 29 files"
+  },
+  {
+   "id": "40fea38d36c3",
+   "date": "2026-10-20",
+   "job": "b1-races",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.61,
+   "start": "2026-10-20T19:47:17.247Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 8.3938042805,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
