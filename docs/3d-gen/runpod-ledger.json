@@ -562,6 +562,35 @@
    "balanceBefore": 2.7062751501,
    "balanceAfter": 2.5111659871,
    "result": "ok: qi2edit 49 files"
+  },
+  {
+   "date": "2026-10-20",
+   "job": "cs2-pony-test",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg",
+    "base-m.jpg",
+    "mask-f-body.png",
+    "mask-f-crotch-long.png",
+    "mask-f-full.png",
+    "mask-f-nipples.png",
+    "mask-f-torso.png",
+    "mask-m-crotch-long.png",
+    "mask-m-crotch-up.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.61,
+   "start": "2026-10-20T18:03:45.673Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 2.4895354399,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
