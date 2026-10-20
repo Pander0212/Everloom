@@ -62,7 +62,7 @@ SDXL_NEGATIVE = {"wai": "bad quality, worst quality, worst detail, sketch, censo
 
 
 def inpaint(input_name, mask_name, prompt, model="anima", seed=7, denoise=0.9, loras=(), negative=NEGATIVE, grow=6, prefix="ev",
-            control_name=None, cn=None, cn_strength=0.9, diffdiff=True, steps_override=None, cfg_override=None):
+            control_name=None, cn=None, cn_strength=0.9, diffdiff=True, steps_override=None, cfg_override=None, imc=True):
     g = {
         "1": {"class_type": "LoadImage", "inputs": {"image": input_name}},
         "11": {"class_type": "LoadImageMask", "inputs": {"image": mask_name, "channel": "red"}},
@@ -98,8 +98,17 @@ def inpaint(input_name, mask_name, prompt, model="anima", seed=7, denoise=0.9, l
         g["18"] = {"class_type": "ControlNetLoader", "inputs": {"control_net_name": cn}}
         g["19"] = {"class_type": "ControlNetApplyAdvanced", "inputs": {"positive": pos, "negative": neg, "control_net": ["18", 0], "image": ["17", 0], "strength": float(cn_strength), "start_percent": 0.0, "end_percent": 1.0, "vae": vae}}
         pos, neg = ["19", 0], ["19", 1]
-    g["20"] = {"class_type": "InpaintModelConditioning", "inputs": {"positive": pos, "negative": neg, "vae": vae, "pixels": ["1", 0], "mask": ["12", 0], "noise_mask": True}}
-    g["7"] = {"class_type": "KSampler", "inputs": {"model": unet, "positive": ["20", 0], "negative": ["20", 1], "latent_image": ["20", 2], "seed": int(seed), "steps": int(steps_override or steps), "cfg": float(cfg_override or cfg), "sampler_name": sampler, "scheduler": scheduler, "denoise": float(denoise)}}
+    if imc:
+        # Regions: the area to repaint is blanked and the model fills it in, guided by its surroundings.
+        g["20"] = {"class_type": "InpaintModelConditioning", "inputs": {"positive": pos, "negative": neg, "vae": vae, "pixels": ["1", 0], "mask": ["12", 0], "noise_mask": True}}
+        pos, neg, latent = ["20", 0], ["20", 1], ["20", 2]
+    else:
+        # Whole-body changes (img2img under a mask): the picture is kept as the starting point, or a
+        # blanked full-body mask leaves the model nothing to work from (black output).
+        g["13"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["1", 0], "vae": vae}}
+        g["14"] = {"class_type": "SetLatentNoiseMask", "inputs": {"samples": ["13", 0], "mask": ["12", 0]}}
+        latent = ["14", 0]
+    g["7"] = {"class_type": "KSampler", "inputs": {"model": unet, "positive": pos, "negative": neg, "latent_image": latent, "seed": int(seed), "steps": int(steps_override or steps), "cfg": float(cfg_override or cfg), "sampler_name": sampler, "scheduler": scheduler, "denoise": float(denoise)}}
     g["8"] = {"class_type": "VAEDecode", "inputs": {"samples": ["7", 0], "vae": vae}}
     # Only the masked pixels change: the repaint is pasted over the untouched original.
     g["15"] = {"class_type": "ImageCompositeMasked", "inputs": {"destination": ["1", 0], "source": ["8", 0], "x": 0, "y": 0, "resize_source": False, "mask": ["12", 0]}}
