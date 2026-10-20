@@ -117,11 +117,19 @@ for e in opts.get("edits", []):
             original = Image.open(f"{C}/input/{inp}").convert("RGB")
             mask_im = Image.open(os.path.join(src, e["mask"])).convert("L")
             box, size = stitch.crop_box(mask_im, size=int(e.get("crop_size", 1024))) if e.get("crop", True) else (None, None)
-            args = dict(model=e.get("model", "illustrious"), seed=seed, denoise=float(e.get("denoise", 0.9)), loras=loras,
-                        negative=e.get("negative", graphs.NEGATIVE), grow=int(e.get("grow", 6)), prefix=f"ev-{label}")
+            model = e.get("model", "illustrious")
+            neg = e.get("negative", graphs.SDXL_NEGATIVE.get("wai" if model == "illustrious" else model, graphs.NEGATIVE))
+            args = dict(model=model, seed=seed, denoise=float(e.get("denoise", 0.9)), loras=loras, negative=neg + e.get("negative_add", ""),
+                        grow=int(e.get("grow", 6)), prefix=f"ev-{label}", cn=e.get("cn"), cn_strength=float(e.get("cn_strength", 0.9)),
+                        diffdiff=e.get("diffdiff", True), steps_override=e.get("steps"), cfg_override=e.get("cfg"))
             if box:
                 ci, cm = stitch.crop(original, mask_im, box, size)
-                r = stitch.paste(original, run_graph(graphs.inpaint(put(ci, f"ev-{label}-crop.png"), put(cm, f"mask-ev-{label}-crop.png"), e["prompt"], **args)), mask_im, box)
+                if e.get("cn"):
+                    args["control_name"] = put(stitch.blackout(ci, cm), f"ev-{label}-control.png")
+                painted = run_graph(graphs.inpaint(put(ci, f"ev-{label}-crop.png"), put(cm, f"mask-ev-{label}-crop.png"), e["prompt"], **args))
+                if e.get("color_match", True):
+                    painted = stitch.color_match(painted, ci, cm)
+                r = stitch.paste(original, painted, mask_im, box)
             else:
                 r = run_graph(graphs.inpaint(inp, stage(e["mask"])[0], e["prompt"], **args))
         elif kind == "upscale":

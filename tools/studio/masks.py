@@ -58,6 +58,9 @@ def masks_for(kp, w, h):
     out['torso'] = blank()
     cv2.fillPoly(out['torso'], [torso_poly], 255)
     out['full'] = np.full((h, w), 255, np.uint8)
+    # Everything below the chin (outfits that cover the body but must not touch the face or hair).
+    out['body'] = out['full'].copy()
+    out['body'][: int(neck[1] - head_h * 0.08)] = 0
     out['chest'] = np.maximum(out['breast-l'], out['breast-r'])
     out['nipples'] = np.maximum(out['nipple-l'], out['nipple-r'])
     # Soft edges: the inpaint blends in, and the composite back over the original has no seam.

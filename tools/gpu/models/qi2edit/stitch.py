@@ -25,6 +25,34 @@ def crop(image, mask, box, target):
     return image.crop(box).resize(target, Image.LANCZOS), mask.crop(box).resize(target, Image.BILINEAR)
 
 
+def blackout(image, mask, level=128):
+    """The control picture for an inpainting ControlNet: the area to repaint filled with black."""
+    black = Image.new("RGB", image.size, (0, 0, 0))
+    return Image.composite(black, image, mask.point(lambda v: 255 if v >= level else 0))
+
+
+def color_match(painted, reference, mask, ring=(8, 96)):
+    """Shifts the painted crop's colours (mean and spread per channel, in Lab) to match the original
+    just outside the repainted area, so a region never comes back with a colour cast."""
+    import numpy as np
+    from PIL import ImageCms
+    srgb, lab = ImageCms.createProfile("sRGB"), ImageCms.createProfile("LAB")
+    to_lab = ImageCms.buildTransform(srgb, lab, "RGB", "LAB")
+    to_rgb = ImageCms.buildTransform(lab, srgb, "LAB", "RGB")
+    m = np.asarray(mask.resize(painted.size), dtype=np.float32)
+    zone = (m > ring[0]) & (m < 255 - ring[0]) if (m > ring[0]).any() else m >= 0
+    if zone.sum() < 64:
+        zone = m < ring[1]
+    p = np.asarray(ImageCms.applyTransform(painted, to_lab), dtype=np.float32)
+    q = np.asarray(ImageCms.applyTransform(reference.resize(painted.size), to_lab), dtype=np.float32)
+    out = p.copy()
+    for c in range(3):
+        pm, ps = p[..., c][zone].mean(), p[..., c][zone].std() + 1e-3
+        qm, qs = q[..., c][zone].mean(), q[..., c][zone].std() + 1e-3
+        out[..., c] = (p[..., c] - pm) * min(2.0, max(0.5, qs / ps)) + qm
+    return ImageCms.applyTransform(Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "LAB"), to_rgb)
+
+
 def paste(original, painted, mask, box, feather=2.0):
     """Shrinks the painted crop back into place, blended through the (slightly softened) mask."""
     out = original.copy()

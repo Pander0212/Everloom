@@ -50,7 +50,14 @@ def qi2(input_name, prompt, w, h, seed=7, turbo=True, loras=(), cache=True, nega
     return g
 
 
-def inpaint(input_name, mask_name, prompt, model="anima", seed=7, denoise=0.9, loras=(), negative=NEGATIVE, grow=6, prefix="ev"):
+# SDXL checkpoints by name: (file, steps, cfg) — WAI Illustrious and NoobAI-XL eps 1.1 (both Illustrious family).
+SDXL_MODELS = {"illustrious": (ILLUSTRIOUS["ckpt"], 28, 5.5), "wai": (ILLUSTRIOUS["ckpt"], 28, 5.5), "noobai": ("NoobAI-XL-v1.1.safetensors", 28, 4.5)}
+SDXL_NEGATIVE = {"wai": "bad quality, worst quality, worst detail, sketch, censor, mosaic censoring, bar censor",
+                 "noobai": "worst quality, old, early, low quality, lowres, signature, username, logo, bad hands, censor, mosaic censoring, anthro, furry, feral"}
+
+
+def inpaint(input_name, mask_name, prompt, model="anima", seed=7, denoise=0.9, loras=(), negative=NEGATIVE, grow=6, prefix="ev",
+            control_name=None, cn=None, cn_strength=0.9, diffdiff=True, steps_override=None, cfg_override=None):
     g = {
         "1": {"class_type": "LoadImage", "inputs": {"image": input_name}},
         "11": {"class_type": "LoadImageMask", "inputs": {"image": mask_name, "channel": "red"}},
@@ -63,15 +70,27 @@ def inpaint(input_name, mask_name, prompt, model="anima", seed=7, denoise=0.9, l
         unet, clip, vae = ["2", 0], ["3", 0], ["4", 0]
         sampler, scheduler, steps, cfg = "er_sde", "simple", 30, 4.0
     else:
-        g["2"] = {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ILLUSTRIOUS["ckpt"] if model == "illustrious" else model}}
+        ckpt, steps, cfg = SDXL_MODELS.get(model, (model, 28, 5.5))
+        g["2"] = {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ckpt}}
         unet, clip, vae = ["2", 0], ["2", 1], ["2", 2]
-        sampler, scheduler, steps, cfg = "euler_ancestral", "normal", 28, 6.0
+        sampler, scheduler = "euler_ancestral", "normal"
     unet = _loras(g, unet, loras)
+    if diffdiff:
+        # Differential diffusion: the soft mask edge is repainted gradually, so the region blends in.
+        g["16"] = {"class_type": "DifferentialDiffusion", "inputs": {"model": unet}}
+        unet = ["16", 0]
     g["5"] = {"class_type": "CLIPTextEncode", "inputs": {"clip": clip, "text": prompt}}
     g["6"] = {"class_type": "CLIPTextEncode", "inputs": {"clip": clip, "text": negative}}
-    g["13"] = {"class_type": "VAEEncode", "inputs": {"pixels": ["1", 0], "vae": vae}}
-    g["14"] = {"class_type": "SetLatentNoiseMask", "inputs": {"samples": ["13", 0], "mask": ["12", 0]}}
-    g["7"] = {"class_type": "KSampler", "inputs": {"model": unet, "positive": ["5", 0], "negative": ["6", 0], "latent_image": ["14", 0], "seed": int(seed), "steps": steps, "cfg": cfg, "sampler_name": sampler, "scheduler": scheduler, "denoise": float(denoise)}}
+    pos, neg = ["5", 0], ["6", 0]
+    if control_name and cn:
+        # NoobAI inpainting ControlNet: the picture with the masked area blacked out guides the repaint,
+        # so a region can be replaced completely (high denoise) and still fit what surrounds it.
+        g["17"] = {"class_type": "LoadImage", "inputs": {"image": control_name}}
+        g["18"] = {"class_type": "ControlNetLoader", "inputs": {"control_net_name": cn}}
+        g["19"] = {"class_type": "ControlNetApplyAdvanced", "inputs": {"positive": pos, "negative": neg, "control_net": ["18", 0], "image": ["17", 0], "strength": float(cn_strength), "start_percent": 0.0, "end_percent": 1.0, "vae": vae}}
+        pos, neg = ["19", 0], ["19", 1]
+    g["20"] = {"class_type": "InpaintModelConditioning", "inputs": {"positive": pos, "negative": neg, "vae": vae, "pixels": ["1", 0], "mask": ["12", 0], "noise_mask": True}}
+    g["7"] = {"class_type": "KSampler", "inputs": {"model": unet, "positive": ["20", 0], "negative": ["20", 1], "latent_image": ["20", 2], "seed": int(seed), "steps": int(steps_override or steps), "cfg": float(cfg_override or cfg), "sampler_name": sampler, "scheduler": scheduler, "denoise": float(denoise)}}
     g["8"] = {"class_type": "VAEDecode", "inputs": {"samples": ["7", 0], "vae": vae}}
     # Only the masked pixels change: the repaint is pasted over the untouched original.
     g["15"] = {"class_type": "ImageCompositeMasked", "inputs": {"destination": ["1", 0], "source": ["8", 0], "x": 0, "y": 0, "resize_source": False, "mask": ["12", 0]}}
