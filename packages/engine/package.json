@@ -12,7 +12,8 @@
     ".": "./src/index.ts",
     "./guard": "./src/scripting/guard.ts",
     "./unity": "./src/unity/index.ts",
-    "./puppet2": "./src/puppet2/index.ts"
+    "./puppet2": "./src/puppet2/index.ts",
+    "./studio": "./src/studio/index.ts"
   },
   "scripts": {
     "test": "vitest run",

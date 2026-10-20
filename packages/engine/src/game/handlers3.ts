@@ -39,7 +39,7 @@ import type { ApplyContext } from './reducer.js';
 import type { OpOf, OpType } from './ops.js';
 import { findExact, findFuzzy, findItem, findNpc, nextCounter, uniqueId } from './resolve.js';
 import type { Change } from './simulate.js';
-import { emptyStage, type Account, type AvatarStageState, type CampaignState, type Home, type HouseholdMember, type Item, type Location, type Mail, type PartyMember, type Route, type ScheduleSlot } from './state.js';
+import { emptyStage, type StudioStageState, type Account, type AvatarStageState, type CampaignState, type Home, type HouseholdMember, type Item, type Location, type Mail, type PartyMember, type Route, type ScheduleSlot } from './state.js';
 
 export interface Kit {
   ctx: ApplyContext;
@@ -196,6 +196,11 @@ function avatarSlot(s: CampaignState, who: string): AvatarStageState {
   const nm = npc?.name ?? who.trim();
   const key = normalizeName(nm);
   return (avatars[key] ??= { name: nm, pose: null, outfit: null, emote: null });
+}
+
+function studioState(s: CampaignState): StudioStageState {
+  const st = (s.stage ??= emptyStage());
+  return (st.studio ??= { poses: {}, scene: null });
 }
 
 export const HANDLERS3: Handlers = {
@@ -864,6 +869,23 @@ export const HANDLERS3: Handlers = {
     const who = op.who.map((w) => avatarSlot(s, w).name);
     if (new Set(who.map(normalizeName)).size !== who.length) throw new OpError('A paired animation needs different characters');
     st.paired = { clip: op.clip, who, cue: `pa_${nextCounter(s.counters, 'cue')}` };
+  },
+  // ---------------- Character Studio
+  'studio.pose': (s, op) => {
+    const st = studioState(s);
+    const nm = findNpc(s, op.who)?.npc.name ?? op.who.trim();
+    const key = normalizeName(nm);
+    if (op.template === null) delete st.poses[key];
+    else st.poses[key] = { name: nm, template: op.template, expression: op.expression ?? null };
+  },
+  'studio.scene': (s, op) => {
+    const st = studioState(s);
+    st.scene = op.template === null ? null : { template: op.template, who: op.who.map((w) => findNpc(s, w)?.npc.name ?? w.trim()), options: op.options, cue: `sc_${nextCounter(s.counters, 'cue')}` };
+  },
+  'studio.option': (s, op) => {
+    const st = studioState(s);
+    if (!st.scene) throw new OpError('There is no studio scene on stage to choose an option for');
+    st.scene.options = { ...st.scene.options, [op.option]: op.value };
   },
   // ---------------- transit
   'transit.add': (s, op, kit) => {

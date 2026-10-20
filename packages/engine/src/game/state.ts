@@ -699,6 +699,12 @@ export interface StageState {
   avatars?: Record<string, AvatarStageState>;
   /** A paired or group animation (a handshake): who takes part, in role order; `cue` changes every time. */
   paired?: { clip: string; who: string[]; cue: string } | null;
+  /** Character Studio: each character's pose template, and the scene template on stage with its options. */
+  studio?: StudioStageState;
+}
+export interface StudioStageState {
+  poses: Record<string, { name: string; template: string; expression: string | null }>;
+  scene: { template: string; who: string[]; options: Record<string, string>; cue: string } | null;
 }
 export interface AvatarStageState {
   name: string;

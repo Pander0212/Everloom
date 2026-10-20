@@ -2,6 +2,7 @@
 import { z } from 'zod';
 
 const name = z.string().trim().min(1).max(120);
+const studioId = z.string().trim().toLowerCase().regex(/^[a-z0-9][a-z0-9_-]{0,63}$/);
 const shortText = z.string().trim().max(400);
 const num = z.coerce.number().refine(Number.isFinite, 'must be a finite number');
 const int = z.coerce.number().int();
@@ -284,6 +285,10 @@ export const OpSchemas3 = {
   'avatar.outfit': z.object({ type: z.literal('avatar.outfit'), who: name, outfit: z.string().trim().max(60).nullable() }),
   /** Two or more 3D characters play a paired clip together (a handshake); `clip: null` stops a looping one. */
   'avatar.paired': z.object({ type: z.literal('avatar.paired'), clip: z.string().trim().toLowerCase().regex(/^[a-z][a-z0-9_]{0,39}$/).nullable(), who: z.array(name).min(2).max(4) }),
+  // ---- Character Studio (paper-doll templates): a character's pose, a scene with its options
+  'studio.pose': z.object({ type: z.literal('studio.pose'), who: name, template: studioId.nullable(), expression: z.string().trim().toLowerCase().regex(/^[a-z]{1,20}$/).nullable().optional() }),
+  'studio.scene': z.object({ type: z.literal('studio.scene'), template: studioId.nullable(), who: z.array(name).max(2).default([]), options: z.record(studioId, studioId).default({}) }),
+  'studio.option': z.object({ type: z.literal('studio.option'), option: studioId, value: studioId }),
   // ---- transit
   'transit.add': z.object({
     type: z.literal('transit.add'),
@@ -306,4 +311,4 @@ export const OpSchemas3 = {
 } as const;
 
 /** Phase 3 ops the model may emit: things the story establishes, never the player's own money moves. */
-export const AI_OPS3 = ['currency.define', 'shop.upsert', 'bill.add', 'asset.add', 'home.add', 'room.add', 'household.add', 'household.update', 'transit.add', 'route.require', 'mail.receive', 'feed.post', 'fx.play', 'stage.layer', 'cutscene.play', 'music.set', 'ambient.set', 'avatar.emote', 'avatar.pose', 'avatar.outfit', 'avatar.paired'] as const;
+export const AI_OPS3 = ['studio.pose', 'studio.scene', 'studio.option', 'currency.define', 'shop.upsert', 'bill.add', 'asset.add', 'home.add', 'room.add', 'household.add', 'household.update', 'transit.add', 'route.require', 'mail.receive', 'feed.post', 'fx.play', 'stage.layer', 'cutscene.play', 'music.set', 'ambient.set', 'avatar.emote', 'avatar.pose', 'avatar.outfit', 'avatar.paired'] as const;
