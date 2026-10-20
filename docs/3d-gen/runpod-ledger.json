@@ -220,6 +220,27 @@
    "balanceBefore": 2.3773197696,
    "balanceAfter": 2.3089640224,
    "result": "failed: no model finished setting up ({\"gpu\":\"ok NVIDIA RTX 6000 Ada Generation, 550.78, 49140 MiB\",\"qi2edit\":\"failed: .Optional[torch.dtype], <class 'torch.device'>, typing.Optional[torch.device]]). Got func"
+  },
+  {
+   "date": "2026-10-20",
+   "job": "cs2-qi2-test",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg"
+   ],
+   "gpu": "L40S",
+   "cloud": "COMMUNITY",
+   "pricePerHr": 0.81,
+   "worstCaseUsd": 0.81,
+   "start": "2026-10-20T10:56:39.747Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 2.2472973557,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
