@@ -109,7 +109,9 @@ export default function PuppetV2Lab() {
       try {
         for (const id of s.ids()) s.remove(id);
         for (let i = 0; i < count; i++) {
-          const loaded = p2 ? await loadPuppet(p2) : null;
+          // ?p2=a,b,c puts different puppets on stage (the i-th takes the i-th id, cycling).
+          const ids = p2 ? p2.split(',') : [];
+          const loaded = ids.length ? await loadPuppet(ids[i % ids.length]!) : null;
           const views: Partial<Record<View2, ViewSource>> = loaded ? loaded.views : url ? { front: await loadModel(url) } : testViews(i === 1 ? 1.15 : 1);
           wardrobeRef.current = loaded ? loaded.meta.parts.front ?? [] : url ? [] : testFigure().input.layers.map((l) => ({ id: l.id, ...(l.outfit ? { outfit: l.outfit } : {}) }));
           setWardrobe(wardrobeRef.current);
