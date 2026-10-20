@@ -939,14 +939,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.61,
+   "worstCaseUsd": null,
    "start": "2026-10-20T19:55:30.100Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T20:36:13.953Z",
+   "seconds": 2445,
+   "costUsd": 0.414,
    "balanceBefore": 8.3032850166,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 7.1490028101,
+   "result": "ok: qi2edit 36 files"
   },
   {
    "id": "378844324c8a",
@@ -961,14 +961,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.813,
+   "worstCaseUsd": null,
    "start": "2026-10-20T20:10:51.424Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T20:30:27.212024Z",
+   "seconds": 1235,
+   "costUsd": 0.209,
    "balanceBefore": 8.1605068527,
    "balanceAfter": null,
-   "result": "starting"
+   "result": "stopped by the owner (A-pose switch); cost from the log time"
   },
   {
    "id": "d29b3b67a8d5",
@@ -983,14 +983,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.813,
+   "worstCaseUsd": null,
    "start": "2026-10-20T20:11:11.399Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T20:30:27.212024Z",
+   "seconds": 1215,
+   "costUsd": 0.206,
    "balanceBefore": 8.1605068527,
    "balanceAfter": null,
-   "result": "starting"
+   "result": "stopped by the owner (A-pose switch); cost from the log time"
   },
   {
    "id": "2b6ae80fafc0",
@@ -1005,14 +1005,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.813,
+   "worstCaseUsd": null,
    "start": "2026-10-20T20:11:31.143Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T20:30:27.212024Z",
+   "seconds": 1196,
+   "costUsd": 0.203,
    "balanceBefore": 8.1605068527,
    "balanceAfter": null,
-   "result": "starting"
+   "result": "stopped by the owner (A-pose switch); cost from the log time"
   },
   {
    "id": "16de0505604d",
@@ -1027,14 +1027,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.813,
+   "worstCaseUsd": null,
    "start": "2026-10-20T20:11:51.551Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T20:30:27.212024Z",
+   "seconds": 1175,
+   "costUsd": 0.199,
    "balanceBefore": 2.0151831483,
    "balanceAfter": null,
-   "result": "starting"
+   "result": "stopped by the owner (A-pose switch); cost from the log time"
   },
   {
    "id": "de3de67f1d1d",
@@ -1051,14 +1051,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.813,
+   "worstCaseUsd": null,
    "start": "2026-10-20T20:12:11.242Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T20:30:27.216024Z",
+   "seconds": 1155,
+   "costUsd": 0.196,
    "balanceBefore": 1.3079839797,
    "balanceAfter": null,
-   "result": "starting"
+   "result": "stopped by the owner (A-pose switch); cost from the log time"
   },
   {
    "id": "69a1128a7b50",

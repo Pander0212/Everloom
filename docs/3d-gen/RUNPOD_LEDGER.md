@@ -44,11 +44,11 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-20 | A40 (SECURE) | $0.61 | 30 min | $0.308 | $5.857 | b1-races | failed: no model finished setting up ({}) |
 | 2026-10-20 | A40 (SECURE) | $0.61 | 17 min | $0.170 | $6.027 | b2-orc-redo | ok: qi2edit 29 files |
 | 2026-10-20 | A40 (SECURE) | $0.61 | 8 min | $0.083 | $6.110 | b1-races | failed: bad host: the worker never answered in 8 min |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.110 | b1-races | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.110 | b3-fat | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.110 | b3-chubby | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.110 | b3-pregnant-9m | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.110 | b3-pregnant-6m | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.110 | b3-muscular | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.110 | b4-views | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.110 | b5-apose | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | 41 min | $0.414 | $6.524 | b1-races | ok: qi2edit 36 files |
+| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.524 | b3-fat | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.524 | b3-chubby | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.524 | b3-pregnant-9m | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.524 | b3-pregnant-6m | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.524 | b3-muscular | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.524 | b4-views | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.524 | b5-apose | starting |

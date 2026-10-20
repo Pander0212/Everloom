@@ -138,6 +138,7 @@ export async function runSession(job, deps) {
     }
     if (!pod?.id) throw new Error('no GPU was available within the budget');
     persist();
+    deps.onEntry?.(entry, persist);
     say(`pod ${pod.id}: ${entry.gpu} (${entry.cloud}) at $${entry.pricePerHr}/h, at most ${maxMinutes} min ($${entry.worstCaseUsd})`);
 
     const base = deps.podUrl?.(pod.id) ?? `https://${pod.id}-8000.proxy.runpod.net`;
@@ -226,13 +227,28 @@ async function main() {
       const c = chooseGpus(types, { minVramGb: job.minVramGb ?? 24, allow: job.allowGpus ?? null, maxPricePerHr: job.maxPricePerHr ?? 0.8 });
       console.log(c.slice(0, 5).map((g) => ({ gpu: g.name, cloud: g.cloud, perHr: g.price, worstCase: round(((g.price + DISK_PER_HR) * (job.maxMinutes ?? 90)) / 60), ...budgetCheck({ ledger, balanceUsd: Number(me.clientBalance), capUsd, pricePerHr: g.price + DISK_PER_HR, maxMinutes: job.maxMinutes ?? 90 }) })));
     } else {
-      let current = null;
-      const stop = async () => { console.error('interrupted: terminating the pod'); if (current) await terminate(gql, current).catch(() => {}); await cleanup(gql, console.error, podName(job)).catch(() => {}); process.exit(130); };
+      let current = null, record = null;
+      const stop = async () => {
+        console.error('interrupted: terminating the pod');
+        if (current) await terminate(gql, current).catch(() => {});
+        await cleanup(gql, console.error, podName(job)).catch(() => {});
+        // Record what the pod really cost (the session's own finally step never runs after exit).
+        if (record) {
+          const [e, persist] = record;
+          e.stop = new Date().toISOString();
+          e.seconds = Math.round((Date.parse(e.stop) - Date.parse(e.start)) / 1000);
+          e.costUsd = round((e.pricePerHr * e.seconds) / 3600);
+          e.worstCaseUsd = null;
+          e.result = 'interrupted';
+          persist();
+        }
+        process.exit(130);
+      };
       process.once('SIGINT', stop);
       process.once('SIGTERM', stop);
       // A host whose GPU doesn't start is caught in the first minutes; try another one (twice at most).
       for (let i = 0; ; i++) {
-        try { await runSession(job, { gql, capUsd, secrets: [key, process.env.CIVITAI_TOKEN].filter(Boolean), onPod: (id) => { current = id; } }); break; }
+        try { await runSession(job, { gql, capUsd, secrets: [key, process.env.CIVITAI_TOKEN].filter(Boolean), onPod: (id) => { current = id; }, onEntry: (e, persist) => { record = [e, persist]; } }); break; }
         catch (e) { if (i < 2 && /^bad host/.test(String(e.message))) { console.log(`${e.message}: trying another host`); continue; } throw e; }
       }
     }
