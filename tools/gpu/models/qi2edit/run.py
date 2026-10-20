@@ -19,10 +19,10 @@ def driver_cuda():
         return None
 
 
-# comfy_kitchen's prebuilt kernels need a CUDA 12.8 driver: jobs ask for such hosts (job "cudaVersions"). On
+# comfy_kitchen's prebuilt kernels need a CUDA 13 driver (580+): jobs ask for such hosts (job "cudaVersions"). On
 # older hosts its backends are disabled, but the int8 ConvRot path still calls a CUDA kernel, so expect failures there.
 cuda = driver_cuda()
-old_driver = cuda is None or cuda < (12, 8)
+old_driver = cuda is None or cuda < (13, 0)
 launch = ("import sys, runpy\n"
           + ("import comfy_kitchen as ck\nck.disable_backend('cuda')\nck.disable_backend('triton')\n" if old_driver or opts.get("eager") else "")
           # Importing comfy_kitchen first loads torch before ComfyUI picks its allocator: keep the native one.
