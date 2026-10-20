@@ -179,6 +179,10 @@ const STEPS: Step[] = [
   { type: 'avatar.outfit', who: 'Mara', outfit: 'Rain gear' },
   { type: 'avatar.paired', clip: 'handshake', who: ['Mara', 'Theo'] },
   { type: 'avatar.paired', clip: null, who: ['Mara', 'Theo'] },
+  { type: 'studio.pose', who: 'Mara', template: 'stand-wave', expression: 'smile' },
+  { type: 'studio.scene', template: 'sit-bench', who: ['Mara'], options: { camera: 'close' } },
+  { type: 'studio.option', option: 'camera', value: 'wide' },
+  { type: 'studio.scene', template: null },
   // ---- transit
   { type: 'location.move', to: 'Millbrook' },
   { type: 'transit.add', name: 'River Coach', mode: 'caravan', stops: ['Millbrook', 'Eastport'], first: '06:00', last: '22:00', every: 60, hop: 40, fare: 3 },
