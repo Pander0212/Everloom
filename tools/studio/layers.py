@@ -6,6 +6,7 @@ base can then be stacked on every body variant of that base (same head, same pos
 
     python3 tools/studio/layers.py BASE EDIT OUT.png [--region MASK] [--threshold 9] [--backdrop]
     python3 tools/studio/layers.py --compose BODY LAYER [LAYER ...] OUT.png
+    python3 tools/studio/layers.py --key PICTURE OUT.png    (backdrop made transparent)
 
 --region limits the layer to a mask (white = may belong to the layer), e.g. the face mask for an
 expression. Pixels the edit turned into plain backdrop are left out (they would paint grey over the
@@ -56,6 +57,18 @@ def layer(base, edit, region=None, threshold=9.0, keep_backdrop=False):
     return Image.fromarray(rgba, 'RGBA')
 
 
+def key_backdrop(im, tolerance=7.0):
+    """The picture with its plain backdrop made transparent (backdrop-coloured pixels connected to
+    the border), for tools that expect a cut-out figure (the Puppets v2 decomposition)."""
+    l = lab(im)
+    near = (np.linalg.norm(l - backdrop_color(l), axis=2) < tolerance).astype(np.uint8)
+    n, ids = cv2.connectedComponents(near, connectivity=4)
+    border = set(np.unique(np.concatenate([ids[0], ids[-1], ids[:, 0], ids[:, -1]]))) - {0}
+    bg = np.isin(ids, list(border))
+    a = cv2.GaussianBlur((~bg).astype(np.float32), (0, 0), 0.8)
+    return Image.fromarray(np.dstack([np.asarray(im.convert('RGB')), (np.clip(a * 1.5, 0, 1) * 255).astype(np.uint8)]), 'RGBA')
+
+
 def compose(body, layers):
     out = body.convert('RGBA')
     for l in layers:
@@ -70,8 +83,11 @@ def main():
     ap.add_argument('--threshold', type=float, default=9.0)
     ap.add_argument('--backdrop', action='store_true')
     ap.add_argument('--compose', action='store_true')
+    ap.add_argument('--key', action='store_true', help='IN OUT.png: make the plain backdrop transparent')
     a = ap.parse_args()
-    if a.compose:
+    if a.key:
+        key_backdrop(Image.open(a.paths[0])).save(a.paths[1])
+    elif a.compose:
         *ins, out = a.paths
         compose(Image.open(ins[0]), [Image.open(p) for p in ins[1:]]).save(out)
     else:

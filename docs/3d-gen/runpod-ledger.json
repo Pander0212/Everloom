@@ -1035,6 +1035,30 @@
    "balanceBefore": 2.0151831483,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "de3de67f1d1d",
+   "date": "2026-10-20",
+   "job": "b3-muscular",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "body-muscular-detail.png",
+    "base-orc-f.png",
+    "mask-orcf-crotch.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.813,
+   "start": "2026-10-20T20:12:11.242Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 1.3079839797,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }

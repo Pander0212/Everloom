@@ -49,3 +49,4 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.110 | b3-chubby | starting |
 | 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.110 | b3-pregnant-9m | starting |
 | 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.110 | b3-pregnant-6m | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.110 | b3-muscular | starting |
