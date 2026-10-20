@@ -51,4 +51,4 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-20 | A40 (SECURE) | $0.61 | 20 min | $0.199 | $7.341 | b3-pregnant-6m | stopped by the owner (A-pose switch); cost from the log time |
 | 2026-10-20 | A40 (SECURE) | $0.61 | 19 min | $0.196 | $7.537 | b3-muscular | stopped by the owner (A-pose switch); cost from the log time |
 | 2026-10-20 | A40 (SECURE) | $0.61 | 24 min | $0.246 | $7.783 | b4-views | ok: qi2edit 38 files |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $7.783 | b5-apose | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | 21 min | $0.211 | $7.994 | b5-apose | ok: qi2edit 22 files |
