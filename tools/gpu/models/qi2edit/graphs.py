@@ -51,9 +51,14 @@ def qi2(input_name, prompt, w, h, seed=7, turbo=True, loras=(), cache=True, nega
 
 
 # SDXL checkpoints by name: (file, steps, cfg) — WAI Illustrious and NoobAI-XL eps 1.1 (both Illustrious family).
-SDXL_MODELS = {"illustrious": (ILLUSTRIOUS["ckpt"], 28, 5.5), "wai": (ILLUSTRIOUS["ckpt"], 28, 5.5), "noobai": ("NoobAI-XL-v1.1.safetensors", 28, 4.5)}
+SDXL_MODELS = {"illustrious": (ILLUSTRIOUS["ckpt"], 28, 5.5), "wai": (ILLUSTRIOUS["ckpt"], 28, 5.5), "noobai": ("NoobAI-XL-v1.1.safetensors", 28, 4.5),
+               "ponywai": ("waiANIHENTAIPONYXL_v60.safetensors", 25, 6.5), "autismmix": ("autismmixSDXL_autismmixPony.safetensors", 25, 7.0)}
+PONY = {"ponywai", "autismmix"}
+PONY_POSITIVE = "score_9, score_8_up, score_7_up, source_anime, rating_explicit, "
 SDXL_NEGATIVE = {"wai": "bad quality, worst quality, worst detail, sketch, censor, mosaic censoring, bar censor",
-                 "noobai": "worst quality, old, early, low quality, lowres, signature, username, logo, bad hands, censor, mosaic censoring, anthro, furry, feral"}
+                 "noobai": "worst quality, old, early, low quality, lowres, signature, username, logo, bad hands, censor, mosaic censoring, anthro, furry, feral",
+                 "ponywai": "score_6, score_5, score_4, source_pony, source_furry, censored, mosaic censoring, bar censor",
+                 "autismmix": "score_6, score_5, score_4, source_pony, source_furry, censored, mosaic censoring, bar censor"}
 
 
 def inpaint(input_name, mask_name, prompt, model="anima", seed=7, denoise=0.9, loras=(), negative=NEGATIVE, grow=6, prefix="ev",
@@ -74,6 +79,10 @@ def inpaint(input_name, mask_name, prompt, model="anima", seed=7, denoise=0.9, l
         g["2"] = {"class_type": "CheckpointLoaderSimple", "inputs": {"ckpt_name": ckpt}}
         unet, clip, vae = ["2", 0], ["2", 1], ["2", 2]
         sampler, scheduler = "euler_ancestral", "normal"
+        if model in PONY:
+            # Pony checkpoints are trained with CLIP skip 2.
+            g["21"] = {"class_type": "CLIPSetLastLayer", "inputs": {"clip": clip, "stop_at_clip_layer": -2}}
+            clip = ["21", 0]
     unet = _loras(g, unet, loras)
     if diffdiff:
         # Differential diffusion: the soft mask edge is repainted gradually, so the region blends in.

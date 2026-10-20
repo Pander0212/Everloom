@@ -54,6 +54,31 @@ def color_match(painted, reference, mask, ring=(8, 96)):
     return ImageCms.applyTransform(Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "LAB"), to_rgb)
 
 
+def keep_skin(original, result, region, threshold=14.0, skin=None):
+    """Where the result is still bare skin (close to the original's skin colour) and the original was
+    skin too, the original pixel stays: gear (ropes, straps) changes, the skin around it doesn't.
+    `region` is the area that was repainted; returns the corrected result."""
+    import numpy as np
+    import cv2
+    o = np.asarray(original.convert("RGB"), dtype=np.float32) / 255
+    r = np.asarray(result.convert("RGB"), dtype=np.float32) / 255
+    lo, lr = cv2.cvtColor(o, cv2.COLOR_RGB2LAB), cv2.cvtColor(r, cv2.COLOR_RGB2LAB)
+    m = np.asarray(region.convert("L")) > 16
+    if skin is None:
+        # The skin colour: the median of the region's original pixels in the bright, warm half.
+        px = lo[m]
+        px = px[(px[:, 0] > np.median(px[:, 0])) & (px[:, 1] > 2)]
+        skin = np.median(px, axis=0) if len(px) else np.median(lo[m], axis=0)
+    d_o = np.linalg.norm(lo - skin, axis=2)
+    d_r = np.linalg.norm(lr - skin, axis=2)
+    # Shading on skin varies, so "skin" is judged on colour (a, b) with a looser lightness tolerance.
+    chroma = lambda lab: np.linalg.norm(lab[..., 1:] - skin[1:], axis=2)
+    keep = m & (chroma(lo) < threshold) & (chroma(lr) < threshold * 1.4) & (d_o < threshold * 3) & (d_r < threshold * 4)
+    keep = cv2.GaussianBlur(keep.astype(np.float32), (0, 0), 1.2)[..., None]
+    out = r * (1 - keep) + o * keep
+    return Image.fromarray((out * 255).clip(0, 255).astype(np.uint8))
+
+
 def paste(original, painted, mask, box, feather=2.0):
     """Shrinks the painted crop back into place, blended through the (slightly softened) mask."""
     out = original.copy()

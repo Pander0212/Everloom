@@ -132,6 +132,8 @@ for e in opts.get("edits", []):
                 if e.get("color_match", True):
                     painted = stitch.color_match(painted, ci, cm)
                 r = stitch.paste(original, painted, mask_im, box)
+                if e.get("keep_skin"):
+                    r = stitch.keep_skin(original, r, mask_im)
             else:
                 r = run_graph(graphs.inpaint(inp, stage(e["mask"])[0], e["prompt"], **args))
         elif kind == "upscale":
