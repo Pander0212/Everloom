@@ -61,11 +61,12 @@ staged = {}
 
 
 def stage(name):
-    """Copies an input picture (or mask) into ComfyUI's input folder as PNG; returns (name, size)."""
+    """Copies an input picture (or mask) into ComfyUI's input folder as PNG; returns (name, size).
+    "@label" is the result of an earlier edit in this job (a chain: body variant → detail repaint)."""
     if name not in staged:
-        im = Image.open(os.path.join(src, name))
+        im = Image.open(f"{out}/{name[1:]}.png" if name.startswith("@") else os.path.join(src, name))
         im = im.convert("L") if name.startswith("mask") else im.convert("RGB")
-        dst = "ev-" + os.path.splitext(name)[0] + ".png"
+        dst = "ev-" + os.path.splitext(name.lstrip("@"))[0] + ".png"
         im.save(f"{C}/input/{dst}")
         staged[name] = (dst, im.size)
     return staged[name]
@@ -111,8 +112,18 @@ for e in opts.get("edits", []):
         seed = int(e.get("seed", opts.get("seed", 7)))
         loras = [tuple(x) for x in e.get("loras", [])]
         kind = e.get("kind", "qi2")
+        changed = e.get("only_if_changed")  # {"ref": a picture, "threshold": mean ΔE}: repaint only if the region changed
+        if changed:
+            import numpy as np  # noqa: E402
+            m = np.asarray(Image.open(os.path.join(src, e["mask"])).convert("L")) > 127
+            a = np.asarray(Image.open(os.path.join(src, changed["ref"])).convert("RGB").resize((W, H)), dtype=np.float32)
+            b = np.asarray(Image.open(f"{C}/input/{inp}").convert("RGB"), dtype=np.float32)
+            diff = float(np.abs(a - b)[m].mean()) if m.any() else 0.0
+            report.setdefault("_changed", {})[label] = round(diff, 2)
         if os.path.exists(f"{out}/{label}.png"):
             r = Image.open(f"{out}/{label}.png").convert("RGB")
+        elif changed and diff < float(changed.get("threshold", 6.0)):
+            r = Image.open(f"{C}/input/{inp}").convert("RGB")  # nothing changed there: keep the picture as it is
         elif kind == "inpaint":
             original = Image.open(f"{C}/input/{inp}").convert("RGB")
             mask_im = Image.open(os.path.join(src, e["mask"])).convert("L")
