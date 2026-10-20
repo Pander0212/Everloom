@@ -19,7 +19,8 @@ def driver_cuda():
         return None
 
 
-# comfy_kitchen's prebuilt kernels need a CUDA 12.8 driver; on older (or unknown) hosts use its plain-torch backend.
+# comfy_kitchen's prebuilt kernels need a CUDA 12.8 driver: jobs ask for such hosts (job "cudaVersions"). On
+# older hosts its backends are disabled, but the int8 ConvRot path still calls a CUDA kernel, so expect failures there.
 cuda = driver_cuda()
 old_driver = cuda is None or cuda < (12, 8)
 launch = ("import sys, runpy\n"
