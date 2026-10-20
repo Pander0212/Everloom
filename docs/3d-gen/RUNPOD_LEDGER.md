@@ -13,4 +13,5 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-19 | RTX 4090 (COMMUNITY) | $0.36 | 3 min | $0.017 | $0.408 | bench-5 | failed: bad host: failed: CUDA does not start on this host (NVIDIA GeForce RTX 4090) |
 | 2026-10-19 | RTX A5000 (SECURE) | $0.29 | 35 min | $0.169 | $0.577 | bench-6 | ok: trellis2 1 files, hunyuan3d 19 files |
 | 2026-10-19 | RTX 3090 (COMMUNITY) | $0.24 | 28 min | $0.110 | $0.687 | bench-trellis | ok: trellis2 10 files |
-| 2026-10-20 | L40S (COMMUNITY) | $0.81 | — | — | $0.687 | cs2-qi2-test | starting |
+| 2026-10-20 | L40S (COMMUNITY) | $0.81 | 2 min | $0.024 | $0.711 | cs2-qi2-test | failed: bad host: failed: CUDA does not start on this host (NVIDIA L40S) |
+| 2026-10-20 | RTX 6000 Ada (COMMUNITY) | $0.76 | — | — | $0.711 | cs2-qi2-test | starting |
