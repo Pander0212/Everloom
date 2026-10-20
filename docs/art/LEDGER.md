@@ -289,6 +289,9 @@ Limits: NanoGPT at most 95 images per UTC day, only `hidream`, `chroma`, `z-imag
 | 278 | 2026-10-20 | NanoGPT | `qwen-image` | cs2-base-m | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) | 1 image (subscription) | 5/95 today | pending |
 | 279 | 2026-10-20 | NanoGPT | `chroma` | cs2-chroma-f | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) | 1 image (subscription) | 6/95 today | pending |
 | 280 | 2026-10-20 | NanoGPT | `chroma` | cs2-chroma-m | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) | 1 image (subscription) | 7/95 today | pending |
+| 281 | 2026-10-20 | NanoGPT | `chroma` | cs3-orc-f1 | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) | 0 | 7/95 today | failed: HTTP 503: Service is temporarily unavailable. Please try again in a moment. You have not been charged for this request. (provider_transient_error) |
+| 282 | 2026-10-20 | NanoGPT | `chroma` | cs3-orc-f2 | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) | 0 | 7/95 today | failed: HTTP 503: Service is temporarily unavailable. Please try again in a moment. You have not been charged for this request. (provider_transient_error) |
+| 283 | 2026-10-20 | NanoGPT | `chroma` | cs3-orc-f3 | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) | 0 | 7/95 today | failed: HTTP 503: Service is temporarily unavailable. Please try again in a moment. You have not been charged for this request. (provider_transient_error) |
 
 ## Stops and resumes
 

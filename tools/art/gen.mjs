@@ -34,7 +34,8 @@ const NANO_PAID = new Set(['wai-illustrious-sdxl', 'hidream-o1-image-dev', 'hidr
 // up to $1.50 more, leaving a small reserve of the balance (5.08).
 const NANO_PAID_CAP_USD = Math.min(Number(process.env.EVERLOOM_NANO_PAID_CAP_USD) || 2.0, 5.08);
 const EH_CAP_USD = 2.0;
-const NANO = 'https://api.nano-gpt.com/api';
+// NANOGPT_BASE: the main host also serves the API (api.nano-gpt.com has had outages).
+const NANO = process.env.NANOGPT_BASE || 'https://api.nano-gpt.com/api';
 const EH = 'https://api.electronhub.ai/v1';
 
 const { values: a, positionals } = parseArgs({

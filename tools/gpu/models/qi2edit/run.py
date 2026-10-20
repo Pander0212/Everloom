@@ -98,7 +98,7 @@ def run_graph(g):
                 raise RuntimeError("no image")
 
 
-# Each edit: {label, prompt, input?, kind: "qi2" (default) | "inpaint" | "upscale", mask?, model?, loras?, seed?,
+# Each edit: {label, prompt, input?, kind: "qi2" (default) | "inpaint" | "upscale" | "chroma", mask?, model?, loras?, seed?,
 # denoise?, crop? / crop_size? (inpaint: crop-and-stitch, on by default)}. opts["upscale"] (an upscale model file)
 # also writes <label>@4x.png for every result ("upscale" edits only upscale their input).
 up_model = opts.get("upscale")
@@ -154,6 +154,11 @@ for e in opts.get("edits", []):
                 r = run_graph(graphs.inpaint(inp, stage(e["mask"])[0], e["prompt"], **args))
         elif kind == "upscale":
             r = None
+        elif kind == "chroma":  # a new picture from text (a new base): "size" [w, h] or the input's size
+            cw, ch = e.get("size", (W, H))
+            r = run_graph(graphs.chroma(e["prompt"], int(cw), int(ch), seed=seed, negative=e.get("negative", graphs.CHROMA_NEGATIVE),
+                                        steps=int(e.get("steps", 26)), cfg=float(e.get("cfg", 3.8)), prefix=f"ev-{label}"))
+            W, H = r.size
         else:
             qm = e.get("model", opts.get("model", "turbo"))
             r = run_graph(graphs.qi2(inp, e["prompt"], W, H, seed=seed, model=qm, loras=loras, cache=report["cache"], steps=e.get("steps"), cfg=e.get("cfg"),

@@ -130,6 +130,34 @@ def inpaint(input_name, mask_name, prompt, model="anima", seed=7, denoise=0.9, l
     return g
 
 
+CHROMA = {"unet": "Chroma1-HD.safetensors", "clip": "t5xxl_fp8_e4m3fn_scaled.safetensors", "vae": "ae.safetensors"}
+CHROMA_NEGATIVE = ("This greyscale unfinished sketch has bad proportions, is featureless and disfigured. It is a blurry ugly mess and with "
+                   "excessive gaussian blur. It is riddled with watermarks and signatures. Everything is smudged with leaking colors and "
+                   "nonsensical orientation of objects. Messy and abstract image filled with artifacts.")
+
+
+def chroma(prompt, w, h, seed=7, negative=CHROMA_NEGATIVE, steps=26, cfg=3.8, prefix="ev"):
+    """Chroma1-HD text-to-image (new base characters), as in the model's reference ComfyUI workflow:
+    flow shift 1, beta schedule, euler, CFG 3.8."""
+    return {
+        "2": {"class_type": "UNETLoader", "inputs": {"unet_name": CHROMA["unet"], "weight_dtype": "default"}},
+        "3": {"class_type": "CLIPLoader", "inputs": {"clip_name": CHROMA["clip"], "type": "chroma", "device": "default"}},
+        "4": {"class_type": "VAELoader", "inputs": {"vae_name": CHROMA["vae"]}},
+        "5": {"class_type": "T5TokenizerOptions", "inputs": {"clip": ["3", 0], "min_padding": 0, "min_length": 0}},
+        "6": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["5", 0], "text": prompt}},
+        "7": {"class_type": "CLIPTextEncode", "inputs": {"clip": ["5", 0], "text": negative}},
+        "8": {"class_type": "ModelSamplingAuraFlow", "inputs": {"model": ["2", 0], "shift": 1.0}},
+        "9": {"class_type": "CFGGuider", "inputs": {"model": ["8", 0], "positive": ["6", 0], "negative": ["7", 0], "cfg": float(cfg)}},
+        "11": {"class_type": "KSamplerSelect", "inputs": {"sampler_name": "euler"}},
+        "12": {"class_type": "BetaSamplingScheduler", "inputs": {"model": ["8", 0], "steps": int(steps), "alpha": 0.45, "beta": 0.45}},
+        "13": {"class_type": "RandomNoise", "inputs": {"noise_seed": int(seed)}},
+        "14": {"class_type": "EmptySD3LatentImage", "inputs": {"width": w - w % 16, "height": h - h % 16, "batch_size": 1}},
+        "15": {"class_type": "SamplerCustomAdvanced", "inputs": {"noise": ["13", 0], "guider": ["9", 0], "sampler": ["11", 0], "sigmas": ["12", 0], "latent_image": ["14", 0]}},
+        "16": {"class_type": "VAEDecode", "inputs": {"samples": ["15", 0], "vae": ["4", 0]}},
+        "10": {"class_type": "SaveImage", "inputs": {"images": ["16", 0], "filename_prefix": prefix}},
+    }
+
+
 def upscale(input_name, model_name, prefix="ev"):
     """A model upscale (e.g. 4x-AnimeSharp): deterministic per pixel, so aligned pictures stay aligned."""
     return {

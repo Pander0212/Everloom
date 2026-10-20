@@ -30,6 +30,10 @@ FILES = [  # (repo, path in repo, ComfyUI folder): the model set ComfyUI_VNCCS u
     ("MIUProject/VNCCS_v3.0", "models/loras/QI2.1/VNCCS/VNCCS_QI2_PoseStudioV1.1.safetensors", "loras"),
     ("MIUProject/VNCCS_v3.0", "models/loras/QI2.1/VNCCS/VNCCS_QI2_AnimeOverhaulV2.safetensors", "loras"),
     ("MIUProject/VNCCS_v3.0", "models/loras/Anima/anima-turbo-lora-v0.1.safetensors", "loras"),
+    # Chroma1-HD (Apache-2.0) for new base characters (races), with the T5 encoder and the Flux VAE.
+    ("Comfy-Org/Chroma1-HD_repackaged", "split_files/diffusion_models/Chroma1-HD.safetensors", "diffusion_models"),
+    ("comfyanonymous/flux_text_encoders", "t5xxl_fp8_e4m3fn_scaled.safetensors", "text_encoders"),
+    ("Comfy-Org/Lumina_Image_2.0_Repackaged", "split_files/vae/ae.safetensors", "vae"),
 ]
 only = os.environ.get("QI2EDIT_FILES")  # optional: a comma list of file names to fetch
 for repo, f, sub in FILES:
