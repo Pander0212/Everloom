@@ -304,6 +304,27 @@
    "balanceBefore": 2.2472973557,
    "balanceAfter": 2.1069670529,
    "result": "ok: qi2edit 2 files"
+  },
+  {
+   "date": "2026-10-20",
+   "job": "cs2-qi2-test",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg"
+   ],
+   "gpu": "RTX 6000 Ada",
+   "cloud": "COMMUNITY",
+   "pricePerHr": 0.76,
+   "worstCaseUsd": 0.76,
+   "start": "2026-10-20T11:19:56.919Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 2.1069670529,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
