@@ -42,6 +42,25 @@ for repo, f, sub in FILES:
         os.symlink(p, dst)
 print("weights ok")
 PY
+# Extra LoRAs and checkpoints for this job (job "env": QI2EDIT_EXTRA = [{"name", "url", "folder"?}]): Civitai
+# or Hugging Face download links, fetched in parallel. A failed download fails the setup, so a job never
+# runs without a LoRA it asked for.
+python - <<'PY'
+import json, os, subprocess, concurrent.futures as cf
+items = json.loads(os.environ.get("QI2EDIT_EXTRA") or "[]")
+M = "/opt/src/ComfyUI/models"
+def get(it):
+    d = f"{M}/{it.get('folder', 'loras')}"
+    os.makedirs(d, exist_ok=True)
+    dst = f"{d}/{it['name']}"
+    if not os.path.exists(dst):
+        subprocess.run(["curl", "-sSfL", "--retry", "4", "-o", dst + ".part", it["url"]], check=True)
+        os.rename(dst + ".part", dst)
+    return it["name"], os.path.getsize(dst)
+with cf.ThreadPoolExecutor(6) as ex:
+    for name, size in ex.map(get, items):
+        print("extra", name, size // 1048576, "MB")
+PY
 # Imports only (no weights loaded); the runner checks the nodes it needs when the server is up.
 cd /opt/src/ComfyUI
 python -c "import torch, comfy.sd, comfy_extras; print('torch', torch.__version__)"

@@ -11,6 +11,7 @@
  * A job (JSON): { "job": "bench", "models": ["trellis2", "hunyuan3d"], "inputs": ["samples/gen/refs/a.png"],
  *   "out": "samples/gen/bench", "minVramGb": 48, "allowGpus": ["NVIDIA A40"], "maxMinutes": 120,
  *   "setupMinutes": 50, "opts": { "trellis2": { "texture": 2048 } } }
+ * Optional "env": extra (non-secret) environment for the pod's model setup, e.g. the LoRAs to fetch; "diskGb".
  * Optional "cudaVersions": hosts' CUDA versions to accept (for wheels that need a newer driver).
  * Optional "expect": { "<model>": ["a.png", …] } names the files a model makes (when they aren't one per input).
  *
@@ -105,10 +106,10 @@ export async function runSession(job, deps) {
       if (!check.ok) { say(`${c.name} (${c.cloud}, $${c.price}/h): refused, ${check.reason}`); continue; }
       try {
         const d = await gql('mutation($input: PodFindAndDeployOnDemandInput) { podFindAndDeployOnDemand(input: $input) { id costPerHr } }', { input: {
-          cloudType: c.cloud, gpuCount: 1, gpuTypeId: c.id, allowedCudaVersions: job.cudaVersions ?? ['12.4', '12.5', '12.6', '12.7', '12.8', '12.9', '13.0'], volumeInGb: 0, containerDiskInGb: DISK_GB, minVcpuCount: 2, minMemoryInGb: 16,
+          cloudType: c.cloud, gpuCount: 1, gpuTypeId: c.id, allowedCudaVersions: job.cudaVersions ?? ['12.4', '12.5', '12.6', '12.7', '12.8', '12.9', '13.0'], volumeInGb: 0, containerDiskInGb: job.diskGb ?? DISK_GB, minVcpuCount: 2, minMemoryInGb: 16,
           name: `${POD_PREFIX}${job.job}`.slice(0, 60), imageName: IMAGE, ports: '8000/http', startSsh: false,
           dockerArgs: `bash -c 'mkdir -p /opt/worker && cd /opt/worker && printf %s "$W_BUNDLE" | base64 -d | tar -xz && W_BUNDLE="$W_BUNDLE" bash worker/start.sh'`,
-          env: [{ key: 'WORKER_TOKEN', value: token }, { key: 'W_BUNDLE', value: W }, { key: 'MODELS', value: models.join(' ') }, { key: 'MAX_SECONDS', value: String(maxMinutes * 60) }, { key: 'IDLE_SECONDS', value: '600' }, { key: 'TORCH_CUDA_ARCH_LIST', value: job.cudaArch ?? cudaArch(c.name) }],
+          env: [{ key: 'WORKER_TOKEN', value: token }, { key: 'W_BUNDLE', value: W }, { key: 'MODELS', value: models.join(' ') }, { key: 'MAX_SECONDS', value: String(maxMinutes * 60) }, { key: 'IDLE_SECONDS', value: '600' }, { key: 'TORCH_CUDA_ARCH_LIST', value: job.cudaArch ?? cudaArch(c.name) }, ...Object.entries(job.env ?? {}).map(([key, value]) => ({ key, value: typeof value === 'string' ? value : JSON.stringify(value) }))],
         } });
         pod = d.podFindAndDeployOnDemand;
         if (pod?.id) deps.onPod?.(pod.id);
