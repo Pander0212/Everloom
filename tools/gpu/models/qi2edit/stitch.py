@@ -54,28 +54,36 @@ def color_match(painted, reference, mask, ring=(8, 96)):
     return ImageCms.applyTransform(Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "LAB"), to_rgb)
 
 
-def keep_skin(original, result, region, threshold=14.0, skin=None):
-    """Where the result is still bare skin (close to the original's skin colour) and the original was
-    skin too, the original pixel stays: gear (ropes, straps) changes, the skin around it doesn't.
-    `region` is the area that was repainted; returns the corrected result."""
+def skin_tone_match(original, result, region, spread=16.0):
+    """Shifts the result's skin back to the original skin tone: every skin-coloured pixel of the
+    result moves by the difference between the two skin colours (softly, by how skin-like it is).
+    Nothing is replaced, so details drawn on or next to the skin (ropes, nipples) stay as painted."""
     import numpy as np
     import cv2
     o = np.asarray(original.convert("RGB"), dtype=np.float32) / 255
     r = np.asarray(result.convert("RGB"), dtype=np.float32) / 255
     lo, lr = cv2.cvtColor(o, cv2.COLOR_RGB2LAB), cv2.cvtColor(r, cv2.COLOR_RGB2LAB)
     m = np.asarray(region.convert("L")) > 16
-    if skin is None:
-        # The skin colour: the median of the region's original pixels in the bright, warm half.
-        px = lo[m]
-        px = px[(px[:, 0] > np.median(px[:, 0])) & (px[:, 1] > 2)]
-        skin = np.median(px, axis=0) if len(px) else np.median(lo[m], axis=0)
-    d_o = np.linalg.norm(lo - skin, axis=2)
-    d_r = np.linalg.norm(lr - skin, axis=2)
-    # Shading on skin varies, so "skin" is judged on colour (a, b) with a looser lightness tolerance.
-    chroma = lambda lab: np.linalg.norm(lab[..., 1:] - skin[1:], axis=2)
-    keep = m & (chroma(lo) < threshold) & (chroma(lr) < threshold * 1.4) & (d_o < threshold * 3) & (d_r < threshold * 4)
-    keep = cv2.GaussianBlur(keep.astype(np.float32), (0, 0), 1.2)[..., None]
-    out = r * (1 - keep) + o * keep
+
+    def skin_of(lab):
+        px = lab[m]
+        px = px[(px[:, 0] > np.percentile(px[:, 0], 40)) & (px[:, 1] > 4) & (px[:, 2] > 4)]
+        return np.median(px, axis=0) if len(px) else None
+
+    so = skin_of(lo)
+    if so is None:
+        return result
+    # The result's skin colour, measured where the original was skin and the result still roughly is
+    # (never on ropes or straps that now cover it).
+    was_skin = m & (np.linalg.norm(lo[..., 1:] - so[1:], axis=2) < 8) & (np.abs(lo[..., 0] - so[0]) < 15)
+    still = was_skin & (np.linalg.norm(lr - lo, axis=2) < 30)
+    if still.sum() < 200:
+        return result
+    sr = np.median(lr[still], axis=0)
+    # How skin-like each result pixel is (1 at the skin colour, 0 beyond `spread` in colour).
+    w = np.clip(1 - np.linalg.norm(lr[..., 1:] - sr[1:], axis=2) / spread, 0, 1) * m
+    w = cv2.GaussianBlur(w.astype(np.float32), (0, 0), 1.5)[..., None]
+    out = cv2.cvtColor(np.clip(lr + (so - sr) * w, [0, -127, -127], [100, 127, 127]).astype(np.float32), cv2.COLOR_LAB2RGB)
     return Image.fromarray((out * 255).clip(0, 255).astype(np.uint8))
 
 

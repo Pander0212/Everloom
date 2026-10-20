@@ -145,8 +145,9 @@ for e in opts.get("edits", []):
                 if e.get("color_match", True):
                     painted = stitch.color_match(painted, ci, cm)
                 r = stitch.paste(original, painted, mask_im, box)
-                if e.get("keep_skin"):
-                    r = stitch.keep_skin(original, r, mask_im)
+                # Gear on skin (ropes, straps) tends to bleach the skin around it: shift it back to the base tone.
+                if e.get("skin_tone", e.get("keep_skin")):
+                    r = stitch.skin_tone_match(original, r, mask_im)
                 if e.get("keep_background", True):
                     r = stitch.keep_background(original, r, mask_im)
             else:
