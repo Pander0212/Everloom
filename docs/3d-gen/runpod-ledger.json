@@ -760,6 +760,29 @@
    "balanceBefore": 1.4825147964,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "c577d4c9781e",
+   "date": "2026-10-20",
+   "job": "b1-body",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg",
+    "mask-f-crotch.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.763,
+   "start": "2026-10-20T18:44:57.827Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 9.8658279583,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
