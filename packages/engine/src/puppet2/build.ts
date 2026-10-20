@@ -31,9 +31,10 @@ export const LAYER_ROLES = {
   arm_L: { skin: ['shoulder_L', 'upperarm_L', 'forearm_L'], z: 51 }, arm_R: { skin: ['shoulder_R', 'upperarm_R', 'forearm_R'], z: 51 },
   hand_L: { skin: ['forearm_L', 'hand_L'], z: 52 }, hand_R: { skin: ['forearm_R', 'hand_R'], z: 52 },
   // Clothing: bound to the same bones as the body it covers, a little above it.
-  bottomwear: { skin: ['pelvis', 'thigh_L', 'thigh_R'], z: 16 },
+  // Over the torso (whose picture holds the underwear), under the top.
+  bottomwear: { skin: ['pelvis', 'thigh_L', 'thigh_R'], z: 22 },
   /** A skirt (or a dress's lower half): on the pelvis and its own swinging bone, not on the thighs. */
-  skirt: { skin: ['pelvis', 'skirt'], z: 17 },
+  skirt: { skin: ['pelvis', 'skirt'], z: 23 },
   legwear_L: { skin: ['pelvis', 'thigh_L', 'shin_L'], z: 13 }, legwear_R: { skin: ['pelvis', 'thigh_R', 'shin_R'], z: 13 },
   footwear_L: { skin: ['shin_L', 'foot_L'], z: 15 }, footwear_R: { skin: ['shin_R', 'foot_R'], z: 15 },
   topwear: { skin: ['pelvis', 'spine', 'chest'], z: 27 },

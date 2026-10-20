@@ -406,6 +406,7 @@ def run(args):
         sources.append({'name': 'body', 'role': 'body', 'rgba': rgba})
 
     out_layers = []
+    islands = [0]
     filled_share = 0.0
     def add(role, mask, arr, outfit=None, adult=False, suffix=''):
         lid = (role + suffix).replace('/', '_')
@@ -413,6 +414,15 @@ def run(args):
         while any(l['id'] == lid for l in out_layers):
             lid = f'{role}{suffix}_{n}'
             n += 1
+        # Noise islands: detached specks (a few pixels an edit or a key left behind) are dropped;
+        # how many is reported by the gates.
+        n_lab, lab, stats, _ = cv2.connectedComponentsWithStats(mask.astype(np.uint8), connectivity=8)
+        if n_lab > 2:
+            areas = stats[1:, cv2.CC_STAT_AREA]
+            small = [i + 1 for i, a in enumerate(areas) if a < max(30, 0.02 * areas.max())]
+            if small:
+                islands[0] += len(small)
+                mask = mask & ~np.isin(lab, small)
         out_layers.append({'id': lid, 'role': role, 'mask': mask, 'rgba': arr, 'outfit': outfit, 'adult': adult})
 
     for src in sources:
@@ -509,6 +519,11 @@ def run(args):
             if rgba[gy, cx, 3] < 128:
                 skirt = bool(other[gy, cx, 3] > 128 and diff[max(0, gy - 3):gy + 4, max(0, cx - 3):cx + 4].mean() > 0.5)
                 break
+        # A garment is the same in every view: an outfit already found to be a skirt stays one.
+        cj = os.path.join(args.out, 'character.json')
+        if not skirt and os.path.exists(cj):
+            prev = json.load(open(cj))
+            skirt = any(l.get('outfit') == name and l['role'] == 'skirt' for v, vv in prev['views'].items() if v != args.view for l in vv['layers'])
         lower = {0: 'skirt' if skirt else 'bottomwear'}
         if skirt:
             lower.update({4: 'skirt', 5: 'skirt'})
@@ -611,6 +626,7 @@ def run(args):
             print(f'variant {name}: unknown (face: {sorted(FACE_VARIANTS)}; hands: <open|wave|fist|point>_<L|R>)')
 
     report = gates(kp, raw, alpha, [l for l in out_layers if not l['outfit'] and not l['adult'] and not l.get('variant')], args.view, height, args.min_heads)
+    report.append({'gate': 'noise islands removed (specks detached from their layer)', 'value': islands[0], 'need': 'reported; specks never reach the pack', 'pass': True})
     # An arm drawn across the body hides torso that has to be invented: a little is fine, a lot shows.
     report.append({'gate': 'torso hidden by the arms (filled in)', 'value': round(filled_share, 3), 'need': '<= 0.12 (draw the arms a little away from the body)', 'pass': filled_share <= 0.12})
     os.makedirs(os.path.join(args.out, args.view), exist_ok=True)

@@ -142,6 +142,12 @@ describe('puppets v2 auto-rig', () => {
     expect(Math.abs(after.params.HairX!)).toBeLessThan(0.02);
   });
 
+  it('draws clothes over the body they cover', async () => {
+    const { LAYER_ROLES } = await import('../src/puppet2/build.js');
+    for (const r of ['bottomwear', 'skirt', 'topwear'] as const) expect(LAYER_ROLES[r].z).toBeGreaterThan(LAYER_ROLES.torso.z);
+    for (const r of ['legwear_L', 'footwear_L'] as const) expect(LAYER_ROLES[r].z).toBeGreaterThan(LAYER_ROLES.leg_L.z);
+  });
+
   it('switches draw order and IK by parameter only (no layer is duplicated)', () => {
     expect(new Set(model.parts.map((p) => p.id)).size).toBe(model.parts.length);
   });

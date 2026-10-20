@@ -62,12 +62,12 @@ const state = await setup.storageState();
 await setup.close();
 
 /** One clip: a fresh phone context recording video, the lab with the puppet(s), a script of steps. */
-async function clip(name, pack, steps, o = {}) {
+async function clip(name, pack, steps) {
   const ctx = await browser.newContext({ ...phone, storageState: state, recordVideo: { dir: a.out, size: { width: 390, height: 844 } } });
   const page = await ctx.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push(String(e)));
-  await page.goto(`${a.base}/lab/puppets2?p2=${pack.id}${o.count ? '' : ''}`);
+  await page.goto(`${a.base}/lab/puppets2?p2=${pack.id}`);
   await page.waitForSelector('[data-testid=puppet2-lab][data-ready]', { timeout: 60000 });
   await page.waitForTimeout(600);
   const s = (js) => page.evaluate(`(() => { const s = window.__puppet2Lab.stage; ${js} })()`);
@@ -93,9 +93,12 @@ await clip('2-arms', main, async ({ s, shot, wait }) => {
   await s("s.setBase('p1', 'handsOnHips')"); await wait(1200); await shot('hands on hips');
 });
 await clip('3-walk', main, async ({ s, shot, wait }) => {
+  // A phone stage is narrow: a smaller figure crosses it from one side to the other.
+  await s("const p = s.get('p1'); p.height = 0.45; p.x = 0.85;");
+  await wait(400);
   await s("s.walkTo('p1', 0.15)");
-  for (let i = 0; i < 6; i++) { await wait(330); await shot(`walk ${i}`); }
-  await wait(2500); await shot('turned back');
+  for (let i = 0; i < 8; i++) { await wait(160); await shot(`walk ${i}`); }
+  await wait(2000); await shot('turned back');
 });
 await clip('4-physics', main, async ({ s, shot, wait }) => {
   await s("s.setBase('p1', 'walk')"); await wait(900); await shot('walking');
@@ -104,7 +107,7 @@ await clip('4-physics', main, async ({ s, shot, wait }) => {
   await wait(2500); await shot('settled');
 });
 await clip('5-outfits', main, async ({ page, s, shot, wait }) => {
-  const sel = page.getByLabel('Outfit');
+  const sel = page.getByRole('combobox', { name: 'Outfit' });
   const opts = await sel.locator('option').allTextContents();
   for (const o of opts) {
     await sel.selectOption({ label: o });
@@ -118,7 +121,7 @@ await clip('6-talk', main, async ({ page, s, shot, wait }) => {
   await page.getByRole('button', { name: 'Talk' }).click();
   for (let i = 0; i < 3; i++) { await wait(140); await shot(`talking ${i}`); }
   for (const [i, e] of ['smile', 'angry', 'sad', 'surprised'].entries()) {
-    await page.getByLabel('Expression').selectOption({ label: e });
+    await page.getByRole('combobox', { name: 'Expression' }).selectOption({ label: e });
     await wait(500); await shot(e);
     void i;
   }
@@ -139,15 +142,8 @@ if (second) {
 {
   const ctx = await browser.newContext({ ...phone, storageState: state });
   const page = await ctx.newPage();
-  await page.goto(`${a.base}/lab/puppets2?p2=${main.id}&pr=1.5`);
+  await page.goto(`${a.base}/lab/puppets2?p2=${packs.map((p) => p.id).join(',')}&pr=1.5`);
   await page.waitForSelector('[data-testid=puppet2-lab][data-ready]', { timeout: 60000 });
-  // The others join the main character.
-  await page.evaluate(async (ids) => {
-    const { stage } = window.__puppet2Lab;
-    const mod = await import('/src/features/puppets/v2/StageLayer.tsx').catch(() => null);
-    void mod;
-    return ids.length + stage.ids().length;
-  }, packs.slice(1).map((p) => p.id));
   await page.getByLabel('How many').selectOption('3');
   await page.waitForSelector('[data-testid=puppet2-lab][data-ready="3"]', { timeout: 60000 });
   const cdp = await ctx.newCDPSession(page);

@@ -53,13 +53,36 @@ python3 tools/puppets2/decompose.py --image side.png --view side --out samples/g
    swinging bone; shoes with the legs.
 6. **Variants:** the changed pixels of each face picture (feathered) become face overlays; a hand
    picture's hand replaces the drawn hand while its pose is on.
-7. **Profiles:** the far arm and leg are darker copies of the near ones, drawn behind the body.
+7. **Profiles:** the detector's left/right labels split the one visible limb, so the more confident
+   point of each pair becomes the near (left) limb; limbs are capped at a limb's thickness, so an
+   arm hanging over the body doesn't take the torso with it; the far arm and leg are darker copies
+   of the near ones, drawn behind the body. An outfit found to be a skirt in one view stays a skirt
+   in the others. Profiles are the weakest view: an arm drawn over the torso is filled in (the gate
+   reports how much), so ask for the arms a little forward.
 8. **Gates** (`gates-<view>.json`, any failure stops the pack): keypoint confidence ≥ 0.3; limb
    symmetry ≤ 20 %; A-pose arms 15–65° from the body; **adult proportions ≥ 5.5 heads** (a body drawn
    with child proportions is never packed, whatever `--force` says); silhouette coverage ≥ 99.5 %;
    joint-cap overlap; torso hidden by the arms ≤ 12 %; no empty layers.
 9. **Contact sheet** (`contact-<view>.png`): picture, skeleton, region map, every layer, gate results.
    Look at it.
+
+Stylized all-ages art with big-headed proportions (a mascot) needs `--stylized`: such a pack gets no
+bust layers or bounce, and the server refuses an 18+ rating or adult layers on any view it measures
+under 5.5 heads (from the pack's own landmarks), whatever the pack says.
+
+## Upgrading a v1 puppet
+
+```
+python3 tools/puppets2/from_v1.py apps/web/public/puppets/placeholder/puppet.json --out samples/gen/puppets2/v1-placeholder \
+  --keypoints tests/fixtures/puppets2/placeholder-keypoints.json --stylized --force --zip
+```
+
+It renders the v1 puppet's own meshes and pages: the body, the body dressed (its outfit), and one
+picture per face variant it has (closed eyes, smile, mouth shapes, blush), then decomposes them. The
+v1 puppet stays as it is and keeps working. Pose detection does poorly on simple-shape art (the
+placeholder's core joints came back at 0.11 confidence and the gates stopped it), so such art takes
+landmarks by hand (`--keypoints`). `--force` there overrides only the A-pose gate (its arms hang
+down); proportions are never forced.
 
 ## 4. Import and review
 
@@ -74,4 +97,5 @@ picture, refuses adult layers outside an 18+ pack, rigs every view, and the lab
   (`--layers`); the generated-in-layers route above made it unnecessary for the test characters.
 - A SAM-family segmenter for breasts and buttocks (the soft copies stand in for it).
 - The phone maker's joint and weight editing (the lab has every parameter on a slider).
-- Turning v1 (face) puppets into full-body ones: v1 puppets keep their own runtime and keep working.
+- Running the upgrade from the app (the decomposition is a Python tool; on the VPS it would run as a
+  job like the layering worker).
