@@ -178,6 +178,27 @@
    "balanceBefore": 2.4943933974,
    "balanceAfter": 2.3776573474,
    "result": "ok: trellis2 10 files"
+  },
+  {
+   "date": "2026-10-20",
+   "job": "cs2-qi2-test",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg"
+   ],
+   "gpu": "L40S",
+   "cloud": "COMMUNITY",
+   "pricePerHr": 0.81,
+   "worstCaseUsd": 0.81,
+   "start": "2026-10-20T10:45:42.823Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 2.3773197696,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
