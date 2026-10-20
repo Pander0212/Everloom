@@ -1013,6 +1013,28 @@
    "balanceBefore": 8.1605068527,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "16de0505604d",
+   "date": "2026-10-20",
+   "job": "b3-pregnant-6m",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "body-pregnant-6m-detail.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.813,
+   "start": "2026-10-20T20:11:51.551Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 2.0151831483,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
