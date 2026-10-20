@@ -24,7 +24,9 @@ cuda = driver_cuda()
 old_driver = cuda is None or cuda < (12, 8)
 launch = ("import sys, runpy\n"
           + ("import comfy_kitchen as ck\nck.disable_backend('cuda')\nck.disable_backend('triton')\n" if old_driver or opts.get("eager") else "")
-          + "sys.argv = ['main.py', '--listen', '127.0.0.1', '--port', '8188', '--disable-auto-launch']\n"
+          # Importing comfy_kitchen first loads torch before ComfyUI picks its allocator: keep the native one.
+          + "sys.argv = ['main.py', '--listen', '127.0.0.1', '--port', '8188', '--disable-auto-launch'"
+          + (", '--disable-cuda-malloc'" if old_driver or opts.get("eager") else "") + "]\n"
           + "runpy.run_path('main.py', run_name='__main__')\n")
 print("driver CUDA", cuda, "-> plain-torch kernels" if old_driver else "-> cuda kernels", flush=True)
 proc = subprocess.Popen([sys.executable, "-c", launch], cwd=C, stdout=log, stderr=subprocess.STDOUT)

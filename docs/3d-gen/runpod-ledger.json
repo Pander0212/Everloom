@@ -338,14 +338,14 @@
    "gpu": "RTX 6000 Ada",
    "cloud": "COMMUNITY",
    "pricePerHr": 0.76,
-   "worstCaseUsd": 0.76,
+   "worstCaseUsd": null,
    "start": "2026-10-20T11:55:55.247Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T12:09:37.663Z",
+   "seconds": 1192,
+   "costUsd": 0.252,
    "balanceBefore": 1.8965042863,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 1.7682649752,
+   "result": "ok: qi2edit 1 files"
   }
  ]
 }
