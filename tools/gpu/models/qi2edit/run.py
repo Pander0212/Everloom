@@ -7,15 +7,26 @@ os.makedirs(out, exist_ok=True)
 C = "/opt/src/ComfyUI"
 URL = "http://127.0.0.1:8188"
 log = open(f"{out}/comfy.log", "w")
-import torch  # noqa: E402
+import re  # noqa: E402
 
-# comfy_kitchen's prebuilt kernels need a CUDA 12.8 driver; on older hosts use its plain-torch backend.
-old_driver = torch._C._cuda_getDriverVersion() < 12080
+
+def driver_cuda():
+    """The CUDA version the host driver supports (nvidia-smi's header), e.g. (12, 4); None if unknown."""
+    try:
+        m = re.search(r"CUDA Version:\s*(\d+)\.(\d+)", subprocess.run(["nvidia-smi"], capture_output=True, text=True, timeout=30).stdout)
+        return (int(m.group(1)), int(m.group(2))) if m else None
+    except Exception:  # noqa: BLE001
+        return None
+
+
+# comfy_kitchen's prebuilt kernels need a CUDA 12.8 driver; on older (or unknown) hosts use its plain-torch backend.
+cuda = driver_cuda()
+old_driver = cuda is None or cuda < (12, 8)
 launch = ("import sys, runpy\n"
           + ("import comfy_kitchen as ck\nck.disable_backend('cuda')\nck.disable_backend('triton')\n" if old_driver or opts.get("eager") else "")
           + "sys.argv = ['main.py', '--listen', '127.0.0.1', '--port', '8188', '--disable-auto-launch']\n"
           + "runpy.run_path('main.py', run_name='__main__')\n")
-print("driver", torch._C._cuda_getDriverVersion(), "eager kernels" if old_driver else "cuda kernels", flush=True)
+print("driver CUDA", cuda, "-> plain-torch kernels" if old_driver else "-> cuda kernels", flush=True)
 proc = subprocess.Popen([sys.executable, "-c", launch], cwd=C, stdout=log, stderr=subprocess.STDOUT)
 
 
