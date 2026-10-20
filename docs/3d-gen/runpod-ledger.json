@@ -591,6 +591,34 @@
    "balanceBefore": 2.4895354399,
    "balanceAfter": 2.3641667594,
    "result": "ok: qi2edit 31 files"
+  },
+  {
+   "id": "ead321eb61c9",
+   "date": "2026-10-20",
+   "job": "cs2-verify",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg",
+    "base-m.jpg",
+    "mask-f-body.png",
+    "mask-f-crotch-long.png",
+    "mask-f-full.png",
+    "mask-f-torso.png",
+    "mask-m-crotch-up.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.407,
+   "start": "2026-10-20T18:25:03.271Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 1.5687539974,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
