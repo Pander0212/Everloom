@@ -19,6 +19,7 @@ import os, shutil
 from huggingface_hub import hf_hub_download
 M = "/opt/src/ComfyUI/models"
 for sub, f in [("diffusion_models", "diffusion_models/qwen_image_2.1_int8_convrot.safetensors"),
+               ("diffusion_models", "diffusion_models/qwen_image_2.1_turbo_int8_convrot.safetensors"),
                ("text_encoders", "text_encoders/qwen3vl_8b_int8_convrot.safetensors"),
                ("vae", "vae/qwen_image_2.1_vae_bf16.safetensors")]:
     p = hf_hub_download("Comfy-Org/Qwen-Image-2.1", f, local_dir="/opt/weights/qi21")

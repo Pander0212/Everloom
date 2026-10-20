@@ -36,6 +36,10 @@ from PIL import Image  # noqa: E402
 
 names = opts.get("only") or sorted(n for n in os.listdir(src) if n.lower().endswith((".png", ".jpg", ".jpeg", ".webp")))
 report = {"imageKey": img_key, "cache": has_cache}
+# The turbo model (8 steps, CFG 1) or the standard one (25 steps, CFG 3), as VNCCS sets them.
+turbo = opts.get("model") == "turbo"
+unet = "qwen_image_2.1_turbo_int8_convrot.safetensors" if turbo else "qwen_image_2.1_int8_convrot.safetensors"
+steps, cfg = int(opts.get("steps", 8 if turbo else 25)), float(opts.get("cfg", 1.0 if turbo else 3.0))
 for name in names:
     im = Image.open(os.path.join(src, name)).convert("RGB")
     W, H = im.size
@@ -48,12 +52,12 @@ for name in names:
         t = time.time()
         g = {
             "1": {"class_type": "LoadImage", "inputs": {"image": "everloom-in.png"}},
-            "2": {"class_type": "UNETLoader", "inputs": {"unet_name": "qwen_image_2.1_int8_convrot.safetensors", "weight_dtype": "default"}},
+            "2": {"class_type": "UNETLoader", "inputs": {"unet_name": unet, "weight_dtype": "default"}},
             "3": {"class_type": "CLIPLoader", "inputs": {"clip_name": "qwen3vl_8b_int8_convrot.safetensors", "type": "qwen_image", "device": "default"}},
             "4": {"class_type": "VAELoader", "inputs": {"vae_name": "qwen_image_2.1_vae_bf16.safetensors"}},
             "5": {"class_type": "TextEncodeQwenImage21", "inputs": {"clip": ["3", 0], "vae": ["4", 0], "prompt": e["prompt"], "negative_prompt": e.get("negative", ""), "resolution": 1024, img_key: ["1", 0]}},
             "6": {"class_type": "EmptyLatentImage", "inputs": {"width": W16, "height": H16, "batch_size": 1}},
-            "7": {"class_type": "KSampler", "inputs": {"model": ["9", 0] if has_cache else ["2", 0], "positive": ["5", 0], "negative": ["5", 1], "latent_image": ["6", 0], "seed": int(e.get("seed", opts.get("seed", 7))), "steps": int(opts.get("steps", 25)), "cfg": float(opts.get("cfg", 3.0)), "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}},
+            "7": {"class_type": "KSampler", "inputs": {"model": ["9", 0] if has_cache else ["2", 0], "positive": ["5", 0], "negative": ["5", 1], "latent_image": ["6", 0], "seed": int(e.get("seed", opts.get("seed", 7))), "steps": steps, "cfg": cfg, "sampler_name": "euler", "scheduler": "simple", "denoise": 1.0}},
             "8": {"class_type": "VAEDecode", "inputs": {"samples": ["7", 0], "vae": ["4", 0]}},
             "10": {"class_type": "SaveImage", "inputs": {"images": ["8", 0], "filename_prefix": f"ev-{label}"}},
         }

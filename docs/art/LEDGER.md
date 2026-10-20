@@ -285,6 +285,10 @@ Limits: NanoGPT at most 95 images per UTC day, only `hidream`, `chroma`, `z-imag
 | 274 | 2026-10-20 | NanoGPT | `qwen-image-2.1/edit` | cs-eyes-green | Change only the colour of her irises to bright green. Keep everything else exactly identical, including hair, face, body, clothes, pose, lighting, background and framing. (edit of 249-nano-qwen-image-cs-base-f2.jpg) | $0.0000 (balance) | 3/95 today | failed: HTTP 503: Image request protection is temporarily unavailable. Please wait and try again. |
 | 275 | 2026-10-20 | NanoGPT | `qwen-image-2.1/edit` | cs-eyes-green | Change only the colour of her irises to bright green. Keep everything else exactly identical, including hair, face, body, clothes, pose, lighting, background and framing. (edit of 249-nano-qwen-image-cs-base-f2.jpg) | $0.0000 (balance) | 3/95 today | failed: HTTP 503: Image request protection is temporarily unavailable. Please wait and try again. |
 | 276 | 2026-10-20 | NanoGPT | `qwen-image-2.1/edit` | cs-eyes-green | Change only the colour of her irises to bright green. Keep everything else exactly identical, including hair, face, body, clothes, pose, lighting, background and framing. (edit of 249-nano-qwen-image-cs-base-f2.jpg) | $0.0300 (balance) | 3/95 today | pending |
+| 277 | 2026-10-20 | NanoGPT | `qwen-image` | cs2-base-f | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) | 1 image (subscription) | 4/95 today | pending |
+| 278 | 2026-10-20 | NanoGPT | `qwen-image` | cs2-base-m | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) | 1 image (subscription) | 5/95 today | pending |
+| 279 | 2026-10-20 | NanoGPT | `chroma` | cs2-chroma-f | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) | 1 image (subscription) | 6/95 today | pending |
+| 280 | 2026-10-20 | NanoGPT | `chroma` | cs2-chroma-m | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) | 1 image (subscription) | 7/95 today | pending |
 
 ## Stops and resumes
 
