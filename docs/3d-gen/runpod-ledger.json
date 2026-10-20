@@ -233,8 +233,29 @@
    "gpu": "L40S",
    "cloud": "COMMUNITY",
    "pricePerHr": 0.81,
-   "worstCaseUsd": 0.81,
+   "worstCaseUsd": null,
    "start": "2026-10-20T10:56:39.747Z",
+   "stop": "2026-10-20T10:57:22.209Z",
+   "seconds": 44,
+   "costUsd": 0.01,
+   "balanceBefore": 2.2472973557,
+   "balanceAfter": 2.2472973557,
+   "result": "failed: bad host: failed: CUDA does not start on this host (NVIDIA L40S)"
+  },
+  {
+   "date": "2026-10-20",
+   "job": "cs2-qi2-test",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg"
+   ],
+   "gpu": "L40S",
+   "cloud": "COMMUNITY",
+   "pricePerHr": 0.81,
+   "worstCaseUsd": 0.81,
+   "start": "2026-10-20T10:57:24.543Z",
    "stop": null,
    "seconds": null,
    "costUsd": null,
