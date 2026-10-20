@@ -43,4 +43,5 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-20 | A40 (SECURE) | $0.61 | 38 min | $0.384 | $5.549 | b1-body | ok: qi2edit 51 files |
 | 2026-10-20 | A40 (SECURE) | $0.61 | 30 min | $0.308 | $5.857 | b1-races | failed: no model finished setting up ({}) |
 | 2026-10-20 | A40 (SECURE) | $0.61 | 17 min | $0.170 | $6.027 | b2-orc-redo | ok: qi2edit 29 files |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.027 | b1-races | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | 8 min | $0.083 | $6.110 | b1-races | failed: bad host: the worker never answered in 8 min |
+| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.110 | b1-races | starting |

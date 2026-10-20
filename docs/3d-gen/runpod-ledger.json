@@ -917,12 +917,34 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.61,
+   "worstCaseUsd": null,
    "start": "2026-10-20T19:47:17.247Z",
+   "stop": "2026-10-20T19:55:28.092Z",
+   "seconds": 492,
+   "costUsd": 0.083,
+   "balanceBefore": 8.3938042805,
+   "balanceAfter": 8.3032850166,
+   "result": "failed: bad host: the worker never answered in 8 min"
+  },
+  {
+   "id": "6e9f5f5f3fcb",
+   "date": "2026-10-20",
+   "job": "b1-races",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.61,
+   "start": "2026-10-20T19:55:30.100Z",
    "stop": null,
    "seconds": null,
    "costUsd": null,
-   "balanceBefore": 8.3938042805,
+   "balanceBefore": 8.3032850166,
    "balanceAfter": null,
    "result": "starting"
   }
