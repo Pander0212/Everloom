@@ -700,14 +700,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.763,
+   "worstCaseUsd": null,
    "start": "2026-10-20T18:40:46.730Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T18:44:34.569Z",
+   "seconds": 229,
+   "costUsd": 0.039,
    "balanceBefore": 10,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 10,
+   "result": "failed: no model finished setting up ({\"gpu\":\"ok NVIDIA A40, 595.91.07, 46068 MiB\",\"qi2edit\":\"failed: r rate limits and faster downloads. weights ok + python - extra NoctQA_V1_int8_convrot.safetensors 6920 MB"
   },
   {
    "id": "6ac1175743f8",

@@ -56,7 +56,11 @@ def get(it):
     if not os.path.exists(dst):
         # Civitai links take the owner's token as a header (never in the URL, so it can't reach a log).
         hdr = ["-H", f"Authorization: Bearer {os.environ['CIVITAI_TOKEN']}"] if "civitai.com" in it["url"] and os.environ.get("CIVITAI_TOKEN") else []
-        r = subprocess.run(["curl", "-sSfL", "--retry", "4", *hdr, "-o", dst + ".part", it["url"]], capture_output=True, text=True)
+        # HTTP/1.1 and resumed retries: Civitai's CDN sometimes resets HTTP/2 streams mid-file (curl 92).
+        for _ in range(5):
+            r = subprocess.run(["curl", "-sSfL", "--http1.1", "--retry", "4", "--retry-all-errors", "-C", "-", *hdr, "-o", dst + ".part", it["url"]], capture_output=True, text=True)
+            if not r.returncode:
+                break
         if r.returncode:
             raise SystemExit(f"download failed: {it['name']} (curl {r.returncode})")
         os.rename(dst + ".part", dst)
