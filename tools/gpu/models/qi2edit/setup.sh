@@ -9,7 +9,8 @@ V=/opt/venvs/qi2edit
 python3 -m venv $V
 . $V/bin/activate
 pip install -q --upgrade pip wheel setuptools
-pip install -q torch==2.6.0 torchvision==0.21.0 torchaudio==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+# Current ComfyUI needs a current torch; CUDA 12.x wheels run on any 12.x driver (minor-version compatibility).
+pip install -q torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cu128
 mkdir -p /opt/src && cd /opt/src
 git clone -q --depth 1 https://github.com/comfyanonymous/ComfyUI.git
 git -C ComfyUI rev-parse HEAD > /opt/worker/qi2edit.rev

@@ -212,14 +212,14 @@
    "gpu": "RTX 6000 Ada",
    "cloud": "COMMUNITY",
    "pricePerHr": 0.76,
-   "worstCaseUsd": 0.76,
+   "worstCaseUsd": null,
    "start": "2026-10-20T10:47:29.650Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T10:56:08.468Z",
+   "seconds": 520,
+   "costUsd": 0.11,
    "balanceBefore": 2.3773197696,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 2.3089640224,
+   "result": "failed: no model finished setting up ({\"gpu\":\"ok NVIDIA RTX 6000 Ada Generation, 550.78, 49140 MiB\",\"qi2edit\":\"failed: .Optional[torch.dtype], <class 'torch.device'>, typing.Optional[torch.device]]). Got func"
   }
  ]
 }
