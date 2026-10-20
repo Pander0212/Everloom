@@ -16,4 +16,5 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-20 | L40S (COMMUNITY) | $0.81 | 2 min | $0.024 | $0.711 | cs2-qi2-test | failed: bad host: failed: CUDA does not start on this host (NVIDIA L40S) |
 | 2026-10-20 | RTX 6000 Ada (COMMUNITY) | $0.76 | 9 min | $0.110 | $0.821 | cs2-qi2-test | failed: no model finished setting up ({"gpu":"ok NVIDIA RTX 6000 Ada Generation, 550.78, 49140 MiB","qi2edit":"failed: .Optional[torch.dtype], <class 'torch.device'>, typing.Optional[torch.device]]). Got func |
 | 2026-10-20 | L40S (COMMUNITY) | $0.81 | 1 min | $0.010 | $0.831 | cs2-qi2-test | failed: bad host: failed: CUDA does not start on this host (NVIDIA L40S) |
-| 2026-10-20 | L40S (COMMUNITY) | $0.81 | — | — | $0.831 | cs2-qi2-test | starting |
+| 2026-10-20 | L40S (COMMUNITY) | $0.81 | 1 min | $0.010 | $0.841 | cs2-qi2-test | failed: bad host: failed: CUDA does not start on this host (NVIDIA L40S) |
+| 2026-10-20 | L40S (COMMUNITY) | $0.81 | 1 min | $0.015 | $0.856 | cs2-qi2-test | failed: bad host: failed: CUDA does not start on this host (NVIDIA L40S) |
