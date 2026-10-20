@@ -80,7 +80,8 @@ export default function PuppetV2Lab() {
   const [values, setValues] = useState<Record<string, number>>({});
   const [wardrobe, setWardrobe] = useState<Array<{ id: string; outfit?: string; adult?: boolean }>>([]);
   const [outfit, setOutfit] = useState<string>('');
-  const wardrobeRef = useRef(wardrobe);
+  /** Each puppet's own wardrobe (a mixed cast has different parts). */
+  const wardrobes = useRef(new Map<string, Array<{ id: string; outfit?: string; adult?: boolean }>>());
   const [talking, setTalking] = useState(false);
   const q = new URLSearchParams(location.search);
   const url = q.get('model');
@@ -113,8 +114,9 @@ export default function PuppetV2Lab() {
           const ids = p2 ? p2.split(',') : [];
           const loaded = ids.length ? await loadPuppet(ids[i % ids.length]!) : null;
           const views: Partial<Record<View2, ViewSource>> = loaded ? loaded.views : url ? { front: await loadModel(url) } : testViews(i === 1 ? 1.15 : 1);
-          wardrobeRef.current = loaded ? loaded.meta.parts.front ?? [] : url ? [] : testFigure().input.layers.map((l) => ({ id: l.id, ...(l.outfit ? { outfit: l.outfit } : {}) }));
-          setWardrobe(wardrobeRef.current);
+          const w = loaded ? loaded.meta.parts.front ?? [] : url ? [] : testFigure().input.layers.map((l) => ({ id: l.id, ...(l.outfit ? { outfit: l.outfit } : {}) }));
+          wardrobes.current.set(`p${i + 1}`, w);
+          if (i === 0) setWardrobe(w);
           if (!live) return;
           const p = s.add(`p${i + 1}`, views, { x: SPOTS[count - 1]![i]!, height: count === 1 ? 0.9 : 0.78, floor: 0.97 });
           const m = (views.front ?? Object.values(views)[0]!).model;
@@ -123,7 +125,7 @@ export default function PuppetV2Lab() {
           void p;
         }
         // Dressed in the first outfit (the default wardrobe state).
-        for (const id of s.ids()) s.get(id)!.hidden = hiddenParts(wardrobeRef.current, null);
+        for (const id of s.ids()) s.get(id)!.hidden = hiddenParts(wardrobes.current.get(id) ?? [], null);
         if (window.__puppet2Lab) window.__puppet2Lab.ready = count;
         document.querySelector('[data-testid=puppet2-lab]')?.setAttribute('data-ready', String(count));
       } catch (e) { setError((e as Error).message); }
@@ -150,7 +152,7 @@ export default function PuppetV2Lab() {
           </Select>
           <Button size="sm" variant={talking ? 'primary' : 'ghost'} aria-pressed={talking} onClick={() => { const t = !talking; setTalking(t); all((id) => (stage.current!.get(id)!.speaking = t)); }}>Talk</Button>
           {wardrobe.some((w) => w.outfit) ? (
-            <Select aria-label="Outfit" value={outfit} onChange={(e) => { setOutfit(e.target.value); const hidden = hiddenParts(wardrobe, e.target.value || null); all((id) => (stage.current!.get(id)!.hidden = hidden)); }} className="w-auto">
+            <Select aria-label="Outfit" value={outfit} onChange={(e) => { setOutfit(e.target.value); all((id) => (stage.current!.get(id)!.hidden = hiddenParts(wardrobes.current.get(id) ?? [], e.target.value || null))); }} className="w-auto">
               {[...new Set(wardrobe.flatMap((w) => (w.outfit ? [w.outfit] : [])))].map((o, i) => <option key={o} value={i === 0 ? '' : o}>{o}</option>)}
               <option value="none">No outfit</option>
             </Select>

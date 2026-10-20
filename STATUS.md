@@ -2,6 +2,33 @@
 
 Snapshot of what's built, what's partial, and how it was tested. Everloom 0.1.0.
 
+## Puppets v2: full-body 2D characters (2026-10-20)
+
+Docs: docs/puppets-v2/ (README, skeleton standard, motion format, pipeline, costs); acceptance:
+docs/puppets-v2/evidence/RESULTS.md.
+
+- **Runtime:** Rev2D vendored (`packages/engine/src/puppet2/rev2d`, pinned, MIT) after a deciding test
+  against iki (docs/PHASE2_DECISIONS.md); Everloom's own WebGL renderer, stage with views, turning
+  (front → three-quarter → side), walking at ground speed, blinking, lip-sync and expressions.
+- **Rig:** standard skeleton, auto-rig from landmarks and layers (skinned meshes, leg/arm IK with the
+  drawn bend side, arm draw-order switches, hair/skirt/bust/butt pendulums, face and hand sprite
+  swaps); motion library retargeted per character (idle, wave, arms up/crossed, hands on hips,
+  point, nod, bow, walk front and profile, jump).
+- **Story:** characters can use a full-body puppet; avatar emote/pose/outfit ops and stage slots drive
+  it; it rolls back with swipes (e2e).
+- **Pipeline:** layered generation (base + edit-model outfits, faces, mouths, hands, views),
+  rembg background removal, `tools/puppets2/decompose.py` (RTMPose keypoints, limb split with joint
+  caps, occlusion fill, outfits incl. skirts, variants, noise islands, gates, contact sheets),
+  import via Settings › Puppets; `from_v1.py` upgrades first-generation puppets.
+- **Guard:** child proportions are never packed; the server measures every view and refuses 18+
+  ratings, adult layers and bust/butt physics under 5.5 heads.
+- **Measured:** three generated characters on a throttled phone viewport with software WebGL: 33 fps,
+  8.6 ms CPU per frame (procedural figures 57–61 fps). Cost per character ≈ $0.57 (20 edits).
+- **Tests:** engine `puppet2-rig` (21), server `puppets2` (4), `tools/puppets2/tests` (3), e2e
+  `puppets2.spec.ts` (2 × 2 projects).
+- **Not yet:** phone editing of joints/weights (the lab has sliders), motions from video/audio/text,
+  See-through/SAM in the body stage, running the decomposition from the app.
+
 ## 3D import and editor (2026-10-10)
 
 Unity packages without Unity, bone mapping, more formats, `.blend` through Blender, a VRoid-style
