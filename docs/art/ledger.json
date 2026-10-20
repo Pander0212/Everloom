@@ -5822,6 +5822,50 @@
     "charged": 0
    },
    "error": "HTTP 503: Image request protection is temporarily unavailable. Please wait and try again."
+  },
+  {
+   "n": 262,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:59:47.329Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-bald",
+   "prompt": "Remove all of this woman's hair: she is completely bald with a smooth bald head, no bun. Keep her face, body, underwear, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.64738711,
+    "usdAfter": 1.64738711,
+    "charged": 0
+   },
+   "error": "HTTP 503: Image request protection is temporarily unavailable. Please wait and try again."
+  },
+  {
+   "n": 263,
+   "date": "2026-10-20",
+   "at": "2026-10-20T09:00:19.024Z",
+   "service": "nano",
+   "model": "bytedance/seedream-v5.0-pro/edit",
+   "label": "cs-bald-sd",
+   "prompt": "Remove all of this woman's hair: she is completely bald, no bun. Keep everything else exactly identical, same framing.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.64738711,
+    "usdAfter": 1.64738711,
+    "charged": 0
+   },
+   "error": "HTTP 429: Usage could not be verified for the configured limits. Please retry."
   }
  ],
  "resumed": [
