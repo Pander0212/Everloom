@@ -280,3 +280,24 @@ Licenses checked by reading each project's LICENSE file; details in
 - **OpenCV** (Apache-2.0): inpainting, morphology and contours in the decomposition tool.
 - Generated pictures (NanoGPT: Qwen-Image, Qwen-Image 2.1 edit) are made per character for the
   owner, kept in the git-ignored `samples/gen/` and shared in packs; none are in the repository.
+
+## Character Studio (October 2026)
+
+Studied for ideas (licences checked in the repositories, commits given); no code was copied:
+
+- **paper-doll-studio** (Apache-2.0), commit `ed94d5f`: trait sheet with editor tabs and layer slots per trait.
+- **sprite-gen** (Apache-2.0), commit `38bddef`: layered sprite templates with z order and recolour ramps.
+- **ComfyUI_VNCCS** (MIT), commit `4414e3d`: generating a consistent visual-novel character from one base by single-trait edits.
+- **Aidol** (MIT), commit `a81cda7`: outfit and expression variants of one aligned character.
+- **Comfyui-Anima-Wardrobe** (MIT), commit `e049b03`: wardrobe slots per outfit item.
+- **Shape-Deformation-with-Cages** (no licence, commit `d7bef1f`): read only. Not used; the cage
+  deformation in `packages/engine/src/studio/cage.ts` is implemented from the papers: M. S. Floater,
+  "Mean value coordinates", CAGD 20 (2003); K. Hormann and M. S. Floater, "Mean value coordinates for
+  arbitrary planar polygons", ACM TOG 25 (2006).
+- Colour work (CIE Lab, ΔE76 colour drift, gradient-map recolour) follows the standard CIE formulas.
+- The template maker (`tools/studio/make_template.py`) uses **OpenCV** (Apache-2.0) phase correlation
+  and morphology, **rembg**/IS-Net and **rtmlib**/RTMPose as credited under Puppets v2 above.
+- Generated template art (NanoGPT: Qwen-Image, Qwen-Image 2.1 edit) is kept in the git-ignored
+  `samples/gen/studio/` and shared as packs (an all-ages pack and a separate 18+ pack); none is in
+  the repository. The repository's own studio pictures are drawn from simple shapes
+  (`tools/studio/fixture-pack.ts`).

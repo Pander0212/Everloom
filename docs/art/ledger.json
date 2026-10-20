@@ -5602,6 +5602,226 @@
     "charged": 0
    },
    "error": "HTTP 504: Request timed out. Please try again. You have not been charged for this request."
+  },
+  {
+   "n": 252,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:44:13.794Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-bald",
+   "prompt": "Remove all of this woman's hair: she is completely bald with a smooth bald head, no bun. Keep her face, body, underwear, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.64738711,
+    "usdAfter": 1.64738711,
+    "charged": 0
+   },
+   "error": "HTTP 503: Billing reservation failed"
+  },
+  {
+   "n": 253,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:44:50.021Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-bald",
+   "prompt": "Remove all of this woman's hair: she is completely bald with a smooth bald head, no bun. Keep her face, body, underwear, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.64738711,
+    "usdAfter": 1.64738711,
+    "charged": 0
+   },
+   "error": "HTTP 429: Usage could not be verified for the configured limits. Please retry."
+  },
+  {
+   "n": 254,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:45:29.422Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-bald",
+   "prompt": "Remove all of this woman's hair: she is completely bald with a smooth bald head, no bun. Keep her face, body, underwear, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.64738711,
+    "usdAfter": 1.64738711,
+    "charged": 0
+   },
+   "error": "HTTP 503: Billing reservation failed"
+  },
+  {
+   "n": 255,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:46:17.324Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-bald",
+   "prompt": "Remove all of this woman's hair: she is completely bald with a smooth bald head, no bun. Keep her face, body, underwear, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.64738711,
+    "usdAfter": 1.64738711,
+    "charged": 0
+   },
+   "error": "HTTP 429: Usage could not be verified for the configured limits. Please retry."
+  },
+  {
+   "n": 256,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:47:19.407Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-bald",
+   "prompt": "Remove all of this woman's hair: she is completely bald with a smooth bald head, no bun. Keep her face, body, underwear, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.64738711,
+    "usdAfter": 1.64738711,
+    "charged": 0
+   },
+   "error": "HTTP 504: Request timed out. Please try again. You have not been charged for this request."
+  },
+  {
+   "n": 257,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:49:28.587Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-bald",
+   "prompt": "Remove all of this woman's hair: she is completely bald with a smooth bald head, no bun. Keep her face, body, underwear, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.64738711,
+    "usdAfter": 1.64738711,
+    "charged": 0
+   },
+   "error": "HTTP 503: Billing reservation failed"
+  },
+  {
+   "n": 258,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:51:21.324Z",
+   "service": "nano",
+   "model": "z-image-turbo",
+   "label": "cs-ping",
+   "prompt": "a red apple on a white table, simple illustration",
+   "res": null,
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": null,
+   "meter": {
+    "usedBefore": 2,
+    "usedAfter": 3,
+    "usdBefore": 1.64738711,
+    "usdAfter": 1.64738711
+   },
+   "file": "258-nano-z-image-turbo-cs-ping.jpg"
+  },
+  {
+   "n": 259,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:52:42.473Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-hair-long",
+   "prompt": "Change only her hairstyle: long straight loose hair falling down her back to the waist, with straight bangs. Keep her face, body, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.64738711,
+    "usdAfter": 1.64738711,
+    "charged": 0
+   },
+   "error": "HTTP 429: Usage could not be verified for the configured limits. Please retry."
+  },
+  {
+   "n": 260,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:53:33.599Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-hair-long",
+   "prompt": "Change only her hairstyle: long straight loose hair falling down her back to the waist, with straight bangs. Keep her face, body, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.64738711,
+    "usdAfter": 1.64738711,
+    "charged": 0
+   },
+   "error": "HTTP 503: Billing reservation failed"
+  },
+  {
+   "n": 261,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:58:14.611Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-bald",
+   "prompt": "Remove all of this woman's hair: she is completely bald with a smooth bald head, no bun. Keep her face, body, underwear, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.64738711,
+    "usdAfter": 1.64738711,
+    "charged": 0
+   },
+   "error": "HTTP 503: Image request protection is temporarily unavailable. Please wait and try again."
   }
  ],
  "resumed": [

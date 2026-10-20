@@ -2,6 +2,37 @@
 
 Snapshot of what's built, what's partial, and how it was tested. Everloom 0.1.0.
 
+## Character Studio: paper-doll characters (2026-10-20)
+
+Docs: docs/character-studio/ (README, FORMAT v1, making templates, costs); evidence:
+docs/character-studio/evidence/ (procedural shapes; generated-art evidence stays in
+`samples/gen/studio/evidence/`).
+
+- **Engine** (`packages/engine/src/studio/`): trait sheet v1 (adults only, `age` ≥ 18 required),
+  template format v1 (layers per trait with `when` conditions, z rules, recolour masks, cages,
+  rig, options, 18+ adult layers), compositor plan with fallbacks, gradient-map/Lab recolour,
+  mean-value-coordinate cages, coherent randomizer with locks, AI fill parser, story ops
+  `studio.pose` / `studio.scene` / `studio.option` (message-bound, roll back on swipe).
+- **Server:** `studio_characters` table (migration 13), `/api/paperdoll/*` (characters, roll,
+  fill from a card — refuses minors, asks for an age when none is stated — and template packs:
+  validated, images re-encoded).
+- **Web:** Looks page `/characters/looks` (list with paging, Body/Face/Hair/Clothing/Expressions
+  tabs, swipeable preview across templates, randomize with locks, fill, lock final design,
+  duplicate, JSON export/import, template install); canvas compositor with cache and triangle-mesh
+  warps; WebGL renderer with breathing/sway/bounce; stage layer with pose, scene and a choice menu;
+  contact sheet `/lab/looks-sheet`. Feature switch `paperdoll`, display option `looks`.
+- **Pipeline:** `tools/studio/make_template.py` (align by phase correlation, diff layers, hair
+  back/front split, eye and skin masks, cages and rig from RTMPose, gates: alignment, seams/halos,
+  swap holes, colour drift; contact sheet) and `check-template.ts` (schema, z conflicts, slider
+  distortion over every body type).
+- **Tests:** engine `studio` (14) and rollback samples, server `paperdoll` (3),
+  `tools/studio/tests` (4), e2e `looks.spec.ts` (3 × 2 projects).
+- **Spent:** NanoGPT $0.036 (one rejected FLUX Klein edit); bases free; RunPod $0, no pods.
+- **Not yet:** the generated starter templates — NanoGPT's paid image billing failed for every
+  edit call this session (503 "billing reservation failed", 429, 504; none charged). The base
+  (`samples/gen/studio/raw/249-…`) and the edit batch are ready to run; estimate in
+  docs/character-studio/costs.md. Template maker in the app, sitting poses, 18+ scenes.
+
 ## Puppets v2: full-body 2D characters (2026-10-20)
 
 Docs: docs/puppets-v2/ (README, skeleton standard, motion format, pipeline, costs); acceptance:
