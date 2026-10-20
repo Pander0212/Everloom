@@ -13,7 +13,7 @@ pip install -q torch torchvision torchaudio --index-url https://download.pytorch
 mkdir -p /opt/src && cd /opt/src
 git clone -q --depth 1 https://github.com/comfyanonymous/ComfyUI.git
 git -C ComfyUI rev-parse HEAD > /opt/worker/qi2edit.rev
-pip install -q -r ComfyUI/requirements.txt huggingface_hub hf_transfer
+pip install -q -r ComfyUI/requirements.txt huggingface_hub hf_transfer opencv-python-headless
 python - <<'PY'
 import os
 from huggingface_hub import hf_hub_download
