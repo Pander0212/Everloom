@@ -78,3 +78,17 @@ it('never puts a puppet with adult layers on a minor', async () => {
   const grown = await c.req('POST', '/api/characters', { card: { name: 'Grown', first_mes: 'Hi', description: 'A 30-year-old sailor.' } });
   expect((await c.req('PATCH', `/api/characters/${grown.json.id}`, { game: { puppet2: adult.id } })).status).toBe(200);
 }, 60000);
+
+it('keeps 18+ ratings, adult layers and bounce off child-proportioned bodies, whatever the pack says', async () => {
+  c = await createClient();
+  // The test figure with its head made huge: about 3.5 heads tall.
+  const big = (fig: ReturnType<typeof testFigure>) => ({ ...fig, input: { ...fig.input, keypoints: { ...fig.input.keypoints, neck: [200, 330] as [number, number], headTop: [200, 90] as [number, number] } } });
+  const r = await c.req('POST', '/api/puppets2/import', await pack({ front: big(testFigure()) }, { rating: '18+' }));
+  expect(r.status).toBe(400);
+  expect(r.body).toMatch(/child proportions/);
+  const ok = await c.req('POST', '/api/puppets2/import', await pack({ front: big(testFigure()) }));
+  expect(ok.status, ok.body).toBe(200);
+  const model = JSON.parse((await c.req('GET', `/api/puppets2/${ok.json.id}/front.r2d.json`)).body);
+  expect(model.physics.map((p: { id: string }) => p.id)).not.toContain('bust');
+  expect(model.physics.map((p: { id: string }) => p.id)).not.toContain('butt');
+}, 60000);

@@ -36,3 +36,4 @@ everloom-anatomy-pack/
 
 # Generated 3D work (docs/3d-gen): never committed
 samples/gen/
+tools/**/__pycache__/

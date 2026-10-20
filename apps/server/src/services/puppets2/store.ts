@@ -10,7 +10,7 @@
  * /api/puppets2/:id/…. Adult layers are only allowed in an 18+ pack, and the minor guard keeps such a
  * puppet off any character who is, or is described as, a minor (minor-guard.ts).
  */
-import { buildCharacter, KeypointsSchema, LayerSchema, type CharacterInput } from '@everloom/engine/puppet2';
+import { ADULT_MIN_HEADS, buildCharacter, headsTall, KeypointsSchema, LayerSchema, type CharacterInput } from '@everloom/engine/puppet2';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
@@ -125,11 +125,18 @@ export async function importPuppet2(ctx: AppContext, owner: string, zip: Buffer,
         width = Math.max(width, Math.ceil(l.rect[0] + l.rect[2]));
         height = Math.max(height, Math.ceil(l.rect[1] + l.rect[3]));
       }
+      // Child proportions never carry an 18+ rating or adult layers (measured here, from the pack's own
+      // landmarks: a pack can't claim its way past it).
+      if ((rating === '18+' || layers.some((l) => l.adult)) && view !== 'side' && headsTall(v.keypoints) < ADULT_MIN_HEADS) {
+        throw new HttpError(400, `The ${view} view is drawn with child proportions (${headsTall(v.keypoints).toFixed(1)} heads tall): 18+ packs and adult layers need an adult body (${ADULT_MIN_HEADS}+ heads).`);
+      }
       layerCount += layers.length;
       partsByView[view] = layers.map((l) => ({ id: l.id, ...(l.outfit ? { outfit: l.outfit } : {}), ...(l.adult ? { adult: true } : {}) }));
       let model;
       try {
-        model = buildCharacter({ name: pack.name, width, height, keypoints: { ...v.keypoints, view }, layers, textures, physics: { bust: 1, butt: 1, hair: 1, ...pack.physics } });
+        // A child-proportioned body never gets bust or butt physics, whatever the pack asks for.
+        const childlike = view !== 'side' && headsTall(v.keypoints) < ADULT_MIN_HEADS;
+        model = buildCharacter({ name: pack.name, width, height, keypoints: { ...v.keypoints, view }, layers, textures, physics: { bust: 1, butt: 1, hair: 1, ...pack.physics, ...(childlike ? { bust: 0, butt: 0 } : {}) } });
       } catch (e) { throw new HttpError(400, `The ${view} view could not be rigged: ${(e as Error).message.slice(0, 300)}`); }
       writeContentFile(ctx.vault, path.join(dir, `${view}.r2d.json`), Buffer.from(JSON.stringify(model)));
     }

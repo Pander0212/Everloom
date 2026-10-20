@@ -137,3 +137,15 @@ export function proportions(bones: BuiltBone[]) {
   const torso = L('spine') + L('chest');
   return { leg, arm, torso, height: leg + torso + L('neck') + L('head') };
 }
+
+/**
+ * Height in heads from landmarks: (feet − head top) / head, the head taken as 0.9 × (head top → neck
+ * base). Adults measure about 6.5–8; a body drawn with child proportions under 5.5. The server uses
+ * it to keep 18+ packs and adult layers off child-proportioned bodies, whatever a pack claims.
+ */
+export function headsTall(kp: Pick<Keypoints, 'headTop' | 'neck' | 'ankle_L' | 'ankle_R'>): number {
+  const head = Math.hypot(kp.neck[0] - kp.headTop[0], kp.neck[1] - kp.headTop[1]) * 0.9;
+  const height = Math.max(kp.ankle_L[1], kp.ankle_R[1]) - kp.headTop[1];
+  return head > 0 ? (height * 1.03) / head : 0;
+}
+export const ADULT_MIN_HEADS = 5.5;

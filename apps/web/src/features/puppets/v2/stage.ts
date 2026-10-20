@@ -19,6 +19,8 @@ export interface Puppet2 {
   view: View2;
   /** The view being faded out after a turn, and when the turn started. */
   turning: { from: View2; at: number } | null;
+  /** Views still to pass through (front → three-quarter → side). */
+  turnQueue: View2[];
   /** Feet position as a fraction of the stage width, floor as a fraction of its height, height of the figure likewise. */
   x: number; floor: number; height: number;
   /** Mirror the art (side art faces left; flipped it faces right). */
@@ -76,7 +78,7 @@ export class Puppet2Stage {
     }
     const first = (['front', 'threeQuarter', 'side', 'back'] as View2[]).find((v) => vs[v]);
     if (!first) throw new Error('A puppet needs at least one view.');
-    const p: Puppet2 = { id, views: vs, view: first, turning: null, x: 0.5, floor: 0.97, height: 0.9, flip: false, ...place,
+    const p: Puppet2 = { id, views: vs, view: first, turning: null, turnQueue: [], x: 0.5, floor: 0.97, height: 0.9, flip: false, ...place,
       base: { id: 'idle', at: this.time }, prevBase: null, gesture: null, walkTo: null, params: {}, hidden: new Set(), alpha: 1,
       speaking: false, expression: 0, life: { blinkAt: this.time + 1 + Math.random() * 3, mouthAt: 0, mouth: 0 } };
     this.puppets.set(id, p);
@@ -105,9 +107,14 @@ export class Puppet2Stage {
   /** Turns to another view if the character has it (a short cross-fade between the two rigs). */
   setView(id: string, view: View2) {
     const p = this.puppets.get(id);
-    if (!p || p.view === view || !p.views[view]) return false;
+    if (!p || !p.views[view]) return false;
+    p.turnQueue = [];
+    if (p.view === view) return true;
+    // Between front and profile, through the three-quarter view when there is one.
+    const via = p.views.threeQuarter && ((p.view === 'front' && view === 'side') || (p.view === 'side' && view === 'front'));
+    if (via) p.turnQueue = [view];
     p.turning = { from: p.view, at: this.time };
-    p.view = view;
+    p.view = via ? 'threeQuarter' : view;
     return true;
   }
   /** Walks to x (fraction of the stage): turns to the profile, walks with locked feet, turns back. */
@@ -154,7 +161,11 @@ export class Puppet2Stage {
           if (p.views.front) this.setView(p.id, 'front');
         }
       }
-      if (p.turning && this.time - p.turning.at > TURN) p.turning = null;
+      if (p.turning && this.time - p.turning.at > TURN) {
+        p.turning = null;
+        const next = p.turnQueue.shift();
+        if (next && p.views[next]) { p.turning = { from: p.view, at: this.time }; p.view = next; }
+      }
     }
   }
 

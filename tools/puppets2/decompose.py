@@ -80,6 +80,15 @@ def detect_keypoints(rgb):
 
 def standard_keypoints(raw, alpha, view):
     """Halpe-26 (or already-standard) points → Everloom landmarks, with the head top from the silhouette."""
+    if view == 'side':
+        # In profile (facing left) only the near side, the character's left, is really visible; the
+        # detector's left/right labels split that one limb. Keep the more confident point of each
+        # pair as the near limb (the far limbs become darker copies of it).
+        raw = dict(raw)
+        for j in ('shoulder', 'elbow', 'wrist', 'hip', 'knee', 'ankle', 'bigToe', 'smallToe', 'heel'):
+            if f'{j}_L' in raw and f'{j}_R' in raw:
+                best = raw[f'{j}_L'] if raw[f'{j}_L'][2] >= raw[f'{j}_R'][2] else raw[f'{j}_R']
+                raw[f'{j}_L'] = raw[f'{j}_R'] = best
     P = lambda n: np.array(raw[n][:2], dtype=float)
     neck = P('neck') if 'neck' in raw else (P('shoulder_L') + P('shoulder_R')) / 2
     pelvis = P('pelvis') if 'pelvis' in raw else (P('hip_L') + P('hip_R')) / 2
@@ -141,6 +150,13 @@ def regions(shape, kp):
         chain_dist(px, py, [wrist_in('L'), hand('L')]) * 0.95,
         chain_dist(px, py, [wrist_in('R'), hand('R')]) * 0.95,
     ]
+    # A limb is only as thick as a limb: pixels farther from its bones than that belong to the body
+    # (in profile the arm lies over the torso; in front views this keeps the armpits on the torso).
+    H = float(max(kp['ankle_L'][1], kp['ankle_R'][1]) - kp['headTop'][1])
+    side = kp.get('view') == 'side'
+    radius = {2: (0.03 if side else 0.045) * H, 3: (0.03 if side else 0.045) * H, 6: 0.05 * H, 7: 0.05 * H, 4: 0.1 * H, 5: 0.1 * H}
+    for i, r in radius.items():
+        d[i] = np.where(d[i] > r, np.inf, d[i])
     return np.argmin(np.stack(d), axis=0).astype(np.uint8)
 
 
@@ -355,6 +371,8 @@ def load_rgba(path, size=None):
 
 
 def run(args):
+    if args.stylized:
+        args.no_bust = True  # no bust layers or bounce on a big-headed body
     rgba = load_rgba(args.image)
     h, w = rgba.shape[:2]
     alpha = rgba[:, :, 3]
@@ -553,13 +571,41 @@ def run(args):
         elif name.rsplit('_', 1)[0] in HAND_VARIANTS and name[-2:] in ('_L', '_R'):
             pose, side = name.rsplit('_', 1)
             hreg = 6 if side == 'L' else 7
-            c = np.array(kp[f'wrist_{side}'], float)
-            e = np.array(kp[f'elbow_{side}'], float)
-            tip = c + (c - e) * 0.45
-            zone = (chain_dist(px_.astype(np.float32), py_.astype(np.float32), [tip.astype(np.float32), c.astype(np.float32)]) < 0.05 * height) & (other[:, :, 3] > 8)
-            zone &= (reg == hreg) | (reg == 0) | (rgba[:, :, 3] < 8)
-            arr, m = feathered(other, zone, grow=1, soft=1.0)
-            add(f'hand_{side}', m, arr, suffix=f'_{pose}')
+            wr = np.array(kp[f'wrist_{side}'], float)
+            el = np.array(kp[f'elbow_{side}'], float)
+            # Where is that hand in the variant picture? An edit often moves the whole arm (a raised
+            # waving arm); then the hand is found by pose detection and carried back to the rest hand
+            # along the forearm, so the sprite sits in the hand bone's frame.
+            vwr, vel = wr, el
+            if not args.keypoints_only:
+                try:
+                    vraw = detect_keypoints(other[:, :, :3])
+                    if vraw[f'wrist_{side}'][2] > 0.3 and vraw[f'elbow_{side}'][2] > 0.3:
+                        vwr = np.array(vraw[f'wrist_{side}'][:2], float)
+                        vel = np.array(vraw[f'elbow_{side}'][:2], float)
+                except SystemExit:
+                    pass
+            vtip = vwr + (vwr - vel) / max(1e-6, np.linalg.norm(vwr - vel)) * 0.12 * height
+            vzone = (chain_dist(px_.astype(np.float32), py_.astype(np.float32), [vtip.astype(np.float32), vwr.astype(np.float32)]) < 0.045 * height) & (other[:, :, 3] > 8)
+            # Not the forearm: only what lies beyond the wrist.
+            fd = (vwr - vel) / max(1e-6, np.linalg.norm(vwr - vel))
+            vzone &= ((px_ - vwr[0]) * fd[0] + (py_ - vwr[1]) * fd[1]) > -0.01 * height
+            if vzone.sum() < 50:
+                print(f'variant {name}: no hand found')
+                continue
+            # Similarity transform: variant wrist → rest wrist, variant forearm direction → rest forearm direction.
+            a_v = math.atan2(fd[1], fd[0])
+            rd = (wr - el) / max(1e-6, np.linalg.norm(wr - el))
+            a_r = math.atan2(rd[1], rd[0])
+            rot = math.degrees(a_r - a_v)
+            M = cv2.getRotationMatrix2D((float(vwr[0]), float(vwr[1])), -rot, 1.0)
+            M[:, 2] += wr - vwr
+            src = other.copy()
+            src[~vzone, 3] = 0
+            warped = cv2.warpAffine(src, M, (w, h), flags=cv2.INTER_LINEAR, borderMode=cv2.BORDER_CONSTANT)
+            m = warped[:, :, 3] > 8
+            arr, m2 = feathered(warped, m, grow=0, soft=0.8)
+            add(f'hand_{side}', m2, arr, suffix=f'_{pose}')
             out_layers[-1]['variant'] = pose
         else:
             print(f'variant {name}: unknown (face: {sorted(FACE_VARIANTS)}; hands: <open|wave|fist|point>_<L|R>)')
@@ -570,13 +616,21 @@ def run(args):
     os.makedirs(os.path.join(args.out, args.view), exist_ok=True)
     json.dump(report, open(os.path.join(args.out, f'gates-{args.view}.json'), 'w'), indent=1)
     contact_sheet(rgba, kp, reg, out_layers, report, os.path.join(args.out, f'contact-{args.view}.png'))
+    # Stylized proportions (a big-headed mascot) are allowed for all-ages packs only, when asked for.
+    if args.stylized:
+        if args.adult_image or args.rating == '18+':
+            raise SystemExit('--stylized is for all-ages packs only: 18+ packs and adult layers need adult proportions.')
+        for r in report:
+            if r['gate'].startswith('adult proportions') and not r['pass']:
+                r['pass'] = True
+                r['need'] += '; stylized all-ages pack: allowed, and the server keeps adult content off it'
     fails = [r for r in report if not r['pass']]
     for r in report:
         print(('ok   ' if r['pass'] else 'FAIL ') + f"{r['gate']}: {r['value']} (need {r['need']})")
     if fails and not args.force:
         raise SystemExit(f'{len(fails)} gate(s) failed: no pack written (see contact-{args.view}.png).')
     if any(r['gate'].startswith('adult proportions') and not r['pass'] for r in report):
-        raise SystemExit('Child proportions: never packed, whatever --force says.')
+        raise SystemExit('Child proportions: never packed, whatever --force says (an all-ages mascot can use --stylized).')
 
     # Write the layers (cropped) and the view's entry in character.json.
     entries = []
@@ -604,6 +658,8 @@ def run(args):
     if args.adult_image:
         pack['rating'] = '18+'
     pack['views'][args.view] = {'keypoints': kp, 'layers': entries}
+    if args.stylized:
+        pack['physics'] = {**pack.get('physics', {}), 'bust': 0, 'butt': 0}
     json.dump(pack, open(cj, 'w'), indent=1)
     print(f'{args.view}: {len(entries)} layers → {args.out}')
     if args.zip:
@@ -631,6 +687,8 @@ if __name__ == '__main__':
     ap.add_argument('--min-heads', type=float, default=5.5)
     ap.add_argument('--no-bust', action='store_true', help='no breast layers (flat chest, or bounce not wanted)')
     ap.add_argument('--force', action='store_true', help='write the pack despite failed gates (never for child proportions)')
+    ap.add_argument('--stylized', action='store_true', help='all-ages only: allow big-headed (stylized) proportions')
+    ap.add_argument('--keypoints-only', action='store_true', help='never run pose detection (variants assume the rest pose)')
     ap.add_argument('--zip', action='store_true')
     a = ap.parse_args()
     if a.out.startswith(('docs', 'apps', 'packages')):
