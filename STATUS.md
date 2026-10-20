@@ -36,6 +36,9 @@ docs/character-studio/evidence/ (procedural shapes; generated-art evidence stays
   pods. NanoGPT's paid image API was down for about an hour (503/429/504, none charged).
 - **Fallback:** `tools/gpu/models/qi2edit` runs the same Qwen Image 2.1 edits in ComfyUI on RunPod
   (the ComfyUI_VNCCS model set); written but not yet run.
+- **Owner request (later, after the studio work):** a guide for making more studio content (bases, edits,
+  Anima/Illustrious inpainting with LoRAs, masks, template maker) plus ready RunPod presets (pod template,
+  setup, job files) others can reuse.
 - **Not yet:** the other starter poses, sitting poses, 18+ scenes; body types are subtle (cage warps
   only — stronger shapes need per-body-type edits); template maker in the app.
 
