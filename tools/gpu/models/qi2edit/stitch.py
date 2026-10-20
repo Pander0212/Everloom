@@ -43,6 +43,8 @@ def color_match(painted, reference, mask, ring=(8, 96)):
     zone = (m > ring[0]) & (m < 255 - ring[0]) if (m > ring[0]).any() else m >= 0
     if zone.sum() < 64:
         zone = m < ring[1]
+    if zone.sum() < 64:
+        return painted  # the mask covers everything: no untouched ring to match (an empty mean is NaN = black)
     p = np.asarray(ImageCms.applyTransform(painted, to_lab), dtype=np.float32)
     q = np.asarray(ImageCms.applyTransform(reference.resize(painted.size), to_lab), dtype=np.float32)
     # Only the average colour moves: stretching the spread turns slight noise on flat background into

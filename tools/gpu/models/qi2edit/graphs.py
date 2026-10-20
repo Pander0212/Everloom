@@ -15,6 +15,17 @@ ILLUSTRIOUS = {"ckpt": "waiIllustriousSDXL_v170.safetensors"}
 NEGATIVE = "worst quality, low quality, blurry, deformed, extra limbs, bad anatomy, text, watermark"
 
 
+def _loras_clip(g, model_ref, clip_ref, loras, start=40):
+    """Chains LoraLoader nodes (UNet and text encoder: SDXL LoRAs train both, and slider LoRAs need
+    the text-encoder half); returns the last model and clip references."""
+    for i, (name, strength) in enumerate(loras):
+        nid = str(start + i)
+        g[nid] = {"class_type": "LoraLoader", "inputs": {"model": model_ref, "clip": clip_ref, "lora_name": name,
+                                                         "strength_model": float(strength), "strength_clip": float(strength)}}
+        model_ref, clip_ref = [nid, 0], [nid, 1]
+    return model_ref, clip_ref
+
+
 def _loras(g, model_ref, loras, start=40):
     """Chains LoraLoaderModelOnly nodes; returns the last model reference."""
     for i, (name, strength) in enumerate(loras):
@@ -83,7 +94,10 @@ def inpaint(input_name, mask_name, prompt, model="anima", seed=7, denoise=0.9, l
             # Pony checkpoints are trained with CLIP skip 2.
             g["21"] = {"class_type": "CLIPSetLastLayer", "inputs": {"clip": clip, "stop_at_clip_layer": -2}}
             clip = ["21", 0]
-    unet = _loras(g, unet, loras)
+    if model == "anima":
+        unet = _loras(g, unet, loras)
+    else:
+        unet, clip = _loras_clip(g, unet, clip, loras)
     if diffdiff:
         # Differential diffusion: the soft mask edge is repainted gradually, so the region blends in.
         g["16"] = {"class_type": "DifferentialDiffusion", "inputs": {"model": unet}}
