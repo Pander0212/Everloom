@@ -7,7 +7,16 @@ os.makedirs(out, exist_ok=True)
 C = "/opt/src/ComfyUI"
 URL = "http://127.0.0.1:8188"
 log = open(f"{out}/comfy.log", "w")
-proc = subprocess.Popen([sys.executable, "main.py", "--listen", "127.0.0.1", "--port", "8188", "--disable-auto-launch"], cwd=C, stdout=log, stderr=subprocess.STDOUT)
+import torch  # noqa: E402
+
+# comfy_kitchen's prebuilt kernels need a CUDA 12.8 driver; on older hosts use its plain-torch backend.
+old_driver = torch._C._cuda_getDriverVersion() < 12080
+launch = ("import sys, runpy\n"
+          + ("import comfy_kitchen as ck\nck.disable_backend('cuda')\nck.disable_backend('triton')\n" if old_driver or opts.get("eager") else "")
+          + "sys.argv = ['main.py', '--listen', '127.0.0.1', '--port', '8188', '--disable-auto-launch']\n"
+          + "runpy.run_path('main.py', run_name='__main__')\n")
+print("driver", torch._C._cuda_getDriverVersion(), "eager kernels" if old_driver else "cuda kernels", flush=True)
+proc = subprocess.Popen([sys.executable, "-c", launch], cwd=C, stdout=log, stderr=subprocess.STDOUT)
 
 
 def call(path, body=None):
