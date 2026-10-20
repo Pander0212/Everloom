@@ -880,6 +880,29 @@
    "balanceBefore": 8.858860911,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "ab5d1e6c6feb",
+   "date": "2026-10-20",
+   "job": "b2-orc-redo",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg",
+    "mask-f-nipples.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.61,
+   "start": "2026-10-20T19:27:20.626Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 8.7622079526,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
