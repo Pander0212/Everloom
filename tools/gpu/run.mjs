@@ -53,10 +53,13 @@ export function makeApi(key, fetchImpl = fetch) {
 export const account = (gql) => gql('query { myself { clientBalance currentSpendPerHr pods { id name desiredStatus costPerHr } networkVolumes { id name size } } }').then((d) => d.myself);
 export const terminate = (gql, id) => gql('mutation($id: String!) { podTerminate(input: { podId: $id }) }', { id });
 
-/** Terminates every pod of ours (name prefix); returns the account as it was read. */
-export async function cleanup(gql, log = console.log) {
+/** A job's pod name: jobs that run side by side each clean up only their own pods. */
+export const podName = (job) => `${POD_PREFIX}${job.job}`.slice(0, 60);
+
+/** Terminates every pod of ours (name prefix), or only one job's pods (`name`); returns the account as it was read. */
+export async function cleanup(gql, log = console.log, name = null) {
   const me = await account(gql);
-  for (const p of me.pods ?? []) if (String(p.name).startsWith(POD_PREFIX)) {
+  for (const p of me.pods ?? []) if (name ? p.name === name : String(p.name).startsWith(POD_PREFIX)) {
     await terminate(gql, p.id);
     log(`terminated leftover pod ${p.id} (${p.name})`);
   }
@@ -83,15 +86,23 @@ export async function runSession(job, deps) {
   const todo = job.inputs.filter((f) => models.some((m) => !doneFor(m, f)));
   if (!todo.length) { say('nothing to do: every output already exists'); return { skipped: true }; }
 
-  const ledger = loadLedger(ledgerFile);
-  const before = await cleanup(gql, say);
+  let ledger = loadLedger(ledgerFile);
+  // Jobs can run side by side (several pods, several accounts): each writes its own session into the
+  // ledger as it is on disk now, never a stale copy.
+  const persist = () => {
+    ledger = loadLedger(ledgerFile);
+    const i = ledger.sessions.findIndex((s) => s.id === entry.id);
+    if (i >= 0) ledger.sessions[i] = entry; else ledger.sessions.push(entry);
+    saveLedger(ledgerFile, ledgerMd, ledger, capUsd);
+  };
+  const before = await cleanup(gql, say, podName(job));
   const balance = Number(before.clientBalance);
   const maxMinutes = Math.min(job.maxMinutes ?? 90, 240);
   const types = (await gql('query { gpuTypes { id displayName memoryInGb communityPrice securePrice } }')).gpuTypes;
   const choices = chooseGpus(types, { minVramGb: job.minVramGb ?? 24, allow: job.allowGpus ?? null, maxPricePerHr: job.maxPricePerHr ?? 0.8 });
   if (!choices.length) throw new Error('no GPU type fits the job');
   const token = randomBytes(24).toString('hex');
-  const entry = { date: new Date(now()).toISOString().slice(0, 10), job: job.job, models, inputs: todo.map((f) => path.basename(f)), gpu: null, cloud: null, pricePerHr: null, worstCaseUsd: null, start: null, stop: null, seconds: null, costUsd: null, balanceBefore: balance, balanceAfter: null, result: 'starting' };
+  const entry = { id: randomBytes(6).toString('hex'), date: new Date(now()).toISOString().slice(0, 10), job: job.job, models, inputs: todo.map((f) => path.basename(f)), gpu: null, cloud: null, pricePerHr: null, worstCaseUsd: null, start: null, stop: null, seconds: null, costUsd: null, balanceBefore: balance, balanceAfter: null, result: 'starting' };
   let pod = null;
   const t0 = now();
   const W = job.bundle ?? deps.bundle?.() ?? bundle();
@@ -108,7 +119,7 @@ export async function runSession(job, deps) {
       try {
         const d = await gql('mutation($input: PodFindAndDeployOnDemandInput) { podFindAndDeployOnDemand(input: $input) { id costPerHr } }', { input: {
           cloudType: c.cloud, gpuCount: 1, gpuTypeId: c.id, allowedCudaVersions: job.cudaVersions ?? ['12.4', '12.5', '12.6', '12.7', '12.8', '12.9', '13.0'], volumeInGb: 0, containerDiskInGb: job.diskGb ?? DISK_GB, minVcpuCount: 2, minMemoryInGb: 16,
-          name: `${POD_PREFIX}${job.job}`.slice(0, 60), imageName: IMAGE, ports: '8000/http', startSsh: false,
+          name: podName(job), imageName: IMAGE, ports: '8000/http', startSsh: false,
           dockerArgs: `bash -c 'mkdir -p /opt/worker && cd /opt/worker && printf %s "$W_BUNDLE" | base64 -d | tar -xz && W_BUNDLE="$W_BUNDLE" bash worker/start.sh'`,
           env: [{ key: 'WORKER_TOKEN', value: token }, { key: 'W_BUNDLE', value: W }, { key: 'MODELS', value: models.join(' ') }, { key: 'MAX_SECONDS', value: String(maxMinutes * 60) }, { key: 'IDLE_SECONDS', value: '600' }, { key: 'TORCH_CUDA_ARCH_LIST', value: job.cudaArch ?? cudaArch(c.name) }, ...Object.entries(job.env ?? {}).map(([key, value]) => ({ key, value: typeof value === 'string' ? value : JSON.stringify(value) })),
             // Civitai downloads that need the owner's token: from the environment, never from the job file.
@@ -126,8 +137,7 @@ export async function runSession(job, deps) {
     }
     }
     if (!pod?.id) throw new Error('no GPU was available within the budget');
-    ledger.sessions.push(entry);
-    saveLedger(ledgerFile, ledgerMd, ledger, capUsd);
+    persist();
     say(`pod ${pod.id}: ${entry.gpu} (${entry.cloud}) at $${entry.pricePerHr}/h, at most ${maxMinutes} min ($${entry.worstCaseUsd})`);
 
     const base = deps.podUrl?.(pod.id) ?? `https://${pod.id}-8000.proxy.runpod.net`;
@@ -184,12 +194,11 @@ export async function runSession(job, deps) {
     entry.seconds = Math.round((now() - t0) / 1000);
     if (entry.pricePerHr != null) entry.costUsd = round((entry.pricePerHr * entry.seconds) / 3600);
     entry.worstCaseUsd = null;
-    const after = await cleanup(gql, say).catch(() => null);
+    const after = await cleanup(gql, say, podName(job)).catch(() => null);
     entry.balanceAfter = after ? Number(after.clientBalance) : null;
-    if (after && (after.pods ?? []).some((p) => String(p.name).startsWith(POD_PREFIX))) entry.result += ' — WARNING: a pod of ours is still listed';
+    if (after && (after.pods ?? []).some((p) => p.name === podName(job))) entry.result += ' — WARNING: a pod of ours is still listed';
     if (pod?.id) {
-      if (!ledger.sessions.includes(entry)) ledger.sessions.push(entry);
-      saveLedger(ledgerFile, ledgerMd, ledger, capUsd);
+      persist();
       say(`session cost $${entry.costUsd} (spent $${spentUsd(ledger)} of $${capUsd}); balance $${entry.balanceAfter}`);
     }
   }
@@ -216,7 +225,7 @@ async function main() {
       console.log(c.slice(0, 5).map((g) => ({ gpu: g.name, cloud: g.cloud, perHr: g.price, worstCase: round(((g.price + DISK_PER_HR) * (job.maxMinutes ?? 90)) / 60), ...budgetCheck({ ledger, balanceUsd: Number(me.clientBalance), capUsd, pricePerHr: g.price + DISK_PER_HR, maxMinutes: job.maxMinutes ?? 90 }) })));
     } else {
       let current = null;
-      const stop = async () => { console.error('interrupted: terminating the pod'); if (current) await terminate(gql, current).catch(() => {}); await cleanup(gql).catch(() => {}); process.exit(130); };
+      const stop = async () => { console.error('interrupted: terminating the pod'); if (current) await terminate(gql, current).catch(() => {}); await cleanup(gql, console.error, podName(job)).catch(() => {}); process.exit(130); };
       process.once('SIGINT', stop);
       process.once('SIGTERM', stop);
       // A host whose GPU doesn't start is caught in the first minutes; try another one (twice at most).
