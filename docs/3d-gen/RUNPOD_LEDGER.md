@@ -45,10 +45,10 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-20 | A40 (SECURE) | $0.61 | 17 min | $0.170 | $6.027 | b2-orc-redo | ok: qi2edit 29 files |
 | 2026-10-20 | A40 (SECURE) | $0.61 | 8 min | $0.083 | $6.110 | b1-races | failed: bad host: the worker never answered in 8 min |
 | 2026-10-20 | A40 (SECURE) | $0.61 | 41 min | $0.414 | $6.524 | b1-races | ok: qi2edit 36 files |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.524 | b3-fat | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.524 | b3-chubby | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.524 | b3-pregnant-9m | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.524 | b3-pregnant-6m | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.524 | b3-muscular | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.524 | b4-views | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $6.524 | b5-apose | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | 21 min | $0.209 | $6.733 | b3-fat | stopped by the owner (A-pose switch); cost from the log time |
+| 2026-10-20 | A40 (SECURE) | $0.61 | 20 min | $0.206 | $6.939 | b3-chubby | stopped by the owner (A-pose switch); cost from the log time |
+| 2026-10-20 | A40 (SECURE) | $0.61 | 20 min | $0.203 | $7.142 | b3-pregnant-9m | stopped by the owner (A-pose switch); cost from the log time |
+| 2026-10-20 | A40 (SECURE) | $0.61 | 20 min | $0.199 | $7.341 | b3-pregnant-6m | stopped by the owner (A-pose switch); cost from the log time |
+| 2026-10-20 | A40 (SECURE) | $0.61 | 19 min | $0.196 | $7.537 | b3-muscular | stopped by the owner (A-pose switch); cost from the log time |
+| 2026-10-20 | A40 (SECURE) | $0.61 | 24 min | $0.246 | $7.783 | b4-views | ok: qi2edit 38 files |
+| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $7.783 | b5-apose | starting |
