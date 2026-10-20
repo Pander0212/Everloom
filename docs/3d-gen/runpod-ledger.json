@@ -494,6 +494,40 @@
    "balanceBefore": 3.6595689027,
    "balanceAfter": 2.9620361491,
    "result": "ok: qi2edit 70 files"
+  },
+  {
+   "date": "2026-10-20",
+   "job": "cs2-research-test",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg",
+    "base-m.jpg",
+    "fat-f.png",
+    "mask-f-body.png",
+    "mask-f-chest.png",
+    "mask-f-crotch-long.png",
+    "mask-f-crotch.png",
+    "mask-f-full.png",
+    "mask-f-nipples.png",
+    "mask-f-torso.png",
+    "mask-m-crotch-long.png",
+    "mask-m-crotch-up.png",
+    "muscular-f.png",
+    "pregnant-f.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.763,
+   "start": "2026-10-20T16:46:19.148Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 2.9295337047,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
