@@ -685,6 +685,29 @@
    "balanceBefore": 10,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "dfa2910348ae",
+   "date": "2026-10-20",
+   "job": "b1-body",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg",
+    "mask-f-crotch.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.763,
+   "start": "2026-10-20T18:40:46.730Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 10,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
