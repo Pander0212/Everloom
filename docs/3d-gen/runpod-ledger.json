@@ -409,6 +409,36 @@
    "balanceBefore": 3.9910432333,
    "balanceAfter": 3.898271761,
    "result": "ok: qi2edit 15 files"
+  },
+  {
+   "date": "2026-10-20",
+   "job": "cs2-mixed-test",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg",
+    "base-m.jpg",
+    "mask-f-crotch.png",
+    "mask-f-nipples.png",
+    "mask-f-head.png",
+    "mask-f-face.png",
+    "mask-m-crotch.png",
+    "mask-m-nipples.png",
+    "mask-m-head.png",
+    "mask-m-face.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.61,
+   "start": "2026-10-20T13:02:32.176Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 3.8910827749,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
