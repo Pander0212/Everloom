@@ -37,6 +37,7 @@ import { registerCustomize } from './routes/customize.js';
 import { registerLive2d } from './routes/live2d.js';
 import { registerPuppets } from './routes/puppets.js';
 import { registerPuppets2 } from './routes/puppets2.js';
+import { registerPaperDoll } from './routes/paperdoll.js';
 import { registerAvatarRoutes } from './routes/avatars.js';
 import { registerAssetRoutes } from './routes/assets.js';
 import { logSafeError, recordError, setContentFreeLogs } from './services/diagnostics.js';
@@ -188,6 +189,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerLive2d(app, ctx);
   registerPuppets(app, ctx);
   registerPuppets2(app, ctx);
+  registerPaperDoll(app, ctx);
   registerQuickstart(app, ctx);
   registerScenarios(app, ctx);
   registerAvatarRoutes(app, ctx);

@@ -687,4 +687,23 @@ CREATE TABLE scenarios (
 CREATE INDEX scenarios_owner ON scenarios(owner_id, updated_at);
 `,
   },
+  {
+    version: 13,
+    name: 'studio characters',
+    sql: `
+-- Character Studio: paper-doll trait sheets, for story characters (character_id) and random NPCs.
+-- Templates live as files in the owner's media folder (installed from packs).
+CREATE TABLE studio_characters (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  character_id TEXT,
+  kind TEXT NOT NULL DEFAULT 'npc',
+  sheet TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  updated_at INTEGER NOT NULL
+);
+CREATE INDEX studio_characters_owner ON studio_characters(owner_id, updated_at);
+CREATE UNIQUE INDEX studio_characters_link ON studio_characters(owner_id, character_id) WHERE character_id IS NOT NULL;
+`,
+  },
 ];
