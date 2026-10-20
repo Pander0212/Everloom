@@ -1081,6 +1081,29 @@
    "balanceBefore": 7.5508190138,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "2979b1013135",
+   "date": "2026-10-20",
+   "job": "b5-apose",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg",
+    "base-m.jpg"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.457,
+   "start": "2026-10-20T20:31:34.139Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 7.300826236,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
