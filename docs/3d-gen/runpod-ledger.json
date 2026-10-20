@@ -554,14 +554,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.763,
+   "worstCaseUsd": null,
    "start": "2026-10-20T17:11:46.944Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T17:33:21.157Z",
+   "seconds": 1295,
+   "costUsd": 0.219,
    "balanceBefore": 2.7062751501,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 2.5111659871,
+   "result": "ok: qi2edit 49 files"
   }
  ]
 }
