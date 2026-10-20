@@ -24,4 +24,4 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-20 | RTX 6000 Ada (COMMUNITY) | $0.76 | 16 min | $0.198 | $1.732 | cs2-qi2-test | ok: qi2edit 2 files |
 | 2026-10-20 | A40 (SECURE) | $0.61 | 5 min | $0.053 | $1.785 | cs2-qi2-test | ok: qi2edit 2 files |
 | 2026-10-20 | A40 (SECURE) | $0.61 | 9 min | $0.094 | $1.879 | cs2-qi2-test | ok: qi2edit 15 files |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $1.879 | cs2-mixed-test | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | 9 min | $0.090 | $1.969 | cs2-mixed-test | ok: qi2edit 16 files |
