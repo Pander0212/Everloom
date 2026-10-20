@@ -54,7 +54,11 @@ def get(it):
     os.makedirs(d, exist_ok=True)
     dst = f"{d}/{it['name']}"
     if not os.path.exists(dst):
-        subprocess.run(["curl", "-sSfL", "--retry", "4", "-o", dst + ".part", it["url"]], check=True)
+        # Civitai links take the owner's token as a header (never in the URL, so it can't reach a log).
+        hdr = ["-H", f"Authorization: Bearer {os.environ['CIVITAI_TOKEN']}"] if "civitai.com" in it["url"] and os.environ.get("CIVITAI_TOKEN") else []
+        r = subprocess.run(["curl", "-sSfL", "--retry", "4", *hdr, "-o", dst + ".part", it["url"]], capture_output=True, text=True)
+        if r.returncode:
+            raise SystemExit(f"download failed: {it['name']} (curl {r.returncode})")
         os.rename(dst + ".part", dst)
     return it["name"], os.path.getsize(dst)
 with cf.ThreadPoolExecutor(6) as ex:

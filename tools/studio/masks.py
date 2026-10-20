@@ -49,6 +49,12 @@ def masks_for(kp, w, h):
         out[f'nipple-{s.lower()}'] = ellipse(c - [0, torso * 0.04], torso * 0.06, torso * 0.06)
         out[f'hand-{s.lower()}'] = ellipse(P(f'wrist_{s}') + (P(f'wrist_{s}') - P(f'elbow_{s}')) * 0.45, torso * 0.16, torso * 0.2)
         out[f'foot-{s.lower()}'] = ellipse(P(f'ankle_{s}') + [0, torso * 0.08], torso * 0.16, torso * 0.12)
+    out['belly'] = ellipse(neck + (pelvis - neck) * 0.85, hip_w * 0.5, torso * 0.22)
+    sl, sr = P('shoulder_L'), P('shoulder_R')
+    torso_poly = np.int32([sl + [0, -torso * 0.05], sr + [0, -torso * 0.05], P('hip_R') + [0, torso * 0.2], P('hip_L') + [0, torso * 0.2]])
+    out['torso'] = blank()
+    cv2.fillPoly(out['torso'], [torso_poly], 255)
+    out['full'] = np.full((h, w), 255, np.uint8)
     out['chest'] = np.maximum(out['breast-l'], out['breast-r'])
     out['nipples'] = np.maximum(out['nipple-l'], out['nipple-r'])
     # Soft edges: the inpaint blends in, and the composite back over the original has no seam.

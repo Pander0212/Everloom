@@ -12,6 +12,7 @@
  *   "out": "samples/gen/bench", "minVramGb": 48, "allowGpus": ["NVIDIA A40"], "maxMinutes": 120,
  *   "setupMinutes": 50, "opts": { "trellis2": { "texture": 2048 } } }
  * Optional "env": extra (non-secret) environment for the pod's model setup, e.g. the LoRAs to fetch; "diskGb".
+ * Optional "civitai": true passes CIVITAI_TOKEN from the environment to the pod (for LoRA downloads; redacted from logs).
  * Optional "cudaVersions": hosts' CUDA versions to accept (for wheels that need a newer driver).
  * Optional "expect": { "<model>": ["a.png", …] } names the files a model makes (when they aren't one per input).
  *
@@ -109,7 +110,9 @@ export async function runSession(job, deps) {
           cloudType: c.cloud, gpuCount: 1, gpuTypeId: c.id, allowedCudaVersions: job.cudaVersions ?? ['12.4', '12.5', '12.6', '12.7', '12.8', '12.9', '13.0'], volumeInGb: 0, containerDiskInGb: job.diskGb ?? DISK_GB, minVcpuCount: 2, minMemoryInGb: 16,
           name: `${POD_PREFIX}${job.job}`.slice(0, 60), imageName: IMAGE, ports: '8000/http', startSsh: false,
           dockerArgs: `bash -c 'mkdir -p /opt/worker && cd /opt/worker && printf %s "$W_BUNDLE" | base64 -d | tar -xz && W_BUNDLE="$W_BUNDLE" bash worker/start.sh'`,
-          env: [{ key: 'WORKER_TOKEN', value: token }, { key: 'W_BUNDLE', value: W }, { key: 'MODELS', value: models.join(' ') }, { key: 'MAX_SECONDS', value: String(maxMinutes * 60) }, { key: 'IDLE_SECONDS', value: '600' }, { key: 'TORCH_CUDA_ARCH_LIST', value: job.cudaArch ?? cudaArch(c.name) }, ...Object.entries(job.env ?? {}).map(([key, value]) => ({ key, value: typeof value === 'string' ? value : JSON.stringify(value) }))],
+          env: [{ key: 'WORKER_TOKEN', value: token }, { key: 'W_BUNDLE', value: W }, { key: 'MODELS', value: models.join(' ') }, { key: 'MAX_SECONDS', value: String(maxMinutes * 60) }, { key: 'IDLE_SECONDS', value: '600' }, { key: 'TORCH_CUDA_ARCH_LIST', value: job.cudaArch ?? cudaArch(c.name) }, ...Object.entries(job.env ?? {}).map(([key, value]) => ({ key, value: typeof value === 'string' ? value : JSON.stringify(value) })),
+            // Civitai downloads that need the owner's token: from the environment, never from the job file.
+            ...(job.civitai && process.env.CIVITAI_TOKEN ? [{ key: 'CIVITAI_TOKEN', value: process.env.CIVITAI_TOKEN }] : [])],
         } });
         pod = d.podFindAndDeployOnDemand;
         if (pod?.id) deps.onPod?.(pod.id);
@@ -218,7 +221,7 @@ async function main() {
       process.once('SIGTERM', stop);
       // A host whose GPU doesn't start is caught in the first minutes; try another one (twice at most).
       for (let i = 0; ; i++) {
-        try { await runSession(job, { gql, capUsd, secrets: [key], onPod: (id) => { current = id; } }); break; }
+        try { await runSession(job, { gql, capUsd, secrets: [key, process.env.CIVITAI_TOKEN].filter(Boolean), onPod: (id) => { current = id; } }); break; }
         catch (e) { if (i < 2 && /^bad host/.test(String(e.message))) { console.log(`${e.message}: trying another host`); continue; } throw e; }
       }
     }
