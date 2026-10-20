@@ -633,14 +633,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.508,
+   "worstCaseUsd": null,
    "start": "2026-10-20T18:39:46.634Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T19:14:44.310Z",
+   "seconds": 2099,
+   "costUsd": 0.356,
    "balanceBefore": 10,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 9.0257838527,
+   "result": "ok: qi2edit 94 files"
   },
   {
    "id": "88f6eaa7edaf",
@@ -722,14 +722,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.457,
+   "worstCaseUsd": null,
    "start": "2026-10-20T18:41:06.622Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T19:14:16.804Z",
+   "seconds": 1991,
+   "costUsd": 0.337,
    "balanceBefore": 2.3486440233,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 2.04572499,
+   "result": "ok: qi2edit 82 files"
   },
   {
    "id": "48ac13208f9a",
@@ -833,6 +833,51 @@
    "seconds": null,
    "costUsd": null,
    "balanceBefore": 9.0257838527,
+   "balanceAfter": null,
+   "result": "starting"
+  },
+  {
+   "id": "36c4aa7f1109",
+   "date": "2026-10-20",
+   "job": "b1-body",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg",
+    "mask-f-crotch.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.763,
+   "start": "2026-10-20T19:16:01.805Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 8.858860911,
+   "balanceAfter": null,
+   "result": "starting"
+  },
+  {
+   "id": "2071e745f5eb",
+   "date": "2026-10-20",
+   "job": "b1-races",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.61,
+   "start": "2026-10-20T19:16:17.727Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 8.858860911,
    "balanceAfter": null,
    "result": "starting"
   }
