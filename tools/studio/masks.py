@@ -41,6 +41,9 @@ def masks_for(kp, w, h):
     hips = (P('hip_L') + P('hip_R')) / 2
     hip_w = abs(P('hip_L')[0] - P('hip_R')[0])
     out['crotch'] = ellipse(hips + [0, torso * 0.1], hip_w * 0.45, torso * 0.3)
+    # Room for bigger options: hanging down (large penis, testicles) or pointing up (erect).
+    out['crotch-long'] = np.maximum(out['crotch'], ellipse(hips + [0, torso * 0.35], hip_w * 0.45, torso * 0.4))
+    out['crotch-up'] = np.maximum(out['crotch'], ellipse(hips - [0, torso * 0.15], hip_w * 0.45, torso * 0.4))
     for s in ('L', 'R'):
         sh, hp = P(f'shoulder_{s}'), P(f'hip_{s}')
         c = sh + (hp - sh) * 0.3

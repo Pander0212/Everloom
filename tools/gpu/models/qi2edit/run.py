@@ -71,41 +71,71 @@ def stage(name):
     return staged[name]
 
 
-# Each edit: {label, prompt, input?, kind: "qi2" (default) | "inpaint", mask?, model?, loras?, seed?, denoise?}.
+import stitch  # noqa: E402
+
+
+def put(im, name):
+    """Saves a picture made here (a crop, a mask) into ComfyUI's input folder."""
+    im.save(f"{C}/input/{name}")
+    return name
+
+
+def run_graph(g):
+    """Queues a graph and returns its first saved image."""
+    pid = call("/prompt", {"prompt": g, "client_id": str(uuid.uuid4())})["prompt_id"]
+    while True:
+        time.sleep(1.5)
+        h = call(f"/history/{pid}")
+        if pid in h:
+            st = h[pid].get("status", {})
+            if st.get("status_str") == "error":
+                raise RuntimeError(json.dumps(st.get("messages", []))[-800:])
+            imgs = [i for o in h[pid]["outputs"].values() for i in o.get("images", [])]
+            if imgs:
+                return Image.open(os.path.join(C, "output", imgs[0].get("subfolder", ""), imgs[0]["filename"])).convert("RGB")
+            if st.get("completed"):
+                raise RuntimeError("no image")
+
+
+# Each edit: {label, prompt, input?, kind: "qi2" (default) | "inpaint" | "upscale", mask?, model?, loras?, seed?,
+# denoise?, crop? / crop_size? (inpaint: crop-and-stitch, on by default)}. opts["upscale"] (an upscale model file)
+# also writes <label>@4x.png for every result ("upscale" edits only upscale their input).
+up_model = opts.get("upscale")
 for e in opts.get("edits", []):
     label = e["label"]
-    if os.path.exists(f"{out}/{label}.png"):
+    if os.path.exists(f"{out}/{label}.png") and (not up_model or os.path.exists(f"{out}/{label}@4x.png")):
         continue
     t = time.time()
     try:
         inp, (W, H) = stage(e.get("input") or files[0])
         seed = int(e.get("seed", opts.get("seed", 7)))
         loras = [tuple(x) for x in e.get("loras", [])]
-        if e.get("kind", "qi2") == "inpaint":
-            mask, _ = stage(e["mask"])
-            g = graphs.inpaint(inp, mask, e["prompt"], model=e.get("model", "anima"), seed=seed, denoise=float(e.get("denoise", 0.9)),
-                               loras=loras, negative=e.get("negative", graphs.NEGATIVE), grow=int(e.get("grow", 6)), prefix=f"ev-{label}")
+        kind = e.get("kind", "qi2")
+        if os.path.exists(f"{out}/{label}.png"):
+            r = Image.open(f"{out}/{label}.png").convert("RGB")
+        elif kind == "inpaint":
+            original = Image.open(f"{C}/input/{inp}").convert("RGB")
+            mask_im = Image.open(os.path.join(src, e["mask"])).convert("L")
+            box, size = stitch.crop_box(mask_im, size=int(e.get("crop_size", 1024))) if e.get("crop", True) else (None, None)
+            args = dict(model=e.get("model", "illustrious"), seed=seed, denoise=float(e.get("denoise", 0.9)), loras=loras,
+                        negative=e.get("negative", graphs.NEGATIVE), grow=int(e.get("grow", 6)), prefix=f"ev-{label}")
+            if box:
+                ci, cm = stitch.crop(original, mask_im, box, size)
+                r = stitch.paste(original, run_graph(graphs.inpaint(put(ci, f"ev-{label}-crop.png"), put(cm, f"mask-ev-{label}-crop.png"), e["prompt"], **args)), mask_im, box)
+            else:
+                r = run_graph(graphs.inpaint(inp, stage(e["mask"])[0], e["prompt"], **args))
+        elif kind == "upscale":
+            r = None
         else:
-            g = graphs.qi2(inp, e["prompt"], W, H, seed=seed, turbo=e.get("model", opts.get("model", "turbo")) == "turbo", loras=loras,
-                           cache=report["cache"], negative=e.get("negative", ""), prefix=f"ev-{label}")
-        pid = call("/prompt", {"prompt": g, "client_id": str(uuid.uuid4())})["prompt_id"]
-        while True:
-            time.sleep(2)
-            h = call(f"/history/{pid}")
-            if pid in h:
-                st = h[pid].get("status", {})
-                if st.get("status_str") == "error":
-                    raise RuntimeError(json.dumps(st.get("messages", []))[-800:])
-                imgs = [i for o in h[pid]["outputs"].values() for i in o.get("images", [])]
-                if imgs:
-                    p = os.path.join(C, "output", imgs[0].get("subfolder", ""), imgs[0]["filename"])
-                    r = Image.open(p).convert("RGB")
-                    if r.size != (W, H):
-                        r = r.resize((W, H), Image.LANCZOS)
-                    r.save(f"{out}/{label}.png")
-                    break
-                if st.get("completed"):
-                    raise RuntimeError("no image")
+            r = run_graph(graphs.qi2(inp, e["prompt"], W, H, seed=seed, turbo=e.get("model", opts.get("model", "turbo")) == "turbo", loras=loras,
+                                     cache=report["cache"], negative=e.get("negative", ""), prefix=f"ev-{label}"))
+        if r is not None:
+            if r.size != (W, H):
+                r = r.resize((W, H), Image.LANCZOS)
+            r.save(f"{out}/{label}.png")
+        if up_model:
+            name = put(r if r is not None else Image.open(f"{C}/input/{inp}").convert("RGB"), f"ev-{label}-up.png")
+            run_graph(graphs.upscale(name, up_model, prefix=f"ev-{label}-4x")).save(f"{out}/{label}@4x.png", optimize=True)
         report[label] = {"seconds": round(time.time() - t, 1)}
     except urllib.error.HTTPError as ex:
         report[label] = {"error": f"rejected: {ex.read()[:600]!r}"}

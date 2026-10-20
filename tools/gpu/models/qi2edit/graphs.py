@@ -71,3 +71,13 @@ def inpaint(input_name, mask_name, prompt, model="anima", seed=7, denoise=0.9, l
     g["15"] = {"class_type": "ImageCompositeMasked", "inputs": {"destination": ["1", 0], "source": ["8", 0], "x": 0, "y": 0, "resize_source": False, "mask": ["12", 0]}}
     g["10"] = {"class_type": "SaveImage", "inputs": {"images": ["15", 0], "filename_prefix": prefix}}
     return g
+
+
+def upscale(input_name, model_name, prefix="ev"):
+    """A model upscale (e.g. 4x-AnimeSharp): deterministic per pixel, so aligned pictures stay aligned."""
+    return {
+        "1": {"class_type": "LoadImage", "inputs": {"image": input_name}},
+        "2": {"class_type": "UpscaleModelLoader", "inputs": {"model_name": model_name}},
+        "3": {"class_type": "ImageUpscaleWithModel", "inputs": {"upscale_model": ["2", 0], "image": ["1", 0]}},
+        "10": {"class_type": "SaveImage", "inputs": {"images": ["3", 0], "filename_prefix": prefix}},
+    }
