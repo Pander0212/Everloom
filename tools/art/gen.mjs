@@ -30,8 +30,9 @@ const NANO_DAILY_CAP = 95;
 // 2026-10-19): Qwen-Image 2.1 edit and FLUX Klein edit, a few cents per picture.
 const NANO_PAID = new Set(['wai-illustrious-sdxl', 'hidream-o1-image-dev', 'hidream-o1-image', 'seedream-v4.5', 'bytedance/seedream-v5.0-pro/edit', 'qwen-image-2.1/edit', 'blackforestlabs/flux-3/klein/edit-image']);
 // Lifetime cap on paid NanoGPT spending. $2.00 for the first puppet work; the owner allowed $1.80
-// more for Puppets v2 on 2026-10-19 (EVERLOOM_NANO_PAID_CAP_USD=3.58 for that work).
-const NANO_PAID_CAP_USD = Math.min(Number(process.env.EVERLOOM_NANO_PAID_CAP_USD) || 2.0, 3.58);
+// more for Puppets v2 on 2026-10-19 (3.58), and the Character Studio work on 2026-10-20 may spend
+// up to $1.50 more, leaving a small reserve of the balance (5.08).
+const NANO_PAID_CAP_USD = Math.min(Number(process.env.EVERLOOM_NANO_PAID_CAP_USD) || 2.0, 5.08);
 const EH_CAP_USD = 2.0;
 const NANO = 'https://api.nano-gpt.com/api';
 const EH = 'https://api.electronhub.ai/v1';

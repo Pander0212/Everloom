@@ -5513,6 +5513,95 @@
     "charged": 0.03
    },
    "file": "247-nano-qwen-image-2.1_edit-p2-34-street.jpg"
+  },
+  {
+   "n": 248,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:36:43.028Z",
+   "service": "nano",
+   "model": "qwen-image",
+   "label": "cs-base-f",
+   "prompt": "Anime visual novel character sprite, cel-shaded illustration with clean thin dark lineart and flat colors. A grown adult woman in her late twenties with a mature adult face and adult proportions, about 7.5 heads tall, average build, standing straight facing the viewer, relaxed A-pose with arms a little away from her sides, feet slightly apart. She wears a plain light grey sports bra and plain light grey briefs. Her hair is pulled back tightly into a small low bun. Neutral calm expression, mouth closed, eyes open. Even flat lighting, plain very light grey background, whole body in frame from head to feet, nothing else in the picture.",
+   "res": "832x1248",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": null,
+   "meter": {
+    "usedBefore": 0,
+    "usedAfter": 1,
+    "usdBefore": 1.65638711,
+    "usdAfter": 1.65638711
+   },
+   "file": "248-nano-qwen-image-cs-base-f.jpg"
+  },
+  {
+   "n": 249,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:38:17.326Z",
+   "service": "nano",
+   "model": "qwen-image",
+   "label": "cs-base-f2",
+   "prompt": "Anime visual novel character sprite, cel-shaded illustration with clean thin dark lineart and flat colors. A grown woman of about thirty: a mature adult face with defined cheekbones, a defined jawline and calm, confident adult eyes; adult proportions, about 7.5 heads tall, average build with an adult figure, standing straight facing the viewer in a relaxed A-pose with arms a little away from her sides, feet slightly apart. She wears a plain light grey sports bra and plain light grey briefs. Her hair is pulled back tightly into a small low bun. Neutral calm expression, mouth closed. Even flat lighting, plain very light grey background, whole body in frame from head to feet, nothing else in the picture.",
+   "res": "832x1248",
+   "input": null,
+   "ok": true,
+   "counted": true,
+   "costUsd": 0,
+   "kept": null,
+   "meter": {
+    "usedBefore": 1,
+    "usedAfter": 2,
+    "usdBefore": 1.65638711,
+    "usdAfter": 1.65638711
+   },
+   "file": "249-nano-qwen-image-cs-base-f2.jpg"
+  },
+  {
+   "n": 250,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:39:39.434Z",
+   "service": "nano",
+   "model": "blackforestlabs/flux-3/klein/edit-image",
+   "label": "cs-bald-klein",
+   "prompt": "Remove all of this woman's hair: she is completely bald with a smooth bald head. Keep her face, body, underwear, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": true,
+   "counted": false,
+   "costUsd": 0.036,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.65638711,
+    "usdAfter": 1.64738711,
+    "charged": 0.009
+   },
+   "file": "250-nano-blackforestlabs_flux-3_klein_edit-image-cs-bald-klein.png",
+   "warning": "output 1024x1024 differs from input 832x1280"
+  },
+  {
+   "n": 251,
+   "date": "2026-10-20",
+   "at": "2026-10-20T08:41:54.084Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-bald",
+   "prompt": "Remove all of this woman's hair: she is completely bald with a smooth bald head, no bun. Keep her face, body, underwear, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.64738711,
+    "usdAfter": 1.64738711,
+    "charged": 0
+   },
+   "error": "HTTP 504: Request timed out. Please try again. You have not been charged for this request."
   }
  ],
  "resumed": [
