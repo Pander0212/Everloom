@@ -641,6 +641,28 @@
    "balanceBefore": 10,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "88f6eaa7edaf",
+   "date": "2026-10-20",
+   "job": "b1-underwear",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.457,
+   "start": "2026-10-20T18:40:06.704Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 10,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
