@@ -48,7 +48,7 @@ def color_match(painted, reference, mask, ring=(8, 96)):
     # Only the average colour moves: stretching the spread turns slight noise on flat background into
     # speckles. The shift is capped, so a region that should look different (a new colour) keeps it.
     out = p.copy()
-    for c, cap in zip(range(3), (12.0, 10.0, 10.0)):
+    for c, cap in zip(range(3), (8.0, 4.0, 4.0)):
         shift = float(np.clip(q[..., c][zone].mean() - p[..., c][zone].mean(), -cap, cap))
         out[..., c] = p[..., c] + shift
     return ImageCms.applyTransform(Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "LAB"), to_rgb)
@@ -75,6 +75,27 @@ def keep_skin(original, result, region, threshold=14.0, skin=None):
     chroma = lambda lab: np.linalg.norm(lab[..., 1:] - skin[1:], axis=2)
     keep = m & (chroma(lo) < threshold) & (chroma(lr) < threshold * 1.4) & (d_o < threshold * 3) & (d_r < threshold * 4)
     keep = cv2.GaussianBlur(keep.astype(np.float32), (0, 0), 1.2)[..., None]
+    out = r * (1 - keep) + o * keep
+    return Image.fromarray((out * 255).clip(0, 255).astype(np.uint8))
+
+
+def keep_background(original, result, region, threshold=10.0):
+    """Where the original was plain backdrop and the result is still backdrop-coloured (no new
+    picture content there), the original backdrop stays: no tint or shimmer in the gaps between limbs."""
+    import numpy as np
+    import cv2
+    o = np.asarray(original.convert("RGB"), dtype=np.float32) / 255
+    r = np.asarray(result.convert("RGB"), dtype=np.float32) / 255
+    lo, lr = cv2.cvtColor(o, cv2.COLOR_RGB2LAB), cv2.cvtColor(r, cv2.COLOR_RGB2LAB)
+    h, w = lo.shape[:2]
+    corners = np.concatenate([lo[:16, :16].reshape(-1, 3), lo[:16, -16:].reshape(-1, 3), lo[-16:, :16].reshape(-1, 3), lo[-16:, -16:].reshape(-1, 3)])
+    bg = np.median(corners, axis=0)
+    m = np.asarray(region.convert("L")) > 8
+    was_bg = np.linalg.norm(lo - bg, axis=2) < threshold
+    still_bg = np.linalg.norm(lr[..., 1:] - bg[1:], axis=2) < threshold * 1.5
+    # Backdrop is flat: a pixel close in colour to it that was backdrop before is backdrop now.
+    keep = m & was_bg & still_bg & (np.abs(lr[..., 0] - bg[0]) < threshold * 2.5)
+    keep = cv2.GaussianBlur(keep.astype(np.float32), (0, 0), 1.0)[..., None]
     out = r * (1 - keep) + o * keep
     return Image.fromarray((out * 255).clip(0, 255).astype(np.uint8))
 
