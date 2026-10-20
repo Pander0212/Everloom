@@ -24,11 +24,17 @@ def _loras(g, model_ref, loras, start=40):
     return model_ref
 
 
-def qi2(input_name, prompt, w, h, seed=7, turbo=True, loras=(), cache=True, negative="", prefix="ev"):
-    steps, cfg = (8, 1.0) if turbo else (25, 3.0)
+# Qwen Image 2.1 models by name: (file, steps, cfg). noctqa: Noct Q Anime, an uncensored anime fine-tune.
+QI2_MODELS = {"turbo": (QI2["unet_turbo"], 8, 1.0), "standard": (QI2["unet"], 25, 3.0), "noctqa": ("NoctQA_V1_int8_convrot.safetensors", 25, 3.0)}
+QI2_NEGATIVE = "low quality, low resolution, blurry, jpeg artifacts, washed-out colors, sloppy lines, messy line art, extra fingers, missing fingers, badly drawn hands, deformed anatomy, 3d render, photograph, photorealistic"
+
+
+def qi2(input_name, prompt, w, h, seed=7, turbo=True, loras=(), cache=True, negative="", prefix="ev", model=None, steps=None, cfg=None):
+    unet, steps_d, cfg_d = QI2_MODELS[model or ("turbo" if turbo else "standard")]
+    steps, cfg = int(steps or steps_d), float(cfg if cfg is not None else cfg_d)
     g = {
         "1": {"class_type": "LoadImage", "inputs": {"image": input_name}},
-        "2": {"class_type": "UNETLoader", "inputs": {"unet_name": QI2["unet_turbo" if turbo else "unet"], "weight_dtype": "default"}},
+        "2": {"class_type": "UNETLoader", "inputs": {"unet_name": unet, "weight_dtype": "default"}},
         "3": {"class_type": "CLIPLoader", "inputs": {"clip_name": QI2["clip"], "type": "qwen_image", "device": "default"}},
         "4": {"class_type": "VAELoader", "inputs": {"vae_name": QI2["vae"]}},
         "5": {"class_type": "TextEncodeQwenImage21", "inputs": {"clip": ["3", 0], "vae": ["4", 0], "prompt": prompt, "negative_prompt": negative, "resolution": 1024, "images.image_1": ["1", 0]}},

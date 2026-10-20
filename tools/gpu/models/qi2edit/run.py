@@ -127,8 +127,9 @@ for e in opts.get("edits", []):
         elif kind == "upscale":
             r = None
         else:
-            r = run_graph(graphs.qi2(inp, e["prompt"], W, H, seed=seed, turbo=e.get("model", opts.get("model", "turbo")) == "turbo", loras=loras,
-                                     cache=report["cache"], negative=e.get("negative", ""), prefix=f"ev-{label}"))
+            qm = e.get("model", opts.get("model", "turbo"))
+            r = run_graph(graphs.qi2(inp, e["prompt"], W, H, seed=seed, model=qm, loras=loras, cache=report["cache"], steps=e.get("steps"), cfg=e.get("cfg"),
+                                     negative=e.get("negative", graphs.QI2_NEGATIVE if qm == "noctqa" else ""), prefix=f"ev-{label}"))
         if r is not None:
             if r.size != (W, H):
                 r = r.resize((W, H), Image.LANCZOS)
