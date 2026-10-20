@@ -947,6 +947,72 @@
    "balanceBefore": 8.3032850166,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "378844324c8a",
+   "date": "2026-10-20",
+   "job": "b3-fat",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "body-fat-detail.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.813,
+   "start": "2026-10-20T20:10:51.424Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 8.1605068527,
+   "balanceAfter": null,
+   "result": "starting"
+  },
+  {
+   "id": "d29b3b67a8d5",
+   "date": "2026-10-20",
+   "job": "b3-chubby",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "body-chubby-detail.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.813,
+   "start": "2026-10-20T20:11:11.399Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 8.1605068527,
+   "balanceAfter": null,
+   "result": "starting"
+  },
+  {
+   "id": "2b6ae80fafc0",
+   "date": "2026-10-20",
+   "job": "b3-pregnant-9m",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "body-pregnant-9m-detail.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.813,
+   "start": "2026-10-20T20:11:31.143Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 8.1605068527,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
