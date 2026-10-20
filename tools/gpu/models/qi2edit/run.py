@@ -121,7 +121,7 @@ for e in opts.get("edits", []):
             neg = e.get("negative", graphs.SDXL_NEGATIVE.get("wai" if model == "illustrious" else model, graphs.NEGATIVE))
             args = dict(model=model, seed=seed, denoise=float(e.get("denoise", 0.9)), loras=loras, negative=neg + e.get("negative_add", ""),
                         grow=int(e.get("grow", 6)), prefix=f"ev-{label}", cn=e.get("cn"), cn_strength=float(e.get("cn_strength", 0.9)),
-                        diffdiff=e.get("diffdiff", True), steps_override=e.get("steps"), cfg_override=e.get("cfg"),
+                        diffdiff=e.get("diffdiff", (sum(1 for v in mask_im.getdata() if v > 127) / (mask_im.width * mask_im.height)) < 0.5), steps_override=e.get("steps"), cfg_override=e.get("cfg"),
                         # Masks over half the picture are whole-body changes: img2img under the mask, not a blank fill.
                         imc=e.get("imc", (sum(1 for v in mask_im.getdata() if v > 127) / (mask_im.width * mask_im.height)) < 0.5))
             if box:
