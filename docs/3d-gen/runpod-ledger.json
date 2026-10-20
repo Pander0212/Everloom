@@ -783,6 +783,36 @@
    "balanceBefore": 9.8658279583,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "5fa4454edb95",
+   "date": "2026-10-20",
+   "job": "b1-redo",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg",
+    "mask-f-belly.png",
+    "mask-f-body.png",
+    "mask-f-crotch-long.png",
+    "mask-f-crotch-up.png",
+    "mask-f-crotch.png",
+    "mask-f-full.png",
+    "mask-f-nipples.png",
+    "mask-f-torso.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.356,
+   "start": "2026-10-20T19:00:57.469Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 9.4163345916,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
