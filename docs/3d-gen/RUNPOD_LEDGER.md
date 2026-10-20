@@ -18,3 +18,4 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-20 | L40S (COMMUNITY) | $0.81 | 1 min | $0.010 | $0.831 | cs2-qi2-test | failed: bad host: failed: CUDA does not start on this host (NVIDIA L40S) |
 | 2026-10-20 | L40S (COMMUNITY) | $0.81 | 1 min | $0.010 | $0.841 | cs2-qi2-test | failed: bad host: failed: CUDA does not start on this host (NVIDIA L40S) |
 | 2026-10-20 | L40S (COMMUNITY) | $0.81 | 1 min | $0.015 | $0.856 | cs2-qi2-test | failed: bad host: failed: CUDA does not start on this host (NVIDIA L40S) |
+| 2026-10-20 | RTX 6000 Ada (COMMUNITY) | $0.76 | — | — | $0.856 | cs2-qi2-test | starting |
