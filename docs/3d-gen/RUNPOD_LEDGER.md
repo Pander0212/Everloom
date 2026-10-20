@@ -36,3 +36,4 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $3.525 | b1-races | starting |
 | 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $3.525 | b1-body | starting |
 | 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $3.525 | b1-outfits | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $3.525 | b1-detail | starting |
