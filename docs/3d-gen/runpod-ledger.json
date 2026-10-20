@@ -388,6 +388,27 @@
    "balanceBefore": 4.03568175,
    "balanceAfter": 3.9910432333,
    "result": "ok: qi2edit 2 files"
+  },
+  {
+   "date": "2026-10-20",
+   "job": "cs2-qi2-test",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.61,
+   "start": "2026-10-20T12:32:39.950Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 3.9910432333,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
