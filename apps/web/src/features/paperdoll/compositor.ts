@@ -37,9 +37,12 @@ function drawWarped(dst: CanvasRenderingContext2D, src: CanvasImageSource, rect:
     const d2 = ((dy2 - dy0) * (sx1 - sx0) - (dy1 - dy0) * (sx2 - sx0)) / den;
     const e = dx0 - a * sx0 - c * sy0, f = dy0 - b * sx0 - d2 * sy0;
     dst.save();
-    // Clip slightly larger than the triangle so neighbours overlap (no hairline seams).
-    const cx = (dx0 + dx1 + dx2) / 3, cy = (dy0 + dy1 + dy2) / 3, g = (x: number, m: number) => m + (x - m) * 1.02;
-    dst.beginPath(); dst.moveTo(g(dx0, cx), g(dy0, cy)); dst.lineTo(g(dx1, cx), g(dy1, cy)); dst.lineTo(g(dx2, cx), g(dy2, cy)); dst.closePath(); dst.clip();
+    // Clip about a pixel larger than the triangle so neighbours overlap: anti-aliased clip edges
+    // would otherwise leave hairline seams where two partial edges meet.
+    const cx = (dx0 + dx1 + dx2) / 3, cy = (dy0 + dy1 + dy2) / 3;
+    const g = (x: number, y: number): [number, number] => { const d = Math.hypot(x - cx, y - cy) || 1, k = 1 + 1.2 / d; return [cx + (x - cx) * k, cy + (y - cy) * k]; };
+    const [p0, p1, p2] = [g(dx0, dy0), g(dx1, dy1), g(dx2, dy2)];
+    dst.beginPath(); dst.moveTo(...p0); dst.lineTo(...p1); dst.lineTo(...p2); dst.closePath(); dst.clip();
     dst.setTransform(a, b, c, d2, e, f);
     dst.drawImage(src, x0, y0);
     dst.restore();
