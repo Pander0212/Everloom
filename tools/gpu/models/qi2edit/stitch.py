@@ -45,11 +45,12 @@ def color_match(painted, reference, mask, ring=(8, 96)):
         zone = m < ring[1]
     p = np.asarray(ImageCms.applyTransform(painted, to_lab), dtype=np.float32)
     q = np.asarray(ImageCms.applyTransform(reference.resize(painted.size), to_lab), dtype=np.float32)
+    # Only the average colour moves: stretching the spread turns slight noise on flat background into
+    # speckles. The shift is capped, so a region that should look different (a new colour) keeps it.
     out = p.copy()
-    for c in range(3):
-        pm, ps = p[..., c][zone].mean(), p[..., c][zone].std() + 1e-3
-        qm, qs = q[..., c][zone].mean(), q[..., c][zone].std() + 1e-3
-        out[..., c] = (p[..., c] - pm) * min(2.0, max(0.5, qs / ps)) + qm
+    for c, cap in zip(range(3), (12.0, 10.0, 10.0)):
+        shift = float(np.clip(q[..., c][zone].mean() - p[..., c][zone].mean(), -cap, cap))
+        out[..., c] = p[..., c] + shift
     return ImageCms.applyTransform(Image.fromarray(np.clip(out, 0, 255).astype(np.uint8), "LAB"), to_rgb)
 
 

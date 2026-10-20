@@ -127,6 +127,8 @@ for e in opts.get("edits", []):
                 if e.get("cn"):
                     args["control_name"] = put(stitch.blackout(ci, cm), f"ev-{label}-control.png")
                 painted = run_graph(graphs.inpaint(put(ci, f"ev-{label}-crop.png"), put(cm, f"mask-ev-{label}-crop.png"), e["prompt"], **args))
+                os.makedirs(f"{out}/_raw", exist_ok=True)  # the painted crop as the model made it (for review)
+                painted.save(f"{out}/_raw/{label}.png")
                 if e.get("color_match", True):
                     painted = stitch.color_match(painted, ci, cm)
                 r = stitch.paste(original, painted, mask_im, box)

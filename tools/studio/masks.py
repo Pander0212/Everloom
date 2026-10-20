@@ -20,7 +20,7 @@ from PIL import Image
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..', 'puppets2'))
 
 
-def masks_for(kp, w, h):
+def masks_for(kp, w, h, alpha=None):
     P = lambda n: np.array(kp[n], dtype=float)
     neck, pelvis, top = P('neck'), P('pelvis'), P('headTop')
     torso = pelvis[1] - neck[1]
@@ -58,8 +58,8 @@ def masks_for(kp, w, h):
     out['torso'] = blank()
     cv2.fillPoly(out['torso'], [torso_poly], 255)
     out['full'] = np.full((h, w), 255, np.uint8)
-    # Everything below the chin (outfits that cover the body but must not touch the face or hair).
-    out['body'] = out['full'].copy()
+    # The figure below the chin (outfits): the silhouette, a little wider, never the background.
+    out['body'] = out['full'].copy() if alpha is None else cv2.dilate((alpha > 127).astype(np.uint8) * 255, np.ones((25, 25), np.uint8))
     out['body'][: int(neck[1] - head_h * 0.08)] = 0
     out['chest'] = np.maximum(out['breast-l'], out['breast-r'])
     out['nipples'] = np.maximum(out['nipple-l'], out['nipple-r'])
@@ -75,16 +75,22 @@ def main():
     a = ap.parse_args()
     rgb = np.array(Image.open(a.image).convert('RGB'))
     h, w = rgb.shape[:2]
+    os.makedirs(a.out, exist_ok=True)
+    # The figure's silhouette (rembg, IS-Net), cached next to the masks.
+    alpha_path = os.path.join(a.out, 'alpha.png')
+    if os.path.exists(alpha_path):
+        alpha = np.array(Image.open(alpha_path).convert('L'))
+    else:
+        from rembg import new_session, remove
+        alpha = np.array(remove(Image.fromarray(rgb), session=new_session('isnet-general-use')))[:, :, 3]
+        Image.fromarray(alpha).save(alpha_path)
     if a.keypoints:
         kp = json.load(open(a.keypoints))
     else:
         from decompose import detect_keypoints, standard_keypoints
-        from rembg import new_session, remove
-        alpha = np.array(remove(Image.fromarray(rgb), session=new_session('isnet-general-use')))[:, :, 3]
         kp = {k: v for k, v in standard_keypoints(detect_keypoints(rgb), alpha, 'front').items() if k != 'view'}
-    os.makedirs(a.out, exist_ok=True)
     json.dump(kp, open(os.path.join(a.out, 'keypoints.json'), 'w'), indent=1)
-    ms = masks_for(kp, w, h)
+    ms = masks_for(kp, w, h, alpha)
     for k, m in ms.items():
         Image.fromarray(m).save(os.path.join(a.out, f'mask-{k}.png'))
     prev = rgb.copy()
