@@ -1059,6 +1059,28 @@
    "balanceBefore": 1.3079839797,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "69a1128a7b50",
+   "date": "2026-10-20",
+   "job": "b4-views",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.508,
+   "start": "2026-10-20T20:25:10.597Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 7.5508190138,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
