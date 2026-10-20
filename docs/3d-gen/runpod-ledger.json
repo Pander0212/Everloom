@@ -619,6 +619,28 @@
    "balanceBefore": 1.5687539974,
    "balanceAfter": 1.5066153131,
    "result": "ok: qi2edit 13 files"
+  },
+  {
+   "id": "2473f04abec6",
+   "date": "2026-10-20",
+   "job": "b1-hair-faces",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.508,
+   "start": "2026-10-20T18:39:46.634Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 10,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
