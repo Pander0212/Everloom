@@ -27,11 +27,17 @@ docs/character-studio/evidence/ (procedural shapes; generated-art evidence stays
   distortion over every body type).
 - **Tests:** engine `studio` (14) and rollback samples, server `paperdoll` (3),
   `tools/studio/tests` (4), e2e `looks.spec.ts` (3 × 2 projects).
-- **Spent:** NanoGPT $0.036 (one rejected FLUX Klein edit); bases free; RunPod $0, no pods.
-- **Not yet:** the generated starter templates — NanoGPT's paid image billing failed for every
-  edit call this session (503 "billing reservation failed", 429, 504; none charged). The base
-  (`samples/gen/studio/raw/249-…`) and the edit batch are ready to run; estimate in
-  docs/character-studio/costs.md. Template maker in the app, sitting poses, 18+ scenes.
+- **Starter template `stand-neutral`** (generated, in `samples/gen/studio/packs/`, not in the repo):
+  base (Qwen Image) + 10 Qwen Image 2.1 edits (bald, 4 hairstyles, blouse, jeans, smile, shy, eye
+  colour) → bun / long straight / bob / ponytail / long wavy, 2 outfit items, 3 expressions; every
+  gate passes (alignment 0.23 px, seams ΔE 1.5, halos 158 px, holes 0, drift ΔE 2.75, slider
+  distortion within ×0.55…×1.8). In the app: first composite ≈ 0.3–0.4 s, cached ≈ 25 ms.
+- **Spent:** NanoGPT $0.336 (10 edits + one rejected FLUX Klein test); bases free; RunPod $0, no
+  pods. NanoGPT's paid image API was down for about an hour (503/429/504, none charged).
+- **Fallback:** `tools/gpu/models/qi2edit` runs the same Qwen Image 2.1 edits in ComfyUI on RunPod
+  (the ComfyUI_VNCCS model set); written but not yet run.
+- **Not yet:** the other starter poses, sitting poses, 18+ scenes; body types are subtle (cage warps
+  only — stronger shapes need per-body-type edits); template maker in the app.
 
 ## Puppets v2: full-body 2D characters (2026-10-20)
 

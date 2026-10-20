@@ -6064,6 +6064,94 @@
     "charged": 0.03
    },
    "file": "272-nano-qwen-image-2.1_edit-cs-smile.jpg"
+  },
+  {
+   "n": 273,
+   "date": "2026-10-20",
+   "at": "2026-10-20T09:10:00.034Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-shy",
+   "prompt": "Change only her facial expression to shy: a small smile, light blush on her cheeks, eyes glancing aside. Keep her hair, body, clothes, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": true,
+   "counted": false,
+   "costUsd": 0.03,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.40738711,
+    "usdAfter": 1.37738711,
+    "charged": 0.03
+   },
+   "file": "273-nano-qwen-image-2.1_edit-cs-shy.jpg"
+  },
+  {
+   "n": 274,
+   "date": "2026-10-20",
+   "at": "2026-10-20T09:11:20.978Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-eyes-green",
+   "prompt": "Change only the colour of her irises to bright green. Keep everything else exactly identical, including hair, face, body, clothes, pose, lighting, background and framing.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.37738711,
+    "usdAfter": 1.37738711,
+    "charged": 0
+   },
+   "error": "HTTP 503: Image request protection is temporarily unavailable. Please wait and try again."
+  },
+  {
+   "n": 275,
+   "date": "2026-10-20",
+   "at": "2026-10-20T09:12:23.060Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-eyes-green",
+   "prompt": "Change only the colour of her irises to bright green. Keep everything else exactly identical, including hair, face, body, clothes, pose, lighting, background and framing.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.37738711,
+    "usdAfter": 1.37738711,
+    "charged": 0
+   },
+   "error": "HTTP 503: Image request protection is temporarily unavailable. Please wait and try again."
+  },
+  {
+   "n": 276,
+   "date": "2026-10-20",
+   "at": "2026-10-20T09:13:28.580Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-eyes-green",
+   "prompt": "Change only the colour of her irises to bright green. Keep everything else exactly identical, including hair, face, body, clothes, pose, lighting, background and framing.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": true,
+   "counted": false,
+   "costUsd": 0.03,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.37738711,
+    "usdAfter": 1.34738711,
+    "charged": 0.03
+   },
+   "file": "276-nano-qwen-image-2.1_edit-cs-eyes-green.jpg"
   }
  ],
  "resumed": [

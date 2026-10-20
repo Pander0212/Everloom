@@ -127,6 +127,25 @@ def rgba(rgb, alpha):
     return np.dstack([rgb, alpha]).astype(np.uint8)
 
 
+def decontaminate(rgb, alpha, where=None):
+    """Edge pixels take the colour of the nearest solid pixel of the layer, so the soft edge never
+    carries the backdrop's colour (a light fringe once hair is recoloured dark, or a dark one on light
+    hair). Returns a layer."""
+    solid = (alpha >= 250).astype(np.uint8)
+    if not solid.any():
+        return rgba(rgb, alpha)
+    _, labels = cv2.distanceTransformWithLabels(1 - solid, cv2.DIST_L2, 5, labelType=cv2.DIST_LABEL_PIXEL)
+    ys, xs = np.nonzero(solid)
+    lut = np.zeros((labels.max() + 1, 3), np.uint8)
+    lut[labels[ys, xs]] = rgb[ys, xs]
+    out = rgb.copy()
+    edge = (alpha > 0) & (alpha < 250)
+    if where is not None:
+        edge &= where
+    out[edge] = lut[labels[edge]]
+    return rgba(out, alpha)
+
+
 def over(dst, layer):
     a = layer[:, :, 3:4].astype(np.float32) / 255
     return (layer[:, :, :3] * a + dst * (1 - a)).astype(np.uint8)
@@ -181,9 +200,9 @@ def silhouette_width(alpha, y, x_mid, half):
 
 
 def cages_from(kp, alpha):
-    """Body cages (rest / min / max quads) from the landmarks: each slider widens or narrows its
-    band around the body's centre line; breasts also grow forward-down (a front view shows that as
-    rounder and slightly lower)."""
+    """Body cages from the landmarks: one torso-and-thighs outline shared by the shoulder, waist,
+    hip, butt and thigh sliders (each moves its own outline points), and a box per breast that
+    grows outward and down (a front view shows that as rounder and slightly lower)."""
     P = lambda n: np.array(kp[n], dtype=float)
     neck, pelvis = P('neck'), P('pelvis')
     sl, sr, hl, hr = P('shoulder_L'), P('shoulder_R'), P('hip_L'), P('hip_R')
@@ -193,21 +212,54 @@ def cages_from(kp, alpha):
     half = abs(sl[0] - sr[0]) * 0.75
     cages = []
 
-    def band(cid, slider, y0, y1, amount, margin, xpad=0.0):
-        el, er = silhouette_width(alpha, y0, cx, half)
-        fl, fr = silhouette_width(alpha, y1, cx, half)
-        rest = [[el - xpad, y0], [er + xpad, y0], [fr + xpad, y1], [fl - xpad, y1]]
-        def at(k):
-            return [[cx + (x - cx) * (1 + k), y] for x, y in rest]
-        cages.append({'id': cid, 'slider': slider, 'rest': rnd(rest), 'min': rnd(at(-amount)), 'max': rnd(at(amount)), 'margin': round(margin, 1)})
+    def leg_x(side, y):
+        """The leg's centre at row y (hip → knee line), for rows where the centre line is the gap."""
+        h, k = P(f'hip_{side}'), P(f'knee_{side}')
+        t = np.clip((y - h[1]) / max(k[1] - h[1], 1), 0, 1)
+        return h[0] + (k[0] - h[0]) * t
 
-    ys = lambda f: neck[1] + torso * f
-    band('shoulders', 'shoulders', neck[1] + torso * 0.08, ys(0.3), 0.12, torso * 0.3)
-    band('waist', 'waist', ys(0.55), ys(0.78), 0.14, torso * 0.3)
-    band('hips', 'hips', ys(0.85), pelvis[1] + torso * 0.25, 0.14, torso * 0.3)
-    # Thighs: one band across both legs, hip line to just above the knees.
+    def edges(y):
+        """Outer body edges at row y: from the centre line above the crotch, from each leg below it."""
+        row = alpha[int(y)] > 127
+        if y < P('pelvis')[1]:
+            return silhouette_width(alpha, y, cx, half)
+        xs = []
+        for side in ('L', 'R'):
+            x0 = int(leg_x(side, y))
+            step = 1 if x0 > cx else -1
+            x = x0
+            while 0 < x < len(row) - 1 and row[x + step]:
+                x += step
+            xs.append(x)
+        return min(xs), max(xs)
+
+    # One outline around the torso and thighs, shared by every body slider: each slider moves only
+    # its own outline points (in or out from the centre line). Separate cages per region would
+    # overlap at their soft margins and add up into folds.
     ky = (kl[1] + kr[1]) / 2
-    band('thighs', 'thighs', pelvis[1] + torso * 0.28, ky - torso * 0.1, 0.12, torso * 0.3)
+    rows = [('shoulders', neck[1] + torso * 0.1), ('chest', neck[1] + torso * 0.4), ('waist', neck[1] + torso * 0.68),
+            ('hips', neck[1] + torso * 0.98), ('butt', pelvis[1] + torso * 0.15), ('thighs', pelvis[1] + (ky - pelvis[1]) * 0.55)]
+    pts = []
+    for name, y in rows:
+        l, r = edges(y)
+        # Symmetric about the centre line, from the nearer edge (a hand touching one side doesn't count).
+        pts.append((name, y, min(cx - l, r - cx)))
+    top, bottom = neck[1] + torso * 0.02, ky - torso * 0.05
+    w_top, w_bot = pts[0][2] * 0.9, pts[-1][2] * 0.9
+    rest = [(cx + w_top, top)] + [(cx + w, y) for _, y, w in pts] + [(cx + w_bot, bottom)]
+    rest += [(cx - w_bot, bottom)] + [(cx - w, y) for _, y, w in reversed(pts)] + [(cx - w_top, top)]
+    # How far (fraction of the half-width) each slider at ±1 moves each outline row.
+    amount = {'shoulders': {'shoulders': 0.12}, 'chest': {'shoulders': 0.04}, 'waist': {'waist': 0.18},
+              'hips': {'hips': 0.18, 'butt': 0.06}, 'butt': {'butt': 0.1, 'hips': 0.12, 'thighs': 0.05}, 'thighs': {'thighs': 0.18}}
+    for slider in ('shoulders', 'waist', 'hips', 'butt', 'thighs'):
+        def moved(k):
+            out = [list(p) for p in rest]
+            for idx, (name, _, _) in enumerate(pts):
+                a = amount[name].get(slider, 0) * k
+                for i in (1 + idx, len(rest) - 2 - idx):
+                    out[i][0] = cx + (out[i][0] - cx) * (1 + a)
+            return out
+        cages.append({'id': slider, 'slider': slider, 'rest': rnd(rest), 'min': rnd(moved(-1)), 'max': rnd(moved(1)), 'margin': round(torso * 0.35, 1)})
     # Breasts: a box over each breast, scaled about its centre (bigger and a little lower).
     for s, sh, hp in (('L', sl, hl), ('R', sr, hr)):
         c = sh + (hp - sh) * 0.3
@@ -221,7 +273,7 @@ def cages_from(kp, alpha):
         inner = c[0] - rx if c[0] > cx else c[0] + rx
         def sc(k, dy):
             return [[inner + (x - inner) * (1 + k), c[1] + (y - c[1]) * (1 + k) + dy] for x, y in rest]
-        cages.append({'id': f'breast-{s.lower()}', 'slider': 'breast', 'rest': rnd(rest), 'min': rnd(sc(-0.15, -ry * 0.04)), 'max': rnd(sc(0.15, ry * 0.08)), 'margin': round(rx * 1.2, 1)})
+        cages.append({'id': f'breast-{s.lower()}', 'slider': 'breast', 'rest': rnd(rest), 'min': rnd(sc(-0.16, -ry * 0.04)), 'max': rnd(sc(0.16, ry * 0.08)), 'margin': round(rx * 1.6, 1)})
     return cages
 
 
@@ -276,12 +328,19 @@ def run(spec_path, out):
     body_alpha = key_alpha(bald, os.path.join(work, 'bald-alpha.png'))
     # Fill pinholes in the body's alpha (rembg leaves a few inside light areas).
     solid = (body_alpha > 127).astype(np.uint8)
-    holes_before = solid.copy()
     inv = (1 - solid).astype(np.uint8)
     flood = np.zeros((H + 2, W + 2), np.uint8)
     cv2.floodFill(inv, flood, (0, 0), 0)
-    swap_holes = int(inv.sum())
+    holes_filled = int(inv.sum())
     body_alpha = np.maximum(body_alpha, (inv * 255).astype(np.uint8))
+    # What a swap could still reveal: see-through pixels inside the filled body silhouette.
+    sil = (body_alpha > 127).astype(np.uint8)
+    inv2 = (1 - sil).astype(np.uint8)
+    cv2.floodFill(inv2, np.zeros((H + 2, W + 2), np.uint8), (0, 0), 0)
+    swap_holes = int(inv2.sum())
+    report['holes_filled_px'] = holes_filled
+    # Where layer edges meet the backdrop (not the body): those edges are cleaned of backdrop colour.
+    backdrop = cv2.dilate((body_alpha < 128).astype(np.uint8), np.ones((5, 5), np.uint8)).astype(bool)
     kp = {k: v for k, v in spec['keypoints'].items()} if spec.get('keypoints') else keypoints(bald, body_alpha)
     P = lambda n: np.array(kp[n], dtype=float)
     torso = P('pelvis')[1] - P('neck')[1]
@@ -338,7 +397,7 @@ def run(spec_path, out):
         skin_soft = np.minimum(skin_soft, 255 - eye_mask)
     eye_hex = median_color(base, eye_mask) if eye_mask is not None else None
 
-    body = rgba(bald, body_alpha)
+    body = decontaminate(bald, body_alpha)
     recol = [{'kind': 'skin', 'base': skin_hex, 'mask': 'body-skin-mask.png'}]
     if eye_mask is not None:
         recol.append({'kind': 'eyes', 'base': eye_hex, 'mask': 'body-eyes-mask.png'})
@@ -366,7 +425,7 @@ def run(spec_path, out):
         # Outside the edit, the variant should equal the bald picture: global drift.
         outside = (cv2.dilate(m, np.ones((25, 25), np.uint8)) == 0) & ~head
         drift[f'hair:{style}'] = round(float(d[outside].mean()), 2)
-        a = np.minimum(feather(m), valpha)
+        a = np.minimum(feather(m, 1, 1.0), valpha)
         over_body = (body_alpha > 127)
         back_a = np.where(over_body, 0, a).astype(np.uint8)
         # Hair over the skull is front hair (it covers the bald head); over the rest of the body too.
@@ -376,8 +435,8 @@ def run(spec_path, out):
         hair_hexes.append(hex_)
         rc = [{'kind': 'hair', 'base': hex_}]
         when = {'hair.back': style}
-        emit(f'hair-{style}-back', 'hairBack', rgba(pic, back_a), Z['hairBack'], when, rc)
-        emit(f'hair-{style}-front', 'hairFront', rgba(pic, front_a), Z['hairFront'], when, rc)
+        emit(f'hair-{style}-back', 'hairBack', decontaminate(pic, back_a, backdrop), Z['hairBack'], when, rc)
+        emit(f'hair-{style}-front', 'hairFront', decontaminate(pic, front_a, backdrop), Z['hairFront'], when, rc)
         # The two halves together, over the bald picture, must give the variant back.
         measure(f'hair-{style}', rgba(pic, np.maximum(back_a, front_a)), bald, pic, m)
 
@@ -391,8 +450,8 @@ def run(spec_path, out):
             m &= (valpha > 127).astype(np.uint8)
             outside = (cv2.dilate(m, np.ones((25, 25), np.uint8)) == 0)
             drift[f'{slot}:{item}'] = round(float(d[outside].mean()), 2)
-            a = np.minimum(feather(m), valpha)
-            emit(f'{slot}-{item}', 'clothing', rgba(v, a), Z.get(slot, 20), {f'wardrobe.{slot}': item}, check=(base, v, m))
+            a = np.minimum(feather(m, 1, 1.0), valpha)
+            emit(f'{slot}-{item}', 'clothing', decontaminate(v, a, backdrop), Z.get(slot, 20), {f'wardrobe.{slot}': item}, check=(base, v, m))
             supports_w.setdefault(slot, []).append(item)
     expr = ['neutral']
     for e, p in spec.get('expressions', {}).items():

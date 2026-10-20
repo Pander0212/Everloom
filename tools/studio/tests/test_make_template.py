@@ -86,7 +86,7 @@ class MakeTemplateTest(unittest.TestCase):
         eye = np.array(Image.open(tmp_path / 'out' / 'stand-test' / 'body-eyes-mask.png'))[:, :, 0]
         assert 100 < (eye > 127).sum() < 600
         assert t['supports']['hairBack'] == ['long_straight', 'bob'] and t['supports']['expressions'] == ['neutral', 'smile']
-        assert {c['slider'] for c in t['slots'][0]['cages']} == {'shoulders', 'waist', 'hips', 'thighs', 'breast'}
+        assert {c['slider'] for c in t['slots'][0]['cages']} == {'shoulders', 'waist', 'hips', 'butt', 'thighs', 'breast'}
         assert r['gates']['alignment_px'] < 0.5 and r['gates']['reconstruction_de'] < 4
         assert (tmp_path / 'out' / 'stand-test.zip').exists() and (tmp_path / 'out' / 'stand-test-sheet.png').exists()
 
