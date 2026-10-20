@@ -677,14 +677,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.61,
+   "worstCaseUsd": null,
    "start": "2026-10-20T18:40:26.502Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T19:10:28.793Z",
+   "seconds": 1803,
+   "costUsd": 0.306,
    "balanceBefore": 10,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 9.0257838527,
+   "result": "failed: no model finished setting up ({})"
   },
   {
    "id": "dfa2910348ae",
@@ -805,14 +805,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.356,
+   "worstCaseUsd": null,
    "start": "2026-10-20T19:00:57.469Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T19:10:32.519Z",
+   "seconds": 577,
+   "costUsd": 0.098,
    "balanceBefore": 9.4163345916,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 9.0257838527,
+   "result": "ok: qi2edit 19 files"
   }
  ]
 }

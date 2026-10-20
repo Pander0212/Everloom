@@ -33,9 +33,9 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-20 | A40 (SECURE) | $0.61 | 9 min | $0.087 | $3.525 | cs2-verify | ok: qi2edit 13 files |
 | 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $3.525 | b1-hair-faces | starting |
 | 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $3.525 | b1-underwear | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $3.525 | b1-races | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | 4 min | $0.039 | $3.564 | b1-body | failed: no model finished setting up ({"gpu":"ok NVIDIA A40, 595.91.07, 46068 MiB","qi2edit":"failed: r rate limits and faster downloads. weights ok + python - extra NoctQA_V1_int8_convrot.safetensors 6920 MB |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $3.564 | b1-outfits | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | 17 min | $0.177 | $3.741 | b1-detail | ok: qi2edit 43 files |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $3.741 | b1-body | starting |
-| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $3.741 | b1-redo | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | 30 min | $0.306 | $3.831 | b1-races | failed: no model finished setting up ({}) |
+| 2026-10-20 | A40 (SECURE) | $0.61 | 4 min | $0.039 | $3.870 | b1-body | failed: no model finished setting up ({"gpu":"ok NVIDIA A40, 595.91.07, 46068 MiB","qi2edit":"failed: r rate limits and faster downloads. weights ok + python - extra NoctQA_V1_int8_convrot.safetensors 6920 MB |
+| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $3.870 | b1-outfits | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | 17 min | $0.177 | $4.047 | b1-detail | ok: qi2edit 43 files |
+| 2026-10-20 | A40 (SECURE) | $0.61 | — | — | $4.047 | b1-body | starting |
+| 2026-10-20 | A40 (SECURE) | $0.61 | 10 min | $0.098 | $4.145 | b1-redo | ok: qi2edit 19 files |
