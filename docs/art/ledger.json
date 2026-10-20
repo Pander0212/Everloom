@@ -5866,6 +5866,204 @@
     "charged": 0
    },
    "error": "HTTP 429: Usage could not be verified for the configured limits. Please retry."
+  },
+  {
+   "n": 264,
+   "date": "2026-10-20",
+   "at": "2026-10-20T09:01:04.290Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-bald",
+   "prompt": "Remove all of this woman's hair: she is completely bald with a smooth bald head, no bun. Keep her face, body, underwear, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": true,
+   "counted": false,
+   "costUsd": 0.03,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.64738711,
+    "usdAfter": 1.61738711,
+    "charged": 0.03
+   },
+   "file": "264-nano-qwen-image-2.1_edit-cs-bald.jpg"
+  },
+  {
+   "n": 265,
+   "date": "2026-10-20",
+   "at": "2026-10-20T09:01:55.629Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-hair-long",
+   "prompt": "Change only her hairstyle: long straight loose hair falling down her back to the waist, with straight bangs. Keep her face, body, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": true,
+   "counted": false,
+   "costUsd": 0.03,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.61738711,
+    "usdAfter": 1.58738711,
+    "charged": 0.03
+   },
+   "file": "265-nano-qwen-image-2.1_edit-cs-hair-long.jpg"
+  },
+  {
+   "n": 266,
+   "date": "2026-10-20",
+   "at": "2026-10-20T09:02:36.554Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-hair-bob",
+   "prompt": "Change only her hairstyle: a chin-length bob with straight bangs. Keep her face, body, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": true,
+   "counted": false,
+   "costUsd": 0.03,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.58738711,
+    "usdAfter": 1.55738711,
+    "charged": 0.03
+   },
+   "file": "266-nano-qwen-image-2.1_edit-cs-hair-bob.jpg"
+  },
+  {
+   "n": 267,
+   "date": "2026-10-20",
+   "at": "2026-10-20T09:03:44.856Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-hair-pony",
+   "prompt": "Change only her hairstyle: a high ponytail reaching her shoulder blades, with straight bangs. Keep her face, body, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": true,
+   "counted": false,
+   "costUsd": 0.03,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.55738711,
+    "usdAfter": 1.52738711,
+    "charged": 0.03
+   },
+   "file": "267-nano-qwen-image-2.1_edit-cs-hair-pony.jpg"
+  },
+  {
+   "n": 268,
+   "date": "2026-10-20",
+   "at": "2026-10-20T09:05:12.388Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-hair-wavy",
+   "prompt": "Change only her hairstyle: long wavy loose hair reaching mid-back, with side-swept bangs. Keep her face, body, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": false,
+   "counted": false,
+   "costUsd": 0,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.52738711,
+    "usdAfter": 1.52738711,
+    "charged": 0
+   },
+   "error": "HTTP 503: Image request protection is temporarily unavailable. Please wait and try again."
+  },
+  {
+   "n": 269,
+   "date": "2026-10-20",
+   "at": "2026-10-20T09:06:26.420Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-hair-wavy",
+   "prompt": "Change only her hairstyle: long wavy loose hair reaching mid-back, with side-swept bangs. Keep her face, body, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": true,
+   "counted": false,
+   "costUsd": 0.03,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.52738711,
+    "usdAfter": 1.49738711,
+    "charged": 0.03
+   },
+   "file": "269-nano-qwen-image-2.1_edit-cs-hair-wavy.jpg"
+  },
+  {
+   "n": 270,
+   "date": "2026-10-20",
+   "at": "2026-10-20T09:07:22.488Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-blouse",
+   "prompt": "Dress her in a fitted white button-up blouse with short sleeves, tucked in, over the sports bra. Keep her hair, face, body, briefs, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": true,
+   "counted": false,
+   "costUsd": 0.03,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.49738711,
+    "usdAfter": 1.46738711,
+    "charged": 0.03
+   },
+   "file": "270-nano-qwen-image-2.1_edit-cs-blouse.jpg"
+  },
+  {
+   "n": 271,
+   "date": "2026-10-20",
+   "at": "2026-10-20T09:08:09.567Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-jeans",
+   "prompt": "Dress her in fitted blue jeans over the briefs. Keep her hair, face, body, top, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": true,
+   "counted": false,
+   "costUsd": 0.03,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.46738711,
+    "usdAfter": 1.43738711,
+    "charged": 0.03
+   },
+   "file": "271-nano-qwen-image-2.1_edit-cs-jeans.jpg"
+  },
+  {
+   "n": 272,
+   "date": "2026-10-20",
+   "at": "2026-10-20T09:09:04.900Z",
+   "service": "nano",
+   "model": "qwen-image-2.1/edit",
+   "label": "cs-smile",
+   "prompt": "Change only her facial expression to a warm open smile. Keep her hair, body, clothes, pose, lighting, background and framing exactly identical; change nothing else.",
+   "res": null,
+   "input": "249-nano-qwen-image-cs-base-f2.jpg",
+   "ok": true,
+   "counted": false,
+   "costUsd": 0.03,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.43738711,
+    "usdAfter": 1.40738711,
+    "charged": 0.03
+   },
+   "file": "272-nano-qwen-image-2.1_edit-cs-smile.jpg"
   }
  ],
  "resumed": [

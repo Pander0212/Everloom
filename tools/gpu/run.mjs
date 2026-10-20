@@ -11,6 +11,7 @@
  * A job (JSON): { "job": "bench", "models": ["trellis2", "hunyuan3d"], "inputs": ["samples/gen/refs/a.png"],
  *   "out": "samples/gen/bench", "minVramGb": 48, "allowGpus": ["NVIDIA A40"], "maxMinutes": 120,
  *   "setupMinutes": 50, "opts": { "trellis2": { "texture": 2048 } } }
+ * Optional "expect": { "<model>": ["a.png", …] } names the files a model makes (when they aren't one per input).
  *
  * Rules (docs/3d-gen/README.md): the key comes from the environment and is redacted from every log;
  * the budget guard refuses a job whose worst case could pass the cap (EVERLOOM_GPU_CAP_USD, default
@@ -74,7 +75,8 @@ export async function runSession(job, deps) {
   const out = path.resolve(root, job.out);
   const models = job.models;
   const stem = (f) => path.basename(f).replace(/\.[^.]+$/, '');
-  const doneFor = (m, f) => existsSync(path.join(out, m, `${stem(f)}.${m === 'hunyuan3d' ? 'zip' : 'glb'}`));
+  // A job may list the files each model makes (job.expect[model]); otherwise one output per input.
+  const doneFor = (m, f) => (job.expect?.[m] ? job.expect[m].every((n) => existsSync(path.join(out, m, n))) : existsSync(path.join(out, m, `${stem(f)}.${m === 'hunyuan3d' ? 'zip' : 'glb'}`)));
   const todo = job.inputs.filter((f) => models.some((m) => !doneFor(m, f)));
   if (!todo.length) { say('nothing to do: every output already exists'); return { skipped: true }; }
 
