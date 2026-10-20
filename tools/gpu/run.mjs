@@ -151,6 +151,8 @@ export async function runSession(job, deps) {
       const st = JSON.stringify(health?.stages ?? {});
       if (st !== lastStages) { say(`[${Math.round((now() - t0) / 60000)} min] ${st}`); lastStages = st; }
       if (/^failed/.test(health?.stages?.gpu ?? '')) throw new Error(`bad host: ${health.stages.gpu}`);
+      // Some hosts never start the container (no answer at all, while a good host answers within ~3 min).
+      if (!health?.stages?.gpu && now() - t0 > (job.bootMinutes ?? 8) * 60_000) throw new Error(`bad host: the worker never answered in ${job.bootMinutes ?? 8} min`);
       if (health && models.every((m) => /^(ready|failed)/.test(health.stages?.[m] ?? ''))) break;
     }
     const ready = models.filter((m) => health?.stages?.[m] === 'ready');

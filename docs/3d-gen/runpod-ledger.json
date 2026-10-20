@@ -872,14 +872,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.61,
+   "worstCaseUsd": null,
    "start": "2026-10-20T19:16:17.727Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-20T19:46:34.866Z",
+   "seconds": 1819,
+   "costUsd": 0.308,
    "balanceBefore": 8.858860911,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 8.3938042805,
+   "result": "failed: no model finished setting up ({})"
   },
   {
    "id": "ab5d1e6c6feb",
