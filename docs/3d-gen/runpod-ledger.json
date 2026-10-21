@@ -1172,6 +1172,50 @@
    "balanceBefore": 6.4309421185,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "2160e0aa9ea5",
+   "date": "2026-10-21",
+   "job": "b7-underwear",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-tf.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.457,
+   "start": "2026-10-21T10:58:59.729Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 6.4309421185,
+   "balanceAfter": null,
+   "result": "starting"
+  },
+  {
+   "id": "b6f995f32948",
+   "date": "2026-10-21",
+   "job": "b7-outfits",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-tf.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.457,
+   "start": "2026-10-21T10:59:19.764Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 6.4309421185,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
