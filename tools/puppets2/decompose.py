@@ -702,31 +702,58 @@ def run(args):
                         holes = holes & ~trim
                     if side_chest is not None:
                         # Profile, arm held forward: the chest's front outline between the shoulder and
-                        # the breast lay behind the arm. Rebuilt as the convex outline of the upper
-                        # torso, filled with skin and outlined, hidden while the arm is in front of it.
+                        # the breast lay behind the arm. Rebuilt as skin up to a straight outline from the
+                        # base of the neck to the top of the breast (hidden while the arm is in front).
                         csh, cf = side_chest
                         yy_ = np.mgrid[0:h, 0:w][0]
                         own = m & (arr[:, :, 3] > 128)
                         rows = (yy_ >= csh[1] - 0.06 * height) & (yy_ <= csh[1] + 0.2 * height)
                         upper = own & rows
-                        fx = np.where(upper.any(axis=1), (upper * np.arange(w)[None, :]).max(axis=1) if cf > 0 else np.where(upper, np.arange(w)[None, :], w).min(axis=1), -1)
-                        tip = int(np.argmax(fx * cf if cf > 0 else np.where(fx >= 0, -fx, -10 ** 6)))
-                        zone = upper & (yy_ <= tip)
-                        pts = cv2.findNonZero(zone.astype(np.uint8))
-                        if pts is not None:
-                            hull = np.zeros((h, w), np.uint8)
-                            cv2.fillPoly(hull, [cv2.convexHull(pts)], 1)
-                            fill = (hull > 0) & ~m & ((np.mgrid[0:h, 0:w][1] - csh[0]) * cf > 0)
-                            if fill.any():
-                                px_ = arr[own][:, :3].astype(np.float32)
-                                lum = px_.mean(axis=1)
-                                skin = np.median(px_[lum >= np.percentile(lum, 60)], axis=0).astype(np.uint8)
-                                arr2 = arr2.copy()
-                                arr2[fill, :3] = skin
-                                arr2[fill, 3] = 255
-                                edge = fill & ~(cv2.erode(hull, np.ones((5, 5), np.uint8)) > 0)
-                                arr2[edge, :3] = line_colour(arr)
-                                m = m | fill
+                        xx_ = np.mgrid[0:h, 0:w][1]
+                        front = lambda row: (np.nonzero(row)[0].max() if cf > 0 else np.nonzero(row)[0].min()) if row.any() else None
+                        rws = [y for y in range(h) if upper[y].any()]
+                        fill = np.zeros((h, w), bool)
+                        if rws:
+                            # A: the front of the torso at its top (the base of the neck); B: the top of the
+                            # breast, the first row below the arm whose front reaches well past A.
+                            ya = rws[0] + int(0.015 * height)
+                            ax = front(upper[ya])
+                            bpt = None
+                            for y in rws:
+                                fx_ = front(upper[y])
+                                if y > csh[1] and fx_ is not None and (fx_ - ax) * cf > 0.05 * height:
+                                    bpt = (fx_, y)
+                                    break
+                            if ax is not None and bpt is not None:
+                                # The chest outline: a straight line from A to the top of the breast; every
+                                # pixel behind it (back towards the spine) in those rows is chest.
+                                bx, by = bpt
+                                t = np.clip((yy_ - ya) / max(1, by - ya), 0, 1)
+                                line_x = ax + (bx - ax) * t
+                                inside = ((line_x - xx_) * cf >= 0) & (yy_ >= ya) & (yy_ <= by)
+                                body_rows = np.zeros((h, w), bool)
+                                for y in range(ya, by + 1):
+                                    xs_ = np.nonzero(own[y])[0]
+                                    if len(xs_):
+                                        body_rows[y, xs_.min():xs_.max() + 1] = True
+                                back_x = np.where(own.any(axis=1), np.where(own, xx_, w).min(axis=1) if cf > 0 else np.where(own, xx_, -1).max(axis=1), 0)
+                                behind = ((xx_ - back_x[:, None]) * cf >= 0)
+                                chest = inside & behind & (yy_ >= ya) & (yy_ <= by)
+                                fill = chest & ~(own & (arr[:, :, 3] > 250))
+                                if fill.any():
+                                    px_ = arr[own][:, :3].astype(np.float32)
+                                    lum = px_.mean(axis=1)
+                                    skin = np.median(px_[lum >= np.percentile(lum, 60)], axis=0).astype(np.uint8)
+                                    arr2 = arr2.copy()
+                                    keep_px = own & chest
+                                    arr2[fill & ~keep_px, :3] = skin
+                                    arr2[fill, 3] = 255
+                                    edge = chest & ((np.abs(line_x - xx_) < 1.6))
+                                    arr2[edge, :3] = line_colour(arr)
+                                    arr2[edge, 3] = 255
+                                    m = m | chest
+                                    mult = np.where(chest, 1.0, mult)  # (the joint-cap fade would hide it)
+                            print(f'side chest: {int(fill.sum())} px rebuilt')
                     add(role, m | holes, with_mult(arr2, np.where(holes, 1.0, mult)))
                 elif cut_lines is not None and role.startswith('leg_'):
                     # The leg's hidden filler under the torso (past the cut line) is plain skin painted
