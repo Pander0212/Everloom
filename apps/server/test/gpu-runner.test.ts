@@ -70,7 +70,8 @@ function fakeRunPod({ failDeploy = false } = {}) {
   return { gql, pods, calls };
 }
 
-const job = (out: string) => ({ job: 'test', models: ['trellis2'], inputs: ['tests/fixtures/textures/quarters.png'], out, minVramGb: 40, maxMinutes: 30, setupMinutes: 5 });
+// (minFreeGb 0: the runner's free-disk check is about the real machine, not these mocked sessions)
+const job = (out: string) => ({ job: 'test', models: ['trellis2'], inputs: ['tests/fixtures/textures/quarters.png'], out, minVramGb: 40, maxMinutes: 30, setupMinutes: 5, minFreeGb: 0 });
 const files = () => { const d = mkdtempSync(path.join(tmpdir(), 'gpu-')); return { out: d, ledgerFile: path.join(d, 'l.json'), ledgerMd: path.join(d, 'l.md') }; };
 let clock = 0;
 const deps = (gql: unknown, f: ReturnType<typeof files>, http: (u: string, i?: RequestInit) => Promise<Response>) => ({ gql, http, ...f, sleep: async () => { clock += 20_000; }, now: () => clock, log: () => {}, bundle: () => 'x' });

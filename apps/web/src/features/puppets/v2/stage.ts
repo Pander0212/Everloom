@@ -85,6 +85,13 @@ export class Puppet2Stage {
     return p;
   }
 
+  /** Uploads pictures that arrived after the puppet was added (wardrobe parts loaded on demand). */
+  addTextures(id: string, view: View2, images: Record<string, TexImageSource>) {
+    const v = this.puppets.get(id)?.views[view];
+    if (!v) return;
+    for (const [tid, img] of Object.entries(images)) if (!v.textures.has(tid)) v.textures.set(tid, this.renderer.texture(img));
+  }
+
   remove(id: string) {
     const p = this.puppets.get(id);
     if (!p) return;

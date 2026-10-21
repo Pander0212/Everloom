@@ -25,7 +25,40 @@ interface Meta { id: string; views: View2[]; parts: Partial<Record<View2, Array<
 const X: Record<string, number> = { left: 0.18, center: 0.5, right: 0.82 };
 const loads = new Map<string, Promise<{ meta: Meta; views: Partial<Record<View2, ViewSource>> }>>();
 
-/** Loads a puppet's views once per page (models and pictures). */
+/** Every view's parts (some exist in one view only, e.g. a profile's butt copies). */
+export function allParts(meta: Meta) {
+  return [...new Map(Object.values(meta.parts).flatMap((ps) => ps ?? []).map((x) => [x.id, x])).values()];
+}
+
+const pictures = new Map<string, Promise<ImageBitmap>>();
+function picture(id: string, file: string) {
+  const k = `${id}/${file}`;
+  let p = pictures.get(k);
+  if (!p) {
+    p = fetch(`/api/puppets2/${id}/${file}`, { credentials: 'same-origin' }).then((r) => r.blob()).then((b) => createImageBitmap(b, { premultiplyAlpha: 'premultiply' }));
+    p.catch(() => pictures.delete(k));
+    pictures.set(k, p);
+  }
+  return p;
+}
+
+/** The pictures of the given parts in every view (texture id → picture), fetched once per page. */
+async function partPictures(id: string, views: Partial<Record<View2, ViewSource>>, show: (part: string) => boolean) {
+  const out: Partial<Record<View2, Record<string, TexImageSource>>> = {};
+  await Promise.all((Object.entries(views) as Array<[View2, ViewSource]>).map(async ([v, src]) => {
+    const want = src.model.textures.filter((t) => show(t.id.slice(v.length + 1)) && !src.images[t.id]);
+    const got = await Promise.all(want.map(async (t) => [t.id, await picture(id, t.path)] as const));
+    out[v] = Object.fromEntries(got);
+    Object.assign(src.images, out[v]);
+  }));
+  return out;
+}
+
+/**
+ * Loads a puppet's views once per page: the models, and the pictures of what it shows at first (the
+ * body and the first outfit and hairstyle). Other outfits and hairstyles load when worn (`wear`), so
+ * a character can carry a whole wardrobe without fetching it.
+ */
 export function loadPuppet(id: string) {
   let p = loads.get(id);
   if (!p) {
@@ -36,19 +69,34 @@ export function loadPuppet(id: string) {
       const views: Partial<Record<View2, ViewSource>> = {};
       await Promise.all(meta.views.map(async (v) => {
         const model = (await (await fetch(`/api/puppets2/${id}/${v}.r2d.json`, { credentials: 'same-origin' })).json()) as Model;
-        const images: Record<string, TexImageSource> = {};
-        await Promise.all(model.textures.map(async (t) => {
-          const blob = await (await fetch(`/api/puppets2/${id}/${t.path}`, { credentials: 'same-origin' })).blob();
-          images[t.id] = await createImageBitmap(blob, { premultiplyAlpha: 'premultiply' });
-        }));
-        views[v] = { model, images };
+        views[v] = { model, images: {} };
       }));
+      const hidden = hiddenParts(allParts(meta), null);
+      await partPictures(id, views, (part) => !hidden.has(part));
       return { meta, views };
     })();
     p.catch(() => loads.delete(id));
     loads.set(id, p);
   }
   return p;
+}
+
+const wearing = new Map<string, number>();
+/**
+ * Dresses a puppet on a stage: loads the pictures of the chosen outfit and hairstyle in every view,
+ * then shows them (the old clothes stay until the new ones are there: no bare frame in between).
+ */
+export async function wear(stage: Puppet2Stage, key: string, puppetId: string, outfit: string | null, hair?: string | null) {
+  const { meta, views } = await loadPuppet(puppetId);
+  const hidden = hiddenParts(allParts(meta), outfit, hair);
+  const n = (wearing.get(key) ?? 0) + 1;
+  wearing.set(key, n);
+  const got = await partPictures(puppetId, views, (part) => !hidden.has(part));
+  if (wearing.get(key) !== n) return; // a newer choice arrived meanwhile
+  const p = stage.get(key);
+  if (!p) return;
+  for (const [v, imgs] of Object.entries(got) as Array<[View2, Record<string, TexImageSource>]>) stage.addTextures(key, v, imgs);
+  p.hidden = hidden;
 }
 
 /** `safeBottom`: the fraction of the stage's height the dialog covers; the floor sits just above it. */
@@ -94,9 +142,7 @@ export default function StageLayerPuppets2({ cast, className, onFail, safeBottom
         s.setBase(c.id, poseMotion(c.pose));
         p.speaking = !!c.speaking;
         p.expression = expressionIndex(c.emotion);
-        const meta = metas.current.get(c.id);
-        // (every view's parts: the character turns between views without passing here again)
-        p.hidden = hiddenParts(meta ? Object.values(meta.parts).flatMap((ps) => ps ?? []) : [], c.outfit);
+        void wear(s, c.id, c.puppet, c.outfit).catch((e: Error) => fail.current?.(c.id, e.message));
         // A new emote cue plays once; an old one (already seen, or restored by a rollback) does not.
         const cue = c.emote ? `${c.emote.id}:${c.emote.cue}` : '';
         if (cue && seen.current.get(c.id) !== cue) {
@@ -112,6 +158,7 @@ export default function StageLayerPuppets2({ cast, className, onFail, safeBottom
         if (!live || !stage.current || s.get(c.id)) return;
         metas.current.set(c.id, meta);
         s.add(c.id, views, { x, height: (1 - safeBottom) * 0.86, floor: 1 - safeBottom + 0.03 });
+        s.get(c.id)!.hidden = hiddenParts(allParts(meta), null);
         // Cues present when the puppet appears belong to the past: remember, don't replay.
         seen.current.set(c.id, c.emote ? `${c.emote.id}:${c.emote.cue}` : '');
         apply();

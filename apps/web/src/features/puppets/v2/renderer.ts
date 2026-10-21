@@ -174,6 +174,8 @@ export class Puppet2Renderer {
     };
     for (const it of d.list.draws) {
       if (d.hidden?.has(it.partId)) continue;
+      // (a wardrobe part whose picture is still loading is not drawn yet, rather than drawn blank)
+      if (it.texture && !d.textures.has(it.texture)) continue;
       const hasMask = !!it.masks?.length;
       if (hasMask || masked || it.texture !== tex || it.blend !== blend) {
         flush();

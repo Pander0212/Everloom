@@ -41,7 +41,7 @@ const SAFE = /^[A-Za-z0-9_-]{1,80}$/;
 const FILE = /^[A-Za-z0-9_./-]{1,160}\.png$/;
 
 const PackLayerSchema = LayerSchema.omit({ texture: true }).extend({ file: z.string().regex(FILE).optional() });
-const ViewSchema = z.object({ keypoints: KeypointsSchema, layers: z.array(PackLayerSchema).min(1).max(120) }).optional();
+const ViewSchema = z.object({ keypoints: KeypointsSchema, layers: z.array(PackLayerSchema).min(1).max(1500) }).optional(); // (a whole wardrobe: its pictures load when worn)
 const PackSchema = z.object({
   name: z.string().trim().min(1).max(80),
   rating: z.enum(['all-ages', '18+']).default('all-ages'),

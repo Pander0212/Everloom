@@ -8,7 +8,7 @@ import { buildCharacter, EXPRESSIONS, hiddenParts, testFigure, type FigureShape,
 import { useEffect, useRef, useState } from 'react';
 import { Button, Select } from '@/ui';
 import { Puppet2Stage, type View2, type ViewSource } from './stage';
-import { loadPuppet } from './StageLayer';
+import { allParts, loadPuppet, wear } from './StageLayer';
 
 declare global {
   interface Window { __puppet2Lab?: { stage: Puppet2Stage; ready: number } }
@@ -83,6 +83,8 @@ export default function PuppetV2Lab() {
   const [hair, setHair] = useState<string>('');
   /** Each puppet's own wardrobe (a mixed cast has different parts). */
   const wardrobes = useRef(new Map<string, Array<{ id: string; outfit?: string; adult?: boolean }>>());
+  /** Stage id → imported puppet id (their wardrobe pictures load when worn). */
+  const sources = useRef(new Map<string, string>());
   const [talking, setTalking] = useState(false);
   const q = new URLSearchParams(location.search);
   const url = q.get('model');
@@ -115,9 +117,9 @@ export default function PuppetV2Lab() {
           const ids = p2 ? p2.split(',') : [];
           const loaded = ids.length ? await loadPuppet(ids[i % ids.length]!) : null;
           const views: Partial<Record<View2, ViewSource>> = loaded ? loaded.views : url ? { front: await loadModel(url) } : testViews(i === 1 ? 1.15 : 1);
-          // Every view's parts: some exist in one view only (a profile's butt copies).
-          const w = loaded ? [...new Map(Object.values(loaded.meta.parts).flatMap((ps) => ps ?? []).map((x) => [x.id, x])).values()] : url ? [] : testFigure().input.layers.map((l) => ({ id: l.id, ...(l.outfit ? { outfit: l.outfit } : {}) }));
+          const w = loaded ? allParts(loaded.meta) : url ? [] : testFigure().input.layers.map((l) => ({ id: l.id, ...(l.outfit ? { outfit: l.outfit } : {}) }));
           wardrobes.current.set(`p${i + 1}`, w);
+          if (ids.length) sources.current.set(`p${i + 1}`, ids[i % ids.length]!); else sources.current.delete(`p${i + 1}`);
           if (i === 0) setWardrobe(w);
           if (!live) return;
           const p = s.add(`p${i + 1}`, views, { x: SPOTS[count - 1]![i]!, height: count === 1 ? 0.9 : 0.78, floor: 0.97 });
@@ -136,6 +138,12 @@ export default function PuppetV2Lab() {
   }, [count, url, p2]);
 
   const all = (fn: (id: string) => void) => { for (const id of stage.current?.ids() ?? []) fn(id); };
+  /** Dresses every puppet: an imported one loads the chosen outfit's and hairstyle's pictures first. */
+  const dress = (o: string | null, h: string | null) => all((id) => {
+    const src = sources.current.get(id);
+    if (src) void wear(stage.current!, id, src, o, h).catch((e: Error) => setError(e.message));
+    else stage.current!.get(id)!.hidden = hiddenParts(wardrobes.current.get(id) ?? [], o, h);
+  });
   const BASE = new Set(['idle', 'walk', 'armsCrossed', 'handsOnHips', 'armsUp']);
 
   return (
@@ -154,13 +162,13 @@ export default function PuppetV2Lab() {
           </Select>
           <Button size="sm" variant={talking ? 'primary' : 'ghost'} aria-pressed={talking} onClick={() => { const t = !talking; setTalking(t); all((id) => (stage.current!.get(id)!.speaking = t)); }}>Talk</Button>
           {wardrobe.some((w) => w.outfit && !w.outfit.startsWith('hair:')) ? (
-            <Select aria-label="Outfit" value={outfit} onChange={(e) => { setOutfit(e.target.value); all((id) => (stage.current!.get(id)!.hidden = hiddenParts(wardrobes.current.get(id) ?? [], e.target.value || null, hair || null))); }} className="w-auto">
+            <Select aria-label="Outfit" value={outfit} onChange={(e) => { setOutfit(e.target.value); dress(e.target.value || null, hair || null); }} className="w-auto">
               {[...new Set(wardrobe.flatMap((w) => (w.outfit && !w.outfit.startsWith('hair:') ? [w.outfit] : [])))].map((o, i) => <option key={o} value={i === 0 ? '' : o}>{o}</option>)}
               <option value="none">No outfit</option>
             </Select>
           ) : null}
           {wardrobe.some((w) => w.outfit?.startsWith('hair:')) ? (
-            <Select aria-label="Hair" value={hair} onChange={(e) => { setHair(e.target.value); all((id) => (stage.current!.get(id)!.hidden = hiddenParts(wardrobes.current.get(id) ?? [], outfit || null, e.target.value || null))); }} className="w-auto">
+            <Select aria-label="Hair" value={hair} onChange={(e) => { setHair(e.target.value); dress(outfit || null, e.target.value || null); }} className="w-auto">
               {[...new Set(wardrobe.flatMap((w) => (w.outfit?.startsWith('hair:') ? [w.outfit] : [])))].map((o, i) => <option key={o} value={i === 0 ? '' : o}>{o.slice(5)}</option>)}
               <option value="none">Bald</option>
             </Select>
