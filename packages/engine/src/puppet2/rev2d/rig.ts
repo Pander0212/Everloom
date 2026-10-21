@@ -160,7 +160,7 @@ export class Player {
     if (inputs.physics) this.physics = physicsAt(c, this.physics, inputs);
     const events = this.crossedEvents(inputs);
     this.time = inputs.time;
-    return evaluateFrame(c, inputs, inputs.physics ? this.physics : null, events);
+    return evaluateFrame(c, inputs, inputs.physics ? this.physics : null, events, opts.skip);
   }
 
   /**

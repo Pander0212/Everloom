@@ -81,6 +81,16 @@ describe('puppets v2 auto-rig', () => {
     expect(model.animations.map((a) => a.id)).toEqual(expect.arrayContaining(['idle', 'wave_L', 'wave_R', 'armsCrossed', 'walk', 'jump']));
   });
 
+  it('skips the parts it is told not to show (not deformed, not drawn)', () => {
+    const player = rig.player();
+    const all = player.update({ time: 0, physics: false });
+    expect(all.drawOrder).toContain('armL');
+    const some = rig.player().update({ time: 0, physics: false, skip: new Set(['armL']) });
+    expect(some.drawOrder).not.toContain('armL');
+    expect(some.parts.armL!.fill).toBeNull();
+    expect(some.drawOrder.length).toBe(all.drawOrder.length - 1);
+  });
+
   it('waves with the elbow bent about 120° and the hand above the shoulder', () => {
     for (const t of [0.1, 0.5, 0.9, 1.3, 1.7]) {
       const b = rig.pose({ time: t, animations: ['wave_L'], physics: false }).bones;

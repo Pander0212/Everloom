@@ -188,6 +188,8 @@ export interface PoseOptions {
   params?: Record<string, number>;
   /** Simulate physics (default true when the model has physics): from rest over at most the 60 s before `time`. */
   physics?: boolean;
+  /** Parts not shown in this pose (not deformed, not drawn): e.g. the outfits a character is not wearing. */
+  skip?: ReadonlySet<string>;
 }
 
 export interface BonePose {

@@ -78,6 +78,7 @@ export function evaluateFrame(
   inputs: FrameInputs,
   physics: PhysicsState | null,
   events: Pose['events'],
+  skip?: ReadonlySet<string>,
 ): Pose {
   // 1-5: parameters (physics outputs are clamped as they are written; explicit values are re-applied).
   const params = new Float64Array(c.params.ids.length);
@@ -139,6 +140,11 @@ export function evaluateFrame(
   const parts: Record<string, PartPose> = {};
   const visibleParts: number[] = [];
   c.parts.forEach((cp, i) => {
+    if (skip?.has(cp.id)) {
+      // Not shown: no deformation work (a character with a whole wardrobe skips most of its parts).
+      parts[cp.id] = { visible: false, opacity: partState.opacity[i], z: partState.z[i], tint: partState.tint[i], bounds: null, fill: null, stroke: null };
+      return;
+    }
     const pose = partPose(cp, geometry[i], deform, partState, i);
     parts[cp.id] = pose;
     if (pose.visible) visibleParts.push(i);

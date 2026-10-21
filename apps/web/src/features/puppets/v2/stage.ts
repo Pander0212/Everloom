@@ -200,7 +200,7 @@ export class Puppet2Stage {
       for (const [view, a] of shown) {
         const v = p.views[view];
         if (!v || a <= 0) continue;
-        const pose = v.player.update({ time: this.time, animations: this.layers(p, v), params: { ...this.face(p), ...p.params } });
+        const pose = v.player.update({ time: this.time, animations: this.layers(p, v), params: { ...this.face(p), ...p.params }, skip: p.hidden });
         const list = buildRenderList(v.rig, pose);
         const s = (p.height * H) / v.rig.model.meta.height, fx = p.flip ? -1 : 1;
         out.push({ list, textures: v.textures, alpha: a * p.alpha, hidden: p.hidden, matrix: [fx * s, 0, 0, s, p.x * W - fx * s * v.rootX, p.floor * H - s * v.rootY] });
