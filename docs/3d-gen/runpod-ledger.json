@@ -1397,14 +1397,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.966,
+   "worstCaseUsd": null,
    "start": "2026-10-21T17:37:40.202Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-21T18:36:14.221Z",
+   "seconds": 3515,
+   "costUsd": 0.596,
    "balanceBefore": 4.1490579963,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 2.5117077464,
+   "result": "ok: qi2edit 134 files"
   },
   {
    "id": "4fb6df0db02b",
@@ -1419,14 +1419,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.966,
+   "worstCaseUsd": null,
    "start": "2026-10-21T17:37:59.716Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-21T18:37:59.971Z",
+   "seconds": 3601,
+   "costUsd": 0.61,
    "balanceBefore": 4.1490579963,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 2.5117077464,
+   "result": "ok: qi2edit 134 files"
   },
   {
    "id": "789c126395e6",
@@ -1441,14 +1441,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.966,
+   "worstCaseUsd": null,
    "start": "2026-10-21T17:38:19.727Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-21T18:27:23.921Z",
+   "seconds": 2945,
+   "costUsd": 0.499,
    "balanceBefore": 4.1490579963,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 2.738322113,
+   "result": "ok: qi2edit 112 files"
   }
  ]
 }
