@@ -589,6 +589,15 @@ def run(args):
             sources.append({'name': l['name'], 'role': role_for(l['name']), 'rgba': arr})
     else:
         sources.append({'name': 'body', 'role': 'body', 'rgba': rgba})
+    # Separate layer pictures aligned with the picture (a hairstyle's back and front hair cut against a
+    # bald base, wings, a tail): each becomes one layer of its role, optionally drawn at its own depth
+    # and on its own bones (wings behind the torso on the chest, a tail on the pelvis).
+    for spec in args.extra:
+        head, path = spec.split('=', 1)
+        name, role, *rest = head.split(':')
+        sources.append({'name': name, 'role': role, 'rgba': load_rgba(path, (w, h)), 'id': name,
+                        'z': float(rest[0]) if rest and rest[0] else None, 'skin': rest[1].split(',') if len(rest) > 1 and rest[1] else None,
+                        'outfit': rest[2] if len(rest) > 2 and rest[2] else None})
 
     out_layers = []
     islands = [0]
@@ -685,6 +694,9 @@ def run(args):
         elif src['role'] in CLOTH_SPLIT:
             for role, (m, mult) in split_layer(arr, reg, kp, CLOTH_SPLIT[src['role']], height, cap=src['role'] in ('topwear',)).items():
                 add(role, m, with_mult(arr, mult), outfit=args.outfit_name)
+        elif 'id' in src:  # an --extra layer
+            add(src['id'], arr[:, :, 3] > 8, arr, outfit=src['outfit'])
+            out_layers[-1].update(role=src['role'], z=src['z'], skin=src['skin'])
         else:
             add(src['role'], arr[:, :, 3] > 8, arr, outfit=args.outfit_name if src['role'] in ('headwear', 'other') else None)
 
@@ -912,6 +924,8 @@ def run(args):
             e['adult'] = True
         if l.get('z') is not None:
             e['z'] = l['z']
+        if l.get('skin'):
+            e['skin'] = l['skin']
         if l.get('variant'):
             e['variant'] = l['variant']
         entries.append(e)
@@ -948,6 +962,7 @@ if __name__ == '__main__':
     ap.add_argument('--outfit-name', default=None, help='outfit set for clothes found in --layers')
     ap.add_argument('--adult-image', help='the same pose nude (18+ pack): its torso becomes the adult layer')
     ap.add_argument('--variant', action='append', default=[], metavar='NAME=PATH', help='the same picture with a face or hand change: eyes_closed, mouth_a…mouth_o, smile, angry, sad, surprised, blush, cry; wave_L, open_R, fist_L, point_R… (repeatable)')
+    ap.add_argument('--extra', action='append', default=[], metavar='ID:ROLE[:Z[:BONES[:OUTFIT]]]=PATH', help='a separate layer picture aligned with the image (hair_back, hair_front, wings…), e.g. wings:other:5:chest=wings.png; OUTFIT puts it in a wardrobe set (repeatable)')
     ap.add_argument('--name', default='Character')
     ap.add_argument('--rating', default='all-ages', choices=['all-ages', '18+'])
     ap.add_argument('--min-heads', type=float, default=5.5)
