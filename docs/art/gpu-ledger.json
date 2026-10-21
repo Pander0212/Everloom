@@ -316,6 +316,24 @@
    ],
    "result": "failed: the worker did not finish setting up in time (last stage: GPU check failed)",
    "note": "studio A-pose bases"
+  },
+  {
+   "date": "2026-10-21",
+   "provider": "RunPod",
+   "gpu": "A40",
+   "pricePerHr": 0.59,
+   "start": "2026-10-21T08:50:58.940Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 6.5434166991,
+   "balanceAfter": null,
+   "images": [
+    "tpose-f.png",
+    "tpose-m.png"
+   ],
+   "result": "started",
+   "note": "studio T-pose bases"
   }
  ]
 }
