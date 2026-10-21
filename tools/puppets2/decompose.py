@@ -1001,13 +1001,24 @@ def run(args):
             below = tm & (py_ >= waist_y)
             if below.sum() > 40:
                 pieces[lower[0]] = (below | (pieces[lower[0]][0] if lower[0] in pieces else np.zeros_like(below)), tmult)
+        # A long skirt (a gown, a kimono) reaches below the knees wider than the legs themselves: it
+        # stays whole on the skirt bone down to its hem; only what is below the hem (the shoes) goes
+        # on the feet. A short skirt is cut at the knees as before.
+        ankle_y = (kp['ankle_L'][1] + kp['ankle_R'][1]) / 2
+        hem_y = knee_y
+        if skirt:
+            band = (py_ > knee_y) & (py_ < knee_y + 0.6 * (ankle_y - knee_y))
+            outside = band & diff & (other[:, :, 3] > 128) & (rgba[:, :, 3] < 128)
+            if outside.sum() > 0.0005 * height * height:  # (more than a few stray pixels beside the legs)
+                garment_rows = np.nonzero((diff & (other[:, :, 3] > 128) & (rgba[:, :, 3] < 128)).any(axis=1))[0]
+                hem_y = float(garment_rows.max()) if len(garment_rows) else knee_y
         if skirt:
             sk = pieces.get('skirt', (np.zeros((h, w), bool), np.ones((h, w), np.float32)))[0]
             for side in ('legwear_L', 'legwear_R'):
                 if side in pieces:
                     lm, _ = pieces.pop(side)
-                    sk |= lm & (py_ < knee_y)
-                    rest = lm & (py_ >= knee_y)
+                    sk |= lm & (py_ < hem_y)
+                    rest = lm & (py_ >= hem_y)
                     if rest.sum() > 40:
                         pieces['footwear_' + side[-1]] = (rest, np.ones((h, w), np.float32))
             pieces['skirt'] = (sk, np.ones((h, w), np.float32))
