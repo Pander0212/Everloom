@@ -1104,6 +1104,29 @@
    "balanceBefore": 7.300826236,
    "balanceAfter": 6.8389396267,
    "result": "ok: qi2edit 22 files"
+  },
+  {
+   "id": "82d6e22fcc68",
+   "date": "2026-10-21",
+   "job": "b6-arms",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg",
+    "base-m.jpg"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.356,
+   "start": "2026-10-21T08:02:35.697Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 6.8136951656,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
