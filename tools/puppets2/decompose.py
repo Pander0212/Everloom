@@ -370,6 +370,23 @@ def load_rgba(path, size=None):
     return np.array(im)
 
 
+def place_cropped(path, layer, index, size):
+    """A See-through layer saved as a crop (`left`, `top` on its square working canvas of
+    index width × height, which is the picture padded to a square, centred, and resized) placed back
+    on the picture's own canvas."""
+    w, h = size
+    side = max(w, h)
+    k = side / float(index['width'])
+    ox, oy = (side - w) / 2.0, (side - h) / 2.0
+    crop = Image.open(path).convert('RGBA')
+    cw, ch = max(1, round(crop.width * k)), max(1, round(crop.height * k))
+    if (cw, ch) != crop.size:
+        crop = crop.resize((cw, ch), Image.LANCZOS)
+    out = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+    out.alpha_composite(crop, (round(layer['left'] * k - ox), round(layer['top'] * k - oy))) if layer['left'] * k - ox >= 0 and layer['top'] * k - oy >= 0 else out.paste(crop, (round(layer['left'] * k - ox), round(layer['top'] * k - oy)), crop)
+    return np.array(out)
+
+
 def run(args):
     if args.stylized:
         args.no_bust = True  # no bust layers or bounce on a big-headed body
@@ -395,10 +412,33 @@ def run(args):
 
     # Source layers: See-through's, or the picture as one body layer.
     sources = []
-    if args.layers:
+    torso_full = None
+    if args.layers and args.nude_layers:
+        # A nude figure: See-through files the skin under clothing names (topwear = the torso, handwear
+        # = the arms, legwear = the legs…). The picture stays the body layer (split by bones as usual);
+        # See-through's torso, completed where the arms covered it, replaces the torso's hidden parts.
+        idx = json.load(open(os.path.join(args.layers, 'layers.json')))
+        sources.append({'name': 'body', 'role': 'body', 'rgba': rgba})
+        torso = Image.new('RGBA', (w, h), (0, 0, 0, 0))
+        for l in idx['layers']:
+            role = role_for(l['name'])
+            if 'file' not in l:
+                continue
+            arr = place_cropped(os.path.join(args.layers, l['file']), l, idx, (w, h)) if 'left' in l else load_rgba(os.path.join(args.layers, l['file']), (w, h))
+            if role in ('topwear', 'bottomwear', 'neck'):
+                torso.alpha_composite(Image.fromarray(arr))
+            elif role in ('hair_back', 'hair_front', 'headwear'):
+                # (The face stays the picture's: See-through's face parts come in an order that can
+                # put the eye whites over the irises.)
+                sources.append({'name': l['name'], 'role': role, 'rgba': arr})
+        torso_full = np.array(torso)
+    elif args.layers:
         idx = json.load(open(os.path.join(args.layers, 'layers.json')))
         for l in idx['layers']:
-            arr = load_rgba(os.path.join(args.layers, l['file']), (w, h)) if 'file' in l else None
+            if 'file' in l and 'left' in l:
+                arr = place_cropped(os.path.join(args.layers, l['file']), l, idx, (w, h))
+            else:
+                arr = load_rgba(os.path.join(args.layers, l['file']), (w, h)) if 'file' in l else None
             if arr is None:
                 continue
             sources.append({'name': l['name'], 'role': role_for(l['name']), 'rgba': arr})
@@ -430,7 +470,25 @@ def run(args):
         if src['role'] == 'body':
             pieces = split_layer(arr, reg, kp, REGION_ROLES, height)
             for role, (m, mult) in pieces.items():
-                if role == 'torso':
+                if role == 'torso' and torso_full is not None:
+                    # Where See-through's torso has skin the bones gave to an arm (behind the shoulder,
+                    # the armpit), the torso takes it, so a raised or lowered arm never opens a notch.
+                    extra = (torso_full[:, :, 3] > 128) & ~m & ((reg == 2) | (reg == 3) | (reg == 6) | (reg == 7))
+                    arr2 = arr.copy()
+                    arr2[extra] = torso_full[extra]
+                    # Around the shoulders the torso is See-through's own: its contour is drawn without
+                    # the arm, so the arm's outline stub doesn't stay behind on the chest.
+                    yy, xx = np.mgrid[0:h, 0:w]
+                    near = np.zeros((h, w), bool)
+                    for sd in SIDES:
+                        c = kp[f'shoulder_{sd}']
+                        near |= np.hypot(xx - c[0], yy - c[1]) < 0.07 * height
+                    st = torso_full[:, :, 3] > 128
+                    arr2[near & st] = torso_full[near & st]
+                    m = (m & ~near) | (near & st & (m | extra))
+                    filled_share = float(extra.sum()) / max(1, float((m | extra).sum()))
+                    add(role, m | extra, with_mult(arr2, np.where(extra, 1.0, mult)))
+                elif role == 'torso':
                     arr2, holes = inpaint_holes(arr, m, (reg == 2) | (reg == 3) | (reg == 6) | (reg == 7))
                     filled_share = float(holes.sum()) / max(1, float((m | holes).sum()))
                     add(role, m | holes, with_mult(arr2, np.where(holes, 1.0, mult)))
@@ -693,6 +751,7 @@ if __name__ == '__main__':
     ap.add_argument('--view', default='front', choices=['front', 'threeQuarter', 'side', 'back'])
     ap.add_argument('--out', required=True)
     ap.add_argument('--layers', help='a See-through result folder (layers.json + PNGs)')
+    ap.add_argument('--nude-layers', action='store_true', help='with --layers on a nude figure: the clothing layers are skin; use See-through for the hidden torso and the head parts')
     ap.add_argument('--keypoints', help='JSON: Everloom landmarks, or Halpe-26 names with [x, y, score]')
     ap.add_argument('--outfit-image', action='append', default=[], metavar='NAME=PATH', help='the same pose wearing an outfit (repeatable)')
     ap.add_argument('--outfit-name', default=None, help='outfit set for clothes found in --layers')

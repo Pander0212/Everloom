@@ -323,16 +323,16 @@
    "gpu": "A40",
    "pricePerHr": 0.59,
    "start": "2026-10-21T08:50:58.940Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-21T09:02:16.688Z",
+   "seconds": 678,
+   "costUsd": 0.111,
    "balanceBefore": 6.5434166991,
-   "balanceAfter": null,
+   "balanceAfter": 6.4563655463,
    "images": [
     "tpose-f.png",
     "tpose-m.png"
    ],
-   "result": "started",
+   "result": "2/2 layered; 28 MB",
    "note": "studio T-pose bases"
   }
  ]
