@@ -558,6 +558,65 @@ def run(args):
     # Profile with the arms held forward: the arm's underside lies in front of the chest and the bones
     # can give it to the torso, where it would stay sticking out once the arm hangs down. Everything
     # in front of the chest at the arm's height goes to the (near) arm.
+    yy_r, xx_r = np.mgrid[0:h, 0:w]
+    side_leg_line = None
+    if args.view == 'side':
+        # Profile: the buttock and the groin belong to the torso, the thigh starts below a diagonal
+        # from the front of the hip down to the fold under the buttock (a thigh swinging from a level
+        # cut drags the buttock along and pokes a corner out in front of the belly).
+        hy = (kp['hip_L'][1] + kp['hip_R'][1]) / 2
+        row = np.nonzero(alpha[int(hy)] > 128)[0]
+        wr_, sh_ = np.array(kp['wrist_L'], float), np.array(kp['shoulder_L'], float)
+        facing = 1 if wr_[0] >= sh_[0] else -1
+        if len(row):
+            fx_, bx_ = (row.max(), row.min()) if facing > 0 else (row.min(), row.max())
+            fy_, by_ = hy - 0.01 * height, hy + 0.085 * height
+            line_y = fy_ + (by_ - fy_) * (xx_r - fx_) / (bx_ - fx_ if bx_ != fx_ else 1)
+            legs = (reg == 4) | (reg == 5)
+            reg[legs & (yy_r < line_y)] = 0
+            near_leg = 4 if (reg == 4).sum() >= (reg == 5).sum() else 5
+            reg[(reg == 0) & (yy_r >= line_y) & (yy_r < hy + 0.12 * height)] = near_leg
+            side_leg_line = line_y
+    if args.view == 'threeQuarter':
+        # Three-quarter: the flank and the side of the breast under a T-posed arm are closer to the arm
+        # bone than to the spine; everything below the arm's underside stays torso.
+        for s_, rg in (('L', 2), ('R', 3)):
+            sh_, el_ = np.array(kp[f'shoulder_{s_}'], float), np.array(kp[f'elbow_{s_}'], float)
+            col = alpha[:, int(el_[0])] > 128
+            ys_ = np.nonzero(col[int(el_[1] - 0.08 * height):int(el_[1] + 0.08 * height)])[0]
+            if not len(ys_):
+                continue
+            bottom = el_[1] - 0.08 * height + ys_.max()  # the arm's underside at the elbow
+            under = bottom - el_[1]
+            axis_y = sh_[1] + (el_[1] - sh_[1]) * (xx_r - sh_[0]) / (el_[0] - sh_[0])
+            t_ = (xx_r - sh_[0]) / (el_[0] - sh_[0])  # 0 at the shoulder, 1 at the elbow
+            between = (t_ >= -0.02 * height / abs(el_[0] - sh_[0])) & (t_ <= 1)
+            # The underside, column by column where the arm stands free (background below it); where it
+            # merges into the flank (near the armpit) the last measured height carries on.
+            sgn = np.sign(el_[0] - sh_[0])
+            ux, uy = [], []
+            for x in range(int(min(sh_[0], el_[0])), int(max(sh_[0], el_[0])) + 1):
+                ya = int(sh_[1] + (el_[1] - sh_[1]) * (x - sh_[0]) / (el_[0] - sh_[0]))
+                c_ = alpha[ya:ya + int(0.12 * height), x] > 128
+                if c_.size and c_[0] and not c_.all():
+                    ux.append(x); uy.append(ya + int(np.argmin(c_)))
+            if len(ux) >= 8:
+                # (held level past the last measured column, and never deeper than 1.6 arm half-widths)
+                und = np.interp(np.arange(w), ux, uy)
+                under_line = np.minimum(und[None, :], axis_y + 1.6 * under)
+            else:
+                under_line = axis_y + under
+            reg[(reg == rg) & between & (yy_r > under_line + 2)] = 0
+            # Above the underside, out past the shoulder, it is arm: the torso keeps a round shoulder
+            # (the joint's own radius) and no stub of the upper arm.
+            out = (xx_r - sh_[0]) * np.sign(el_[0] - sh_[0]) > 0
+            r_ = 0.9 * under
+            stub = (reg == 0) & out & (yy_r <= under_line + 2) & (np.hypot(xx_r - sh_[0], yy_r - sh_[1]) > r_)
+            reg[stub] = rg
+            zone = out & (yy_r < axis_y + under + 0.04 * height) & (yy_r > axis_y)
+            tor = ((reg == 0) & (alpha > 128)).astype(np.uint8)
+            thick = cv2.morphologyEx(tor, cv2.MORPH_OPEN, np.ones((13, 1), np.uint8)) > 0
+            reg[zone & (tor > 0) & ~thick] = rg
     side_chest = None
     if args.view == 'side':
         near = 2 if (reg == 2).sum() >= (reg == 3).sum() else 3
@@ -678,7 +737,9 @@ def run(args):
                     add(role, m | extra, with_mult(arr2, np.where(extra, 1.0, mult)))
                 elif role == 'torso':
                     sh = arc = None
-                    if cut_lines is not None:
+                    if cut_lines is not None and args.view in ('front', 'back'):
+                        # (Front and back only: in three-quarter the near flank lies outside this
+                        # shoulder curve and would be trimmed off with it.)
                         sh, paint, arc, trim = torso_shoulders(arr[:, :, 3] > 128, reg, cut_lines)
                         m = m & ~trim
                     arr2, holes = inpaint_holes(arr, m, (reg == 2) | (reg == 3) | (reg == 6) | (reg == 7))
@@ -755,6 +816,15 @@ def run(args):
                                     mult = np.where(chest, 1.0, mult)  # (the joint-cap fade would hide it)
                             print(f'side chest: {int(fill.sum())} px rebuilt')
                     add(role, m | holes, with_mult(arr2, np.where(holes, 1.0, mult)))
+                elif side_leg_line is not None and role.startswith('leg_'):
+                    # Profile: the thigh carries hidden skin above its diagonal cut (behind the
+                    # torso), so swinging it never opens a gap at the hip or under the buttock.
+                    band = (yy_all >= side_leg_line - 0.07 * height) & (yy_all < side_leg_line) & (arr[:, :, 3] > 128)
+                    cols = np.nonzero(m.any(axis=0))[0]
+                    if len(cols):
+                        band[:, :cols.min()] = False
+                        band[:, cols.max() + 1:] = False
+                    add(role, m | band, with_mult(arr, np.where(band, 1.0, mult)))
                 elif cut_lines is not None and role.startswith('leg_'):
                     # The leg's hidden filler under the torso (past the cut line) is plain skin painted
                     # from the leg, not a copy of what the torso shows there (pubic hair, genitals).
@@ -783,7 +853,7 @@ def run(args):
     # Profile: the far limbs are hidden behind the near ones in the picture. They become darker
     # copies of the near limbs, drawn behind the body, so a walk shows both legs.
     if args.view == 'side':
-        for near, far, z in (('arm_L', 'arm_R', 3), ('leg_L', 'leg_R', 4)):
+        for near, far, z in (('arm_L', 'arm_R', 3), ('hand_L', 'hand_R', 3), ('leg_L', 'leg_R', 4)):
             n = next((l for l in out_layers if l['role'] == near), None)
             f = next((l for l in out_layers if l['role'] == far), None)
             if n is not None and (f is None or f['mask'].sum() < 0.3 * n['mask'].sum()):

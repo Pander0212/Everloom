@@ -193,7 +193,7 @@ const walkFront: Motion = {
  * speed while planted (the stage moves the character forward by `speed`, so they stay put on the
  * floor) and swing forward in an arc; the right leg runs half a cycle behind the left.
  */
-const STRIDE = 0.5; // leg lengths, front to back
+const STRIDE = 0.36; // leg lengths, front to back
 const walkSide: Motion = {
   id: 'walk', description: 'Walking in profile (facing left); feet locked to the ground while planted.',
   duration: 1, loop: true, views: ['side'], tags: ['locomotion'], speed: STRIDE / 0.6,
@@ -203,7 +203,7 @@ const walkSide: Motion = {
       return [
         // Planted from t = 0 (front) to 0.6 (back), at constant speed; then the swing forward.
         { kind: 'reach', bone: `footTarget_${s}`, axis: 'x', offset: off, keys: [[0, -STRIDE / 2, 'linear'], [0.6, STRIDE / 2], [0.8, 0], [1, -STRIDE / 2]] },
-        { kind: 'reach', bone: `footTarget_${s}`, axis: 'y', offset: off, keys: [[0, 0, 'linear'], [0.6, 0], [0.75, -0.14], [0.92, -0.04], [1, 0]] },
+        { kind: 'reach', bone: `footTarget_${s}`, axis: 'y', offset: off, keys: [[0, 0, 'linear'], [0.6, 0], [0.75, -0.08], [0.92, -0.025], [1, 0]] },
         { kind: 'rot', bone: `foot_${s}`, offset: off, keys: [[0, -8], [0.15, 0], [0.5, 0], [0.62, 18], [0.8, 0], [1, -8]] },
         // Arms swing about hanging down (aimed, so a side view drawn with the arms out walks the same).
         { kind: 'aim', bone: `upperarm_${s}`, offset: off, keys: [[0, 108], [0.5, 72], [1, 108]] },
