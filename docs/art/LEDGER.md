@@ -296,6 +296,7 @@ Limits: NanoGPT at most 95 images per UTC day, only `hidream`, `chroma`, `z-imag
 | 285 | 2026-10-21 | NanoGPT | `bytedance/seedream-v5.0-pro/edit` | cs3-tpose2-f1 | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) (edit of base-f.jpg) | $0.0900 (balance) | 0/95 today | pending |
 | 286 | 2026-10-21 | NanoGPT | `bytedance/seedream-v5.0-pro/edit` | cs3-tpose2-f2 | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) (edit of base-f.jpg) | $0.0900 (balance) | 0/95 today | pending |
 | 287 | 2026-10-21 | NanoGPT | `bytedance/seedream-v5.0-pro/edit` | cs3-tpose2-m1 | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) (edit of base-m.jpg) | $0.0900 (balance) | 0/95 today | pending |
+| 288 | 2026-10-21 | NanoGPT | `qwen-image-2.1/edit` | cs3-bald-head-tf | Remove all of her hair: she is completely bald with a smooth bald head and a clean scalp, no hair at all, no bun. Keep exactly the same face, ears, expression, neck, framing, size and position, same anime art style, lighting and plain grey background; change nothing else. (edit of head-crop-tf.png) | $0.0300 (balance) | 0/95 today | pending |
 
 ## Stops and resumes
 
