@@ -298,6 +298,24 @@
    ],
    "result": "11/11 layered; 217 MB",
    "note": "4 generated characters: the last 11 pictures"
+  },
+  {
+   "date": "2026-10-21",
+   "provider": "RunPod",
+   "gpu": "RTX 4090",
+   "pricePerHr": 0.34,
+   "start": "2026-10-21T08:09:12.003Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 6.7918345295,
+   "balanceAfter": null,
+   "images": [
+    "wide-f.png",
+    "apose-m.png"
+   ],
+   "result": "started",
+   "note": "studio A-pose bases"
   }
  ]
 }
