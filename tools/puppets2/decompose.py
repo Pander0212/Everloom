@@ -195,6 +195,12 @@ def default_cut_lines(alpha, kp, crotch_width=0.02):
         y_bot = sy + (int(np.argmin(col)) if not col.all() else 0.05 * H)
         mid = [(x_pit + x2) / 2 - out * 0.006 * H, (y_top + y_bot) / 2]
         lines[f'arm_{s}'] = [[x_pit, y_top - 2], mid, [x2, y_bot + 3]]
+        # The torso keeps a round shoulder under the arm, out to a line about here (drawn behind
+        # the arm, it shows when the arm moves).
+        xs = x_pit + out * 0.026 * H
+        cs = a[:, int(np.clip(xs, 0, w - 1))]
+        ys_top = float(np.nonzero(cs)[0][0]) if cs.any() else y_top
+        lines[f'shoulder_{s}'] = [[xs - out * 0.004 * H, ys_top + 1], [xs, (ys_top + y_bot) / 2], [xs - out * 0.008 * H, y_bot - 2]]
         # The leg: outer hip edge a little above the hip joint, diagonally to the crotch, then down.
         hx, hy = kp[f'hip_{s}']
         side = 1 if hx > cx else -1
@@ -207,7 +213,8 @@ def default_cut_lines(alpha, kp, crotch_width=0.02):
         gap = hy + (int(np.argmin(colc)) if not colc.all() else 0.15 * H)
         gx = cx + side * crotch_width * H
         # Diagonally from the outer hip to the side of the genitals, then round under them into the gap.
-        lines[f'leg_{s}'] = [[x0 + side * 6, y0], [gx, gap - 0.025 * H], [cx + side * 0.006 * H, gap + 0.012 * H], [cx, gap + 0.03 * H]]
+        # (It meets the gap right at its top: lower, it would take the inner outlines of the thighs.)
+        lines[f'leg_{s}'] = [[x0 + side * 6, y0], [gx, gap - 0.025 * H], [cx + side * 0.002 * H, gap + 0.002 * H], [cx, gap + 0.03 * H]]
     return lines
 
 
@@ -219,6 +226,8 @@ def apply_cut_lines(reg, alpha, kp, lines):
     py, px = np.mgrid[0:h, 0:w]
     out = reg.copy()
     for name, pts in lines.items():
+        if name not in ('arm_L', 'arm_R', 'leg_L', 'leg_R'):
+            continue  # (shoulder_*: the torso's extent under the arm, applied with the torso layer)
         limb = {'arm_L': 2, 'arm_R': 3, 'leg_L': 4, 'leg_R': 5}[name]
         side = name[-1]
         root = kp[f'shoulder_{side}'] if name.startswith('arm') else kp[f'hip_{side}']
@@ -235,6 +244,21 @@ def apply_cut_lines(reg, alpha, kp, lines):
         torso_side = near & a & ~limb_side & ((out == limb) | (out == 0))
         out[limb_side & ((out == 0) | (out == limb))] = limb
         out[torso_side] = 0
+    return out
+
+
+def torso_shoulders(alpha, reg, lines):
+    """The arm pixels between each arm's cut line and its shoulder line: the torso's round shoulder,
+    kept under the arm (the arm keeps them too)."""
+    h, w = reg.shape
+    out = np.zeros((h, w), bool)
+    for s, limb in (('L', 2), ('R', 3)):
+        if f'shoulder_{s}' not in lines or f'arm_{s}' not in lines:
+            continue
+        poly = np.array(lines[f'arm_{s}'] + lines[f'shoulder_{s}'][::-1], np.int32)
+        m = np.zeros((h, w), np.uint8)
+        cv2.fillPoly(m, [poly], 1)
+        out |= (m > 0) & alpha & (reg == limb)
     return out
 
 
@@ -581,6 +605,8 @@ def run(args):
                     filled_share = float(extra.sum()) / max(1, float((m | extra).sum()))
                     add(role, m | extra, with_mult(arr2, np.where(extra, 1.0, mult)))
                 elif role == 'torso':
+                    if cut_lines is not None:
+                        m = m | torso_shoulders(arr[:, :, 3] > 128, reg, cut_lines)
                     arr2, holes = inpaint_holes(arr, m, (reg == 2) | (reg == 3) | (reg == 6) | (reg == 7))
                     filled_share = float(holes.sum()) / max(1, float((m | holes).sum()))
                     add(role, m | holes, with_mult(arr2, np.where(holes, 1.0, mult)))
