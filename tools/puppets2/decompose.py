@@ -247,19 +247,51 @@ def apply_cut_lines(reg, alpha, kp, lines):
     return out
 
 
-def torso_shoulders(alpha, reg, lines):
-    """The arm pixels between each arm's cut line and its shoulder line: the torso's round shoulder,
-    kept under the arm (the arm keeps them too)."""
+def torso_shoulders(alpha, reg, lines, rgb=None):
+    """
+    The torso's round shoulder under each arm: a half-ellipse bulge from the top of the shoulder out
+    to the shoulder line and back in just above the armpit. Returns (shape, arc): the whole bulge
+    (the caller paints what the picture had as arm there, the T-posed arm's outline included, with
+    the torso's skin) and its outer arc, to be drawn in the figure's line colour.
+    """
     h, w = reg.shape
-    out = np.zeros((h, w), bool)
-    for s, limb in (('L', 2), ('R', 3)):
+    shape = np.zeros((h, w), bool)
+    arc = np.zeros((h, w), bool)
+    trim = np.zeros((h, w), bool)
+    for s in SIDES:
         if f'shoulder_{s}' not in lines or f'arm_{s}' not in lines:
             continue
-        poly = np.array(lines[f'arm_{s}'] + lines[f'shoulder_{s}'][::-1], np.int32)
-        m = np.zeros((h, w), np.uint8)
-        cv2.fillPoly(m, [poly], 1)
-        out |= (m > 0) & alpha & (reg == limb)
-    return out
+        (xt, yt), (xb, yb) = lines[f'arm_{s}'][0], lines[f'arm_{s}'][-1]
+        xs = lines[f'shoulder_{s}'][1][0]
+        out = 1 if xs > xt else -1
+        ytop, ybot = yt + 2, yb - 0.25 * (yb - yt)
+        ctr = (int(round(xt)), int(round((ytop + ybot) / 2)))
+        ax = (int(round(max(4.0, abs(xs - xt)))), int(round(max(4.0, (ybot - ytop) / 2))))
+        a0, a1 = (-90, 90) if out > 0 else (90, 270)
+        e = np.zeros((h, w), np.uint8)
+        cv2.ellipse(e, ctr, ax, 0, a0, a1, 1, -1)
+        ring = np.zeros((h, w), np.uint8)
+        cv2.ellipse(ring, ctr, ax, 0, a0, a1, 1, 2)
+        shape |= e > 0
+        arc |= ring > 0
+        # Below the middle of the shoulder, what the torso has out past its own side line (the armpit
+        # fold's tip, the start of the arm's lower outline) goes: with the arm moved it would stick
+        # out as a fin. The side runs up into the round shoulder instead.
+        yy, xx = np.mgrid[0:h, 0:w]
+        x_cut = xt + 0.2 * (xb - xt)
+        trim |= (out * (xx - x_cut) > 0) & (yy > ctr[1]) & (yy < yb + (yb - yt)) & ~(e > 0)
+    return shape, arc, trim
+
+
+def line_colour(rgba):
+    """The figure's outline colour: the darkest tenth of its edge pixels."""
+    a = rgba[:, :, 3] > 128
+    edge = a & ~(cv2.erode(a.astype(np.uint8), np.ones((5, 5), np.uint8)) > 0)
+    px = rgba[edge][:, :3].astype(np.float32)
+    if not len(px):
+        return np.array([60, 40, 35], np.uint8)
+    lum = px.mean(axis=1)
+    return np.median(px[lum <= np.percentile(lum, 10)], axis=0).astype(np.uint8)
 
 
 REGION_ROLES = {0: 'torso', 1: 'head', 2: 'arm_L', 3: 'arm_R', 4: 'leg_L', 5: 'leg_R', 6: 'hand_L', 7: 'hand_R'}
@@ -274,7 +306,7 @@ CLOTH_SPLIT = {  # clothing role → {region: role} when it runs down the limbs
 }
 
 
-def caps(kp, height):
+def caps(kp, height, shoulders=True):
     """
     Joint caps: (region that keeps the extra pixels, joint centre, radius). The cap goes to the layer
     drawn behind at that joint: the torso under the shoulders (arms are drawn in front of the body),
@@ -282,7 +314,8 @@ def caps(kp, height):
     """
     out = []
     for s, leg in (('L', 4), ('R', 5)):
-        out.append((0, kp[f'shoulder_{s}'], 0.035 * height))
+        if shoulders:
+            out.append((0, kp[f'shoulder_{s}'], 0.035 * height))
         out.append((leg, kp[f'hip_{s}'], 0.06 * height))
     # The crotch: the torso (in front of the legs) keeps the tops of both thighs, so a swinging or
     # swaying leg never opens a gap between them.
@@ -291,7 +324,7 @@ def caps(kp, height):
     return out
 
 
-def split_layer(rgba, reg, kp, mapping, height, cap=True):
+def split_layer(rgba, reg, kp, mapping, height, cap=True, shoulder_caps=True):
     """
     Cuts one layer by region; returns {role: (mask, alpha multiplier)}. Each piece also takes the
     pixels in its joint caps; a cap given to the torso fades out from the joint (it shows only when
@@ -307,7 +340,7 @@ def split_layer(rgba, reg, kp, mapping, height, cap=True):
         mult = np.ones((h, w), np.float32)
         if cap:
             soft = np.zeros((h, w), np.float32)
-            for creg, c, r in caps(kp, height):
+            for creg, c, r in caps(kp, height, shoulder_caps):
                 if creg != region:
                     continue
                 d = np.hypot(px - c[0], py - c[1])
@@ -577,7 +610,7 @@ def run(args):
     for src in sources:
         arr = src['rgba']
         if src['role'] == 'body':
-            pieces = split_layer(arr, reg, kp, REGION_ROLES, height)
+            pieces = split_layer(arr, reg, kp, REGION_ROLES, height, shoulder_caps=cut_lines is None)
             for role, (m, mult) in pieces.items():
                 if role == 'torso' and torso_full is not None:
                     # Where See-through's torso has skin the bones gave to an arm (behind the shoulder,
@@ -605,10 +638,28 @@ def run(args):
                     filled_share = float(extra.sum()) / max(1, float((m | extra).sum()))
                     add(role, m | extra, with_mult(arr2, np.where(extra, 1.0, mult)))
                 elif role == 'torso':
+                    sh = arc = None
                     if cut_lines is not None:
-                        m = m | torso_shoulders(arr[:, :, 3] > 128, reg, cut_lines)
+                        sh, arc, trim = torso_shoulders(arr[:, :, 3] > 128, reg, cut_lines)
+                        m = m & ~(trim & ~sh)
                     arr2, holes = inpaint_holes(arr, m, (reg == 2) | (reg == 3) | (reg == 6) | (reg == 7))
                     filled_share = float(holes.sum()) / max(1, float((m | holes).sum()))
+                    if sh is not None and sh.any():
+                        # The round shoulders: the torso's skin where the picture has the arm (or
+                        # nothing), outlined like the rest of the figure.
+                        own = m & (arr[:, :, 3] > 128)
+                        px_ = arr[own][:, :3].astype(np.float32)
+                        lum = px_.mean(axis=1)
+                        skin = np.median(px_[lum >= np.percentile(lum, 60)], axis=0).astype(np.uint8)
+                        paint = sh & ~m
+                        arr2 = arr2.copy()
+                        arr2[paint, :3] = skin
+                        arr2[paint, 3] = 255
+                        edge = arc & ~m
+                        arr2[edge, :3] = line_colour(arr)
+                        arr2[edge, 3] = 255
+                        m = m | sh
+                        holes = holes & ~(trim & ~sh)
                     add(role, m | holes, with_mult(arr2, np.where(holes, 1.0, mult)))
                 elif cut_lines is not None and role.startswith('leg_'):
                     # The leg's hidden filler under the torso (past the cut line) is plain skin painted
