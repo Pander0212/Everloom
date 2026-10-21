@@ -61,6 +61,14 @@ def masks_for(kp, w, h, alpha=None):
     # The figure below the chin (outfits): the silhouette, a little wider, never the background.
     out['body'] = out['full'].copy() if alpha is None else cv2.dilate((alpha > 127).astype(np.uint8) * 255, np.ones((25, 25), np.uint8))
     out['body'][: int(neck[1] - head_h * 0.08)] = 0
+    if alpha is not None:
+        fig = cv2.dilate((alpha > 127).astype(np.uint8) * 255, np.ones((7, 7), np.uint8))
+        # The crotch on the figure only (pubic hair, vulva): the gap between the thighs is background
+        # and stays as it is (a repaint there turns into a dark block).
+        out['crotch-in'] = np.minimum(out['crotch'], fig)
+        # Gear on the trunk (ropes, harnesses): torso and crotch on the figure, never the arms of a
+        # T-posed figure (repainted, they'd lose their outlines).
+        out['trunk'] = np.minimum(np.maximum(out['torso'], out['crotch']), fig)
     out['chest'] = np.maximum(out['breast-l'], out['breast-r'])
     out['nipples'] = np.maximum(out['nipple-l'], out['nipple-r'])
     # Soft edges: the inpaint blends in, and the composite back over the original has no seam.

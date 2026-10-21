@@ -1283,12 +1283,36 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.457,
+   "worstCaseUsd": null,
    "start": "2026-10-21T11:00:20.064Z",
+   "stop": "2026-10-21T11:20:46.383Z",
+   "seconds": 1227,
+   "costUsd": 0.208,
+   "balanceBefore": 1.1251669408,
+   "balanceAfter": 0.9668416214,
+   "result": "ok: qi2edit 41 files"
+  },
+  {
+   "id": "16ebd3666a8d",
+   "date": "2026-10-21",
+   "job": "b7-detail-redo",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-tf.png",
+    "mask-tf-crotch-in.png",
+    "mask-tf-trunk.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.305,
+   "start": "2026-10-21T11:22:21.365Z",
    "stop": null,
    "seconds": null,
    "costUsd": null,
-   "balanceBefore": 1.1251669408,
+   "balanceBefore": 0.9210433631,
    "balanceAfter": null,
    "result": "starting"
   }
