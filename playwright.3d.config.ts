@@ -1,11 +1,17 @@
 import { defineConfig } from '@playwright/test';
 import base from './playwright.config';
-import { cpSync, mkdtempSync } from 'node:fs';
+import { cpSync, mkdtempSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
-// Long acceptance runs must keep the exact web build they started with.
-const webSnapshot = process.env.E2E_WEB_DIR ?? mkdtempSync(path.join(os.tmpdir(), 'everloom-3d-web-'));
-if (!process.env.E2E_WEB_DIR) cpSync(path.resolve('apps/web/dist'), webSnapshot, { recursive: true });
+// Long acceptance runs must keep the exact web build they started with. The copy is made once in the
+// runner (workers load this file again and inherit the environment) and removed when the run ends.
+let webSnapshot = process.env.E2E_WEB_DIR;
+if (!webSnapshot) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'everloom-3d-web-'));
+  cpSync(path.resolve('apps/web/dist'), dir, { recursive: true });
+  process.env.E2E_WEB_DIR = webSnapshot = dir;
+  process.on('exit', () => rmSync(dir, { recursive: true, force: true }));
+}
 const servers = Array.isArray(base.webServer) ? base.webServer : base.webServer ? [base.webServer] : [];
 /** Real-file acceptance matrix, separate from the broad regression suite. */
 export default defineConfig({

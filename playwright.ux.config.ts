@@ -1,5 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
-import { cpSync, mkdtempSync } from 'node:fs';
+import { cpSync, mkdtempSync, rmSync } from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 
@@ -12,12 +12,19 @@ import path from 'node:path';
  */
 const PORT = Number(process.env.UX_PORT ?? 8798);
 const MOCK = Number(process.env.UX_MOCK_PORT ?? 5098);
-const DATA = process.env.UX_DATA ?? path.join(os.tmpdir(), `everloom-ux-${Date.now()}`);
+// Set once in the runner: the workers load this file again and inherit what it put in the environment.
+const DATA = (process.env.UX_DATA ??= path.join(os.tmpdir(), `everloom-ux-${Date.now()}`));
 process.env.E2E_BASE = `http://127.0.0.1:${PORT}`;
 process.env.E2E_MOCK = `http://127.0.0.1:${MOCK}/v1`;
 // Keep the web build the run started with, even if it is rebuilt meanwhile.
-const web = process.env.E2E_WEB_DIR ?? mkdtempSync(path.join(os.tmpdir(), 'everloom-ux-web-'));
-if (!process.env.E2E_WEB_DIR) cpSync(path.resolve('apps/web/dist'), web, { recursive: true });
+// The copy is made once (not per worker) and removed when the run ends.
+let web = process.env.E2E_WEB_DIR;
+if (!web) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'everloom-ux-web-'));
+  cpSync(path.resolve('apps/web/dist'), dir, { recursive: true });
+  process.env.E2E_WEB_DIR = web = dir;
+  process.on('exit', () => rmSync(dir, { recursive: true, force: true }));
+}
 const AUTH = 'tests/ux/.artifacts/auth.json';
 
 const phone = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 2 };
