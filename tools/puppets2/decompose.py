@@ -465,6 +465,7 @@ def run(args):
                 mask = mask & ~np.isin(lab, small)
         out_layers.append({'id': lid, 'role': role, 'mask': mask, 'rgba': arr, 'outfit': outfit, 'adult': adult})
 
+    yy_all = np.mgrid[0:h, 0:w][0]
     for src in sources:
         arr = src['rgba']
         if src['role'] == 'body':
@@ -473,14 +474,21 @@ def run(args):
                 if role == 'torso' and torso_full is not None:
                     # Where See-through's torso has skin the bones gave to an arm (behind the shoulder,
                     # the armpit), the torso takes it, so a raised or lowered arm never opens a notch.
-                    extra = (torso_full[:, :, 3] > 128) & ~m & ((reg == 2) | (reg == 3) | (reg == 6) | (reg == 7))
+                    # Hidden skin the torso takes over: behind the arms, and with --st-hips behind the tops of
+                    # the legs too (a walking thigh then never shows a gap at the hip).
+                    limbs = (reg == 2) | (reg == 3) | (reg == 6) | (reg == 7)
+                    if not args.st_shoulders:
+                        limbs[:] = False
+                    if args.st_hips:
+                        limbs |= ((reg == 4) | (reg == 5)) & (yy_all < (kp['hip_L'][1] + kp['hip_R'][1]) / 2 + 0.06 * height)
+                    extra = (torso_full[:, :, 3] > 128) & ~m & limbs
                     arr2 = arr.copy()
                     arr2[extra] = torso_full[extra]
                     # Around the shoulders the torso is See-through's own: its contour is drawn without
                     # the arm, so the arm's outline stub doesn't stay behind on the chest.
                     yy, xx = np.mgrid[0:h, 0:w]
                     near = np.zeros((h, w), bool)
-                    for sd in SIDES:
+                    for sd in SIDES if args.st_shoulders else ():
                         c = kp[f'shoulder_{sd}']
                         near |= np.hypot(xx - c[0], yy - c[1]) < 0.07 * height
                     st = torso_full[:, :, 3] > 128
@@ -751,6 +759,8 @@ if __name__ == '__main__':
     ap.add_argument('--view', default='front', choices=['front', 'threeQuarter', 'side', 'back'])
     ap.add_argument('--out', required=True)
     ap.add_argument('--layers', help='a See-through result folder (layers.json + PNGs)')
+    ap.add_argument('--no-st-shoulders', dest='st_shoulders', action='store_false', help='with --nude-layers: keep the picture\'s own shoulders (no See-through fill around them)')
+    ap.add_argument('--st-hips', action='store_true', help='with --nude-layers: See-through\'s torso also fills behind the tops of the thighs')
     ap.add_argument('--nude-layers', action='store_true', help='with --layers on a nude figure: the clothing layers are skin; use See-through for the hidden torso and the head parts')
     ap.add_argument('--keypoints', help='JSON: Everloom landmarks, or Halpe-26 names with [x, y, score]')
     ap.add_argument('--outfit-image', action='append', default=[], metavar='NAME=PATH', help='the same pose wearing an outfit (repeatable)')
