@@ -249,38 +249,42 @@ def apply_cut_lines(reg, alpha, kp, lines):
 
 def torso_shoulders(alpha, reg, lines, rgb=None):
     """
-    The torso's round shoulder under each arm: a half-ellipse bulge from the top of the shoulder out
-    to the shoulder line and back in just above the armpit. Returns (shape, arc): the whole bulge
-    (the caller paints what the picture had as arm there, the T-posed arm's outline included, with
-    the torso's skin) and its outer arc, to be drawn in the figure's line colour.
+    The torso's shoulder under each arm, bounded by the owner's curve: from the top of the shoulder
+    out to the shoulder line and back in, down into the armpit fold (a tall half-ellipse). Returns
+    (shape, paint, arc, trim): the whole shape (the torso keeps it); the part to paint with the
+    torso's skin (the upper half, where the T-posed arm lay: its flat top and outline must not show
+    when the arm hangs); the outer arc of that upper half, drawn in the line colour; and what the
+    torso had outside the curve below the shoulder (the fold's tip), which goes.
     """
     h, w = reg.shape
     shape = np.zeros((h, w), bool)
+    paint = np.zeros((h, w), bool)
     arc = np.zeros((h, w), bool)
     trim = np.zeros((h, w), bool)
+    yy, xx = np.mgrid[0:h, 0:w]
     for s in SIDES:
         if f'shoulder_{s}' not in lines or f'arm_{s}' not in lines:
             continue
         (xt, yt), (xb, yb) = lines[f'arm_{s}'][0], lines[f'arm_{s}'][-1]
         xs = lines[f'shoulder_{s}'][1][0]
         out = 1 if xs > xt else -1
-        ytop, ybot = yt + 2, yb - 0.25 * (yb - yt)
-        ctr = (int(round(xt)), int(round((ytop + ybot) / 2)))
+        t = yb - yt  # about the arm's thickness
+        ytop, ybot = yt + 2, yb + 0.3 * t
+        cy = (ytop + ybot) / 2
+        ctr = (int(round(xt)), int(round(cy)))
         ax = (int(round(max(4.0, abs(xs - xt)))), int(round(max(4.0, (ybot - ytop) / 2))))
         a0, a1 = (-90, 90) if out > 0 else (90, 270)
         e = np.zeros((h, w), np.uint8)
         cv2.ellipse(e, ctr, ax, 0, a0, a1, 1, -1)
         ring = np.zeros((h, w), np.uint8)
         cv2.ellipse(ring, ctr, ax, 0, a0, a1, 1, 2)
-        shape |= e > 0
-        arc |= ring > 0
-        # Below the middle of the shoulder, what the torso has out past its own side line (the armpit
-        # fold's tip, the start of the arm's lower outline) goes: with the arm moved it would stick
-        # out as a fin. The side runs up into the round shoulder instead.
-        yy, xx = np.mgrid[0:h, 0:w]
-        x_cut = xt + 0.2 * (xb - xt)
-        trim |= (out * (xx - x_cut) > 0) & (yy > ctr[1]) & (yy < yb + (yb - yt)) & ~(e > 0)
-    return shape, arc, trim
+        inside = e > 0
+        upper = yy < yt + 0.55 * t
+        shape |= inside
+        paint |= inside & upper
+        arc |= (ring > 0) & upper
+        trim |= (out * (xx - xt) > 0) & (yy > yt + 0.3 * t) & (yy < yb + 1.5 * t) & ~inside
+    return shape, paint, arc, trim
 
 
 def line_colour(rgba):
@@ -640,26 +644,27 @@ def run(args):
                 elif role == 'torso':
                     sh = arc = None
                     if cut_lines is not None:
-                        sh, arc, trim = torso_shoulders(arr[:, :, 3] > 128, reg, cut_lines)
-                        m = m & ~(trim & ~sh)
+                        sh, paint, arc, trim = torso_shoulders(arr[:, :, 3] > 128, reg, cut_lines)
+                        m = m & ~trim
                     arr2, holes = inpaint_holes(arr, m, (reg == 2) | (reg == 3) | (reg == 6) | (reg == 7))
                     filled_share = float(holes.sum()) / max(1, float((m | holes).sum()))
                     if sh is not None and sh.any():
-                        # The round shoulders: the torso's skin where the picture has the arm (or
-                        # nothing), outlined like the rest of the figure.
+                        # The shoulders: the torso's skin where the T-posed arm lay (or nothing),
+                        # outlined like the rest of the figure; the armpit fold below stays as drawn.
                         own = m & (arr[:, :, 3] > 128)
                         px_ = arr[own][:, :3].astype(np.float32)
                         lum = px_.mean(axis=1)
                         skin = np.median(px_[lum >= np.percentile(lum, 60)], axis=0).astype(np.uint8)
-                        paint = sh & ~m
                         arr2 = arr2.copy()
-                        arr2[paint, :3] = skin
-                        arr2[paint, 3] = 255
+                        pnt = paint & ~m
+                        arr2[pnt, :3] = skin
+                        arr2[pnt, 3] = 255
                         edge = arc & ~m
                         arr2[edge, :3] = line_colour(arr)
                         arr2[edge, 3] = 255
-                        m = m | sh
-                        holes = holes & ~(trim & ~sh)
+                        keep = sh & ~paint & (arr[:, :, 3] > 128)
+                        m = m | (sh & paint) | keep
+                        holes = holes & ~trim
                     add(role, m | holes, with_mult(arr2, np.where(holes, 1.0, mult)))
                 elif cut_lines is not None and role.startswith('leg_'):
                     # The leg's hidden filler under the torso (past the cut line) is plain skin painted
