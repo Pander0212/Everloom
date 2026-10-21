@@ -160,7 +160,7 @@ def regions(shape, kp):
     return np.argmin(np.stack(d), axis=0).astype(np.uint8)
 
 
-def default_cut_lines(alpha, kp, crotch_width=0.035):
+def default_cut_lines(alpha, kp, crotch_width=0.02):
     """
     The owner's cut lines (reviewed with cutmap.py), as polylines in picture pixels: each arm ends at
     a line from the top of the shoulder down to the armpit; each leg at the groin crease, from the
@@ -188,21 +188,26 @@ def default_cut_lines(alpha, kp, crotch_width=0.035):
                 break
         top = np.nonzero(a[:, int(np.clip(x_pit, 0, w - 1))])[0]
         y_top = float(top[0]) if len(top) else sy - 0.03 * H
-        lines[f'arm_{s}'] = [[x_pit, y_top - 2], [x_pit, y_pit + 0.006 * H]]
+        # From the top of the shoulder diagonally out and down to where the arm's lower edge begins,
+        # past the armpit fold (the fold stays on the torso).
+        x2 = int(np.clip(x_pit + out * 0.035 * H, 0, w - 1))
+        col = a[int(sy):, x2]
+        y_bot = sy + (int(np.argmin(col)) if not col.all() else 0.05 * H)
+        mid = [(x_pit + x2) / 2 - out * 0.006 * H, (y_top + y_bot) / 2]
+        lines[f'arm_{s}'] = [[x_pit, y_top - 2], mid, [x2, y_bot + 3]]
         # The leg: outer hip edge a little above the hip joint, diagonally to the crotch, then down.
         hx, hy = kp[f'hip_{s}']
         side = 1 if hx > cx else -1
-        y0 = hy - 0.025 * H
+        y0 = hy - 0.045 * H
         row = np.nonzero(a[int(y0)])[0]
         x0 = float(row.max() if side > 0 else row.min()) if len(row) else hx + side * 0.06 * H
-        gx = cx + side * crotch_width * H
-        gy = hy + 0.06 * H
-        # The gap between the legs starts where the centre column turns empty below the hips.
+        # The gap between the legs starts where the centre column turns empty below the hips (on a
+        # man that's below the hanging genitals, which stay on the torso).
         colc = a[int(hy):, int(cx)]
         gap = hy + (int(np.argmin(colc)) if not colc.all() else 0.15 * H)
-        # Down the inner thigh and into the gap between the legs, so the line closes off the crotch.
-        gy2 = max(gy, gap)
-        lines[f'leg_{s}'] = [[x0 + side * 6, y0], [gx, gy], [gx, gy2], [cx + side * 2, gy2 + 0.03 * H]]
+        gx = cx + side * crotch_width * H
+        # Diagonally from the outer hip to the side of the genitals, then round under them into the gap.
+        lines[f'leg_{s}'] = [[x0 + side * 6, y0], [gx, gap - 0.025 * H], [cx + side * 0.006 * H, gap + 0.012 * H], [cx, gap + 0.03 * H]]
     return lines
 
 
@@ -579,6 +584,20 @@ def run(args):
                     arr2, holes = inpaint_holes(arr, m, (reg == 2) | (reg == 3) | (reg == 6) | (reg == 7))
                     filled_share = float(holes.sum()) / max(1, float((m | holes).sum()))
                     add(role, m | holes, with_mult(arr2, np.where(holes, 1.0, mult)))
+                elif cut_lines is not None and role.startswith('leg_'):
+                    # The leg's hidden filler under the torso (past the cut line) is plain skin painted
+                    # from the leg, not a copy of what the torso shows there (pubic hair, genitals).
+                    limb = 4 if role == 'leg_L' else 5
+                    filler = m & (reg != limb)
+                    arr2 = arr.copy()
+                    if filler.any():
+                        # The leg's skin tone (the brighter half of its own pixels, so no outline or shadow).
+                        own = (reg == limb) & (arr[:, :, 3] > 128)
+                        px_ = arr[own][:, :3].astype(np.float32)
+                        lum = px_.mean(axis=1)
+                        skin = np.median(px_[lum >= np.median(lum)], axis=0) if len(px_) else np.array([230, 200, 180])
+                        arr2[filler, :3] = skin.astype(np.uint8)
+                    add(role, m, with_mult(arr2, mult))
                 else:
                     add(role, m, with_mult(arr, mult))
         elif src['role'] in CLOTH_SPLIT:
