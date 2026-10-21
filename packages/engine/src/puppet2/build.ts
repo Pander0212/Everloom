@@ -168,13 +168,14 @@ export function buildCharacter(input: CharacterInput): Model {
     if (has(bones, `breast_${s}`)) {
       const b = bone(`breast_${s}`);
       // The bone points down: its local +x is down, +y sideways. Bounce = along x, sway = along y.
-      bindings.push({ target: `bone:breast_${s}.x`, params: ['BustY'], keys: [{ at: [-1], value: b.x - 0.012 * H }, { at: [0], value: b.x }, { at: [1], value: b.x + 0.012 * H }] });
-      bindings.push({ target: `bone:breast_${s}.y`, params: ['BustX'], keys: [{ at: [-1], value: b.y - 0.008 * H }, { at: [0], value: b.y }, { at: [1], value: b.y + 0.008 * H }] });
-      bindings.push({ target: `bone:breast_${s}.scaleX`, params: ['BustY'], keys: [{ at: [-1], value: 0.94 }, { at: [0], value: 1 }, { at: [1], value: 1.05 }] });
+      bindings.push({ target: `bone:breast_${s}.x`, params: ['BustY'], keys: [{ at: [-1], value: b.x - 0.022 * H }, { at: [0], value: b.x }, { at: [1], value: b.x + 0.022 * H }] });
+      bindings.push({ target: `bone:breast_${s}.y`, params: ['BustX'], keys: [{ at: [-1], value: b.y - 0.012 * H }, { at: [0], value: b.y }, { at: [1], value: b.y + 0.012 * H }] });
+      bindings.push({ target: `bone:breast_${s}.scaleX`, params: ['BustY'], keys: [{ at: [-1], value: 0.9 }, { at: [0], value: 1 }, { at: [1], value: 1.08 }] });
     }
     if (has(bones, `butt_${s}`)) {
       const b = bone(`butt_${s}`);
-      bindings.push({ target: `bone:butt_${s}.x`, params: ['ButtY'], keys: [{ at: [-1], value: b.x - 0.008 * H }, { at: [0], value: b.x }, { at: [1], value: b.x + 0.008 * H }] });
+      bindings.push({ target: `bone:butt_${s}.x`, params: ['ButtY'], keys: [{ at: [-1], value: b.x - 0.018 * H }, { at: [0], value: b.x }, { at: [1], value: b.x + 0.018 * H }] });
+      bindings.push({ target: `bone:butt_${s}.scaleX`, params: ['ButtY'], keys: [{ at: [-1], value: 0.93 }, { at: [0], value: 1 }, { at: [1], value: 1.06 }] });
     }
   }
   // Sprite swaps: a variant shows at its index of its parameter (step: no half-blended faces). A hand

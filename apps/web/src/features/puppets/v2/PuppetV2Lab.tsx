@@ -115,7 +115,8 @@ export default function PuppetV2Lab() {
           const ids = p2 ? p2.split(',') : [];
           const loaded = ids.length ? await loadPuppet(ids[i % ids.length]!) : null;
           const views: Partial<Record<View2, ViewSource>> = loaded ? loaded.views : url ? { front: await loadModel(url) } : testViews(i === 1 ? 1.15 : 1);
-          const w = loaded ? loaded.meta.parts.front ?? [] : url ? [] : testFigure().input.layers.map((l) => ({ id: l.id, ...(l.outfit ? { outfit: l.outfit } : {}) }));
+          // Every view's parts: some exist in one view only (a profile's butt copies).
+          const w = loaded ? [...new Map(Object.values(loaded.meta.parts).flatMap((ps) => ps ?? []).map((x) => [x.id, x])).values()] : url ? [] : testFigure().input.layers.map((l) => ({ id: l.id, ...(l.outfit ? { outfit: l.outfit } : {}) }));
           wardrobes.current.set(`p${i + 1}`, w);
           if (i === 0) setWardrobe(w);
           if (!live) return;

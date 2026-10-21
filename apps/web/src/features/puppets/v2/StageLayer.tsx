@@ -95,7 +95,8 @@ export default function StageLayerPuppets2({ cast, className, onFail, safeBottom
         p.speaking = !!c.speaking;
         p.expression = expressionIndex(c.emotion);
         const meta = metas.current.get(c.id);
-        p.hidden = hiddenParts(meta?.parts[p.view] ?? meta?.parts.front ?? [], c.outfit);
+        // (every view's parts: the character turns between views without passing here again)
+        p.hidden = hiddenParts(meta ? Object.values(meta.parts).flatMap((ps) => ps ?? []) : [], c.outfit);
         // A new emote cue plays once; an old one (already seen, or restored by a rollback) does not.
         const cue = c.emote ? `${c.emote.id}:${c.emote.cue}` : '';
         if (cue && seen.current.get(c.id) !== cue) {

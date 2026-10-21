@@ -561,6 +561,18 @@ def run(args):
         kp = standard_keypoints(raw, alpha, args.view)
     ys = np.nonzero(alpha.max(axis=1) > 128)[0]
     height = float(ys[-1] - ys[0]) if len(ys) else float(h)
+    if args.view == 'side':
+        # Profile: the bust sits at the front of the chest and the buttock at the back of the hips
+        # (the landmarks put both on the body's middle line).
+        fw = -1 if kp['wrist_L'][0] < kp['shoulder_L'][0] else 1  # facing (left after mirroring)
+        for name, front_side, inset in (('breast', True, 0.035), ('butt', False, 0.045)):
+            y = int(kp[f'{name}_L'][1])
+            xs = np.nonzero(alpha[y] > 128)[0]
+            if len(xs):
+                edge = (xs.min() if fw < 0 else xs.max()) if front_side else (xs.max() if fw < 0 else xs.min())
+                x = edge + (inset * height if (edge == xs.min()) else -inset * height)
+                for sd in SIDES:
+                    kp[f'{name}_{sd}'] = [round(float(x), 1), float(y)]
     reg = regions((h, w), kp)
     cut_lines = None
     if args.cut_lines:
@@ -873,19 +885,25 @@ def run(args):
             if n is not None and (f is None or f['mask'].sum() < 0.3 * n['mask'].sum()):
                 if f is not None:
                     out_layers.remove(f)
+                # One flat shade of the limb's skin, a little darker, no outline: where the far limb
+                # nearly covers the near one it reads as its shadow side, not as a second outline.
                 arr = n['rgba'].copy()
-                arr[:, :, :3] = (arr[:, :, :3] * 0.82).astype(np.uint8)
+                own = n['mask'] & (arr[:, :, 3] > 128)
+                px_ = arr[own][:, :3].astype(np.float32)
+                lum = px_.mean(axis=1) if len(px_) else np.zeros(0)
+                tone = np.median(px_[lum >= np.median(lum)], axis=0) if len(px_) else np.array([200, 160, 140], np.float32)
+                arr[:, :, :3] = (tone * 0.8).astype(np.uint8)
                 add(far, n['mask'].copy(), arr)
                 out_layers[-1]['z'] = z
 
     # Breasts (front and three-quarter views): a soft-edged copy over the torso, on the breast bones,
     # so the bounce moves them without opening a seam (the torso underneath stays whole).
-    if args.view in ('front', 'threeQuarter') and not args.no_bust:
+    if args.view in ('front', 'threeQuarter', 'side') and not args.no_bust:
         base = next((l for l in out_layers if l['role'] == 'torso' and not l['adult']), None)
         if base is not None:
             py_, px_ = np.mgrid[0:h, 0:w]
             r = 0.05 * height
-            for side in SIDES:
+            for side in (SIDES if args.view != 'side' else ('L',)):  # (in profile one breast shows)
                 c = kp[f'breast_{side}']
                 d = np.hypot((px_ - c[0]) / (r * 1.1), (py_ - c[1] - 0.25 * r) / r)
                 soft = np.clip((1.0 - d) / 0.35, 0, 1)
@@ -893,6 +911,27 @@ def run(args):
                 arr = base['rgba'].copy()
                 arr[:, :, 3] = (arr[:, :, 3] * soft).astype(np.uint8)
                 add(f'breast_{side}', m, arr)
+
+    # Buttocks (back and profile views): a soft-edged copy of the body around each buttock on the
+    # butt bones, drawn over the torso and the legs, so walking and jumping make them bounce.
+    if args.view in ('back', 'side') and not args.no_bust:
+        body = np.zeros((h, w, 4), np.uint8)
+        for l in out_layers:
+            if l['role'] in ('torso', 'leg_L', 'leg_R') and not l['adult'] and not l['outfit'] and l.get('z') is None:
+                src = l['rgba'].copy()
+                src[~l['mask'], 3] = 0
+                body = np.where((src[:, :, 3:4] > 0) & (body[:, :, 3:4] == 0), src, body)
+        py_, px_ = np.mgrid[0:h, 0:w]
+        r = 0.055 * height
+        for side in (SIDES if args.view == 'back' else ('L',)):
+            c = kp[f'butt_{side}']
+            d = np.hypot((px_ - c[0]) / (r * (1.0 if args.view == 'back' else 1.1)), (py_ - c[1]) / (r * 1.05))
+            soft = np.clip((1.0 - d) / 0.35, 0, 1)
+            m = (soft > 0) & (body[:, :, 3] > 128)
+            arr = body.copy()
+            arr[:, :, 3] = (arr[:, :, 3] * soft).astype(np.uint8)
+            add(f'butt_{side}', m, arr)
+            out_layers[-1]['z'] = 21  # over the torso and the legs, under the clothes (the role's own depth is under the torso)
 
     # Extra pictures of the same view (made with the edit model from the base picture, so aligned):
     # outfits (the clothes = what differs from the base), the adult layer, and sprite variants.
@@ -976,15 +1015,31 @@ def run(args):
             if m.sum() >= 40:
                 add(role, m, with_mult(masked, mult), outfit=name, suffix=f'_{name}')
         # The top over the bust moves with it.
-        if args.view in ('front', 'threeQuarter') and not args.no_bust and 'topwear' in pieces:
+        if args.view in ('front', 'threeQuarter', 'side') and not args.no_bust and 'topwear' in pieces:
             r = 0.05 * height
-            for side in SIDES:
+            for side in (SIDES if args.view != 'side' else ('L',)):
                 c = kp[f'breast_{side}']
                 dd = np.hypot((px_ - c[0]) / (r * 1.1), (py_ - c[1] - 0.25 * r) / r)
                 soft = np.clip((1.0 - dd) / 0.35, 0, 1)
                 m = (soft > 0) & pieces['topwear'][0]
                 if m.sum() > 40:
                     add(f'chestwear_{side}', m, with_mult(masked, soft.astype(np.float32)), outfit=name, suffix=f'_{name}')
+        # What is worn over the buttocks moves with them (back and profile views; on the butt bones,
+        # over the bouncing body copy).
+        if args.view in ('back', 'side') and not args.no_bust:
+            worn = np.zeros((h, w), bool)
+            for role in ('bottomwear', 'skirt', 'topwear', 'legwear_L', 'legwear_R'):
+                if role in pieces:
+                    worn |= pieces[role][0]
+            r = 0.055 * height
+            for side in (SIDES if args.view == 'back' else ('L',)):
+                c = kp[f'butt_{side}']
+                dd = np.hypot((px_ - c[0]) / (r * (1.0 if args.view == 'back' else 1.1)), (py_ - c[1]) / (r * 1.05))
+                soft = np.clip((1.0 - dd) / 0.35, 0, 1)
+                m = (soft > 0) & worn
+                if m.sum() > 40:
+                    add(f'buttwear_{side}', m, with_mult(masked, soft.astype(np.float32)), outfit=name, suffix=f'_{name}')
+                    out_layers[-1].update(role='bottomwear', skin=[f'butt_{side}'], z=24)
         print(f'outfit {name}: {"skirt" if skirt else "trousers/none"}; ' + ', '.join(sorted(pieces)))
 
     if args.adult_image:

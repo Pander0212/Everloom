@@ -150,6 +150,9 @@ if (main.meta.views.length > 1) {
       await wait(1500);
       await s("s.setBase('p1', 'walk')"); await wait(500); await shot(`${v} walk a`); await wait(330); await shot(`${v} walk b`);
       await s("s.setBase('p1', 'idle')"); await wait(600);
+      // A jump: the bust and the buttocks bounce (physics).
+      await s("s.gesture('p1', 'jump')"); for (let i = 0; i < 3; i++) { await wait(170); await shot(`${v} jump ${i}`); }
+      await wait(1800);
     }
     await s("s.setView('p1', 'front')"); await wait(1200);
     await s("s.setView('p1', 'side')"); for (let i = 0; i < 4; i++) { await wait(150); await shot(`turn ${i}`); }
