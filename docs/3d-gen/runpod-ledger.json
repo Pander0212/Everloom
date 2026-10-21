@@ -1238,6 +1238,29 @@
    "balanceBefore": 6.4309421185,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "00140ae4fac7",
+   "date": "2026-10-21",
+   "job": "b7-body",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-tf.png",
+    "mask-tf-crotch.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.763,
+   "start": "2026-10-21T10:59:59.772Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 1.6578974067,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
