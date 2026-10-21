@@ -1216,6 +1216,28 @@
    "balanceBefore": 6.4309421185,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "3d200e9ec6fb",
+   "date": "2026-10-21",
+   "job": "b7-races",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-tf.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.61,
+   "start": "2026-10-21T10:59:39.725Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 6.4309421185,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
