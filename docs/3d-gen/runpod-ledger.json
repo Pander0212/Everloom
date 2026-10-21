@@ -1466,12 +1466,35 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.712,
+   "worstCaseUsd": null,
    "start": "2026-10-21T21:13:47.421Z",
+   "stop": "2026-10-21T22:21:38.919Z",
+   "seconds": 4073,
+   "costUsd": 0.69,
+   "balanceBefore": 2.4650154742,
+   "balanceAfter": 1.8018903744,
+   "result": "ok: qi2edit 44 files"
+  },
+  {
+   "id": "0400d49a1b6b",
+   "date": "2026-10-21",
+   "job": "b11b-bodies",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "view-side-bald.png",
+    "view-back-bald.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.559,
+   "start": "2026-10-21T22:22:15.218Z",
    "stop": null,
    "seconds": null,
    "costUsd": null,
-   "balanceBefore": 2.4650154742,
+   "balanceBefore": 1.8018903744,
    "balanceAfter": null,
    "result": "starting"
   }
