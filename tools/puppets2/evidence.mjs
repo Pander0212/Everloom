@@ -129,6 +129,20 @@ await clip('6-talk', main, async ({ page, s, shot, wait }) => {
   await s("const p = s.get('p1'); p.life.blinkAt = s['time'];");
   await wait(60); await shot('blink');
 });
+if (main.meta.views.length > 1) {
+  // Every view the character has: standing, waving, walking on the spot, then a turn front → side.
+  await clip('9-views', main, async ({ s, shot, wait }) => {
+    for (const v of ['front', 'threeQuarter', 'side', 'back'].filter((x) => main.meta.views.includes(x))) {
+      await s(`s.setView('p1', '${v}'); s.setBase('p1', 'idle')`); await wait(900); await shot(`${v} idle`);
+      await s("s.gesture('p1', 'wave_L')"); await wait(700); await shot(`${v} wave`);
+      await wait(1500);
+      await s("s.setBase('p1', 'walk')"); await wait(500); await shot(`${v} walk a`); await wait(330); await shot(`${v} walk b`);
+      await s("s.setBase('p1', 'idle')"); await wait(600);
+    }
+    await s("s.setView('p1', 'front')"); await wait(1200);
+    await s("s.setView('p1', 'side')"); for (let i = 0; i < 4; i++) { await wait(150); await shot(`turn ${i}`); }
+  });
+}
 if (second) {
   await clip('7-retarget', second, async ({ s, shot, wait }) => {
     await s("s.gesture('p1', 'wave_L')"); await wait(700); await shot('wave');

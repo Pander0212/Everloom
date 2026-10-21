@@ -142,7 +142,7 @@ const bow: Motion = {
 
 const idle: Motion = {
   id: 'idle', description: 'Standing: breathing, a slow weight shift.',
-  duration: 4, loop: true, views: ['front', 'threeQuarter', 'side', 'back'], tags: ['idle'],
+  duration: 4, loop: true, views: FRONTISH, tags: ['idle'],
   tracks: [
     { kind: 'param', param: 'Breath', keys: [[0, 0], [2, 1], [4, 0]] },
     { kind: 'param', param: 'BodyX', keys: [[0, -0.02], [2, 0.02], [4, -0.02]] },
@@ -152,6 +152,21 @@ const idle: Motion = {
     // they cut cleanly; standing and walking with them out would look like a mannequin).
     ...both({ kind: 'aim', bone: 'upperarm_L', keys: [[0, ARMS_DOWN], [2, ARMS_DOWN - 2], [4, ARMS_DOWN]] }),
     ...both({ kind: 'bend', bone: 'forearm_L', keys: hold(-6, 4) }),
+  ],
+};
+
+/**
+ * Standing in profile: both arms hang straight down (in profile the far arm is behind the near one,
+ * not its mirror image), whatever pose the side view was drawn in.
+ */
+const idleSide: Motion = {
+  ...idle, views: ['side'],
+  tracks: [
+    ...idle.tracks.filter((t) => !('bone' in t)),
+    ...['L', 'R'].flatMap((s): MotionTrack[] => [
+      { kind: 'aim', bone: `upperarm_${s}`, keys: [[0, 90], [2, 88], [4, 90]] },
+      { kind: 'bend', bone: `forearm_${s}`, keys: hold(-6, 4) },
+    ]),
   ],
 };
 
@@ -190,7 +205,8 @@ const walkSide: Motion = {
         { kind: 'reach', bone: `footTarget_${s}`, axis: 'x', offset: off, keys: [[0, -STRIDE / 2, 'linear'], [0.6, STRIDE / 2], [0.8, 0], [1, -STRIDE / 2]] },
         { kind: 'reach', bone: `footTarget_${s}`, axis: 'y', offset: off, keys: [[0, 0, 'linear'], [0.6, 0], [0.75, -0.14], [0.92, -0.04], [1, 0]] },
         { kind: 'rot', bone: `foot_${s}`, offset: off, keys: [[0, -8], [0.15, 0], [0.5, 0], [0.62, 18], [0.8, 0], [1, -8]] },
-        { kind: 'rot', bone: `upperarm_${s}`, offset: off, keys: [[0, 18], [0.5, -18], [1, 18]] },
+        // Arms swing about hanging down (aimed, so a side view drawn with the arms out walks the same).
+        { kind: 'aim', bone: `upperarm_${s}`, offset: off, keys: [[0, 108], [0.5, 72], [1, 108]] },
         { kind: 'bend', bone: `forearm_${s}`, offset: off, keys: [[0, -22], [0.5, -6], [1, -22]] },
       ];
     }),
@@ -210,7 +226,7 @@ const jump: Motion = {
   ],
 };
 
-export const MOTIONS: Motion[] = [idle, wave_L, mirrorMotion(wave_L), armsUp, armsCrossed, handsOnHips, point_L, mirrorMotion(point_L), nod, bow, walkFront, walkSide, jump];
+export const MOTIONS: Motion[] = [idle, idleSide, wave_L, mirrorMotion(wave_L), armsUp, armsCrossed, handsOnHips, point_L, mirrorMotion(point_L), nod, bow, walkFront, walkSide, jump];
 
 // --- Compilation (retargeting) -----------------------------------------------------------------
 
