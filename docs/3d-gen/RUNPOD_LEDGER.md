@@ -54,11 +54,11 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-20 | A40 (SECURE) | $0.61 | 21 min | $0.211 | $7.994 | b5-apose | ok: qi2edit 22 files |
 | 2026-10-21 | A40 (SECURE) | $0.61 | 7 min | $0.073 | $8.067 | b6-arms | interrupted |
 | 2026-10-21 | A40 (SECURE) | $0.61 | 17 min | $0.174 | $8.241 | b6-arms | ok: qi2edit 14 files |
-| 2026-10-21 | A40 (SECURE) | $0.61 | — | — | $8.241 | b7-hair-faces | starting |
-| 2026-10-21 | A40 (SECURE) | $0.61 | 32 min | $0.320 | $8.561 | b7-underwear | failed: ENOSPC: no space left on device, write |
-| 2026-10-21 | A40 (SECURE) | $0.61 | 31 min | $0.318 | $8.879 | b7-outfits | failed: ENOSPC: no space left on device, write |
-| 2026-10-21 | A40 (SECURE) | $0.61 | — | — | $8.879 | b7-races | starting |
-| 2026-10-21 | A40 (SECURE) | $0.61 | — | — | $8.879 | b7-body | starting |
-| 2026-10-21 | A40 (SECURE) | $0.61 | 20 min | $0.208 | $9.087 | b7-detail | ok: qi2edit 41 files |
-| 2026-10-21 | A40 (SECURE) | $0.61 | 6 min | $0.062 | $9.149 | b7-detail-redo | ok: qi2edit 11 files |
-| 2026-10-21 | A40 (SECURE) | $0.61 | — | — | $9.149 | b7-clothes-redo | starting |
+| 2026-10-21 | A40 (SECURE) | $0.61 | 35 min | $0.358 | $8.599 | b7-hair-faces | ok: qi2edit 94 files |
+| 2026-10-21 | A40 (SECURE) | $0.61 | 32 min | $0.320 | $8.919 | b7-underwear | failed: ENOSPC: no space left on device, write |
+| 2026-10-21 | A40 (SECURE) | $0.61 | 31 min | $0.318 | $9.237 | b7-outfits | failed: ENOSPC: no space left on device, write |
+| 2026-10-21 | A40 (SECURE) | $0.61 | — | — | $9.237 | b7-races | starting |
+| 2026-10-21 | A40 (SECURE) | $0.61 | — | — | $9.237 | b7-body | starting |
+| 2026-10-21 | A40 (SECURE) | $0.61 | 20 min | $0.208 | $9.445 | b7-detail | ok: qi2edit 41 files |
+| 2026-10-21 | A40 (SECURE) | $0.61 | 6 min | $0.062 | $9.507 | b7-detail-redo | ok: qi2edit 11 files |
+| 2026-10-21 | A40 (SECURE) | $0.61 | — | — | $9.507 | b7-clothes-redo | starting |
