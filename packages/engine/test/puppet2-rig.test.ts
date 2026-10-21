@@ -255,5 +255,10 @@ describe('puppets v2 story cues', async () => {
     expect([...hiddenParts(parts, null)].sort()).toEqual(['dress', 'nude']);
     expect([...hiddenParts(parts, 'formal')].sort()).toEqual(['nude', 'top']);
     expect([...hiddenParts(parts, 'none')].sort()).toEqual(['dress', 'top']);
+    // Hairstyles are their own slot: the first by default, kept whatever the clothes.
+    const withHair = [...parts, { id: 'hb_long', outfit: 'hair:long' }, { id: 'hf_long', outfit: 'hair:long' }, { id: 'hf_pixie', outfit: 'hair:pixie' }];
+    expect([...hiddenParts(withHair, 'formal')].sort()).toEqual(['hf_pixie', 'nude', 'top']);
+    expect([...hiddenParts(withHair, 'none', 'pixie')].sort()).toEqual(['dress', 'hb_long', 'hf_long', 'top']);
+    expect([...hiddenParts(withHair, null, 'none')].sort()).toEqual(['dress', 'hb_long', 'hf_long', 'hf_pixie', 'nude']);
   });
 });

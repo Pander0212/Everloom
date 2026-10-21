@@ -693,7 +693,7 @@ def run(args):
     # and on its own bones (wings behind the torso on the chest, a tail on the pelvis).
     for spec in args.extra:
         head, path = spec.split('=', 1)
-        name, role, *rest = head.split(':')
+        name, role, *rest = head.split(':', 4)  # (the outfit, last, may itself hold a colon: hair:<style>)
         sources.append({'name': name, 'role': role, 'rgba': load_rgba(path, (w, h)), 'id': name,
                         'z': float(rest[0]) if rest and rest[0] else None, 'skin': rest[1].split(',') if len(rest) > 1 and rest[1] else None,
                         'outfit': rest[2] if len(rest) > 2 and rest[2] else None})

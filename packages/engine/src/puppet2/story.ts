@@ -41,15 +41,21 @@ export function poseMotion(pose: string | null | undefined): string {
 
 /**
  * The parts to hide for an outfit: other outfits' clothes, and the adult (nude) layers unless the
- * outfit is "none" (they belong to 18+ packs, which the minor guard keeps off minors).
+ * outfit is "none" (they belong to 18+ packs, which the minor guard keeps off minors). Sets named
+ * "hair:<style>" are a separate slot, the hairstyle (the first one unless `hair` names another, or
+ * "none" for the bare head); changing clothes keeps the hair.
  */
-export function hiddenParts(parts: ReadonlyArray<{ id: string; outfit?: string; adult?: boolean }>, outfit: string | null | undefined): Set<string> {
-  const outfits = [...new Set(parts.flatMap((p) => (p.outfit ? [p.outfit] : [])))];
+export function hiddenParts(parts: ReadonlyArray<{ id: string; outfit?: string; adult?: boolean }>, outfit: string | null | undefined, hair?: string | null): Set<string> {
+  const sets = [...new Set(parts.flatMap((p) => (p.outfit ? [p.outfit] : [])))];
+  const isHair = (o: string) => o.startsWith('hair:');
+  const outfits = sets.filter((o) => !isHair(o));
+  const hairs = sets.filter(isHair);
   const nude = outfit === 'none' || outfit === 'nude';
   const wear = nude ? null : outfit && outfits.includes(outfit) ? outfit : outfits[0] ?? null;
+  const style = hair === 'none' ? null : hair && hairs.includes(isHair(hair) ? hair : `hair:${hair}`) ? (isHair(hair) ? hair : `hair:${hair}`) : hairs[0] ?? null;
   const out = new Set<string>();
   for (const p of parts) {
-    if (p.outfit && p.outfit !== wear) out.add(p.id);
+    if (p.outfit && (isHair(p.outfit) ? p.outfit !== style : p.outfit !== wear)) out.add(p.id);
     if (p.adult && !nude) out.add(p.id);
   }
   return out;

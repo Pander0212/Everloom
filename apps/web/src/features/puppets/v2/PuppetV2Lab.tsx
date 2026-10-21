@@ -80,6 +80,7 @@ export default function PuppetV2Lab() {
   const [values, setValues] = useState<Record<string, number>>({});
   const [wardrobe, setWardrobe] = useState<Array<{ id: string; outfit?: string; adult?: boolean }>>([]);
   const [outfit, setOutfit] = useState<string>('');
+  const [hair, setHair] = useState<string>('');
   /** Each puppet's own wardrobe (a mixed cast has different parts). */
   const wardrobes = useRef(new Map<string, Array<{ id: string; outfit?: string; adult?: boolean }>>());
   const [talking, setTalking] = useState(false);
@@ -151,10 +152,16 @@ export default function PuppetV2Lab() {
             {EXPRESSIONS.map((x, i) => <option key={x} value={i}>{x}</option>)}
           </Select>
           <Button size="sm" variant={talking ? 'primary' : 'ghost'} aria-pressed={talking} onClick={() => { const t = !talking; setTalking(t); all((id) => (stage.current!.get(id)!.speaking = t)); }}>Talk</Button>
-          {wardrobe.some((w) => w.outfit) ? (
-            <Select aria-label="Outfit" value={outfit} onChange={(e) => { setOutfit(e.target.value); all((id) => (stage.current!.get(id)!.hidden = hiddenParts(wardrobes.current.get(id) ?? [], e.target.value || null))); }} className="w-auto">
-              {[...new Set(wardrobe.flatMap((w) => (w.outfit ? [w.outfit] : [])))].map((o, i) => <option key={o} value={i === 0 ? '' : o}>{o}</option>)}
+          {wardrobe.some((w) => w.outfit && !w.outfit.startsWith('hair:')) ? (
+            <Select aria-label="Outfit" value={outfit} onChange={(e) => { setOutfit(e.target.value); all((id) => (stage.current!.get(id)!.hidden = hiddenParts(wardrobes.current.get(id) ?? [], e.target.value || null, hair || null))); }} className="w-auto">
+              {[...new Set(wardrobe.flatMap((w) => (w.outfit && !w.outfit.startsWith('hair:') ? [w.outfit] : [])))].map((o, i) => <option key={o} value={i === 0 ? '' : o}>{o}</option>)}
               <option value="none">No outfit</option>
+            </Select>
+          ) : null}
+          {wardrobe.some((w) => w.outfit?.startsWith('hair:')) ? (
+            <Select aria-label="Hair" value={hair} onChange={(e) => { setHair(e.target.value); all((id) => (stage.current!.get(id)!.hidden = hiddenParts(wardrobes.current.get(id) ?? [], outfit || null, e.target.value || null))); }} className="w-auto">
+              {[...new Set(wardrobe.flatMap((w) => (w.outfit?.startsWith('hair:') ? [w.outfit] : [])))].map((o, i) => <option key={o} value={i === 0 ? '' : o}>{o.slice(5)}</option>)}
+              <option value="none">Bald</option>
             </Select>
           ) : null}
         </div>

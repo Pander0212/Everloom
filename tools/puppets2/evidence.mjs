@@ -117,6 +117,18 @@ await clip('5-outfits', main, async ({ page, s, shot, wait }) => {
     await wait(1600);
   }
 });
+if (main.meta.outfits.some((o) => o.startsWith('hair:'))) {
+  await clip('5b-hair', main, async ({ page, s, shot, wait }) => {
+    const sel = page.getByRole('combobox', { name: 'Hair' });
+    for (const o of await sel.locator('option').allTextContents()) {
+      await sel.selectOption({ label: o });
+      await s("s.gesture('p1', 'wave_L')");
+      await wait(700);
+      await shot(`hair ${o}`);
+      await wait(1600);
+    }
+  });
+}
 await clip('6-talk', main, async ({ page, s, shot, wait }) => {
   await page.getByRole('button', { name: 'Talk' }).click();
   for (let i = 0; i < 3; i++) { await wait(140); await shot(`talking ${i}`); }
@@ -141,6 +153,24 @@ if (main.meta.views.length > 1) {
     }
     await s("s.setView('p1', 'front')"); await wait(1200);
     await s("s.setView('p1', 'side')"); for (let i = 0; i < 4; i++) { await wait(150); await shot(`turn ${i}`); }
+  });
+}
+if (main.meta.views.length > 1 && main.meta.outfits.some((o) => o.startsWith('hair:'))) {
+  // Hair and clothes together in every view: three looks each.
+  await clip('10-looks', main, async ({ page, s, shot, wait }) => {
+    const outfit = page.getByRole('combobox', { name: 'Outfit' });
+    const hair = page.getByRole('combobox', { name: 'Hair' });
+    const outfits = (await outfit.count()) ? await outfit.locator('option').allTextContents() : [];
+    const hairs = await hair.locator('option').allTextContents();
+    const looks = hairs.filter((h) => h !== 'Bald').map((h, i) => [outfits.length ? outfits[i % outfits.length] : null, h]);
+    for (const v of ['front', 'threeQuarter', 'side', 'back'].filter((x) => main.meta.views.includes(x))) {
+      await s(`s.setView('p1', '${v}'); s.setBase('p1', 'idle')`); await wait(900);
+      for (const [o, h] of looks) {
+        if (o) await outfit.selectOption({ label: o });
+        await hair.selectOption({ label: h });
+        await wait(400); await shot(`${v} ${o ?? ''} ${h}`);
+      }
+    }
   });
 }
 if (second) {
