@@ -1449,6 +1449,31 @@
    "balanceBefore": 4.1490579963,
    "balanceAfter": 2.738322113,
    "result": "ok: qi2edit 112 files"
+  },
+  {
+   "id": "636f91b9fba6",
+   "date": "2026-10-21",
+   "job": "b11-redo-bodies",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-tf-bald.png",
+    "view-tq-bald.png",
+    "view-side-bald.png",
+    "view-back-bald.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.712,
+   "start": "2026-10-21T21:13:47.421Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 2.4650154742,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
