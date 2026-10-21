@@ -57,11 +57,13 @@ export const VARIANTS = {
   eyes_closed: { param: 'EyeClose', index: 1 },
   mouth_a: { param: 'Mouth', index: 1 }, mouth_i: { param: 'Mouth', index: 2 }, mouth_u: { param: 'Mouth', index: 3 }, mouth_e: { param: 'Mouth', index: 4 }, mouth_o: { param: 'Mouth', index: 5 },
   smile: { param: 'Expression', index: 1 }, angry: { param: 'Expression', index: 2 }, sad: { param: 'Expression', index: 3 }, surprised: { param: 'Expression', index: 4 }, blush: { param: 'Expression', index: 5 }, cry: { param: 'Expression', index: 6 },
+  laugh: { param: 'Expression', index: 7 }, smug: { param: 'Expression', index: 8 }, pouting: { param: 'Expression', index: 9 }, wink: { param: 'Expression', index: 10 }, sleepy: { param: 'Expression', index: 11 },
+  scared: { param: 'Expression', index: 12 }, determined: { param: 'Expression', index: 13 }, lovestruck: { param: 'Expression', index: 14 }, embarrassed: { param: 'Expression', index: 15 }, disgusted: { param: 'Expression', index: 16 },
   open: { param: 'HandPose', index: 1 }, wave: { param: 'HandPose', index: 2 }, fist: { param: 'HandPose', index: 3 }, point: { param: 'HandPose', index: 4 },
 } as const;
 export type Variant = keyof typeof VARIANTS;
 /** Expression names (the story's emotions map onto these indices of the Expression parameter). */
-export const EXPRESSIONS = ['neutral', 'smile', 'angry', 'sad', 'surprised', 'blush', 'cry'] as const;
+export const EXPRESSIONS = ['neutral', 'smile', 'angry', 'sad', 'surprised', 'blush', 'cry', 'laugh', 'smug', 'pouting', 'wink', 'sleepy', 'scared', 'determined', 'lovestruck', 'embarrassed', 'disgusted'] as const;
 
 export const LayerSchema = z.object({
   id: z.string().regex(/^[A-Za-z_][A-Za-z0-9_-]*$/),

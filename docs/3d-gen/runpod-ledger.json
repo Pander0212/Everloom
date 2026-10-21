@@ -1383,6 +1383,72 @@
    "balanceBefore": 4.3141843657,
    "balanceAfter": 4.1497387907,
    "result": "ok: qi2edit 33 files"
+  },
+  {
+   "id": "a98b3a9b9d94",
+   "date": "2026-10-21",
+   "job": "b10-tq",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "view-tq-bald.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.966,
+   "start": "2026-10-21T17:37:40.202Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 4.1490579963,
+   "balanceAfter": null,
+   "result": "starting"
+  },
+  {
+   "id": "4fb6df0db02b",
+   "date": "2026-10-21",
+   "job": "b10-side",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "view-side-bald.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.966,
+   "start": "2026-10-21T17:37:59.716Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 4.1490579963,
+   "balanceAfter": null,
+   "result": "starting"
+  },
+  {
+   "id": "789c126395e6",
+   "date": "2026-10-21",
+   "job": "b10-back",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "view-back-bald.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.966,
+   "start": "2026-10-21T17:38:19.727Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 4.1490579963,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }

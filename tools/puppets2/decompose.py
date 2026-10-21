@@ -299,7 +299,8 @@ def line_colour(rgba):
 
 
 REGION_ROLES = {0: 'torso', 1: 'head', 2: 'arm_L', 3: 'arm_R', 4: 'leg_L', 5: 'leg_R', 6: 'hand_L', 7: 'hand_R'}
-FACE_VARIANTS = {'eyes_closed', 'mouth_a', 'mouth_i', 'mouth_u', 'mouth_e', 'mouth_o', 'smile', 'angry', 'sad', 'surprised', 'blush', 'cry'}
+FACE_VARIANTS = {'eyes_closed', 'mouth_a', 'mouth_i', 'mouth_u', 'mouth_e', 'mouth_o', 'smile', 'angry', 'sad', 'surprised', 'blush', 'cry',
+                 'laugh', 'smug', 'pouting', 'wink', 'sleepy', 'scared', 'determined', 'lovestruck', 'embarrassed', 'disgusted'}
 HAND_VARIANTS = {'open', 'wave', 'fist', 'point'}
 CLOTH_SPLIT = {  # clothing role → {region: role} when it runs down the limbs
     'topwear': {0: 'topwear', 2: 'sleeve_upper_L', 3: 'sleeve_upper_R'},
@@ -1184,7 +1185,7 @@ if __name__ == '__main__':
     ap.add_argument('--outfit-image', action='append', default=[], metavar='NAME=PATH', help='the same pose wearing an outfit (repeatable)')
     ap.add_argument('--outfit-name', default=None, help='outfit set for clothes found in --layers')
     ap.add_argument('--adult-image', help='the same pose nude (18+ pack): its torso becomes the adult layer')
-    ap.add_argument('--variant', action='append', default=[], metavar='NAME=PATH', help='the same picture with a face or hand change: eyes_closed, mouth_a…mouth_o, smile, angry, sad, surprised, blush, cry; wave_L, open_R, fist_L, point_R… (repeatable)')
+    ap.add_argument('--variant', action='append', default=[], metavar='NAME=PATH', help='the same picture with a face or hand change: eyes_closed, mouth_a…mouth_o, an expression (smile, angry, sad, surprised, blush, cry, laugh, smug, pouting, wink, sleepy, scared, determined, lovestruck, embarrassed, disgusted); wave_L, open_R, fist_L, point_R… (repeatable)')
     ap.add_argument('--extra', action='append', default=[], metavar='ID:ROLE[:Z[:BONES[:OUTFIT]]]=PATH', help='a separate layer picture aligned with the image (hair_back, hair_front, wings…), e.g. wings:other:5:chest=wings.png; OUTFIT puts it in a wardrobe set (repeatable)')
     ap.add_argument('--name', default='Character')
     ap.add_argument('--rating', default='all-ages', choices=['all-ages', '18+'])
