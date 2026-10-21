@@ -24,7 +24,7 @@
  */
 import { randomBytes } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, statfsSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { budgetCheck, chooseGpus, DEFAULT_CAP_USD, loadLedger, POD_PREFIX, redact, round, saveLedger, spentUsd } from './lib.mjs';
@@ -95,6 +95,11 @@ export async function runSession(job, deps) {
     if (i >= 0) ledger.sessions[i] = entry; else ledger.sessions.push(entry);
     saveLedger(ledgerFile, ledgerMd, ledger, capUsd);
   };
+  // The results come back here: with too little free disk the downloads fail after the pod has
+  // done (and been paid for) the work, so check before renting anything.
+  const freeGb = (() => { try { const st = statfsSync(root); return (st.bavail * st.bsize) / 1e9; } catch { return Infinity; } })();
+  const needGb = job.minFreeGb ?? 2;
+  if (freeGb < needGb) throw new Error(`only ${freeGb.toFixed(1)} GB free on this machine, the job needs ${needGb} GB for its results: free some space first`);
   const before = await cleanup(gql, say, podName(job));
   const balance = Number(before.clientBalance);
   const maxMinutes = Math.min(job.maxMinutes ?? 90, 240);

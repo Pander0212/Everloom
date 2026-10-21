@@ -1186,14 +1186,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.457,
+   "worstCaseUsd": null,
    "start": "2026-10-21T10:58:59.729Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-21T11:30:28.981Z",
+   "seconds": 1890,
+   "costUsd": 0.32,
    "balanceBefore": 6.4309421185,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 5.1978365296,
+   "result": "failed: ENOSPC: no space left on device, write"
   },
   {
    "id": "b6f995f32948",
@@ -1208,14 +1208,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.457,
+   "worstCaseUsd": null,
    "start": "2026-10-21T10:59:19.764Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-21T11:30:37.305Z",
+   "seconds": 1878,
+   "costUsd": 0.318,
    "balanceBefore": 6.4309421185,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 5.1978365296,
+   "result": "failed: ENOSPC: no space left on device, write"
   },
   {
    "id": "3d200e9ec6fb",
@@ -1315,6 +1315,28 @@
    "balanceBefore": 0.9210433631,
    "balanceAfter": 0.8825029353,
    "result": "ok: qi2edit 11 files"
+  },
+  {
+   "id": "ee7b8b0aad7e",
+   "date": "2026-10-21",
+   "job": "b7-clothes-redo",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-tf.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.712,
+   "start": "2026-10-21T11:32:33.089Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 5.1978365296,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
