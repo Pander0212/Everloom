@@ -6,7 +6,7 @@
  * which for generated characters must be git-ignored (samples/gen/…).
  *
  *   node tools/puppets2/evidence.mjs --base http://127.0.0.1:8790 --out samples/gen/puppets2/evidence \
- *     --pack ines=samples/gen/puppets2/ines/pack.zip --pack teo=… --pack mascot=…
+ *     --pack ines=samples/gen/puppets2/ines/pack.zip --pack teo=… --pack mascot=… [--only 3-walk,9-views] [--no-perf]
  *
  * The first pack is the main character (every clip); the second shows retargeting; all of them go
  * on stage together for the performance measurement (phone viewport, 4× CPU throttle).
@@ -16,7 +16,9 @@ import path from 'node:path';
 import { parseArgs } from 'node:util';
 import { chromium } from '@playwright/test';
 
-const { values: a } = parseArgs({ options: { base: { type: 'string', default: 'http://127.0.0.1:8790' }, out: { type: 'string' }, pack: { type: 'string', multiple: true }, password: { type: 'string', default: 'evidence-password-1' } } });
+const { values: a } = parseArgs({ options: { base: { type: 'string', default: 'http://127.0.0.1:8790' }, out: { type: 'string' }, pack: { type: 'string', multiple: true }, password: { type: 'string', default: 'evidence-password-1' }, only: { type: 'string' }, 'no-perf': { type: 'boolean' } } });
+// `--only 3-walk,9-views` records just those clips; `--no-perf` skips the performance measurement.
+const only = a.only ? new Set(a.only.split(',')) : null;
 if (!a.out || !a.pack?.length) throw new Error('need --out and at least one --pack name=zip');
 if (/^(docs|apps|packages)\//.test(a.out)) throw new Error('generated characters never go into the repository: use samples/gen/…');
 mkdirSync(a.out, { recursive: true });
@@ -63,6 +65,7 @@ await setup.close();
 
 /** One clip: a fresh phone context recording video, the lab with the puppet(s), a script of steps. */
 async function clip(name, pack, steps) {
+  if (only && !only.has(name)) return;
   const ctx = await browser.newContext({ ...phone, storageState: state, recordVideo: { dir: a.out, size: { width: 390, height: 844 } } });
   const page = await ctx.newPage();
   const errors = [];
@@ -186,7 +189,7 @@ if (second) {
 }
 
 // 8. Performance: every pack on stage, phone viewport, 4× CPU throttle, 5 s.
-{
+if (!a['no-perf']) {
   const ctx = await browser.newContext({ ...phone, storageState: state });
   const page = await ctx.newPage();
   await page.goto(`${a.base}/lab/puppets2?p2=${packs.map((p) => p.id).join(',')}&pr=1.5`);
