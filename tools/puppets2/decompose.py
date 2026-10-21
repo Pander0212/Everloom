@@ -160,6 +160,79 @@ def regions(shape, kp):
     return np.argmin(np.stack(d), axis=0).astype(np.uint8)
 
 
+def default_cut_lines(alpha, kp, crotch_width=0.035):
+    """
+    The owner's cut lines (reviewed with cutmap.py), as polylines in picture pixels: each arm ends at
+    a line from the top of the shoulder down to the armpit; each leg at the groin crease, from the
+    outer hip down to the crotch and then down the inner thigh, the genitals staying on the torso.
+    """
+    a = alpha > 128
+    h, w = a.shape
+    H = float(max(kp['ankle_L'][1], kp['ankle_R'][1]) - kp['headTop'][1])
+    lines = {}
+    cx = (kp['hip_L'][0] + kp['hip_R'][0]) / 2
+    for s in SIDES:
+        sx, sy = kp[f'shoulder_{s}']
+        ex = kp[f'elbow_{s}'][0]
+        out = 1 if ex > sx else -1
+        # The armpit: walking out from the shoulder, the first column where the figure's run below
+        # the shoulder becomes arm-thin (the torso side no longer continues down).
+        x_pit, y_pit = sx, sy + 0.05 * H
+        for x in range(int(sx), int(sx + out * 0.12 * H), out):
+            if not (0 <= x < w):
+                break
+            col = a[int(sy):, x]
+            run = int(np.argmin(col)) if not col.all() else len(col)
+            if run < 0.12 * H:
+                x_pit, y_pit = x, sy + run
+                break
+        top = np.nonzero(a[:, int(np.clip(x_pit, 0, w - 1))])[0]
+        y_top = float(top[0]) if len(top) else sy - 0.03 * H
+        lines[f'arm_{s}'] = [[x_pit, y_top - 2], [x_pit, y_pit + 0.006 * H]]
+        # The leg: outer hip edge a little above the hip joint, diagonally to the crotch, then down.
+        hx, hy = kp[f'hip_{s}']
+        side = 1 if hx > cx else -1
+        y0 = hy - 0.025 * H
+        row = np.nonzero(a[int(y0)])[0]
+        x0 = float(row.max() if side > 0 else row.min()) if len(row) else hx + side * 0.06 * H
+        gx = cx + side * crotch_width * H
+        gy = hy + 0.06 * H
+        # The gap between the legs starts where the centre column turns empty below the hips.
+        colc = a[int(hy):, int(cx)]
+        gap = hy + (int(np.argmin(colc)) if not colc.all() else 0.15 * H)
+        # Down the inner thigh and into the gap between the legs, so the line closes off the crotch.
+        gy2 = max(gy, gap)
+        lines[f'leg_{s}'] = [[x0 + side * 6, y0], [gx, gy], [gx, gy2], [cx + side * 2, gy2 + 0.03 * H]]
+    return lines
+
+
+def apply_cut_lines(reg, alpha, kp, lines):
+    """Moves the limb/torso boundary to the cut lines, near each limb's root joint only."""
+    a = alpha > 8
+    h, w = reg.shape
+    H = float(max(kp['ankle_L'][1], kp['ankle_R'][1]) - kp['headTop'][1])
+    py, px = np.mgrid[0:h, 0:w]
+    out = reg.copy()
+    for name, pts in lines.items():
+        limb = {'arm_L': 2, 'arm_R': 3, 'leg_L': 4, 'leg_R': 5}[name]
+        side = name[-1]
+        root = kp[f'shoulder_{side}'] if name.startswith('arm') else kp[f'hip_{side}']
+        seed = kp[f'elbow_{side}'] if name.startswith('arm') else kp[f'knee_{side}']
+        barrier = np.zeros((h, w), np.uint8)
+        cv2.polylines(barrier, [np.array(pts, np.int32)], False, 1, 2)
+        near = np.hypot(px - root[0], py - root[1]) < 0.16 * H
+        free = (a & (barrier == 0)).astype(np.uint8)
+        n, lab = cv2.connectedComponents(free, connectivity=4)
+        sl = lab[int(np.clip(seed[1], 0, h - 1)), int(np.clip(seed[0], 0, w - 1))]
+        if sl == 0:
+            continue
+        limb_side = (lab == sl) & near
+        torso_side = near & a & ~limb_side & ((out == limb) | (out == 0))
+        out[limb_side & ((out == 0) | (out == limb))] = limb
+        out[torso_side] = 0
+    return out
+
+
 REGION_ROLES = {0: 'torso', 1: 'head', 2: 'arm_L', 3: 'arm_R', 4: 'leg_L', 5: 'leg_R', 6: 'hand_L', 7: 'hand_R'}
 FACE_VARIANTS = {'eyes_closed', 'mouth_a', 'mouth_i', 'mouth_u', 'mouth_e', 'mouth_o', 'smile', 'angry', 'sad', 'surprised', 'blush', 'cry'}
 HAND_VARIANTS = {'open', 'wave', 'fist', 'point'}
@@ -409,6 +482,12 @@ def run(args):
     ys = np.nonzero(alpha.max(axis=1) > 128)[0]
     height = float(ys[-1] - ys[0]) if len(ys) else float(h)
     reg = regions((h, w), kp)
+    cut_lines = None
+    if args.cut_lines:
+        cut_lines = json.load(open(args.cut_lines)) if args.cut_lines != 'auto' else default_cut_lines(alpha, kp)
+        reg = apply_cut_lines(reg, alpha, kp, cut_lines)
+        os.makedirs(args.out, exist_ok=True)
+        json.dump(cut_lines, open(os.path.join(args.out, f'cut-lines-{args.view}.json'), 'w'), indent=1)
 
     # Source layers: See-through's, or the picture as one body layer.
     sources = []
@@ -761,6 +840,7 @@ if __name__ == '__main__':
     ap.add_argument('--layers', help='a See-through result folder (layers.json + PNGs)')
     ap.add_argument('--no-st-shoulders', dest='st_shoulders', action='store_false', help='with --nude-layers: keep the picture\'s own shoulders (no See-through fill around them)')
     ap.add_argument('--st-hips', action='store_true', help='with --nude-layers: See-through\'s torso also fills behind the tops of the thighs')
+    ap.add_argument('--cut-lines', help="'auto' (shoulder-to-armpit and groin-crease lines) or a JSON of polylines per limb (arm_L, arm_R, leg_L, leg_R); the lines used are saved as cut-lines-<view>.json")
     ap.add_argument('--nude-layers', action='store_true', help='with --layers on a nude figure: the clothing layers are skin; use See-through for the hidden torso and the head parts')
     ap.add_argument('--keypoints', help='JSON: Everloom landmarks, or Halpe-26 names with [x, y, score]')
     ap.add_argument('--outfit-image', action='append', default=[], metavar='NAME=PATH', help='the same pose wearing an outfit (repeatable)')

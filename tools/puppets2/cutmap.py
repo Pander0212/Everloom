@@ -17,11 +17,12 @@ import cv2
 import numpy as np
 from PIL import Image, ImageDraw
 
-PARTS = [  # (layer, colour, label)
-    ('head', (255, 214, 64), 'head'), ('torso', (240, 120, 70), 'torso'),
+PARTS = [  # (layer, colour, label), in drawing order: what's later covers what's earlier, so each
+    # pixel shows the part that is visible there (the hidden joint fillers under the torso don't)
+    ('leg_L', (190, 110, 240), 'leg L'), ('leg_R', (240, 110, 190), 'leg R'),
+    ('torso', (240, 120, 70), 'torso'), ('head', (255, 214, 64), 'head'),
     ('arm_L', (70, 150, 255), 'arm L'), ('arm_R', (70, 210, 150), 'arm R'),
     ('hand_L', (40, 80, 220), 'hand L'), ('hand_R', (30, 140, 90), 'hand R'),
-    ('leg_L', (190, 110, 240), 'leg L'), ('leg_R', (240, 110, 190), 'leg R'),
     ('breast_L', (255, 255, 255), 'breast L'), ('breast_R', (255, 255, 255), 'breast R'),
 ]
 
@@ -61,10 +62,10 @@ def main():
         if name not in rects or not os.path.exists(os.path.join(a.rig, a.view, f'{name}.png')):
             continue
         m = placed(name)[..., 3] > 128
-        if name.startswith('breast'):  # soft copies over the torso: outline only
-            pass
-        else:
-            tint[m] = tint[m] * 0.55 + np.array(col) * 0.45
+        if not name.startswith('breast'):  # (breasts: soft copies over the torso, outline only)
+            # Tint from the untinted picture, so a part drawn over another replaces its colour.
+            tint[m] = np.asarray(base.convert('RGB')).astype(np.float32)[m] * 0.55 + np.array(col) * 0.45
+            lines[m] = 0
         cs, _ = cv2.findContours(m.astype(np.uint8), cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         cv2.drawContours(lines, cs, -1, col, 1)
         found.append((name, col, label, m))
@@ -72,6 +73,14 @@ def main():
     edge = lines.any(axis=2)
     over[edge] = lines[edge]
     full = Image.fromarray(over)
+    # The cut lines (the owner's review handles), drawn in bright blue with their points.
+    lp = os.path.join(a.rig, f'cut-lines-{a.view}.json')
+    if os.path.exists(lp):
+        dl = ImageDraw.Draw(full)
+        for name, pts in json.load(open(lp)).items():
+            dl.line([tuple(p) for p in pts], fill=(0, 90, 255), width=2)
+            for p in pts:
+                dl.ellipse((p[0] - 3, p[1] - 3, p[0] + 3, p[1] + 3), fill=(0, 90, 255))
     # Keypoints (from the gates file) for the close-ups.
     kp = c['views'][a.view]['keypoints']
     zooms = []
