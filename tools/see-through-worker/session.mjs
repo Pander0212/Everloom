@@ -71,7 +71,8 @@ ${rows.join('\n')}
 
 async function cleanup(log = console.log) {
   const me = await account();
-  for (const p of me.pods ?? []) {
+  // Only this tool's own pods: other jobs (the GPU runner's) may be running on the same account.
+  for (const p of (me.pods ?? []).filter((x) => x.name === NAME)) {
     log(`terminating leftover pod ${p.name} (${p.id})`);
     await terminate(p.id);
   }
