@@ -204,9 +204,11 @@ export function buildCharacter(input: CharacterInput): Model {
   // The bend side follows the drawing (bendPositive = the lower bone turns clockwise from the upper
   // one), so the rest pose is exactly the picture; a straight limb takes the preferred side
   // (knees and elbows outward in front views, knees forward in profile).
-  const bendSide = (lower: string, preferred: boolean) => { const r = bone(lower).rotation; return Math.abs(r) < 1 ? preferred : r > 0; };
+  // In profile a standing leg is often drawn a few degrees overstretched (the knee a little back):
+  // only a clearly bent knee is followed there, or the walk would fold the knees backwards.
+  const bendSide = (lower: string, preferred: boolean, straight = 1) => { const r = bone(lower).rotation; return Math.abs(r) < straight ? preferred : r > 0; };
   for (const s of ['L', 'R']) {
-    ik.push({ id: `legIk_${s}`, bones: [`thigh_${s}`, `shin_${s}`], target: `footTarget_${s}`, mix: 1, bendPositive: bendSide(`shin_${s}`, view === 'side' ? SIDE_KNEE_BEND : s === 'L'), stretch: true, softness: 0 });
+    ik.push({ id: `legIk_${s}`, bones: [`thigh_${s}`, `shin_${s}`], target: `footTarget_${s}`, mix: 1, bendPositive: bendSide(`shin_${s}`, view === 'side' ? SIDE_KNEE_BEND : s === 'L', view === 'side' ? 15 : 1), stretch: true, softness: 0 });
     ik.push({ id: `armIk_${s}`, bones: [`upperarm_${s}`, `forearm_${s}`], target: `handTarget_${s}`, mix: 0, bendPositive: bendSide(`forearm_${s}`, s === 'L'), softness: 0.02 * H });
   }
   // Physics: pendulums moved by the body's motion, whose swing drives the bounce parameters. Rev2D's
