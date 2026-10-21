@@ -1359,6 +1359,30 @@
    "balanceBefore": 4.5106454713,
    "balanceAfter": 4.3182656907,
    "result": "ok: qi2edit 16 files"
+  },
+  {
+   "id": "2ced7d0a3130",
+   "date": "2026-10-21",
+   "job": "b9-pilot",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "view-tq-bald.png",
+    "view-back-bald.png",
+    "view-side-bald.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.61,
+   "start": "2026-10-21T15:38:27.837Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 4.3141843657,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
