@@ -269,7 +269,7 @@ def torso_shoulders(alpha, reg, lines, rgb=None):
         xs = lines[f'shoulder_{s}'][1][0]
         out = 1 if xs > xt else -1
         t = yb - yt  # about the arm's thickness
-        ytop, ybot = yt + 2, yb + 0.3 * t
+        ytop, ybot = yt - 1, yb + 0.3 * t  # (from the top outline itself, so the arc joins it)
         cy = (ytop + ybot) / 2
         ctr = (int(round(xt)), int(round(cy)))
         ax = (int(round(max(4.0, abs(xs - xt)))), int(round(max(4.0, (ybot - ytop) / 2))))
@@ -781,11 +781,15 @@ def run(args):
                         pnt = paint & ~m
                         arr2[pnt, :3] = skin
                         arr2[pnt, 3] = 255
-                        edge = arc & ~m
+                        # (the whole arc, also where it crosses the torso's own pixels at the top, so it
+                        # meets the drawn outline of the shoulder without a gap)
+                        edge = arc & (~m | (yy_all < np.nonzero(arc.any(axis=1))[0].min() + 4 if arc.any() else False))
                         arr2[edge, :3] = line_colour(arr)
                         arr2[edge, 3] = 255
                         keep = sh & ~paint & (arr[:, :, 3] > 128)
-                        m = m | (sh & paint) | keep
+                        # (the outline ring lies just outside the filled curve: it belongs to the layer too)
+                        m = m | (sh & paint) | keep | edge
+                        mult = np.where(edge | (sh & paint), 1.0, mult)
                         holes = holes & ~trim
                     if side_chest is not None:
                         # Profile, arm held forward: the chest's front outline between the shoulder and
