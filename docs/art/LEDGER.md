@@ -292,6 +292,7 @@ Limits: NanoGPT at most 95 images per UTC day, only `hidream`, `chroma`, `z-imag
 | 281 | 2026-10-20 | NanoGPT | `chroma` | cs3-orc-f1 | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) | 0 | 7/95 today | failed: HTTP 503: Service is temporarily unavailable. Please try again in a moment. You have not been charged for this request. (provider_transient_error) |
 | 282 | 2026-10-20 | NanoGPT | `chroma` | cs3-orc-f2 | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) | 0 | 7/95 today | failed: HTTP 503: Service is temporarily unavailable. Please try again in a moment. You have not been charged for this request. (provider_transient_error) |
 | 283 | 2026-10-20 | NanoGPT | `chroma` | cs3-orc-f3 | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) | 0 | 7/95 today | failed: HTTP 503: Service is temporarily unavailable. Please try again in a moment. You have not been charged for this request. (provider_transient_error) |
+| 284 | 2026-10-21 | NanoGPT | `bytedance/seedream-v5.0-pro/edit` | cs3-tpose-f | (18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl) (edit of base-f.jpg) | $0.0900 (balance) | 0/95 today | pending |
 
 ## Stops and resumes
 
