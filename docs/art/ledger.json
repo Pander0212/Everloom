@@ -6337,6 +6337,78 @@
    },
    "file": "284-nano-bytedance_seedream-v5.0-pro_edit-cs3-tpose-f.jpg",
    "warning": "output 1664x2560 differs from input 832x1280"
+  },
+  {
+   "n": 285,
+   "date": "2026-10-21",
+   "at": "2026-10-21T08:37:46.332Z",
+   "service": "nano",
+   "model": "bytedance/seedream-v5.0-pro/edit",
+   "label": "cs3-tpose2-f1",
+   "prompt": "(18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl)",
+   "adult": true,
+   "res": null,
+   "input": "base-f.jpg",
+   "ok": true,
+   "counted": false,
+   "costUsd": 0.09,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.25738711,
+    "usdAfter": 1.16738711,
+    "charged": 0.09
+   },
+   "file": "285-nano-bytedance_seedream-v5.0-pro_edit-cs3-tpose2-f1.jpg",
+   "warning": "output 1664x2560 differs from input 832x1280"
+  },
+  {
+   "n": 286,
+   "date": "2026-10-21",
+   "at": "2026-10-21T08:38:47.878Z",
+   "service": "nano",
+   "model": "bytedance/seedream-v5.0-pro/edit",
+   "label": "cs3-tpose2-f2",
+   "prompt": "(18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl)",
+   "adult": true,
+   "res": null,
+   "input": "base-f.jpg",
+   "ok": true,
+   "counted": false,
+   "costUsd": 0.09,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.16738711,
+    "usdAfter": 1.07738711,
+    "charged": 0.09
+   },
+   "file": "286-nano-bytedance_seedream-v5.0-pro_edit-cs3-tpose2-f2.jpg",
+   "warning": "output 1664x2560 differs from input 832x1280"
+  },
+  {
+   "n": 287,
+   "date": "2026-10-21",
+   "at": "2026-10-21T08:39:39.635Z",
+   "service": "nano",
+   "model": "bytedance/seedream-v5.0-pro/edit",
+   "label": "cs3-tpose2-m1",
+   "prompt": "(18+ prompt, kept out of the repository: .puppets-work/prompts.jsonl)",
+   "adult": true,
+   "res": null,
+   "input": "base-m.jpg",
+   "ok": true,
+   "counted": false,
+   "costUsd": 0.09,
+   "kept": null,
+   "paid": true,
+   "meter": {
+    "usdBefore": 1.07738711,
+    "usdAfter": 0.98738711,
+    "charged": 0.09
+   },
+   "file": "287-nano-bytedance_seedream-v5.0-pro_edit-cs3-tpose2-m1.jpg",
+   "warning": "output 1664x2560 differs from input 832x1280"
   }
  ],
  "resumed": [

@@ -305,16 +305,16 @@
    "gpu": "RTX 4090",
    "pricePerHr": 0.34,
    "start": "2026-10-21T08:09:12.003Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-21T08:44:26.284Z",
+   "seconds": 2116,
+   "costUsd": 0.2,
    "balanceBefore": 6.7918345295,
-   "balanceAfter": null,
+   "balanceAfter": 6.5698916491,
    "images": [
     "wide-f.png",
     "apose-m.png"
    ],
-   "result": "started",
+   "result": "failed: the worker did not finish setting up in time (last stage: GPU check failed)",
    "note": "studio A-pose bases"
   }
  ]

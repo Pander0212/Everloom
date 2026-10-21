@@ -59,6 +59,8 @@ export function mirrorMotion(m: Motion, id = mirrorName(m.id)): Motion {
 /** A track and its mirror (symmetric motions), the mirror optionally shifted in time. */
 const both = (t: MotionTrack, offset?: number): MotionTrack[] => [t, offset === undefined ? mirrorTrack(t) : { ...mirrorTrack(t), offset }];
 const hold = (v: number, d: number): MotionKey[] => [[0, v], [d, v]];
+/** World angle of a hanging upper arm (the left arm, on the right of the picture: 90 = straight down). */
+const ARMS_DOWN = 78;
 
 // --- The library -------------------------------------------------------------------------------
 
@@ -146,7 +148,10 @@ const idle: Motion = {
     { kind: 'param', param: 'BodyX', keys: [[0, -0.02], [2, 0.02], [4, -0.02]] },
     { kind: 'param', param: 'BodyAngleZ', keys: [[0, 0.6], [2, -0.6], [4, 0.6]] },
     { kind: 'param', param: 'BodyY', keys: [[0, 0], [1, -0.02], [2, 0], [3, -0.02], [4, 0]] },
-    ...both({ kind: 'rot', bone: 'upperarm_L', keys: [[0, 0], [2, -2], [4, 0]] }),
+    // Arms hang down whatever the drawn pose (an A- or T-pose base is drawn with the arms out so
+    // they cut cleanly; standing and walking with them out would look like a mannequin).
+    ...both({ kind: 'aim', bone: 'upperarm_L', keys: [[0, ARMS_DOWN], [2, ARMS_DOWN - 2], [4, ARMS_DOWN]] }),
+    ...both({ kind: 'bend', bone: 'forearm_L', keys: hold(-6, 4) }),
   ],
 };
 
@@ -163,7 +168,7 @@ const walkFront: Motion = {
     ...both({ kind: 'bend', bone: 'shin_L', keys: [[0, 0], [0.25, -6], [0.5, 0], [1, 0]] }, 0.5),
     { kind: 'param', param: 'BodyY', keys: [[0, 0], [0.25, 0.15], [0.5, 0], [0.75, 0.15], [1, 0]] },
     { kind: 'param', param: 'BodyAngleZ', keys: [[0, -1.2], [0.5, 1.2], [1, -1.2]] },
-    ...both({ kind: 'rot', bone: 'upperarm_L', keys: [[0, -6], [0.5, 6], [1, -6]] }),
+    ...both({ kind: 'aim', bone: 'upperarm_L', keys: [[0, ARMS_DOWN - 5], [0.5, ARMS_DOWN + 5], [1, ARMS_DOWN - 5]] }),
     ...both({ kind: 'bend', bone: 'forearm_L', keys: [[0, -6], [0.5, -14], [1, -6]] }),
   ],
 };
