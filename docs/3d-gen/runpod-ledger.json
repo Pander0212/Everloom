@@ -1261,6 +1261,36 @@
    "balanceBefore": 1.6578974067,
    "balanceAfter": null,
    "result": "starting"
+  },
+  {
+   "id": "28cb61f63401",
+   "date": "2026-10-21",
+   "job": "b7-detail",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-tf.png",
+    "mask-tf-belly.png",
+    "mask-tf-body.png",
+    "mask-tf-crotch-long.png",
+    "mask-tf-crotch-up.png",
+    "mask-tf-crotch.png",
+    "mask-tf-full.png",
+    "mask-tf-nipples.png",
+    "mask-tf-torso.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.457,
+   "start": "2026-10-21T11:00:20.064Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 1.1251669408,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
