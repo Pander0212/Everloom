@@ -502,11 +502,15 @@ def contact_sheet(rgba, kp, reg, layers, report, path):
 
 # ---------------------------------------------------------------------------------- main
 
+MIRROR = [False]  # set for a profile drawn facing right: every picture of the view is mirrored
+
+
 def load_rgba(path, size=None):
     im = Image.open(path).convert('RGBA')
     if size and im.size != size:
         raise SystemExit(f'{path} is {im.size}, expected {size} (all pictures of a view share one canvas)')
-    return np.array(im)
+    a = np.array(im)
+    return np.ascontiguousarray(a[:, ::-1]) if MIRROR[0] else a
 
 
 def place_cropped(path, layer, index, size):
@@ -544,6 +548,16 @@ def run(args):
             kp.setdefault('view', args.view)
     else:
         raw = detect_keypoints(rgba[:, :, :3])
+        if args.view == 'side':
+            # The profile rig (its walk) faces left; a profile drawn facing right is mirrored, the
+            # nose being in front of the ear.
+            ear = max((raw['ear_L'], raw['ear_R']), key=lambda e: e[2])
+            if raw['nose'][2] > 0.3 and raw['nose'][0] > ear[0]:
+                print('side view faces right: mirrored to face left')
+                MIRROR[0] = True
+                rgba = load_rgba(args.image)
+                alpha = rgba[:, :, 3]
+                raw = detect_keypoints(rgba[:, :, :3])
         kp = standard_keypoints(raw, alpha, args.view)
     ys = np.nonzero(alpha.max(axis=1) > 128)[0]
     height = float(ys[-1] - ys[0]) if len(ys) else float(h)
