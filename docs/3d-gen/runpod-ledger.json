@@ -1127,6 +1127,29 @@
    "balanceBefore": 6.8136951656,
    "balanceAfter": null,
    "result": "interrupted"
+  },
+  {
+   "id": "20d3040a9fc4",
+   "date": "2026-10-21",
+   "job": "b6-arms",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-f.jpg",
+    "base-m.jpg"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.356,
+   "start": "2026-10-21T08:10:12.499Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 1.8291376622,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
