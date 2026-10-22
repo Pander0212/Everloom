@@ -1659,14 +1659,14 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.641,
+   "worstCaseUsd": null,
    "start": "2026-10-22T07:41:07.552Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-22T08:16:28.052Z",
+   "seconds": 2121,
+   "costUsd": 0.359,
    "balanceBefore": 1.1629721437,
    "balanceAfter": null,
-   "result": "starting"
+   "result": "interrupted"
   }
  ]
 }
