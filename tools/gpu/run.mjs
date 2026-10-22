@@ -176,19 +176,29 @@ export async function runSession(job, deps) {
       const r = await call(`/run/${m}`, { method: 'POST', body: JSON.stringify({ ...(job.opts?.[m] ?? {}), only }) });
       if (!r.ok) throw new Error(`could not start ${m}`);
       const tm = now();
+      mkdirSync(path.join(out, m), { recursive: true });
+      // Results come back while the job runs: the pod stops itself at its time limit, and a download
+      // left for the end could be cut off there (a whole view of a long job was lost that way).
+      const got = new Set();
+      let names = [];
+      const fetchNew = async () => {
+        names = await call(`/ls/${m}`).then((x) => x.json()).catch(() => names);
+        for (const n of names) {
+          if (got.has(n)) continue;
+          const b = await call(`/result/${m}/${n}`).catch(() => null);
+          if (b?.ok) { writeFileSync(path.join(out, m, n), Buffer.from(await b.arrayBuffer())); if (!/\.(log|json)$/.test(n)) got.add(n); }
+        }
+      };
       while (now() < deadline - 3 * 60_000) {
         await sleep(20_000);
         const h = await call('/health').then((x) => x.json()).catch(() => null);
+        await fetchNew();
         if (h && !h.busy) break;
       }
-      mkdirSync(path.join(out, m), { recursive: true });
-      const names = await call(`/ls/${m}`).then((x) => x.json()).catch(() => []);
-      for (const n of names) {
-        const b = await call(`/result/${m}/${n}`);
-        if (b.ok) writeFileSync(path.join(out, m, n), Buffer.from(await b.arrayBuffer()));
-      }
-      results[m] = { files: names.length, minutes: round((now() - tm) / 60000) };
-      say(`${m}: ${names.length} files in ${results[m].minutes} min`);
+      await fetchNew();
+      const lost = names.filter((n) => !got.has(n) && !/\.(log|json)$/.test(n));
+      results[m] = { files: got.size, minutes: round((now() - tm) / 60000) };
+      say(`${m}: ${got.size} files in ${results[m].minutes} min${lost.length ? ` (${lost.length} not downloaded)` : ''}`);
     }
     writeFileSync(path.join(out, `worker-${job.job}.log`), redact(await call('/log').then((r) => r.text()).catch(() => ''), secrets));
     entry.result = `ok: ${Object.entries(results).map(([m, r]) => `${m} ${r.files} files`).join(', ')}${ready.length < models.length ? `; setup failed: ${models.filter((m) => !ready.includes(m)).join(', ')}` : ''}`;
