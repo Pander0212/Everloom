@@ -76,4 +76,4 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-22 | A40 (SECURE) | $0.61 | 117 min | $1.187 | $15.396 | m2-male-wardrobe | ok: qi2edit 268 files |
 | 2026-10-22 | A40 (SECURE) | $0.61 | 8 min | $0.084 | $15.480 | m2b-male-redo | failed: bad host: the worker never answered in 8 min |
 | 2026-10-22 | A40 (SECURE) | $0.61 | 35 min | $0.359 | $15.839 | m2b-male-redo | interrupted |
-| 2026-10-22 | A40 (SECURE) | $0.61 | — | — | $15.839 | m2c-male-rest | starting |
+| 2026-10-22 | A40 (SECURE) | $0.61 | 10 min | $0.099 | $15.938 | m2c-male-rest | ok: qi2edit 16 files |
