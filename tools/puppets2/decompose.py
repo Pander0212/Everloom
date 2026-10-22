@@ -90,6 +90,16 @@ def standard_keypoints(raw, alpha, view):
                 best = raw[f'{j}_L'] if raw[f'{j}_L'][2] >= raw[f'{j}_R'][2] else raw[f'{j}_R']
                 raw[f'{j}_L'] = raw[f'{j}_R'] = best
     P = lambda n: np.array(raw[n][:2], dtype=float)
+    if view != 'side' and all(f'{j}_{s}' in raw for j in ('shoulder', 'elbow') for s in SIDES) and 'neck' in raw:
+        # A shoulder lies between the neck and its own elbow. On a heavily muscled back the detector can
+        # put both shoulders on one side; the misplaced one becomes the other's mirror image.
+        raw = dict(raw)
+        nx = raw['neck'][0]
+        ok = {s: (raw[f'shoulder_{s}'][0] - nx) * (raw[f'elbow_{s}'][0] - nx) > 0 for s in SIDES}
+        for s, o in (('L', 'R'), ('R', 'L')):
+            if not ok[s] and ok[o]:
+                x, y, c = raw[f'shoulder_{o}']
+                raw[f'shoulder_{s}'] = (2 * nx - x, y, c)
     neck = P('neck') if 'neck' in raw else (P('shoulder_L') + P('shoulder_R')) / 2
     pelvis = P('pelvis') if 'pelvis' in raw else (P('hip_L') + P('hip_R')) / 2
     # The head top: the highest opaque pixel above the head (more reliable than the model's point).
@@ -598,7 +608,8 @@ def run(args):
         if len(row):
             fx_, bx_ = (row.max(), row.min()) if facing > 0 else (row.min(), row.max())
             fy_, by_ = hy - 0.01 * height, hy + 0.085 * height
-            line_y = fy_ + (by_ - fy_) * (xx_r - fx_) / (bx_ - fx_ if bx_ != fx_ else 1)
+            # (Clamped past the body: in front of it the slope would climb to the hands' height.)
+            line_y = np.clip(fy_ + (by_ - fy_) * (xx_r - fx_) / (bx_ - fx_ if bx_ != fx_ else 1), fy_, by_)
             legs = (reg == 4) | (reg == 5)
             reg[legs & (yy_r < line_y)] = 0
             near_leg = 4 if (reg == 4).sum() >= (reg == 5).sum() else 5
@@ -850,6 +861,11 @@ def run(args):
                 elif side_leg_line is not None and role.startswith('leg_'):
                     # Profile: the thigh carries hidden skin above its diagonal cut (behind the
                     # torso), so swinging it never opens a gap at the hip or under the buttock.
+                    # Nothing of a leg lies above its filler band: bits up there are the other hand's
+                    # fingertips peeking past the near hand, which would hang in the air on a walk.
+                    m = m & (yy_all >= side_leg_line - 0.07 * height)
+                    if m.sum() < 0.002 * height * height:
+                        continue
                     band = (yy_all >= side_leg_line - 0.07 * height) & (yy_all < side_leg_line) & (arr[:, :, 3] > 128)
                     cols = np.nonzero(m.any(axis=0))[0]
                     if len(cols):
@@ -887,6 +903,12 @@ def run(args):
         for near, far, z in (('arm_L', 'arm_R', 3), ('hand_L', 'hand_R', 3), ('leg_L', 'leg_R', 4)):
             n = next((l for l in out_layers if l['role'] == near), None)
             f = next((l for l in out_layers if l['role'] == far), None)
+            if f is not None and (n is None or f['mask'].sum() > n['mask'].sum()):
+                # The picture's visible limb is the other one: it is the near one, whatever its name.
+                if n is not None:
+                    out_layers.remove(n)
+                n, f = f, None
+                n['role'] = n['id'] = near
             if n is not None and (f is None or f['mask'].sum() < 0.3 * n['mask'].sum()):
                 if f is not None:
                     out_layers.remove(f)
