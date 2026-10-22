@@ -73,3 +73,4 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-22 | RTX A6000 (COMMUNITY) | $0.35 | 8 min | $0.045 | $14.201 | m2-male-wardrobe | failed: bad host: failed: CUDA does not start on this host (NVIDIA RTX A6000) |
 | 2026-10-22 | RTX A6000 (COMMUNITY) | $0.35 | 1 min | $0.004 | $14.205 | m2-male-wardrobe | failed: bad host: failed: CUDA does not start on this host (NVIDIA RTX A6000) |
 | 2026-10-22 | RTX A6000 (COMMUNITY) | $0.35 | 1 min | $0.004 | $14.209 | m2-male-wardrobe | failed: bad host: failed: CUDA does not start on this host (NVIDIA RTX A6000) |
+| 2026-10-22 | A40 (SECURE) | $0.61 | — | — | $14.209 | m2-male-wardrobe | starting |

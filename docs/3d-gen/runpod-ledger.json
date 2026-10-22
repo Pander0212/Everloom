@@ -1594,6 +1594,31 @@
    "balanceBefore": 1.2724892653,
    "balanceAfter": 1.2724892653,
    "result": "failed: bad host: failed: CUDA does not start on this host (NVIDIA RTX A6000)"
+  },
+  {
+   "id": "8a2cbc2f4130",
+   "date": "2026-10-22",
+   "job": "m2-male-wardrobe",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-tm-bald.png",
+    "view-m-tq-bald.png",
+    "view-m-side-bald.png",
+    "view-m-back-bald.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 1.179,
+   "start": "2026-10-22T05:33:57.368Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 1.266124757,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
