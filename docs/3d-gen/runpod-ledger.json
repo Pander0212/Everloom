@@ -1497,6 +1497,28 @@
    "balanceBefore": 1.8018903744,
    "balanceAfter": 1.4563553132,
    "result": "ok: qi2edit 19 files"
+  },
+  {
+   "id": "9462d484c8e9",
+   "date": "2026-10-22",
+   "job": "m1-male-views",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-tm.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.457,
+   "start": "2026-10-22T04:23:48.219Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 1.4208440326,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
