@@ -1667,6 +1667,29 @@
    "balanceBefore": 1.1629721437,
    "balanceAfter": null,
    "result": "interrupted"
+  },
+  {
+   "id": "89fc479e8033",
+   "date": "2026-10-22",
+   "job": "m2c-male-rest",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "view-m-side-bald.png",
+    "view-m-back-bald.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.305,
+   "start": "2026-10-22T08:27:35.203Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 0.7949793881,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
