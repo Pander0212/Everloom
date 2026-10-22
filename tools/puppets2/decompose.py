@@ -220,11 +220,25 @@ def default_cut_lines(alpha, kp, crotch_width=0.02):
         # The gap between the legs starts where the centre column turns empty below the hips (on a
         # man that's below the hanging genitals, which stay on the torso).
         colc = a[int(hy):, int(cx)]
-        gap = hy + (int(np.argmin(colc)) if not colc.all() else 0.15 * H)
+        run = int(np.argmin(colc)) if not colc.all() else 0.15 * H
+        if run > 0.13 * H:
+            # The genitals never hang that low: in three-quarter view the legs overlap and the centre
+            # column stays inside the near thigh down to the knee. The first gap among the columns
+            # round the centre, then.
+            runs = [int(np.argmin(c)) for x in range(int(cx - 0.03 * H), int(cx + 0.03 * H) + 1, 2)
+                    if 0 <= x < w and not (c := a[int(hy):, x]).all()]
+            run = min(min(runs) if runs else run, 0.13 * H)
+        gap = hy + run
         gx = cx + side * crotch_width * H
         # Diagonally from the outer hip to the side of the genitals, then round under them into the gap.
         # (It meets the gap right at its top: lower, it would take the inner outlines of the thighs.)
-        lines[f'leg_{s}'] = [[x0 + side * 6, y0], [gx, gap - 0.025 * H], [cx + side * 0.002 * H, gap + 0.002 * H], [cx, gap + 0.03 * H]]
+        end = gap + 0.03 * H
+        if 0 <= int(end) < h and a[int(end), int(cx)]:
+            # No gap there (the legs overlap, three-quarter view, and may touch again lower down): on
+            # down the centre to the ankles, or the leg's flood would round the line's end into the
+            # torso. (Only pixels near the hip change region; the rest of the line only separates.)
+            end = max(kp['ankle_L'][1], kp['ankle_R'][1])
+        lines[f'leg_{s}'] = [[x0 + side * 6, y0], [gx, gap - 0.025 * H], [cx + side * 0.002 * H, gap + 0.002 * H], [cx, end]]
     return lines
 
 
