@@ -1536,14 +1536,64 @@
    "gpu": "RTX A6000",
    "cloud": "COMMUNITY",
    "pricePerHr": 0.35,
-   "worstCaseUsd": 0.747,
+   "worstCaseUsd": null,
    "start": "2026-10-22T04:50:10.800Z",
-   "stop": null,
-   "seconds": null,
-   "costUsd": null,
+   "stop": "2026-10-22T04:50:52.499Z",
+   "seconds": 467,
+   "costUsd": 0.045,
    "balanceBefore": 1.2786325486,
-   "balanceAfter": null,
-   "result": "starting"
+   "balanceAfter": 1.2786325486,
+   "result": "failed: bad host: failed: CUDA does not start on this host (NVIDIA RTX A6000)"
+  },
+  {
+   "id": "57de8e192487",
+   "date": "2026-10-22",
+   "job": "m2-male-wardrobe",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-tm-bald.png",
+    "view-m-tq-bald.png",
+    "view-m-side-bald.png",
+    "view-m-back-bald.png"
+   ],
+   "gpu": "RTX A6000",
+   "cloud": "COMMUNITY",
+   "pricePerHr": 0.35,
+   "worstCaseUsd": null,
+   "start": "2026-10-22T04:50:53.558Z",
+   "stop": "2026-10-22T04:51:35.192Z",
+   "seconds": 42,
+   "costUsd": 0.004,
+   "balanceBefore": 1.2786325486,
+   "balanceAfter": 1.2724892653,
+   "result": "failed: bad host: failed: CUDA does not start on this host (NVIDIA RTX A6000)"
+  },
+  {
+   "id": "ba68ec9416b8",
+   "date": "2026-10-22",
+   "job": "m2-male-wardrobe",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-tm-bald.png",
+    "view-m-tq-bald.png",
+    "view-m-side-bald.png",
+    "view-m-back-bald.png"
+   ],
+   "gpu": "RTX A6000",
+   "cloud": "COMMUNITY",
+   "pricePerHr": 0.35,
+   "worstCaseUsd": null,
+   "start": "2026-10-22T04:51:36.385Z",
+   "stop": "2026-10-22T04:52:18.284Z",
+   "seconds": 42,
+   "costUsd": 0.004,
+   "balanceBefore": 1.2724892653,
+   "balanceAfter": 1.2724892653,
+   "result": "failed: bad host: failed: CUDA does not start on this host (NVIDIA RTX A6000)"
   }
  ]
 }

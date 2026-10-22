@@ -70,4 +70,6 @@ start and end of every session. No network volumes are used (they cost money eve
 | 2026-10-21 | A40 (SECURE) | $0.61 | 68 min | $0.690 | $13.599 | b11-redo-bodies | ok: qi2edit 44 files |
 | 2026-10-21 | A40 (SECURE) | $0.61 | 36 min | $0.367 | $13.966 | b11b-bodies | ok: qi2edit 19 files |
 | 2026-10-22 | A40 (SECURE) | $0.61 | 19 min | $0.190 | $14.156 | m1-male-views | ok: qi2edit 10 files |
-| 2026-10-22 | RTX A6000 (COMMUNITY) | $0.35 | — | — | $14.156 | m2-male-wardrobe | starting |
+| 2026-10-22 | RTX A6000 (COMMUNITY) | $0.35 | 8 min | $0.045 | $14.201 | m2-male-wardrobe | failed: bad host: failed: CUDA does not start on this host (NVIDIA RTX A6000) |
+| 2026-10-22 | RTX A6000 (COMMUNITY) | $0.35 | 1 min | $0.004 | $14.205 | m2-male-wardrobe | failed: bad host: failed: CUDA does not start on this host (NVIDIA RTX A6000) |
+| 2026-10-22 | RTX A6000 (COMMUNITY) | $0.35 | 1 min | $0.004 | $14.209 | m2-male-wardrobe | failed: bad host: failed: CUDA does not start on this host (NVIDIA RTX A6000) |
