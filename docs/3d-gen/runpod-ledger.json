@@ -1619,6 +1619,54 @@
    "balanceBefore": 1.266124757,
    "balanceAfter": 0.138727282,
    "result": "ok: qi2edit 268 files"
+  },
+  {
+   "id": "722f50e00268",
+   "date": "2026-10-22",
+   "job": "m2b-male-redo",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "view-m-tq-bald.png",
+    "view-m-side-bald.png",
+    "view-m-back-bald.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": null,
+   "start": "2026-10-22T07:32:53.317Z",
+   "stop": "2026-10-22T07:41:05.892Z",
+   "seconds": 494,
+   "costUsd": 0.084,
+   "balanceBefore": 1.2325875326,
+   "balanceAfter": 1.1629721437,
+   "result": "failed: bad host: the worker never answered in 8 min"
+  },
+  {
+   "id": "dfaf47c86f87",
+   "date": "2026-10-22",
+   "job": "m2b-male-redo",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "view-m-tq-bald.png",
+    "view-m-side-bald.png",
+    "view-m-back-bald.png"
+   ],
+   "gpu": "A40",
+   "cloud": "SECURE",
+   "pricePerHr": 0.61,
+   "worstCaseUsd": 0.641,
+   "start": "2026-10-22T07:41:07.552Z",
+   "stop": null,
+   "seconds": null,
+   "costUsd": null,
+   "balanceBefore": 1.1629721437,
+   "balanceAfter": null,
+   "result": "starting"
   }
  ]
 }
