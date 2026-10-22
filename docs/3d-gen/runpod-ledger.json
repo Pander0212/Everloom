@@ -1511,12 +1511,37 @@
    "gpu": "A40",
    "cloud": "SECURE",
    "pricePerHr": 0.61,
-   "worstCaseUsd": 0.457,
+   "worstCaseUsd": null,
    "start": "2026-10-22T04:23:48.219Z",
+   "stop": "2026-10-22T04:42:31.464Z",
+   "seconds": 1124,
+   "costUsd": 0.19,
+   "balanceBefore": 1.4208440326,
+   "balanceAfter": 1.2605799187,
+   "result": "ok: qi2edit 10 files"
+  },
+  {
+   "id": "110dc0504977",
+   "date": "2026-10-22",
+   "job": "m2-male-wardrobe",
+   "models": [
+    "qi2edit"
+   ],
+   "inputs": [
+    "base-tm-bald.png",
+    "view-m-tq-bald.png",
+    "view-m-side-bald.png",
+    "view-m-back-bald.png"
+   ],
+   "gpu": "RTX A6000",
+   "cloud": "COMMUNITY",
+   "pricePerHr": 0.35,
+   "worstCaseUsd": 0.747,
+   "start": "2026-10-22T04:50:10.800Z",
    "stop": null,
    "seconds": null,
    "costUsd": null,
-   "balanceBefore": 1.4208440326,
+   "balanceBefore": 1.2786325486,
    "balanceAfter": null,
    "result": "starting"
   }
