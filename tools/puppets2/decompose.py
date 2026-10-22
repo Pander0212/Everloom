@@ -1029,7 +1029,26 @@ def run(args):
         lower = {0: 'skirt' if skirt else 'bottomwear'}
         if skirt:
             lower.update({4: 'skirt', 5: 'skirt'})
-        pieces = split_layer(masked, reg, kp, {0: 'topwear', 2: 'sleeve_upper_L', 3: 'sleeve_upper_R', 4: 'legwear_L', 5: 'legwear_R', 6: 'handwear_L', 7: 'handwear_R'}, height, cap=True)
+        greg = reg
+        if args.view != 'side':
+            # A wide sleeve (a kimono's, a robe's) hangs below the T-posed arm, off the body beside the
+            # torso, where the bones give it to the torso: it would stay out like a wing once the arm
+            # hangs. Garment off the body, beside the torso, from the shoulders to the waist, is sleeve.
+            body = rgba[:, :, 3] > 128
+            tor = body & (reg == 0)
+            off = (masked[:, :, 3] > 8) & ~body
+            nx = kp['neck'][0]
+            y0 = int(min(kp['shoulder_L'][1], kp['shoulder_R'][1]))
+            greg = reg.copy()
+            for y in range(max(0, y0), min(h, int(waist_y))):
+                xs = np.nonzero(tor[y])[0]
+                if not len(xs) or not off[y].any():
+                    continue
+                for s_, rg in (('L', 2), ('R', 3)):
+                    sd = 1 if kp[f'shoulder_{s_}'][0] > nx else -1
+                    beyond = (np.arange(w) > xs.max()) if sd > 0 else (np.arange(w) < xs.min())
+                    greg[y, off[y] & beyond] = rg
+        pieces = split_layer(masked, greg, kp, {0: 'topwear', 2: 'sleeve_upper_L', 3: 'sleeve_upper_R', 4: 'legwear_L', 5: 'legwear_R', 6: 'handwear_L', 7: 'handwear_R'}, height, cap=True)
         top = pieces.pop('topwear', None)
         if top is not None:
             tm, tmult = top
