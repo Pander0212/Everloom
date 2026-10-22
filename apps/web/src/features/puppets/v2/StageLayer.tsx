@@ -91,11 +91,16 @@ export async function wear(stage: Puppet2Stage, key: string, puppetId: string, o
   const hidden = hiddenParts(allParts(meta), outfit, hair);
   const n = (wearing.get(key) ?? 0) + 1;
   wearing.set(key, n);
-  const got = await partPictures(puppetId, views, (part) => !hidden.has(part));
+  const show = (part: string) => !hidden.has(part);
+  await partPictures(puppetId, views, show);
   if (wearing.get(key) !== n) return; // a newer choice arrived meanwhile
   const p = stage.get(key);
   if (!p) return;
-  for (const [v, imgs] of Object.entries(got) as Array<[View2, Record<string, TexImageSource>]>) stage.addTextures(key, v, imgs);
+  // Every picture shown, not only the ones fetched just now: a choice dropped for a newer one may
+  // have fetched some of them without handing them to the stage (the stage skips what it has).
+  for (const [v, src] of Object.entries(views) as Array<[View2, ViewSource]>) {
+    stage.addTextures(key, v, Object.fromEntries(Object.entries(src.images).filter(([tid]) => show(tid.slice(v.length + 1)))));
+  }
   p.hidden = hidden;
 }
 

@@ -610,6 +610,18 @@ def run(args):
     # can give it to the torso, where it would stay sticking out once the arm hangs down. Everything
     # in front of the chest at the arm's height goes to the (near) arm.
     yy_r, xx_r = np.mgrid[0:h, 0:w]
+    # Head pieces apart from the head (the far hand's fingertips, out past the hand bone in a
+    # three-quarter T-pose) would stay hanging in the air: they go to the nearer hand.
+    n_h, lab_h, st_h, _ = cv2.connectedComponentsWithStats(((reg == 1) & (alpha > 8)).astype(np.uint8), connectivity=8)
+    if n_h > 2:
+        main_h = 1 + int(np.argmax(st_h[1:, cv2.CC_STAT_AREA]))
+        for i in range(1, n_h):
+            if i == main_h:
+                continue
+            ys_, xs_ = np.nonzero(lab_h == i)
+            c_ = np.array([xs_.mean(), ys_.mean()])
+            d_ = {rg: np.hypot(*(c_ - np.array(kp[f'wrist_{s_}'], float))) for s_, rg in (('L', 6), ('R', 7))}
+            reg[lab_h == i] = min(d_, key=d_.get)
     side_leg_line = None
     if args.view == 'side':
         # Profile: the buttock and the groin belong to the torso, the thigh starts below a diagonal
