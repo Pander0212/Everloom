@@ -8,8 +8,10 @@
  * into that folder for the run, since Blender needs a file; nothing else from the vault is.
  */
 import { spawn } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { createWriteStream, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import os from 'node:os';
+import { Readable } from 'node:stream';
+import { pipeline } from 'node:stream/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { HttpError, type AppContext } from '../context.js';
@@ -78,7 +80,7 @@ function onPath(): string | null {
   return null;
 }
 
-function run(file: string, argv: string[], opts: { cwd?: string; timeoutMs: number; env?: NodeJS.ProcessEnv }): Promise<{ code: number | null; out: string; timedOut: boolean }> {
+function run(file: string, argv: string[], opts: { cwd?: string; timeoutMs: number; env?: NodeJS.ProcessEnv; signal?: AbortSignal }): Promise<{ code: number | null; out: string; timedOut: boolean }> {
   return new Promise((resolve) => {
     // Its own process group (not on Windows), so the time limit stops anything it started too.
     const group = process.platform !== 'win32';
@@ -90,21 +92,25 @@ function run(file: string, argv: string[], opts: { cwd?: string; timeoutMs: numb
     child.stdout.on('data', take);
     child.stderr.on('data', take);
     let timedOut = false;
-    const timer = setTimeout(() => {
-      timedOut = true;
+    const kill = () => {
       try {
         if (group && child.pid) process.kill(-child.pid, 'SIGKILL');
         else child.kill('SIGKILL');
       } catch {
         child.kill('SIGKILL');
       }
-    }, opts.timeoutMs);
+    };
+    const timer = setTimeout(() => { timedOut = true; kill(); }, opts.timeoutMs);
+    opts.signal?.addEventListener('abort', kill, { once: true });
+    if (opts.signal?.aborted) kill();
     child.on('error', () => {
       clearTimeout(timer);
+      opts.signal?.removeEventListener('abort', kill);
       resolve({ code: -1, out, timedOut });
     });
     child.on('close', (code) => {
       clearTimeout(timer);
+      opts.signal?.removeEventListener('abort', kill);
       resolve({ code, out, timedOut });
     });
   });
@@ -189,13 +195,14 @@ export function blenderQueueLength() {
 export interface BlenderJob {
   op: 'convert' | 'motion' | 'optimize' | 'fit' | 'render' | 'mpfb' | 'mpfb_assets';
   /** Input files by name (written into the job folder). */
-  files: Record<string, Buffer>;
+  files: Record<string, Buffer | AsyncIterable<Uint8Array>>;
   input: string;
   /** The file the job makes ('' for jobs that only answer, such as listing MPFB's assets). */
   output: string;
   /** Blender extensions folder to use instead of the owner's profile (the MPFB that Everloom installed). */
   extensions?: string;
   timeoutMs?: number;
+  signal?: AbortSignal;
   extra?: Record<string, unknown>;
 }
 
@@ -236,14 +243,18 @@ export async function runBlenderJob(ctx: AppContext, owner: string, job: Blender
         const file = path.join(dir, name);
         if (!file.startsWith(dir + path.sep)) throw new HttpError(400, 'Bad file name');
         mkdirSync(path.dirname(file), { recursive: true, mode: 0o700 });
-        writeFileSync(file, bytes, { mode: 0o600 });
+        job.signal?.throwIfAborted();
+        if (Buffer.isBuffer(bytes)) writeFileSync(file, bytes, { mode: 0o600 });
+        else await pipeline(Readable.from(bytes), createWriteStream(file, { mode: 0o600 }), { signal: job.signal });
       }
       writeFileSync(path.join(dir, 'job.json'), JSON.stringify({ op: job.op, input: job.input, output: job.output, ...(job.extra ?? {}) }));
       const r = await run(info.path!, ['--background', '--factory-startup', '--disable-autoexec', '--python-exit-code', '3', '--python', workerScript(), '--', path.join(dir, 'job.json')], {
         cwd: dir,
         timeoutMs: job.timeoutMs ?? 5 * 60_000,
+        signal: job.signal,
         env: job.extensions ? { ...minimalEnv(dir), BLENDER_USER_EXTENSIONS: job.extensions } : undefined,
       });
+      job.signal?.throwIfAborted();
       // The log never holds file contents; paths are the job's own temporary folder.
       entry.log = r.out.split(dir).join('<job>').slice(-4000);
       if (r.timedOut) throw new HttpError(504, 'Blender took too long and was stopped', 'blender_timeout');
@@ -258,6 +269,7 @@ export async function runBlenderJob(ctx: AppContext, owner: string, job: Blender
       if (!job.output) return { output: Buffer.alloc(0), result: res };
       const out = path.join(dir, job.output);
       if (!existsSync(out)) throw new HttpError(422, 'Blender produced no file', 'blender_failed');
+      if (statSync(out).size > 200 * 1024 ** 2) throw new HttpError(413, 'The converted GLB exceeds 200 MiB. Reduce texture resolution or mesh complexity in Blender.');
       return { output: readFileSync(out), result: res };
     } catch (e) {
       entry.state = 'failed';

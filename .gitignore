@@ -1,4 +1,5 @@
 node_modules/
+samples/
 dist/
 data/
 !packages/engine/src/rig/data/
@@ -37,3 +38,4 @@ everloom-anatomy-pack/
 # Generated 3D work (docs/3d-gen): never committed
 samples/gen/
 tools/**/__pycache__/
+__pycache__/

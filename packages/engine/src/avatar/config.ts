@@ -28,6 +28,10 @@ export const AvatarPartSchema = z.object({
   id,
   name: label,
   meshes: z.array(nodeName).min(1).max(64),
+  /** Optional material slots, so a combined mesh can expose individual clothing pieces. */
+  materialSlots: z.array(z.object({ mesh: nodeName, slot: z.number().int().min(0).max(255), material: nodeName.optional() })).max(64).optional(),
+  /** Body-hiding morphs applied while the piece is worn; normal slider values return when removed. */
+  hideMorphs: z.array(MorphWeightSchema).max(32).optional(),
   /** Body regions this part covers; the body's meshes for those regions are hidden while it's on. */
   hides: z.array(z.enum(BODY_REGIONS as unknown as [string, ...string[]])).max(BODY_REGIONS.length).default([]),
   /** Parts in the same group replace each other (one hairstyle at a time). */
@@ -60,7 +64,7 @@ export const GarmentSchema = z.object({
   hides: z.array(z.enum(BODY_REGIONS as unknown as [string, ...string[]])).max(BODY_REGIONS.length).default([]),
   /** Other garment slots this one hides while worn (a hood or helmet hides the hair). */
   hidesSlots: z.array(z.enum(GARMENT_SLOTS)).max(GARMENT_SLOTS.length).default([]),
-  variants: z.array(z.object({ id, name: label, tint: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().default(null), texture: z.string().max(64).nullable().default(null), /** How many times a pattern tile repeats across the garment. */ repeat: z.number().min(0.25).max(32).default(1) })).max(16).default([]),
+  variants: z.array(z.object({ id, name: label, model: modelRef.optional(), modelLow: modelRef.nullable().optional(), tint: z.string().regex(/^#[0-9a-fA-F]{6}$/).nullable().default(null), texture: z.string().max(64).nullable().default(null), /** How many times a pattern tile repeats across the garment. */ repeat: z.number().min(0.25).max(32).default(1) })).max(16).default([]),
   variant: id.nullable().default(null),
   /** Bone chains in the garment (a skirt, a cape) swing with physics. */
   springs: z.boolean().default(true),
@@ -240,9 +244,11 @@ export const ClipSchema = z
     tracks: z.partialRecord(z.enum(HUMANOID_BONES as unknown as [string, ...string[]]), z.array(z.number().finite()).max(4 * 30 * 120)),
     hips: z.array(z.number().finite()).max(3 * 30 * 120).optional(),
     source: z.string().max(200).optional(),
+    morphs: z.record(z.string().min(1).max(120), z.array(z.number().finite().min(0).max(1)).max(30 * 120)).refine(m => Object.keys(m).length <= 64, 'Too many morph tracks').optional(),
   })
   .superRefine((c, ctx) => {
     for (const [b, t] of Object.entries(c.tracks)) if (t && t.length !== 4 && t.length !== 4 * c.frames) ctx.addIssue({ code: 'custom', message: `Track ${b} has the wrong length` });
+    for (const [name, track] of Object.entries(c.morphs ?? {})) if (track.length !== 1 && track.length !== c.frames) ctx.addIssue({ code: 'custom', message: `Morph ${name} has the wrong length` });
     if (c.hips && c.hips.length !== 3 && c.hips.length !== 3 * c.frames) ctx.addIssue({ code: 'custom', message: 'The hips track has the wrong length' });
   });
 export type ClipData = z.infer<typeof ClipSchema>;

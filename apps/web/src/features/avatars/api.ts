@@ -58,6 +58,7 @@ export interface ModelInfo {
 }
 
 export interface AvatarDetail extends AvatarSummary {
+  adultAllowed?: boolean;
   config: AvatarConfig;
   info: Partial<ModelInfo>;
   source: string | null;

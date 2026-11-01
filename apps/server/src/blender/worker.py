@@ -162,21 +162,14 @@ def clean():
 
 
 def export_glb(path, animations=False, selection=False):
-    bpy.ops.export_scene.gltf(
-        filepath=path,
-        export_format="GLB",
-        use_selection=selection,
-        export_animations=animations,
-        export_skins=True,
-        export_morph=True,
-        export_yup=True,
-        export_apply=False,
-        export_materials="EXPORT",
-        export_image_format="AUTO",
-        export_extras=False,
-        export_cameras=False,
-        export_lights=False,
-    )
+    # The add-on and all server workers use this same source file; the build copies it beside us.
+    import importlib.util
+    local = os.path.join(os.path.dirname(__file__), "export_core.py")
+    source = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../tools/blender-addon/everloom/export_core.py"))
+    spec = importlib.util.spec_from_file_location("everloom_export_core", local if os.path.exists(local) else source)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module.export_model(path, animations=animations, selection=selection)
 
 
 def summary():
@@ -196,8 +189,8 @@ def op_convert(job):
         import_any(path)
     removed = clean()
     out = inside(job, job["output"])
-    export_glb(out, animations=False)
-    return {"removed": removed, **extra, **summary()}
+    validation = export_glb(out, animations=False)
+    return {"removed": removed, "validation": validation, **extra, **summary()}
 
 
 def op_motion(job):

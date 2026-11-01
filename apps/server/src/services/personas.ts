@@ -1,3 +1,4 @@
+import { assertPersonaAvatarAllowed } from './minor-guard.js';
 import type { PersonaDTO } from '@everloom/engine';
 import { HttpError, type AppContext } from '../context.js';
 import { json } from '../db/index.js';
@@ -49,6 +50,10 @@ export interface PersonaInput {
 }
 
 export function savePersona(ctx: AppContext, owner: string, input: PersonaInput, id?: string): PersonaDTO {
+  const current = id ? getPersona(ctx, owner, id) : null;
+  const linked = input.data?.avatar3d === undefined ? current?.data.avatar3d : input.data.avatar3d;
+  if (linked !== undefined && linked !== null && (typeof linked !== 'string' || !/^av_[a-zA-Z0-9_-]+$/.test(linked))) throw new HttpError(400, 'Invalid 3D avatar');
+  if (linked) assertPersonaAvatarAllowed(ctx, owner, linked, { age: input.age === undefined ? current?.age ?? null : input.age, ageStage: input.ageStage ?? current?.ageStage ?? '', description: input.description ?? current?.description ?? '' });
   const now = Date.now();
   const tx = ctx.db.transaction(() => {
     if (input.isDefault) ctx.db.prepare('UPDATE personas SET is_default = 0 WHERE owner_id = ?').run(owner);

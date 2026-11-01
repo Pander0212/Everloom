@@ -7,7 +7,7 @@
 //   RUNPOD_API_KEY=… node tools/blender-worker/session.mjs cleanup
 //
 // `convert` reads the balance first (refusing below $0.50 plus the session's worst case), starts a
-// small CPU pod with no paid storage, installs Blender 4.2 LTS there (checked against blender.org's
+// small CPU pod with no paid storage, installs Blender 5.2 LTS there (checked against blender.org's
 // checksum), uploads the files with Everloom's own Blender worker script, converts them, downloads
 // the GLBs and terminates the pod in a `finally` step, then checks that nothing is left running or
 // stored. The pod also ends itself when idle or past its time limit. Every session goes in
@@ -123,6 +123,7 @@ async function convert(files) {
     }
     if (!health?.ready) throw new Error('the converter did not finish setting up in time');
     if (!(await api('/worker.py', { method: 'PUT', body: readFileSync(path.join(root, 'apps/server/src/blender/worker.py')) })).ok) throw new Error('could not send the worker script');
+    if (!(await api('/export_core.py', { method: 'PUT', body: readFileSync(path.join(root, 'tools/blender-addon/everloom/export_core.py')) })).ok) throw new Error('could not send shared exporter');
     for (const f of files) if (!(await api(`/files/${path.basename(f).replace(/[^A-Za-z0-9_.-]/g, '_')}`, { method: 'PUT', body: readFileSync(f) })).ok) throw new Error(`upload failed: ${f}`);
     if (!(await api('/run', { method: 'POST' })).ok) throw new Error('could not start the conversion');
     while (Date.now() < deadline - 2 * 60_000) {

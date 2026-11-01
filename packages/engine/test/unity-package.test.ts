@@ -4,7 +4,7 @@ import { gunzipSync } from 'node:zlib';
 import { describe, expect, it } from 'vitest';
 import { projectFromFiles, projectFromPackage } from '../src/unity/project';
 import { readTar } from '../src/unity/tar';
-import { planImport, summarize } from '../src/unity/plan';
+import { licenseFiles, planImport, summarize } from '../src/unity/plan';
 
 const DIR = join(__dirname, '../../../tests/fixtures/unity');
 const pkg = (name: string) => projectFromPackage(readTar(new Uint8Array(gunzipSync(readFileSync(join(DIR, name))))));
@@ -104,4 +104,45 @@ describe('importing Everloom’s Unity test packages', () => {
     expect(plan.report.guessed.map((g) => g.to)).toContain('Assets/Ava/Ava.fbx');
     expect(plan.report.approximated.map((l) => l.what)).toContain('Links between files');
   });
+});
+
+it('discovers direct mesh dependencies, groups color variants, and resolves split packages in either order', () => {
+  const enc = new TextEncoder(), p = pkg('AvaShirt.unitypackage');
+  const model = p.all('model')[0]!;
+  const make = (name: string, guid: string, material: string) => ({ guid, kind: 'prefab' as const, path: `Assets/Variants/${name}.prefab`, data: enc.encode(`%YAML 1.1\n--- !u!1 &1\nGameObject:\n  m_Name: ${name}\n  m_IsActive: 1\n--- !u!4 &2\nTransform:\n  m_GameObject: {fileID: 1}\n  m_Father: {fileID: 0}\n--- !u!137 &3\nSkinnedMeshRenderer:\n  m_GameObject: {fileID: 1}\n  m_Mesh: {fileID: 4300000, guid: ${model.guid}, type: 3}\n  m_Materials:\n  - {fileID: 2100000, guid: ${material}, type: 2}\n`) });
+  const red = 'a'.repeat(32), blue = 'b'.repeat(32), redMat = 'c'.repeat(32), blueMat = 'd'.repeat(32);
+  for (const a of [make('Red', red, redMat), make('Blue', blue, blueMat)]) p.add(a);
+  const variants = summarize(p).outfits.find(c => c.guid === red)!;
+  expect(variants.variants?.map(v => v.name)).toEqual(['Red', 'Blue']);
+  expect(variants.dependencies?.models).toBe(1);
+  expect(variants.missing).toEqual(expect.arrayContaining([redMat, blueMat]));
+  for (const guid of [redMat, blueMat]) p.add({ guid, path: `Assets/Variants/${guid}.mat`, kind: 'material', data: enc.encode('%YAML 1.1\n--- !u!21 &2100000\nMaterial:\n  m_Name: Fabric\n') });
+  expect(summarize(p).outfits.find(c => c.guid === red)?.missing).toEqual([]);
+  expect(planImport(p, red).models.map(m => m.guid)).toContain(model.guid);
+});
+
+ it('keeps licenses with the chosen product and its dependency folders', () => {
+  const p = pkg('Ava.unitypackage');
+  for (const path of ['Assets/Other/README.txt', 'Assets/Shared/Docs/LICENSE.md', 'LICENSE.txt'])
+    p.add({ guid: path, path, kind: 'text', data: new TextEncoder().encode(path) });
+  const report = planImport(p, summarize(p).avatars[0]!.guid).report;
+  expect(report.license.map(l => l.path)).toEqual(['Assets/Ava/README.txt', 'LICENSE.txt']);
+  expect(licenseFiles(p, ['Assets/Ava/Ava.prefab', 'Assets/Shared/texture.png']).map(l => l.path))
+    .toEqual(['Assets/Ava/README.txt', 'Assets/Shared/Docs/LICENSE.md', 'LICENSE.txt']);
+});
+
+it('retains inferred texture links when replanning loose files beside older products', () => {
+  const source = folder('Ava-extracted-nometa');
+  const p = projectFromFiles(source.all().map(a => ({ path: a.path.split('/').pop()!, data: a.data! })));
+  const old = pkg('AvaShirt.unitypackage');
+  for (const a of old.all()) p.add(a);
+  const candidate = summarize(p).avatars.find(c => c.path === 'Ava.prefab')!;
+  const first = planImport(p, candidate.guid);
+  const second = planImport(p, candidate.guid);
+  expect(Object.values(second.materials).map(m => m.path).sort()).toEqual(['Body.mat', 'Hat.mat']);
+  expect(first.report.guessed.some(g => g.from === 'Body.mat' && g.kind === 'texture')).toBe(true);
+  expect(second.report.guessed.some(g => g.from === 'Body.mat' && g.kind === 'texture')).toBe(true);
+  const link = second.report.guessed.find(g => g.from === 'Body.mat' && g.kind === 'texture')!;
+  p.choices.set(link.key!, '');
+  expect(planImport(p, candidate.guid).report.guessed.find(g => g.from === 'Body.mat' && g.kind === 'texture')?.to).toBe('');
 });

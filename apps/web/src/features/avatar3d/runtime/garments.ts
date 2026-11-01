@@ -77,6 +77,10 @@ export class Garments {
 
   /** Wears exactly these garments (loading new ones, taking off the rest). */
   async set(list: Array<{ garment: Garment; variant: string | null }>, look: Look, outlines: boolean, low: boolean) {
+    list = list.map(x => {
+      const v = x.garment.variants.find(v => v.id === x.variant);
+      return v?.model ? { ...x, garment: { ...x.garment, model: v.model, modelLow: v.modelLow ?? null } } : x;
+    });
     const want = new Map(list.map((x) => [x.garment.id, x]));
     if (this.disposed) return;
     this.desired = want;

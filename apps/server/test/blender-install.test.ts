@@ -11,7 +11,7 @@ describe('the headless Blender converter', () => {
   it('says what this server can run before installing anything', async () => {
     c = await createClient();
     const r = (await c.req('GET', '/api/blender/install')).json;
-    expect(r.version).toMatch(/^4\.2\./);
+    expect(r.version).toMatch(/^5\.2\./);
     expect(r.state.state).toBe('idle');
     expect(typeof r.check.freeDiskGb).toBe('number');
     expect(r.check.ok).toBe(r.check.reasons.length === 0);
@@ -32,7 +32,7 @@ describe.skipIf(!process.env.EVERLOOM_TEST_BLENDER_INSTALL)('the real install (d
     expect(s, s.error ?? '').toMatchObject({ state: 'done' });
     const found = (await c.req('GET', '/api/blender?refresh=1')).json;
     expect(found).toMatchObject({ found: true, source: 'data' });
-    expect(found.version).toMatch(/^4\.2/);
+    expect(found.version).toMatch(/^5\.2/);
     expect((await c.req('DELETE', '/api/blender/install')).status).toBe(200);
   }, 700_000);
 });

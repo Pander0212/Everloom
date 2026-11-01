@@ -16,6 +16,7 @@ export interface ClipJSON {
   loop: boolean;
   tracks: Partial<Record<HumanBone, number[]>>;
   hips?: number[];
+  morphs?: Record<string, number[]>;
   /** Where it came from (for credits and the clip list). */
   source?: string;
 }
@@ -28,6 +29,7 @@ export interface Clip {
   duration: number;
   tracks: Map<HumanBone, Float32Array>;
   hips: Float32Array | null;
+  morphs?: Record<string, number[]>;
 }
 
 export function decodeClip(j: ClipJSON): Clip {
@@ -35,7 +37,7 @@ export function decodeClip(j: ClipJSON): Clip {
   for (const b of HUMANOID_BONES) if (j.tracks[b]?.length) tracks.set(b, Float32Array.from(j.tracks[b]!));
   const frames = Math.max(1, j.frames);
   // A loop's last frame leads back into the first (no duplicate end frame), so it lasts frames/fps.
-  return { id: j.id, fps: j.fps, frames, loop: j.loop, duration: (j.loop ? frames : Math.max(1, frames - 1)) / j.fps, tracks, hips: j.hips?.length ? Float32Array.from(j.hips) : null };
+  return { id: j.id, fps: j.fps, frames, loop: j.loop, morphs: j.morphs, duration: (j.loop ? frames : Math.max(1, frames - 1)) / j.fps, tracks, hips: j.hips?.length ? Float32Array.from(j.hips) : null };
 }
 
 const r4 = (x: number) => Math.round(x * 10000) / 10000;
@@ -71,12 +73,16 @@ const _a = new THREE.Quaternion();
 const _b = new THREE.Quaternion();
 /** The pose at `time` seconds (wrapping for loops, holding the last frame otherwise). */
 export function sampleClip(clip: Clip, time: number, out: CanonicalPose = emptyPose()): CanonicalPose {
+  for (const key of Object.keys(out.rot) as HumanBone[]) if (!clip.tracks.has(key)) delete out.rot[key];
+  out.morphs = {};
+  out.hips.set(0, 0, 0);
   const span = clip.duration;
   let t = clip.loop ? ((time % span) + span) % span : Math.min(Math.max(time, 0), span);
   const f = t * clip.fps;
   const i0 = Math.min(clip.frames - 1, Math.floor(f));
   const i1 = clip.loop ? (i0 + 1) % clip.frames : Math.min(clip.frames - 1, i0 + 1);
   const k = f - i0;
+  for (const [name, values] of Object.entries(clip.morphs ?? {})) out.morphs[name] = values.length === 1 ? values[0]! : THREE.MathUtils.lerp(values[i0]!, values[i1]!, k);
   for (const [b, arr] of clip.tracks) {
     const q = (out.rot[b] ??= new THREE.Quaternion());
     if (arr.length === 4) q.set(arr[0]!, arr[1]!, arr[2]!, arr[3]!);
@@ -121,6 +127,8 @@ export function blendPose(dst: CanonicalPose, src: CanonicalPose, w: number, mas
     d.slerp(_t, w);
   }
   if (!mask || mask.has('hips')) dst.hips.lerp(src.hips, w);
+  const morphs = dst.morphs ??= {};
+  for (const name of new Set([...Object.keys(morphs), ...Object.keys(src.morphs ?? {})])) morphs[name] = THREE.MathUtils.lerp(morphs[name] ?? 0, src.morphs?.[name] ?? 0, w);
   return dst;
 }
 
@@ -129,6 +137,7 @@ export function copyPose(src: CanonicalPose, out: CanonicalPose = emptyPose()): 
   for (const k of Object.keys(out.rot) as HumanBone[]) if (!src.rot[k]) delete out.rot[k];
   for (const [k, q] of Object.entries(src.rot) as Array<[HumanBone, THREE.Quaternion]>) (out.rot[k] ??= new THREE.Quaternion()).copy(q);
   out.hips.copy(src.hips);
+  out.morphs = { ...src.morphs };
   return out;
 }
 

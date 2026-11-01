@@ -11,13 +11,14 @@
 import * as THREE from 'three';
 import { GLTFExporter } from 'three/examples/jsm/exporters/GLTFExporter.js';
 import { mergeVertices } from 'three/examples/jsm/utils/BufferGeometryUtils.js';
-import type { GarmentPhysics, GarmentSlot } from '@everloom/engine';
+import { mapBones, type HumanBone, type GarmentPhysics, type GarmentSlot } from '@everloom/engine';
 import { jointSettings, type Avatar } from '../avatar';
 import { bindGarment, pinnedTriangles, restPositions, swingingBones } from '../garments';
 import { applyRestPose, disposeScene, type LoadedModel } from '../loader';
 import { coverInWorker, transferInWorker } from './client';
 import { FLAG, type TransferResult } from './core';
 import { bodySurface, buildGarmentScene, type BodySurface, type FittedPiece } from './extract';
+import { preserveSecondary } from './secondary';
 
 /** Where each slot sits, as fractions of the body's height (bottom, top). */
 export const SLOT_RANGE: Record<GarmentSlot, [number, number]> = { top: [0.52, 0.85], outer: [0.45, 0.86], bottom: [0.08, 0.6], full: [0.3, 0.85], underwear: [0.47, 0.8], feet: [0, 0.07], socks: [0, 0.25], hands: [0.4, 0.55], head: [0.85, 1], hair: [0.55, 1.02] };
@@ -52,16 +53,38 @@ export class FittingSession {
   /** File units → the body's units (picked from the garment's size). */
   unitFactor = 1;
   unitNote = '';
+  private sourceLandmarks = new Map<HumanBone, THREE.Vector3>();
+  private sourceBones: THREE.Bone[] = [];
+  private sourceRoles: Partial<Record<HumanBone, string>> = {};
 
   constructor(readonly avatar: Avatar, readonly model: LoadedModel, garment: THREE.Object3D, readonly slot: GarmentSlot) {
     this.placer.name = 'fitting';
     this.placer.add(this.content);
     garment.updateMatrixWorld(true);
+    const sourceBones: THREE.Bone[] = [];
+    garment.traverse(o => { if ((o as THREE.Bone).isBone) sourceBones.push(o as THREE.Bone); });
+    const mapped = mapBones(sourceBones.map(b => ({ name: b.name, parent: b.parent?.name ?? null }))).map;
+    this.sourceBones = sourceBones; this.sourceRoles = mapped;
+    for (const [role, name] of Object.entries(mapped)) {
+      const bone = sourceBones.find(b => b.name === name);
+      if (bone) this.sourceLandmarks.set(role as HumanBone, bone.getWorldPosition(new THREE.Vector3()));
+    }
     // Every mesh flattened to plain geometry in the file's space (skinned ones in their rest pose).
     garment.traverse((o) => {
       const m = o as THREE.Mesh;
       if (!m.isMesh || !m.geometry.getAttribute('position')) return;
       let g = m.geometry.clone();
+      const skinned = m as THREE.SkinnedMesh;
+      const si = g.getAttribute('skinIndex'), sw = g.getAttribute('skinWeight');
+      if (skinned.isSkinnedMesh && si && sw) {
+        const joints = new Uint16Array(si.count * 4).fill(65535);
+        for (let v = 0; v < si.count; v++) for (let k = 0; k < 4; k++) {
+          const index = sourceBones.indexOf(skinned.skeleton.bones[si.getComponent(v, k)]!);
+          if (index >= 0) joints[v * 4 + k] = index;
+        }
+        g.setAttribute('fitJoints', new THREE.Uint16BufferAttribute(joints, 4));
+        g.setAttribute('fitWeights', sw.clone());
+      }
       for (const k of ['skinIndex', 'skinWeight']) g.deleteAttribute(k);
       g.morphAttributes = {};
       g.applyMatrix4(m.matrixWorld);
@@ -87,7 +110,41 @@ export class FittingSession {
     this.avatar.restPose = true;
     this.avatar.morphs.neutral = true;
     this.autoPlace(false);
+    this.alignSkeleton();
     this.start.copy(this.placer.matrix);
+  }
+
+  /** A garment with a recognizable rig starts aligned by its joints; the handles remain editable. */
+  private alignSkeleton() {
+    const inv = this.model.scene.matrixWorld.clone().invert();
+    const target = (role: HumanBone) => this.model.bones[role]?.getWorldPosition(new THREE.Vector3()).applyMatrix4(inv);
+    this.content.updateMatrix();
+    const source = (role: HumanBone) => this.sourceLandmarks.get(role)?.clone().applyMatrix4(this.content.matrix);
+    const sh = source('hips'), th = target('hips');
+    if (!sh || !th) return;
+    const ratios: number[] = [];
+    for (const [a, b] of [['leftUpperLeg', 'leftFoot'], ['rightUpperLeg', 'rightFoot'], ['leftUpperArm', 'rightUpperArm'], ['hips', 'head']] as [HumanBone, HumanBone][]) {
+      const sa = source(a), sb = source(b), ta = target(a), tb = target(b);
+      if (sa && sb && ta && tb && sa.distanceTo(sb) > 1e-5) ratios.push(ta.distanceTo(tb) / sa.distanceTo(sb));
+    }
+    if (!ratios.length) return;
+    ratios.sort((a, b) => a - b);
+    const scale = THREE.MathUtils.clamp(ratios[Math.floor(ratios.length / 2)]!, .1, 10);
+    const frame = (at: typeof source) => {
+      const l = at('leftUpperArm'), r = at('rightUpperArm'), h = at('hips'), head = at('head');
+      if (!l || !r || !h || !head) return null;
+      const x = r.sub(l).normalize(), y = head.sub(h).normalize(), z = new THREE.Vector3().crossVectors(x, y).normalize();
+      if (z.lengthSq() < .5) return null;
+      y.crossVectors(z, x).normalize();
+      return new THREE.Quaternion().setFromRotationMatrix(new THREE.Matrix4().makeBasis(x, y, z));
+    };
+    const sf = frame(source), tf = frame(target);
+    this.placer.quaternion.identity();
+    if (sf && tf) this.placer.quaternion.copy(tf).multiply(sf.invert());
+    this.placer.scale.setScalar(scale);
+    this.placer.position.copy(th).sub(sh.multiplyScalar(scale).applyQuaternion(this.placer.quaternion));
+    this.placer.updateMatrixWorld(true);
+    this.unitNote += ` Aligned using ${ratios.length} humanoid proportions; review the automatic fit with the handles.`;
   }
 
   /** The body's height in its own units, and its floor and centre. */
@@ -300,6 +357,9 @@ export class FittingSession {
     opts.progress?.(0.08, 'Copying weights and shapes in the background…');
     const result = await transferInWorker(this.surface.input, pieces.map((p) => ({ positions: Float32Array.from(p.geometry.getAttribute('position').array as Float32Array), indices: p.geometry.index ? Uint32Array.from(p.geometry.index.array as ArrayLike<number>) : null })), { maxDistance: 0.06 * unit, offset: 0.004 * unit, pushOut: opts.pushOut, swing }, (f) => opts.progress?.(0.08 + f * 0.82, 'Copying weights and shapes in the background…'), opts.signal);
     opts.progress?.(0.92, 'Building the rigged garment…');
+    const kept = preserveSecondary(this.sourceBones, this.sourceRoles, this.placer.matrix.clone().multiply(this.content.matrix), this.model, this.surface, pieces, result);
+    if (kept.preserved) this.unitNote += ` Preserved ${kept.preserved} secondary bones.`;
+    if (kept.skipped) this.unitNote += ` ${kept.skipped} secondary bones exceed the phone budget; surface weights are used.`;
     // Let the page show that step before the (short) main-thread work starts.
     await new Promise((r) => setTimeout(r, 30));
     this.result = result;

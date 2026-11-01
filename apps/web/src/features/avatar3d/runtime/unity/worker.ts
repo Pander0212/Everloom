@@ -52,19 +52,21 @@ self.onmessage = async (ev: MessageEvent<UnpackRequest>) => {
   const post = (m: UnpackReply, transfer: Transferable[] = []) => (self as unknown as Worker).postMessage(m, transfer);
   try {
     const { files } = ev.data;
-    const pkg = files.find((f) => /\.unitypackage$/i.test(f.name));
-    if (pkg) {
-      const entries = await unpackPackage(pkg.file, (s) => post({ progress: s }));
-      post({ ok: true, kind: 'package', entries, files: [] }, entries.map((e) => e.data.buffer as ArrayBuffer));
-      return;
-    }
+    const entries: { name: string; data: Uint8Array }[] = [];
     const out: { path: string; data: Uint8Array }[] = [];
     for (const f of files) {
-      if (/\.zip$/i.test(f.name)) out.push(...unpackZip(new Uint8Array(await f.file.arrayBuffer())));
+      if (/\.unitypackage$/i.test(f.name)) entries.push(...await unpackPackage(f.file, (s) => post({ progress: s })));
+      else if (/\.zip$/i.test(f.name)) {
+        for (const item of unpackZip(new Uint8Array(await f.file.arrayBuffer()))) {
+          if (/\.unitypackage$/i.test(item.path)) entries.push(...await unpackPackage(new Blob([item.data as BlobPart]), s => post({ progress: s })));
+          else out.push(item);
+        }
+      }
       else out.push({ path: f.path || f.name, data: new Uint8Array(await f.file.arrayBuffer()) });
     }
     // A zip of one folder: drop the shared top folder so paths start at "Assets/…" or the asset's folder.
-    post({ ok: true, kind: 'files', entries: [], files: out }, out.map((e) => e.data.buffer as ArrayBuffer));
+    if (entries.length + out.length > LIMITS.maxEntries || [...entries, ...out].reduce((n, e) => n + e.data.length, 0) > ZIP_MAX_TOTAL) throw new Error('The selected packages unpack to more than 2 GB. Use the server import for large files.');
+    post({ ok: true, kind: entries.length ? 'package' : 'files', entries, files: out }, [...new Set([...entries, ...out].map(e => e.data.buffer as ArrayBuffer))]);
   } catch (e) {
     post({ ok: false, error: (e as Error).message || 'Could not unpack the files.' });
   }

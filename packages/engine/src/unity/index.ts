@@ -8,3 +8,4 @@ export * from './humanoid';
 export * from './vrchat';
 export * from './plan';
 export * from './anim';
+export * from './stream';

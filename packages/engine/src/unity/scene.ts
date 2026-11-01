@@ -261,6 +261,16 @@ function fromDocs(project: UnityProject, guid: string, docs: UnityDoc[], depth: 
     c.origins.set(`${guid}:${d.fileId}`, key);
   }
   // 5. Parents, now that every id is known.
+  // A prefab can contain its own renderer with m_Mesh pointing directly at an FBX subasset.
+  // There need not be a PrefabInstance at all (common for Modular Avatar clothes).
+  for (const d of docs) {
+    if (d.classId !== 137 && d.classId !== 33) continue;
+    const ref = asRef(d.body.m_Mesh);
+    if (!ref?.guid) continue;
+    const a = project.get(ref.guid) ?? project.guess(project.get(guid)?.path ?? '', 'model', project.get(guid)?.path.split('/').pop()?.replace(/\.[^.]+$/, ''));
+    if (a?.kind === 'model') c.models.add(a.guid);
+    else c.notes.push(`Missing model for m_Mesh, GUID ${ref.guid}; add the product's base package.`);
+  }
   for (const p of pendingParents.splice(0)) {
     const fatherKey = p.c.ids.get(p.father);
     const fatherNode = fatherKey ? (p.c.nodes.has(fatherKey) ? fatherKey : (p.c.comps.get(fatherKey)?.node ?? null)) : null;

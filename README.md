@@ -490,3 +490,13 @@ It prints a new password, signs out every session and clears lockouts. (Without 
 ## License
 
 MIT — see [LICENSE](LICENSE). Everloom is free; please keep it that way. Credits for inspiration, formats, fonts, icons and interface details are in [CREDITS.md](CREDITS.md).
+
+### Unity products and Blender characters
+
+Import split Unity packages together or add their base package later: a private GUID library connects the models, materials and textures. Select complete outfits or avatars, choose several items, or use **Import all**. Colour variants come along as switchable wardrobe variants. Missing textures use a reported placeholder and can be relinked.
+
+In the wardrobe, toggle model pieces and clothing materials, associate body-hiding shapes, and save combinations as outfits. For clothing made for another avatar, use **Fit to this avatar**, review the automatic alignment and transferred weights/shapes, then save the fitted garment. Story and inventory changes use the existing swipe-aware wardrobe state.
+
+Large sources upload in resumable 4 MiB chunks (default maximum 4 GiB): reselect the same file after a lost connection. Individual models still need to fit the browser's memory budget. Blender conversion now targets 5.2 LTS and uses the shared rest-pose exporter. See [Unity imports](docs/3d-import/unity.md), [Blender](docs/3d-import/blend.md), and [verified results and remaining work](docs/3d-unity-fix/README.md).
+
+The creator supports saved character/body/face/outfit presets and **Create from description**, with a preview before accepting a recipe made from installed parts. Hair and clothing catalogs have rendered thumbnails, search, tags and device-local favourites. Personas can use a 3D avatar; NPC appearance generation is off, ask or automatic. This follow-up excludes Tripo generation and automation. An optional parametric anatomy pack can be generated outside the repository; visual acceptance and the remaining expanded brief are still in progress.

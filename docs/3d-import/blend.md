@@ -27,7 +27,7 @@ when `EVERLOOM_BLENDER` is set; `EVERLOOM_BLEND_DIR` adds more files).
 
 | Where | How | Needs |
 |---|---|---|
-| **The Everloom server** | Settings › 3D characters › Blender › **Install** (one click): Blender 4.2 LTS from blender.org, checked against its published SHA-256, unpacked into the data folder. Or `install.sh`'s portable Blender, or `apt install blender` and the path. | x86-64 Linux, about 2 GB of memory, 1.5 GB of disk. No graphics card. |
+| **The Everloom server** | Settings › 3D characters › Blender › **Install** (one click): Blender 5.2.0 LTS from blender.org, checked against its published SHA-256, unpacked into the data folder. Or `install.sh`'s portable Blender, or `apt install blender` and the path. | x86-64 Linux, about 2 GB of memory, 1.5 GB of disk. No graphics card. |
 | **Your PC (Windows app)** | A Blender installed from blender.org is found by itself. | — |
 | **A rented CPU machine** | `RUNPOD_API_KEY=… node tools/blender-worker/session.mjs convert --out converted/ *.blend`, then import the GLBs. Balance read first (refuses below $0.50 plus the worst case), no paid storage, pod terminated in a `finally` step and checked through the API, every session in `docs/art/gpu-ledger.json`; the pod also ends itself when idle or past its limit. The files go to RunPod: not for files that must stay private. | A RunPod key. About $0.10/h for a small CPU machine; a batch takes minutes. |
 | **SaladCloud** | Not built: Salad's containers are billed per running replica and need a container image of our own; RunPod covers the case. | — |
@@ -50,3 +50,9 @@ Blender; the RunPod session itself has not run yet (the key was switched off for
   through it. No open-source library or developer API from it was found. If one turns up, a remote
   converter would be off by default, never used with the Vault on, and would warn that the file
   leaves the server.
+
+## Shared export contract and large source files
+
+The add-on, local converter and rented worker use `tools/blender-addon/everloom/export_core.py`. Non-animation model exports use the rest pose, preserve armature/object transforms and check that weighted bones survive. Recognized flat, constraint-driven DEF rigs are temporarily rebuilt into a hierarchy with their rest matrices preserved, then restored in the source scene. A synthetic regression verifies inverse bind matrices. This is a narrow repair, not general baking of every Blender constraint or driver.
+
+A `.blend` selected in the avatar library uses resumable chunks and a server conversion job. Conversion has a 20-minute deadline and a 200 MiB GLB output limit; the source upload limit defaults to 4 GiB. Very large geometry still needs enough Blender memory and a phone-sized output budget. Joint and texture warnings remain visible after conversion. Scripts and automatic execution stay disabled.

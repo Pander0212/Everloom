@@ -34,6 +34,13 @@ export default function AvatarsPage() {
     setBusy(true);
     setError(null);
     try {
+      const { unityZip } = await import('@/features/avatar3d/runtime/unity/zip-names');
+      if (input.some(f => /\.(unitypackage|prefab|meta)$/i.test(f.name)) || (await Promise.all(input.filter(f => /\.zip$/i.test(f.name)).map(f => unityZip(f)))).some(Boolean)) { setUnity(input); return; }
+      if (input.length === 1 && (/\.blend$/i.test(input[0]!.name) || (/\.zip$/i.test(input[0]!.name) && await unityZip(input[0]!, /\.blend$/i)))) {
+        const { uploadBlend } = await import('@/features/avatar3d/runtime/unity/library');
+        const id = await uploadBlend(input, setProgress);
+        navigate(`/characters/avatars/${id}`); return;
+      }
       const { ARCHIVE, unpackArchive, unsupportedMessage } = await import('@/features/avatar3d/runtime/archive');
       // Formats that can't come in, with what to do instead.
       for (const f of input) {

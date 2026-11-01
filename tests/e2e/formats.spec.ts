@@ -4,7 +4,7 @@ import { unzipSync } from 'fflate';
 import { api, expect, test } from './fixtures';
 
 // Software WebGL so the 3D preview renders headless.
-test.use({ launchOptions: { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } });
+test.use({ launchOptions: { ...(process.env.E2E_CHROMIUM ? { executablePath: process.env.E2E_CHROMIUM } : {}), args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] } });
 
 /** Heavy: on two projects, like the other 3D import checks. */
 test.beforeEach(({}, info) => test.skip(!/^(desktop-1280|phone-390)-light$/.test(info.project.name), 'Format imports run on two projects'));
@@ -80,14 +80,28 @@ for (const [file, label, tracks] of [
   });
 }
 
-test('a lone Unity .anim says how to bring it in', async ({ page }) => {
-  await page.goto('/settings/3d');
-  await page.getByTestId('clip-import').click();
-  const chooser = page.waitForEvent('filechooser');
-  await page.getByRole('button', { name: 'Choose a motion file' }).click();
-  await (await chooser).setFiles({ name: 'Wave.anim', mimeType: 'text/plain', buffer: Buffer.from('%YAML 1.1\n--- !u!74 &7400000\nAnimationClip:\n  m_Name: Wave\n') });
-  await expect(page.getByText(/Wave\.anim is a Unity animation/)).toBeVisible();
-});
+for (const file of ['Wave', 'Smile', 'Dance']) {
+  test(`standalone Unity ${file} previews and saves supported curves`, async ({ page, errors }) => {
+    await api(page, 'PATCH', '/api/settings', { features: { preset: 'full' } });
+    await page.goto('/settings/3d');
+    await page.getByTestId('clip-import').click();
+    const chooser = page.waitForEvent('filechooser');
+    await page.getByRole('button', { name: 'Choose a motion file' }).click();
+    await (await chooser).setFiles(path.resolve(`tests/fixtures/unity/Ava-extracted/Assets/Ava/Animations/${file}.anim`));
+    await expect(page.getByTestId('avatar-preview')).toHaveAttribute('data-state', 'ready', { timeout: 30_000 });
+    const id = `standalone_${file.toLowerCase()}`;
+    await page.getByLabel('Emote id').fill(id);
+    await expect(page.getByTestId('clip-save')).toBeEnabled();
+    await page.getByRole('button', { name: 'Play', exact: true }).click();
+    await page.getByTestId('clip-save').click();
+    await expect(page.getByTestId('clip-list')).toContainText(id.slice(0, 12));
+    const clip = await api(page, 'GET', `/api/avatar-clips/${id}`);
+    if (file === 'Smile') expect(Object.keys(clip.morphs)).toEqual(expect.arrayContaining(['mouthSmileLeft', 'mouthSmileRight']));
+    else expect(Object.keys(clip.tracks)).toContain(file === 'Wave' ? 'rightUpperArm' : 'leftUpperArm');
+    expect(clip.frames).toBeGreaterThan(1);
+    expect(errors).toEqual([]);
+  });
+}
 
 // Textures: each format becomes a PNG with the right colours, orientation and transparency.
 test('Materials takes TGA, PSD, DDS and KTX2 textures as PNG', async ({ page, errors }) => {

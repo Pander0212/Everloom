@@ -7,6 +7,7 @@
 import * as THREE from 'three';
 import { CLOTHING_TEMPLATES, type ClothingItem } from '@everloom/engine';
 import { canvasTexture, paintPattern } from './paint';
+import { buildBvh, closestPoint } from '../runtime/fit/bvh';
 
 interface Marks { hipY: number; waistY: number; breastY: number; neckY: number; kneeY: number; ankleY: number; shoulderX: number }
 
@@ -37,7 +38,7 @@ function region(id: ClothingItem['template'], m: Marks): { keep: Region; offset:
     case 'leggings': return { offset: 0.0022, keep: (_v, b, p) => (hips(b) && p.y < m.waistY) || thigh(b) || (calf(b) && p.y > m.ankleY + 0.02) };
     case 'skirt': return { offset: 0.006, keep: (_v, b, p) => hips(b) && p.y < m.waistY && p.y > m.hipY - 0.02, cone: { top: m.hipY, bottom: m.hipY - 0.3, flare: 0.35 } };
     case 'long-skirt': return { offset: 0.006, keep: (_v, b, p) => hips(b) && p.y < m.waistY && p.y > m.hipY - 0.02, cone: { top: m.hipY, bottom: m.ankleY + 0.05, flare: 0.28 } };
-    case 'dress': return { offset: 0.006, keep: (_v, b, p) => top(b, p) || (hips(b) && p.y > m.hipY - 0.02), cone: { top: m.hipY, bottom: m.kneeY - 0.02, flare: 0.32 } };
+    case 'dress': return { offset: 0.006, keep: (_v, b, p) => top(b, p) || (hips(b) && p.y > m.hipY - 0.02), cone: { top: m.waistY, bottom: m.kneeY - 0.02, flare: 0.32 } };
     case 'jacket': return { offset: 0.012, keep: (_v, b, p) => top(b, p) || (hips(b) && p.y > m.hipY - 0.06) || sleeve(b, p, 9) || (fore(b)) };
     case 'coat': return { offset: 0.014, keep: (_v, b, p) => top(b, p) || hips(b) || sleeve(b, p, 9) || fore(b), cone: { top: m.hipY, bottom: m.kneeY - 0.08, flare: 0.22 } };
     case 'socks': return { offset: 0.0018, keep: (_v, b, p) => foot(b) || (calf(b) && p.y < m.ankleY + 0.1) };
@@ -148,6 +149,25 @@ function cone(body: THREE.SkinnedMesh, c: { top: number; bottom: number; flare: 
   g.setAttribute('skinIndex', new THREE.Uint16BufferAttribute(skI, 4));
   g.setAttribute('skinWeight', new THREE.Float32BufferAttribute(skW, 4));
   g.setIndex(idx);
+  // The skirt used to stay at the default hip size while the body changed. Transfer the
+  // body's shape deltas at the closest surface point, retaining the skirt's loose outline.
+  const source = body.geometry;
+  const morphs = source.morphAttributes.position ?? [];
+  if (morphs.length && source.index) {
+    const indices = Uint32Array.from(source.index.array);
+    const bvh = buildBvh({ positions: Float32Array.from(source.attributes.position!.array), indices });
+    const bindings = Array.from({ length: pos.length / 3 }, (_, i) => closestPoint(bvh, pos[i * 3]!, pos[i * 3 + 1]!, pos[i * 3 + 2]!, Infinity, null));
+    g.morphAttributes.position = morphs.map(m => {
+      const delta = new Float32Array(pos.length);
+      bindings.forEach((hit, i) => {
+        if (!hit) return;
+        const a = indices[hit.tri * 3]!, b = indices[hit.tri * 3 + 1]!, c = indices[hit.tri * 3 + 2]!;
+        for (let k = 0; k < 3; k++) delta[i * 3 + k] = hit.u * m.getComponent(a, k) + hit.v * m.getComponent(b, k) + hit.w * m.getComponent(c, k);
+      });
+      return new THREE.BufferAttribute(delta, 3);
+    });
+    g.morphTargetsRelative = true;
+  }
   return g;
 }
 

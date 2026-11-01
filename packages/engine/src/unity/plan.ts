@@ -4,7 +4,7 @@
  * materials and textures, blendshape presets, the humanoid map, visemes, physics, toggles) plus a
  * report of what was imported, approximated and skipped.
  */
-import { asMap, asStr, type UnityRef } from './yaml';
+import { asMap, asStr, asNum, type UnityRef } from './yaml';
 import { baseName, dirName, importer, stem, text, type UnityAsset, type UnityKind, type UnityProject } from './project';
 import { activeInHierarchy, nodePath, resolvePrefab, type ResolvedScene } from './scene';
 import { readMaterial, type MaterialSpec } from './material';
@@ -39,6 +39,9 @@ export interface Candidate {
   kind: 'avatar' | 'outfit' | 'model';
   /** Why it was put in that group. */
   reason: string;
+  variants?: { guid: string; name: string }[];
+  dependencies?: { models: number; materials: number; textures: number };
+  missing?: string[];
 }
 
 export interface PackageSummary {
@@ -47,6 +50,7 @@ export interface PackageSummary {
   counts: Partial<Record<UnityKind, number>>;
   license: { path: string; text: string }[];
   exact: boolean;
+  other?: { guid: string; path: string; kind: UnityKind }[];
 }
 
 /** Looks for avatars (a VRChat descriptor, or a humanoid model) and outfits (Merge Armature, or a model without a humanoid). */
@@ -71,6 +75,7 @@ export function summarize(project: UnityProject): PackageSummary {
     else if ([...scene.models].some((g) => readHumanoid(project.get(g)?.meta)?.animationType === 3)) avatars.push({ guid: p.guid, path: p.path, name, kind: 'avatar', reason: 'Built on a humanoid model.' });
     else if (scene.models.size && [...scene.comps.values()].some((c) => c.type === 'SkinnedMeshRenderer')) outfits.push({ guid: p.guid, path: p.path, name, kind: 'outfit', reason: 'Skinned meshes without a humanoid: clothing or hair.' });
     else if (scene.models.size && [...scene.models].every((g) => !project.get(g)?.meta)) avatars.push({ guid: p.guid, path: p.path, name, kind: 'avatar', reason: 'Built on a model whose Unity settings are missing: details are guessed; import it as an avatar or as clothing.' });
+    else if (scene.models.size || scene.notes.some(n => /referenced asset|Missing model/.test(n))) outfits.push({ guid: p.guid, path: p.path, name, kind: 'outfit', reason: scene.models.size ? 'An accessory with its model and materials.' : 'Pending: add the missing base package.' });
   }
   // Models no prefab uses: offered on their own.
   for (const m of project.all('model')) {
@@ -82,12 +87,63 @@ export function summarize(project: UnityProject): PackageSummary {
   }
   // Variants of the same avatar: the prefab with the most specific name first.
   avatars.sort((a, b) => Number(/variant|quest|pc/i.test(a.name)) - Number(/variant|quest|pc/i.test(b.name)) || a.path.length - b.path.length);
-  return { avatars, outfits, counts, license: licenseFiles(project), exact: project.exact };
+  const used = new Set<string>();
+  const group = (items: Candidate[]) => {
+    const groups = new Map<string, Candidate>();
+    for (const item of items) {
+      const plan = planImport(project, item.guid);
+      const deps = dependencyAssets(project, item.guid);
+      deps.assets.forEach(g => used.add(g));
+      const models = plan.models.map(m => m.guid).sort().join(',');
+      // Same meshes and visibility, different materials: colour variants of one item.
+      const shape = JSON.stringify([plan.renderers.map(r => r.path.slice(1).join('/')).sort(), plan.hidden.map(p => p.slice(1).join('/')).sort()]);
+      const key = models && item.kind !== 'model' ? `${dirName(item.path)}|${item.kind}|${models}|${shape}` : item.guid;
+      const found = groups.get(key);
+      const variant = { guid: item.guid, name: item.name };
+      if (found) {
+        found.variants!.push(variant);
+        found.dependencies = { models: Math.max(found.dependencies!.models, plan.models.length), materials: new Set(found.variants!.flatMap(v => Object.keys(planImport(project, v.guid).materials))).size, textures: new Set(found.variants!.flatMap(v => Object.keys(planImport(project, v.guid).textures))).size };
+        found.missing = [...new Set([...found.missing!, ...deps.missing])];
+      } else groups.set(key, { ...item, variants: [variant], dependencies: { models: plan.models.length, materials: Object.keys(plan.materials).length, textures: Object.keys(plan.textures).length }, missing: deps.missing });
+    }
+    return [...groups.values()];
+  };
+  const groupedAvatars = group(avatars), groupedOutfits = group(outfits);
+  return { avatars: groupedAvatars, outfits: groupedOutfits, counts, license: licenseFiles(project), exact: project.exact, other: project.all().filter(a => !used.has(a.guid) && ['model', 'material', 'texture'].includes(a.kind)).map(({ guid, path, kind }) => ({ guid, path, kind })) };
 }
 
-export function licenseFiles(project: UnityProject): { path: string; text: string }[] {
+/** Follow GUID dependencies transitively, preserving unresolved links for later packages. */
+export function dependencyAssets(project: UnityProject, guid: string): { assets: string[]; missing: string[] } {
+  const assets = new Set<string>(), missing = new Set<string>();
+  const visit = (id: string) => {
+    if (assets.has(id)) return;
+    const a = project.get(id);
+    if (!a) { missing.add(id); return; }
+    if (assets.has(a.guid)) return;
+    assets.add(a.guid);
+    if (!['prefab', 'scene', 'material', 'anim', 'controller', 'asset'].includes(a.kind)) return;
+    // Script/shader GUIDs identify components; they are not files needed to render the item.
+    const source = text(a.data).replace(/^\s*m_(?:Script|Shader):.*$/gm, '');
+    for (const m of source.matchAll(/guid:\s*([a-f0-9]{32})/gi)) if (!/^0{16}/.test(m[1]!)) visit(m[1]!.toLowerCase());
+  };
+  visit(guid);
+  const plan = planImport(project, guid);
+  for (const m of plan.models) assets.add(m.guid);
+  for (const id of Object.keys(plan.materials)) visit(id);
+  for (const t of Object.values(plan.textures)) assets.add(t.guid);
+  return { assets: [...assets], missing: [...missing] };
+}
+
+export function licenseFiles(project: UnityProject, paths?: string[]): { path: string; text: string }[] {
+  // Unity packages have no retained archive boundary. Use product folders, including
+  // dependency products, and keep root-level terms that may apply to all assets.
+  const roots = paths?.map(path => {
+    const parts = path.split('/');
+    return parts.slice(0, parts[0] === 'Assets' ? 2 : 1).join('/') + '/';
+  });
   return project
     .all()
+    .filter(a => !roots || !a.path.includes('/') || /^Assets\/[^/]+$/.test(a.path) || roots.some(root => a.path.startsWith(root)))
     .filter((a) => a.data && /(^|\/)(licen[cs]e|readme|terms|利用規約|規約|readme_jp|お読みください)[^/]*\.(txt|md)$/i.test(a.path) && a.data.length < 200_000)
     .map((a) => ({ path: a.path, text: text(a.data) }));
 }
@@ -117,6 +173,7 @@ export interface UnityPlan {
   descriptor: (Omit<AvatarDescriptor, 'node' | 'visemeMesh' | 'eyes' | 'eyelids'> & { visemeMesh: string[] | null; eyes: { left: string[] | null; right: string[] | null }; eyelids: { mesh: string[] | null; blink: number | null; up: number | null; down: number | null }; mouth: Partial<Record<'aa' | 'ih' | 'ou' | 'ee' | 'oh', string>> }) | null;
   chains: { path: string[]; kind: ChainKind; settings: SpringSettings; ignore: string[][]; source: string }[];
   toggles: { label: string; objects: { path: string[]; active: boolean }[] }[];
+  sps: { kind: 'plug' | 'socket'; path: string[]; name: string; length: number; radius: number; unitsInMeters: boolean }[];
   /** For outfits: Merge Armature's settings (bones are matched to the avatar's by name). */
   merge: { root: string[]; prefix: string; suffix: string } | null;
   blendshapeSync: { mesh: string | null; blendshape: string; local: string }[];
@@ -140,14 +197,20 @@ export function planImport(project: UnityProject, guid: string, source = 'packag
   if (!asset) throw new Error('That file isn’t in the package.');
   project.guessed.length = 0;
   const report: ImportReport = { source, imported: [], approximated: [], skipped: [], license: licenseFiles(project), thirdParty: true, guessed: [] };
-  const plan: UnityPlan = { name: stem(asset.path), models: [], hidden: [], renderers: [], materials: {}, textures: {}, humanoid: null, boneMap: {}, descriptor: null, chains: [], toggles: [], merge: null, blendshapeSync: [], anims: [], expressions: {}, report };
+  const plan: UnityPlan = { name: stem(asset.path), models: [], hidden: [], renderers: [], materials: {}, textures: {}, humanoid: null, boneMap: {}, descriptor: null, chains: [], toggles: [], sps: [], merge: null, blendshapeSync: [], anims: [], expressions: {}, report };
 
   if (asset.kind === 'model') {
+    // A directly chosen FBX still belongs to its prefab's product. Reuse that prefab's
+    // explicit material slots instead of treating nearby, unrelated products as dependencies.
+    const related = project.all('prefab').find(p => {
+      try { return resolvePrefab(project, p.guid).models.has(guid); } catch { return false; }
+    });
+    if (related) return planImport(project, related.guid);
     plan.models.push({ guid, path: asset.path, at: [] });
     plan.humanoid = readHumanoid(asset.meta);
     plan.boneMap = plan.humanoid?.bones ?? {};
     addModelMaterials(project, plan, asset);
-    finishReport(project, plan);
+    finishReport(project, plan, asset.path);
     return plan;
   }
 
@@ -160,6 +223,10 @@ export function planImport(project: UnityProject, guid: string, source = 'packag
   for (const n of modelNodes.sort((a, b) => rendererCount(b.model!.guid) - rendererCount(a.model!.guid))) {
     const m = project.get(n.model!.guid)!;
     plan.models.push({ guid: m.guid, path: m.path, at: path(n.key).slice(0, -1) });
+  }
+  for (const g of scene.models) {
+    const m = project.get(g);
+    if (m && !plan.models.some(x => x.guid === g)) plan.models.push({ guid: g, path: m.path, at: [] });
   }
   const body = plan.models[0] ? project.get(plan.models[0].guid) : undefined;
   plan.humanoid = body ? readHumanoid(body.meta) : null;
@@ -218,6 +285,10 @@ export function planImport(project: UnityProject, guid: string, source = 'packag
   }
   if (counts.physBoneCollider || counts.dynamicBoneCollider) report.approximated.push({ what: 'Physics colliders', detail: `${(counts.physBoneCollider ?? 0) + (counts.dynamicBoneCollider ?? 0)} colliders replaced by colliders made from the body.` });
   if (counts.contact) report.skipped.push({ what: 'Contacts', detail: `${counts.contact} VRChat contacts (touch triggers) have no meaning here.` });
+  for (const b of mbs.filter(b => b.kind === 'spsPlug' || b.kind === 'spsSocket')) {
+    plan.sps.push({ kind: b.kind === 'spsPlug' ? 'plug' : 'socket', path: path(b.node), name: asStr(b.fields.name).slice(0, 80), length: Math.max(0, Math.min(10, asNum(b.fields.length))), radius: Math.max(0, Math.min(10, asNum(b.fields.radius))), unitsInMeters: asNum(b.fields.unitsInMeters) === 1 });
+  }
+  if (plan.sps.length) report.approximated.push({ what: 'SPS metadata', detail: `${plan.sps.length} attachment definitions retained as model metadata. VRCFury shaders, deformation and depth actions are not executed outside VRChat.` });
 
   // Modular Avatar.
   const menus = mbs.filter((b) => b.kind === 'maMenuItem');
@@ -237,7 +308,7 @@ export function planImport(project: UnityProject, guid: string, source = 'packag
   if (counts.maOther) report.skipped.push({ what: 'Modular Avatar menus and animators', detail: `${counts.maOther} components that build VRChat menus and animators.` });
   if (counts.unknown) report.skipped.push({ what: 'Other components', detail: `${counts.unknown} components Everloom doesn’t know.` });
 
-  finishReport(project, plan);
+  finishReport(project, plan, asset.path);
   return plan;
 }
 
@@ -258,10 +329,17 @@ function addMaterial(project: UnityProject, plan: UnityPlan, a: UnityAsset) {
   if (!spec) return;
   plan.materials[a.guid] = { ...spec, path: a.path };
   for (const [slot, t] of Object.entries(spec.raw.textures)) {
-    const tex = project.get(t.ref.guid) ?? project.guess(a.path, 'texture', spec.name, slot);
+    const choiceKey = `${a.path}|texture|${slot}`;
+    const chosen = project.choices.has(choiceKey);
+    const tex = chosen ? project.guess(a.path, 'texture', spec.name, slot) : project.get(t.ref.guid) ?? project.guess(a.path, 'texture', spec.name, slot);
+    if (chosen && !tex && t.ref.guid) project.links.delete(t.ref.guid);
     // Keep the link under the GUID the material asks for, so the browser finds it.
     if (tex && tex.guid !== t.ref.guid) project.links.set(t.ref.guid!, tex.guid);
     if (!tex) continue;
+    // Replanning must retain inferred/replacement links in the editable report.
+    // The first plan caches the link, so a later plan may not call guess().
+    if (tex.guid !== t.ref.guid && !project.guessed.some(g => g.from === a.path && g.key === `${a.path}|texture|${slot}`))
+      project.guessed.push({ from: a.path, to: tex.path, how: 'linked replacement', kind: 'texture', key: `${a.path}|texture|${slot}` });
     const ti = importer(tex.meta, 'TextureImporter');
     const normal = Number(ti.textureType ?? (/bump|normal/i.test(slot) ? 1 : 0)) === 1 || /_BumpMap|_NormalMap/.test(slot);
     const srgb = Number(asStr((asMap(ti.mipmaps).sRGBTexture ?? ti.sRGBTexture) as never, '1')) !== 0;
@@ -290,11 +368,12 @@ function addModelMaterials(project: UnityProject, plan: UnityPlan, model: UnityA
     const dir = dirName(model.path);
     const up = dirName(dir);
     // (Files picked without their folders all sit at the top: every material counts.)
-    for (const a of project.all('material')) if (!dir || a.path.startsWith(dir + '/') || (up && a.path.startsWith(up + '/'))) addMaterial(project, plan, a);
+    for (const a of project.all('material')) if ((!dir && !dirName(a.path)) || (dir && a.path.startsWith(dir + '/')) || (up && up !== 'Assets' && a.path.startsWith(up + '/'))) addMaterial(project, plan, a);
   }
 }
 
-function finishReport(project: UnityProject, plan: UnityPlan) {
+function finishReport(project: UnityProject, plan: UnityPlan, sourcePath: string) {
+  plan.report.license = licenseFiles(project, [sourcePath, ...plan.models.map(m => m.path), ...Object.values(plan.materials).map(m => m.path), ...Object.values(plan.textures).map(t => t.path)]);
   const r = plan.report;
   r.guessed = [...project.guessed];
   r.imported.unshift({ what: 'Models', detail: plan.models.map((m) => baseName(m.path)).join(', ') || 'none' });
@@ -311,12 +390,12 @@ function finishReport(project: UnityProject, plan: UnityPlan) {
     const n = project.all(kind as UnityKind).length;
     if (n) r.skipped.push({ what: `${n} ${kind === 'script' ? 'scripts' : kind === 'shader' ? 'shaders' : kind === 'audio' ? 'sounds' : 'scenes'}`, detail: why });
   }
-  readAnims(project, plan);
+  readAnims(project, plan, dirName(sourcePath));
   const by = (k: AnimKind) => plan.anims.filter((a) => a.kind === k);
   const emos = Object.keys(plan.expressions);
   if (emos.length) r.imported.push({ what: 'Expressions', detail: `${emos.length} from face animations (${emos.join(', ')}).` });
   if (by('body').length) r.imported.push({ what: 'Animations', detail: `${by('body').length} body clips, converted to Everloom motions.` });
-  if (by('humanoid').length) r.approximated.push({ what: 'Humanoid animations', detail: `${by('humanoid').length} clips use Unity’s muscle space; they’re listed as “needs retarget” and not played yet.` });
+  if (by('humanoid').length) r.approximated.push({ what: 'Humanoid animations', detail: `${by('humanoid').length} clips use Unity’s muscle space; they use approximate canonical rotations. Preview before saving; Unity IK is not reproduced.` });
   const states = [...new Set(plan.anims.flatMap((a) => a.states))];
   if (states.length) r.imported.push({ what: 'Animator states', detail: `${states.length} listed as emotes and gestures: ${states.slice(0, 8).join(', ')}${states.length > 8 ? '…' : ''}.` });
   if (by('toggle').length) r.skipped.push({ what: 'Toggle animations', detail: `${by('toggle').length} clips that switch objects or material values in VRChat menus.` });
@@ -324,9 +403,10 @@ function finishReport(project: UnityProject, plan: UnityPlan) {
 }
 
 /** Reads the package's clips (at most 80) and controller states; face clips become expressions. */
-function readAnims(project: UnityProject, plan: UnityPlan) {
+function readAnims(project: UnityProject, plan: UnityPlan, folder: string) {
+  const belongs = (a: UnityAsset) => !folder || a.path.startsWith(folder + '/');
   const states = new Map<string, string[]>();
-  for (const c of project.all('controller').slice(0, 40)) {
+  for (const c of project.all('controller').filter(belongs).slice(0, 40)) {
     try {
       for (const st of readController(text(c.data))) {
         const g = st.motion?.guid;
@@ -336,7 +416,7 @@ function readAnims(project: UnityProject, plan: UnityPlan) {
       /* a controller Everloom can't read: its clips are still listed */
     }
   }
-  for (const a of project.all('anim').slice(0, 80)) {
+  for (const a of project.all('anim').filter(a => belongs(a) || states.has(a.guid)).slice(0, 80)) {
     let anim;
     try {
       anim = readAnim(text(a.data));

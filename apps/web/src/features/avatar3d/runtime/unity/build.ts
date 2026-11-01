@@ -39,7 +39,9 @@ export async function readUnity(files: File[], progress: Progress = () => {}): P
     });
     if (!reply.ok) throw new Error(reply.error);
     progress('Reading the Unity files…');
-    return reply.kind === 'package' ? projectFromPackage(reply.entries.map((e) => ({ ...e, size: e.data.length }))) : projectFromFiles(stripTop(reply.files));
+    const project = projectFromPackage(reply.entries.map((e) => ({ ...e, size: e.data.length })));
+    for (const asset of projectFromFiles(stripTop(reply.files)).all()) project.add(asset);
+    return project;
   } finally {
     worker.terminate();
   }
@@ -160,7 +162,16 @@ async function material(project: UnityProject, plan: UnityPlan, spec: MaterialSp
     if (!g) return null;
     const info = plan.textures[g];
     const key = `${g}:${info?.srgb ?? true}`;
-    if (!cache.has(key)) cache.set(key, info ? await texture(project, info.guid, info.srgb, urls) : null);
+    if (!cache.has(key)) {
+      try {
+        const t = info ? await texture(project, info.guid, info.srgb, urls) : null;
+        if (!t) throw new Error('missing or unsupported image');
+        cache.set(key, t);
+      } catch {
+        plan.report.approximated.push({ what: 'Texture placeholder', detail: `${info?.path ?? g}: could not decode the image. Relink it in the Materials editor.` });
+        cache.set(key, placeholderTexture());
+      }
+    }
     const t = cache.get(key);
     if (!t) return null;
     if (slot.scale[0] !== 1 || slot.scale[1] !== 1 || slot.offset[0] || slot.offset[1]) {
@@ -202,6 +213,7 @@ async function material(project: UnityProject, plan: UnityPlan, spec: MaterialSp
 
 /** Builds the model for one avatar, outfit or bare model of the project. */
 export async function buildUnity(project: UnityProject, guid: string, opts: { as: 'avatar' | 'outfit'; avatarBones?: string[] } = { as: 'avatar' }, progress: Progress = () => {}): Promise<UnityBuild> {
+  if (project.get(guid)?.sourceId) await (await import('./library')).hydrateUnity(project, guid, progress);
   const plan = planImport(project, guid, project.exact ? 'Unity package' : 'Unity files');
   const report = plan.report;
   const urls: string[] = [];
@@ -214,11 +226,33 @@ export async function buildUnity(project: UnityProject, guid: string, opts: { as
     progress(`Loading ${body.path.split('/').pop()}…`);
     // Textures the FBX names itself come from the package, never from the network.
     const manager = new THREE.LoadingManager();
+    let loading = false;
+    let finishLoading: () => void = () => {};
+    const imagesLoaded = new Promise<void>(resolve => { finishLoading = resolve; });
+    manager.onStart = () => { loading = true; };
+    manager.onLoad = finishLoading;
+    manager.onError = () => report.approximated.push({ what: 'Texture placeholder', detail: 'An FBX image could not be loaded; replace it in Materials.' });
     const byName = new Map(project.all('texture').map((a) => [a.path.split('/').pop()!.toLowerCase(), a]));
+    // Decode non-browser formats before FBXLoader requests them. Its URL modifier is synchronous.
+    const decoded = new Map<string, string>();
+    const { webTexture } = await import('../textures');
+    for (const a of byName.values()) {
+      if (!a.data || !/\.(tga|psd|dds|ktx2)$/i.test(a.path)) continue;
+      try {
+        const image = await webTexture(new File([a.data as BlobPart], a.path.split('/').pop()!));
+        const url = URL.createObjectURL(image); urls.push(url); decoded.set(a.guid, url);
+      } catch { report.approximated.push({ what: 'Texture placeholder', detail: `${a.path}: decoding failed; relink it in Materials.` }); }
+    }
+    const placeholder = placeholderTexture().image as HTMLCanvasElement;
+    const fallbackUrl = placeholder.toDataURL('image/png');
     manager.setURLModifier((url) => {
       if (/^(blob:|data:)/.test(url)) return url;
       const a = byName.get(decodeURIComponent(url).replace(/\\/g, '/').split('/').pop()!.toLowerCase());
-      if (!a?.data || !/\.(png|jpe?g|webp|gif|bmp)$/i.test(a.path)) return 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8/x8AAwMCAO+ip1sAAAAASUVORK5CYII=';
+      if (a && decoded.has(a.guid)) return decoded.get(a.guid)!;
+      if (!a?.data || !/\.(png|jpe?g|webp|gif|bmp)$/i.test(a.path)) {
+        report.approximated.push({ what: 'Texture placeholder', detail: `${a?.path ?? url.split('/').pop()}: missing or unreadable image; relink it in Materials.` });
+        return fallbackUrl;
+      }
       const u = URL.createObjectURL(new Blob([a.data as BlobPart]));
       urls.push(u);
       return u;
@@ -238,6 +272,7 @@ export async function buildUnity(project: UnityProject, guid: string, opts: { as
       sub.name = sanitize(a.path.split('/').pop()!.replace(/\.[^.]+$/, ''));
       (find(root, [root.name, ...extra.at.slice(1)]) ?? root).add(sub);
     }
+    if (loading) await imagesLoaded;
 
     // Materials: the prefab's choice per renderer, else by the FBX material's name.
     progress('Materials…');
@@ -323,6 +358,23 @@ export async function buildUnity(project: UnityProject, guid: string, opts: { as
       if (!names.length || parts.some((p) => p.meshes.join() === names.join())) continue;
       parts.push({ id: partId(t.label), name: t.label.slice(0, 60), meshes: names.slice(0, 64), hides: [], on: t.objects.every((x) => !plan.hidden.some((h) => h.join('/') === x.path.join('/'))), items: [] });
     }
+    const clothing = /shirt|jacket|coat|dress|skirt|pants|trouser|shorts|bra|bikini|underwear|shoe|boot|sock|stocking|glove|hair|hat|ribbon|belt/i;
+    root.traverse(o => {
+      const mesh = o as THREE.Mesh;
+      if (!mesh.isMesh || !mesh.name) return;
+      if (!parts.some(p => p.meshes.includes(mesh.name)) && parts.length < 64) parts.push({ id: partId(mesh.name), name: mesh.name.slice(0, 60), meshes: [mesh.name], hides: [], on: mesh.visible, items: [] });
+      if (Array.isArray(mesh.material) && mesh.material.length > 1) for (const [slot, mat] of mesh.material.entries()) {
+        if (!clothing.test(mat.name) || parts.length >= 64) continue;
+        parts.push({ id: partId(mat.name), name: mat.name.slice(0, 60), meshes: [mesh.name], materialSlots: [{ mesh: mesh.name, slot, material: mat.name }], hides: [], on: true, items: [] });
+      }
+    });
+    const morphs = new Set<string>();
+    root.traverse(o => Object.keys((o as THREE.Mesh).morphTargetDictionary ?? {}).forEach(m => morphs.add(m)));
+    const plain = (s: string) => s.toLowerCase().replace(/[^a-z0-9]/g, '');
+    for (const part of parts) {
+      const matches = [...morphs].filter(m => /^(hide|shrink)[_ .-]/i.test(m) && plain(m.replace(/^(hide|shrink)[_ .-]+/i, '')) === plain(part.name));
+      if (matches.length) part.hideMorphs = matches.slice(0, 32).map(morph => ({ morph, weight: 1 }));
+    }
 
     // An outfit: its bones take the avatar's names, so it binds to the avatar as a garment.
     if (opts.as === 'outfit' && opts.avatarBones?.length) {
@@ -339,7 +391,7 @@ export async function buildUnity(project: UnityProject, guid: string, opts: { as
         }
       });
       report.imported.push({ what: 'Outfit bones', detail: `${matched} of ${total} bones matched to the avatar’s; the rest (a skirt, ribbons) move with their parent and physics.` });
-      if (!matched) throw new Error('None of this outfit’s bones match the avatar’s. Is it made for this avatar?');
+      if (!matched) throw new Error('This outfit uses a different skeleton. Choose “Fit to this avatar” to align it and transfer weights.');
     }
 
     // Avatar settings.
@@ -368,26 +420,82 @@ export async function buildUnity(project: UnityProject, guid: string, opts: { as
     if (opts.as === 'avatar' && Object.keys(plan.expressions).length) config.expressionMap = { ...plan.expressions, ...config.expressionMap } as AvatarConfig['expressionMap'];
 
     progress('Writing the model…');
+    if (plan.sps.length) root.userData.everloomSps = plan.sps;
+    // A failed embedded FBX image can leave a Texture with no drawable data. Do not let one
+    // image abort GLTFExporter; convert every image to RGBA and replace broken ones individually.
+    await exportableTextures(root, report);
     const glb = (await new GLTFExporter().parseAsync(root, { binary: true, onlyVisible: false, maxTextureSize: 4096 })) as ArrayBuffer;
     const file = new File([glb], `${plan.name}.glb`, { type: 'model/gltf-binary' });
 
     // Body animations, converted on this model's own skeleton (after the export: it poses the rig).
     const clips: UnityBuild['clips'] = [];
     if (opts.as === 'avatar') {
-      for (const a of plan.anims.filter((x) => x.kind === 'body').slice(0, 20)) {
+      for (const a of plan.anims.filter((x) => ['body', 'face', 'humanoid'].includes(x.kind)).slice(0, 20)) {
         const data = project.get(a.guid)?.data;
-        const clip = data ? threeClip(new TextDecoder().decode(data), root) : null;
-        if (!clip) continue;
+        if (!data) continue;
         try {
+          if (a.kind !== 'body') {
+            const { unityMotionText } = await import('./motion');
+            const converted = unityMotionText(new TextDecoder().decode(data), { id: `unity_${a.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`.slice(0, 40), loop: a.loop, source: a.path });
+            clips.push({ label: a.name.slice(0, 40), loop: a.loop, clip: converted.clip });
+            for (const detail of converted.notes) report.approximated.push({ what: a.name, detail });
+            continue;
+          }
+          const clip = threeClip(new TextDecoder().decode(data), root);
+          if (!clip) continue;
           const id = `unity_${a.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 30) || 'clip'}`;
-          clips.push({ label: a.name.slice(0, 40), loop: a.loop, clip: convertMotion({ scene: root, animations: [clip], humanoid: plan.boneMap }, clip, { id, loop: a.loop, inPlace: true, source: a.path.slice(0, 200), maxSeconds: 60 }) });
+          clips.push({ label: a.name.slice(0, 40), loop: a.loop, clip: convertMotion({ scene: root, animations: [clip], humanoid: plan.boneMap }, clip, { id, loop: a.loop, inPlace: true, source: a.path.slice(0, 200), maxSeconds: 30 }) });
         } catch (e) {
           report.skipped.push({ what: 'Animation', detail: `${a.name}: ${(e as Error).message}` });
         }
       }
     }
+    for (const key of ['imported', 'approximated', 'skipped'] as const) {
+      const lines = report[key];
+      report[key] = (lines.length > 60 ? [...lines.slice(0, 59), { what: 'Additional details', detail: `${lines.length - 59} more entries; source files remain in your library.` }] : lines).map(l => ({ what: l.what.slice(0, 120), ...(l.detail ? { detail: l.detail.slice(0, 600) } : {}) }));
+    }
+    report.source = report.source.slice(0, 80);
+    report.license = report.license.slice(0, 6).map(l => ({ path: l.path.slice(0, 300), text: l.text.slice(0, 6000) }));
+    report.guessed = report.guessed.slice(0, 200).map(l => ({ ...l, from: l.from.slice(0, 300), to: l.to.slice(0, 300), how: l.how.slice(0, 120) }));
     return { file, plan, config, report, presets, clips };
   } finally {
     for (const u of urls) URL.revokeObjectURL(u);
+  }
+}
+
+function placeholderTexture(): THREE.CanvasTexture {
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 2;
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#b0b0b0'; ctx.fillRect(0, 0, 2, 2);
+  return new THREE.CanvasTexture(canvas);
+}
+
+export async function exportableTextures(root: THREE.Object3D, report: ImportReport) {
+  const textures = new Set<THREE.Texture>();
+  root.traverse(o => {
+    const mesh = o as THREE.Mesh;
+    if (!mesh.isMesh) return;
+    for (const mat of Array.isArray(mesh.material) ? mesh.material : [mesh.material]) {
+      for (const value of Object.values(mat)) if (value instanceof THREE.Texture) textures.add(value);
+    }
+  });
+  for (const t of textures) {
+    try {
+      const image = t.image as (CanvasImageSource & { naturalWidth?: number; naturalHeight?: number; width: number; height: number; data?: ArrayLike<number> }) | undefined;
+      if (!image) throw new Error('Missing image');
+      if (image instanceof HTMLImageElement && !image.complete) await image.decode();
+      const w = image?.naturalWidth ?? image?.width, h = image?.naturalHeight ?? image?.height;
+      if (!w || !h || w * h > 64_000_000) throw new Error('Invalid image dimensions');
+      const canvas = document.createElement('canvas'); canvas.width = w; canvas.height = h;
+      const ctx = canvas.getContext('2d')!;
+      if (image.data) {
+        if (!(image.data instanceof Uint8Array || image.data instanceof Uint8ClampedArray) || image.data.length !== w * h * 4) throw new Error('Expected decoded RGBA pixels');
+        const data = new ImageData(w, h); data.data.set(image.data); ctx.putImageData(data, 0, 0);
+      } else ctx.drawImage(image, 0, 0);
+      t.image = canvas; t.needsUpdate = true;
+    } catch {
+      t.image = placeholderTexture().image; t.needsUpdate = true;
+      report.approximated.push({ what: 'Texture placeholder', detail: `${t.name || 'Embedded FBX texture'}: invalid image data; relink it in Materials.` });
+    }
   }
 }

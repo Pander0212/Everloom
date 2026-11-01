@@ -9,7 +9,7 @@ TOKEN = os.environ["WORKER_TOKEN"]
 IDLE = int(os.environ.get("IDLE_SECONDS", "600"))
 MAX = int(os.environ.get("MAX_SECONDS", "3600"))
 DIR = os.environ.get("WORKER_DIR", "/opt/worker")
-BLENDER = os.environ.get("BLENDER", f"{DIR}/blender-4.2.3-linux-x64/blender")
+BLENDER = os.environ.get("BLENDER", f"{DIR}/blender-5.2.0-linux-x64/blender")
 IN, OUT = f"{DIR}/in", f"{DIR}/out"
 os.makedirs(IN, exist_ok=True)
 os.makedirs(OUT, exist_ok=True)
@@ -85,8 +85,8 @@ class H(http.server.BaseHTTPRequestHandler):
             with open(os.path.join(IN, name), "wb") as f:
                 f.write(self.rfile.read(n))
             return self._send(200, "{}")
-        if self.path == "/worker.py" and 0 < n < 2_000_000:
-            with open(f"{DIR}/worker.py", "wb") as f:
+        if self.path in ("/worker.py", "/export_core.py") and 0 < n < 2_000_000:
+            with open(os.path.join(DIR, name), "wb") as f:
                 f.write(self.rfile.read(n))
             return self._send(200, "{}")
         self._send(400, "{}")

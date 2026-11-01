@@ -74,7 +74,7 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn, handle }: {
         Drop a Unity outfit here: a .unitypackage, or the outfit’s .prefab with its FBX, materials and textures.{' '}
         <FileButton size="sm" variant="ghost" multiple onFiles={setUnity}>Choose files</FileButton>
       </div>
-      <UnityImport files={unity} onClose={() => setUnity(null)} target={avatar.id} onOutfit={(g, o) => set({ garments: [...config.garments, g], outfits: [...config.outfits, o].slice(0, 32) })} />
+      <UnityImport files={unity} onClose={() => setUnity(null)} target={avatar.id} onOutfit={(g, o) => set({ garments: [...config.garments, ...g], outfits: [...config.outfits, ...o].slice(0, 32) })} />
       <SectionTitle>Outfits</SectionTitle>
       <p className="text-sm text-fg-2">Tap one to try it on. The story can change outfits (it rolls back with swipes), and equipped items can pick one.</p>
       {config.makehuman ? <Button variant="secondary" onClick={() => { const id = newId('outfit', config.outfits.map(outfit => outfit.id)); set({ outfits: [...config.outfits, { id, name: 'MakeHuman outfit', model: null, modelLow: null, parts: [], garments: [], items: [], makehumanProxies: [...config.makehuman!.proxies] }] }); setOpen(id); }}>Save native clothes as an outfit</Button> : null}
@@ -200,6 +200,9 @@ export function WardrobeStep({ avatar, config, set, tryOn, setTryOn, handle }: {
                   </button>
                 ))}
               </div>
+            </Field>
+            <Field label="Body-hiding shapes" hint="These shapes activate while this piece is worn and return to their slider values when removed.">
+              <div className="flex max-h-32 flex-col gap-1 overflow-y-auto">{(avatar.info.morphs ?? []).filter((m: string) => /hide|shrink/i.test(m)).map((m: string) => <Checkbox key={m} label={m} checked={p.hideMorphs?.some(x => x.morph === m) ?? false} onChange={on => setPart(p.id, { hideMorphs: on ? [...(p.hideMorphs ?? []), { morph: m, weight: 1 }].slice(0, 32) : p.hideMorphs?.filter(x => x.morph !== m) })} />)}</div>
             </Field>
             <Field label="Put on by these items">
               <Input aria-label="Part items" defaultValue={p.items.join(', ')} onBlur={(e) => setPart(p.id, { items: list(e.target.value) })} />

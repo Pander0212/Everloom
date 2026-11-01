@@ -104,6 +104,13 @@ docs/puppets-v2/evidence/RESULTS.md.
 - **Not yet:** phone editing of joints/weights (the lab has sliders), motions from video/audio/text,
   See-through/SAM in the body stage, running the decomposition from the app.
 
+## Unity/creator follow-up (2026-10-12, in progress)
+
+Resumable imports, a persistent GUID library, grouped colour variants, Blender 5.2 export repairs,
+wardrobe additions and creator/persona/NPC work are being validated. The 1 GiB phone disconnect
+check and the supplied sample conversions passed. The expanded non-Tripo brief is not complete;
+see [the checkpoint and remaining acceptance work](docs/3d-unity-fix/README.md).
+
 ## 3D import and editor (2026-10-10)
 
 Unity packages without Unity, bone mapping, more formats, `.blend` through Blender, a VRoid-style

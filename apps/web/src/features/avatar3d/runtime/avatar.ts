@@ -443,7 +443,7 @@ export class Avatar {
     if (this.basePoseId === 'sleep') blink = 1;
     // An emote's face wins while it plays; a held pose's face only when the story has none.
     const emotion = this.shotFace ?? (this.emotion === 'neutral' && this.baseFace ? this.baseFace : this.emotion);
-    const target = this.faceOverride ?? faceWeights(this.model.expressions, { emotion, strength: this.emotionStrength, visemes: this.speaking ? this.visemes : undefined, blink });
+    const target = this.faceOverride ?? { ...faceWeights(this.model.expressions, { emotion, strength: this.emotionStrength, visemes: this.speaking ? this.visemes : undefined, blink }), ...this.pose.morphs };
     // Smooth everything toward the target: expressions slowly, the mouth quickly, blinks instantly.
     const keys = new Set([...this.faceNow.keys(), ...Object.keys(target)]);
     const mouth = new Set(['aa', 'ih', 'ou', 'ee', 'oh', 'jawOpen'].flatMap((k) => (this.model.expressions[k as Viseme] ?? []).map((m) => m.morph)));

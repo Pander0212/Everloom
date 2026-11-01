@@ -1,7 +1,7 @@
 /**
  * One-click install of a headless Blender converter on the server (optional). Blender needs no
  * graphics card to convert files; it needs an x86-64 Linux machine with about 2 GB of free memory
- * and 1–2 GB of disk. The official Blender 4.2 LTS build is downloaded from download.blender.org,
+ * and 1–2 GB of disk. The official Blender 5.2 LTS build is downloaded from download.blender.org,
  * checked against its published SHA-256, and unpacked into the data folder, where findBlender
  * finds it. Nothing runs from it until a conversion asks for it.
  */
@@ -16,8 +16,8 @@ import { HttpError, type AppContext } from '../context.js';
 import { safeFetch } from '../util/fetch.js';
 import { findBlender } from './blender.js';
 
-export const BLENDER_VERSION = '4.2.3';
-const BASE = 'https://download.blender.org/release/Blender4.2';
+export const BLENDER_VERSION = '5.2.0';
+const BASE = 'https://download.blender.org/release/Blender5.2';
 const FILE = `blender-${BLENDER_VERSION}-linux-x64.tar.xz`;
 
 export interface InstallCheck {

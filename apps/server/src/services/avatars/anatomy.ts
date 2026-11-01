@@ -18,6 +18,7 @@ import { z } from 'zod';
 import { HttpError, type AppContext } from '../../context.js';
 import { deleteMedia, mediaUrl, saveModelFile } from '../media.js';
 import { getKv, setKv } from '../settings.js';
+import { parseGlb } from './glb.js';
 
 const KEY = 'anatomy-pack';
 const SAFE = /^[A-Za-z0-9_.-]{1,80}$/;
@@ -31,16 +32,17 @@ const ManifestSchema = z.object({
     vertices: z.number().int().positive().max(100000),
     shapeKeys: z.record(z.string().regex(SAFE), z.string().regex(SAFE)).default({}),
     layers: z.record(z.string().regex(SAFE), z.string().regex(SAFE)).default({}),
+    models: z.partialRecord(z.enum(['female', 'male', 'internal']), z.string().regex(SAFE)).default({}),
   })),
 });
 
-interface Installed { name: string; license: string; installedAt: number; bases: Record<string, { vertices: number; shapeKeys: Record<string, string>; layers: Record<string, string> }> }
+interface Installed { name: string; license: string; installedAt: number; bases: Record<string, { vertices: number; shapeKeys: Record<string, string>; layers: Record<string, string>; models?: Record<string, string> }> }
 
 export function anatomyPackStatus(ctx: AppContext, owner: string) {
   const p = getKv<Installed | null>(ctx, owner, KEY, null);
   if (!p) return { installed: false as const };
   const urls = (m: Record<string, string>) => Object.fromEntries(Object.entries(m).map(([k, id]) => [k, mediaUrl(id)]));
-  return { installed: true as const, name: p.name, license: p.license, installedAt: p.installedAt, bases: Object.fromEntries(Object.entries(p.bases).map(([b, v]) => [b, { vertices: v.vertices, shapeKeys: urls(v.shapeKeys), layers: urls(v.layers) }])) };
+  return { installed: true as const, name: p.name, license: p.license, installedAt: p.installedAt, bases: Object.fromEntries(Object.entries(p.bases).map(([b, v]) => [b, { vertices: v.vertices, shapeKeys: urls(v.shapeKeys), layers: urls(v.layers), models: urls(v.models ?? {}) }])) };
 }
 
 export function installAnatomyPack(ctx: AppContext, owner: string, zip: Buffer) {
@@ -56,7 +58,7 @@ export function installAnatomyPack(ctx: AppContext, owner: string, zip: Buffer) 
   try {
     const bases: Installed['bases'] = {};
     for (const [base, b] of Object.entries(manifest.bases)) {
-      const keys: Record<string, string> = {}, layers: Record<string, string> = {};
+      const keys: Record<string, string> = {}, layers: Record<string, string> = {}, models: Record<string, string> = {};
       for (const [name, file] of Object.entries(b.shapeKeys)) {
         const data = files[file];
         if (!data || data.length !== b.vertices * 12) throw new HttpError(400, `Shape key ${name} (${file}) is missing or not ${b.vertices} vertices.`);
@@ -69,7 +71,16 @@ export function installAnatomyPack(ctx: AppContext, owner: string, zip: Buffer) 
         const m = saveModelFile(ctx, owner, Buffer.from(data), { kind: 'model-anatomy', ext: 'png', meta: { adult: true, anatomy: name, base } });
         created.push(m.id); layers[name] = m.id;
       }
-      bases[base] = { vertices: b.vertices, shapeKeys: keys, layers };
+      for (const [name, file] of Object.entries(b.models)) {
+        const data = files[file];
+        if (!data || data.length > 20 * 1024 ** 2) throw new HttpError(400, `Anatomy model ${name} is missing or larger than 20 MiB.`);
+        let gltf;
+        try { gltf = parseGlb(Buffer.from(data)).json; } catch { throw new HttpError(400, `Anatomy model ${name} is not a valid GLB.`); }
+        if (gltf.images?.some(i => i.uri) || gltf.buffers?.some(b => b.uri)) throw new HttpError(400, 'Anatomy models must embed all textures and buffers.');
+        const m = saveModelFile(ctx, owner, Buffer.from(data), { kind: 'model-anatomy', ext: 'glb', meta: { adult: true, anatomy: name, base } });
+        created.push(m.id); models[name] = m.id;
+      }
+      bases[base] = { vertices: b.vertices, shapeKeys: keys, layers, models };
     }
     removeAnatomyPack(ctx, owner);
     setKv(ctx, owner, KEY, { name: manifest.name, license: manifest.license, installedAt: Date.now(), bases } satisfies Installed);
@@ -83,7 +94,7 @@ export function installAnatomyPack(ctx: AppContext, owner: string, zip: Buffer) 
 export function removeAnatomyPack(ctx: AppContext, owner: string) {
   const p = getKv<Installed | null>(ctx, owner, KEY, null);
   if (!p) return anatomyPackStatus(ctx, owner);
-  for (const b of Object.values(p.bases)) for (const id of [...Object.values(b.shapeKeys), ...Object.values(b.layers)]) deleteMedia(ctx, owner, id);
+  for (const b of Object.values(p.bases)) for (const id of [...Object.values(b.shapeKeys), ...Object.values(b.layers), ...Object.values(b.models ?? {})]) deleteMedia(ctx, owner, id);
   setKv(ctx, owner, KEY, null);
   return anatomyPackStatus(ctx, owner);
 }
