@@ -13,7 +13,8 @@
  */
 import { echo, formatClock, PLAYER, type CampaignState, type ChatDTO, type MessageDTO, type TrackerExtras } from '@everloom/engine';
 import { HttpError, type AppContext } from '../context.js';
-import { completeChat } from '../llm/providers.js';
+import { completeChat, embed } from '../llm/providers.js';
+import { sha256 } from '../security/crypto.js';
 import { newId } from '../security/crypto.js';
 import { getState } from './campaigns.js';
 import { logged, promptTokens } from './calls.js';
@@ -44,9 +45,11 @@ export interface EchoSettings {
   drift: boolean;
   /** Higher-order depth. */
   depth: 2 | 3;
+  /** Semantic recall through the embeddings connection (behind the name shield). */
+  semantic: boolean;
 }
 
-export const DEFAULT_ECHO: EchoSettings = { profile: 'off', narration: 'character', budget: 700, tunneling: true, drift: false, depth: 2 };
+export const DEFAULT_ECHO: EchoSettings = { profile: 'off', narration: 'character', budget: 700, tunneling: true, drift: false, depth: 2, semantic: false };
 
 export function globalEcho(ctx: AppContext, owner: string): EchoSettings {
   return { ...DEFAULT_ECHO, ...getKv<Partial<EchoSettings>>(ctx, owner, 'echo', {}) };
@@ -66,6 +69,7 @@ function sanitize(s: EchoSettings): EchoSettings {
     tunneling: s.tunneling !== false,
     drift: s.drift === true,
     depth: s.depth === 3 ? 3 : 2,
+    semantic: s.semantic === true,
   };
 }
 
@@ -283,7 +287,18 @@ export function writeTurnEcho(ctx: AppContext, owner: string, chatId: string, me
     else delete extra.echoIssues;
     ctx.db.prepare('UPDATE messages SET extra = ? WHERE id = ?').run(JSON.stringify(extra), m.id);
   })();
-  if (events.length) ctx.bus.publish(owner, 'echo.changed', { chatId, messageId, events: events.length, issues: issues.length });
+  if (events.length) {
+    ctx.bus.publish(owner, 'echo.changed', { chatId, messageId, events: events.length, issues: issues.length });
+    // Deferred enrichment: vectors for the new memories, and a warm projection for the next turn.
+    void enrichVectors(ctx, owner, chat).catch(() => {});
+  }
+  setImmediate(() => {
+    try {
+      projectionFor(ctx, owner, getChat(ctx, owner, chatId));
+    } catch {
+      /* the chat may be gone */
+    }
+  });
   return { events: events.length, rejected, issues };
 }
 
@@ -382,12 +397,12 @@ const SENSORY = /\b(smell|smells|scent|aroma|perfume|stench|song|melody|tune|hum
  * The context packet for the reply being written. The perspective is the speaking character's
  * (NPC builder), or the persona's (narrator builder), or omniscient — never chosen by the model.
  */
-export function echoPacketFor(
+export async function echoPacketFor(
   ctx: AppContext,
   owner: string,
   chat: ChatDTO,
   opts: { speakerCardId: string; recentText: string; focus?: string; seed: string; chatCharacters: string[] },
-): EchoPacketResult | null {
+): Promise<EchoPacketResult | null> {
   const settings = echoSettings(ctx, owner, chat);
   if (!atLeast(settings.profile, 'fast')) return null;
   const p = projectionFor(ctx, owner, chat);
@@ -407,11 +422,13 @@ export function echoPacketFor(
     sensory: SENSORY.test(opts.focus ?? '') ? [opts.focus!] : [],
     ...(state ? { place: state.locations[loc]?.name, time: formatClock(state.time.minutes, state.meta.calendar) } : {}),
   };
+  const semantic = settings.semantic ? await semanticSignals(ctx, owner, chat.id, view, actor, opts.focus || opts.recentText.slice(-800)) : undefined;
   const packet = echo.compilePacket({
     view,
     query,
     scene,
     names,
+    ...(semantic?.size ? { signals: { semantic } } : {}),
     state: { recalls: liveRecalls(ctx, chat.id, p.path) },
     recall: { maxResults: 6, tunneling: { enabled: settings.tunneling && atLeast(settings.profile, 'balanced'), rate: 0.03, seed: opts.seed } },
     budget: settings.budget,
@@ -457,7 +474,7 @@ export function loreVisible(scope: unknown, actor: string, proj: echo.Projector 
  * the chat (the current speaker); the arguments can only narrow. Hard caps on calls and tokens.
  */
 const toolCalls = new Map<string, number>();
-export function searchCharacterMemory(ctx: AppContext, owner: string, chatId: string, args: { query: string; temporal_hint?: string; detail_level?: 'gist' | 'account' | 'exact'; max_tokens?: number }) {
+export async function searchCharacterMemory(ctx: AppContext, owner: string, chatId: string, args: { query: string; temporal_hint?: string; detail_level?: 'gist' | 'account' | 'exact'; max_tokens?: number }) {
   const chat = getChat(ctx, owner, chatId);
   const msgs = listMessages(ctx, owner, chatId);
   const key = `${chatId}:${msgs[msgs.length - 1]?.id ?? ''}`;
@@ -467,9 +484,100 @@ export function searchCharacterMemory(ctx: AppContext, owner: string, chatId: st
   const lastSpeaker = [...msgs].reverse().find((m) => m.role === 'assistant')?.characterId ?? chat.characterId ?? '';
   const cn = chatNames(ctx, owner, chat);
   const query = `${String(args.query ?? '').slice(0, 300)}${args.temporal_hint ? ` ${String(args.temporal_hint).slice(0, 60)}` : ''}${args.detail_level === 'exact' ? ' exactly' : ''}`;
-  const r = echoPacketFor(ctx, owner, { ...chat, metadata: { ...chat.metadata, echo: { ...(chat.metadata.echo ?? {}), budget: Math.max(60, Math.min(400, Number(args.max_tokens) || 250)) } } }, { speakerCardId: lastSpeaker, recentText: query, focus: query, seed: `${key}:tool${n}`, chatCharacters: cn.characters.map((c) => c.id) });
+  const r = await echoPacketFor(ctx, owner, { ...chat, metadata: { ...chat.metadata, echo: { ...(chat.metadata.echo ?? {}), budget: Math.max(60, Math.min(400, Number(args.max_tokens) || 250)) } } }, { speakerCardId: lastSpeaker, recentText: query, focus: query, seed: `${key}:tool${n}`, chatCharacters: cn.characters.map((c) => c.id) });
   if (!r) throw new HttpError(400, 'ECHO is off for this chat');
   return { actor: r.actor, text: r.packet.text || "(nothing comes to mind)", lines: r.packet.lines.filter((l) => l.section === 'memories').map((l) => l.text) };
+}
+
+// ------------------------------------------------------------------ semantic path (optional)
+
+/**
+ * Unit vectors, keyed by embedding model and the hash of the unit's own text (each actor's text is
+ * already limited to what they perceived). Kept in memory only, so nothing new lands on disk;
+ * they are computed in the background after a turn is written (deferred enrichment), and scored
+ * only for the ids of the view being recalled — never used to find anything outside it.
+ */
+const vectors = new Map<string, Float32Array>();
+const keyOf = (model: string, text: string) => `${model}|${sha256(text)}`;
+
+function cosine(a: ArrayLike<number>, b: ArrayLike<number>): number {
+  let dot = 0;
+  let na = 0;
+  let nb = 0;
+  for (let i = 0; i < Math.min(a.length, b.length); i++) {
+    dot += a[i] * b[i];
+    na += a[i] * a[i];
+    nb += b[i] * b[i];
+  }
+  return na && nb ? dot / Math.sqrt(na * nb) : 0;
+}
+
+export async function enrichVectors(ctx: AppContext, owner: string, chat: ChatDTO): Promise<number> {
+  if (!echoSettings(ctx, owner, chat).semantic) return 0;
+  const conn = connectionForRole(ctx, owner, 'embeddings');
+  if (!conn) return 0;
+  const model = String(conn.params.embeddings_model || conn.model);
+  const { proj } = projectionFor(ctx, owner, chat);
+  const todo = [...new Set(proj.units.map((u) => u.l1))].filter((t) => !vectors.has(keyOf(model, t))).slice(0, 64);
+  if (!todo.length) return 0;
+  const out = await logged(ctx, owner, conn, { chatId: chat.id, purpose: 'echo memory embeddings', role: 'embeddings' }, Math.ceil(todo.join(' ').length / 4), () => embed(conn, todo), () => '');
+  todo.forEach((t, i) => out[i] && vectors.set(keyOf(model, t), new Float32Array(out[i])));
+  return todo.length;
+}
+
+async function semanticSignals(ctx: AppContext, owner: string, chatId: string, view: echo.AuthorizedView, actor: string, query: string, timeoutMs = 1200): Promise<Map<string, number>> {
+  const out = new Map<string, number>();
+  const conn = connectionForRole(ctx, owner, 'embeddings');
+  if (!conn || !query.trim()) return out;
+  const model = String(conn.params.embeddings_model || conn.model);
+  const mine = view.units.filter((u) => u.owner === actor && vectors.has(keyOf(model, u.l1)));
+  if (!mine.length) return out;
+  try {
+    const [q] = await Promise.race([
+      logged(ctx, owner, conn, { chatId, purpose: 'echo query embedding', role: 'embeddings' }, Math.ceil(query.length / 4), () => embed(conn, [query.slice(0, 2000)]), () => ''),
+      new Promise<number[][]>((_, rej) => setTimeout(() => rej(new Error('embedding timeout')), timeoutMs)),
+    ]);
+    if (q) for (const u of mine) out.set(u.id, cosine(q, vectors.get(keyOf(model, u.l1))!));
+  } catch {
+    /* no semantic signal this turn */
+  }
+  return out;
+}
+
+// ------------------------------------------------------------------ Strict: isolated proposals
+
+/**
+ * Strict mode (§11): every other character in the scene decides what they intend from THEIR OWN
+ * packet only, in an isolated call; the writer receives the proposals, never those packets. Capped
+ * at two characters, so a turn stays a handful of calls at most.
+ */
+export async function strictProposals(ctx: AppContext, owner: string, chat: ChatDTO, opts: { speakerCardId: string; recentText: string; seed: string; chatCharacters: string[] }): Promise<string[]> {
+  const settings = echoSettings(ctx, owner, chat);
+  if (settings.profile !== 'strict') return [];
+  const conn = connectionForRole(ctx, owner, 'utility');
+  if (!conn) return [];
+  const p = projectionFor(ctx, owner, chat);
+  const speaker = actorForCard(p.state, opts.speakerCardId);
+  const others = presentIds(p.state, opts.chatCharacters).filter((a) => a !== PLAYER && a !== speaker).slice(0, 2);
+  const out: string[] = [];
+  for (const actor of others) {
+    const view = echo.authorize(p.proj, { actorId: actor, storyId: chat.id, leaf: p.leaf, accessScope: 'actor' });
+    const now = p.state?.time.minutes ?? p.proj.lastTime + 5;
+    const packet = echo.compilePacket({ view, query: echo.understand(opts.recentText.slice(-800), nameIndex(p.names), now), scene: { now, present: presentIds(p.state, opts.chatCharacters), locationId: p.state?.currentLocationId ?? 'scene' }, names: p.names, budget: 350, hypotheses: true });
+    const name = p.names[actor] ?? actor;
+    const messages = [
+      { role: 'system' as const, content: `You decide the intention of a single character, ${name}, in a roleplay scene. Use ONLY what ${name} knows (below); never assume anything else. Answer with one short sentence: what ${name} intends to do or say next, in third person.` },
+      { role: 'user' as const, content: `${packet.text || `(${name} has no relevant memories.)`}\n\nRecent scene:\n${opts.recentText.slice(-1200)}` },
+    ];
+    try {
+      const r = await logged(ctx, owner, conn, { chatId: chat.id, purpose: 'echo strict proposal', role: 'utility' }, promptTokens(messages), () => completeChat(conn, { messages, overrides: { temperature: 0.6, max_tokens: 80, stream: false, reasoning: false, stop: [] }, signal: AbortSignal.timeout(30_000) }));
+      const line = r.text.trim().split('\n')[0].slice(0, 240);
+      if (line) out.push(`${name}: ${line}`);
+    } catch {
+      /* a missing proposal leaves that character to the writer */
+    }
+  }
+  return out;
 }
 
 // ------------------------------------------------------------------ lifecycle (message-bound)

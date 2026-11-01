@@ -80,6 +80,7 @@ function classify(messages: any[]): string {
   const all = messages.map((m) => String(m.content)).join('\n');
   if (/bookkeeper for a roleplay game/i.test(sys)) return 'tracker';
   if (/ECHO extraction for a roleplay story/i.test(sys)) return 'echo';
+  if (/You decide the intention of a single character/i.test(sys)) return 'intent';
   if (/summarize stories/i.test(sys)) return 'summary';
   if (/chronicler of a roleplay story/i.test(sys)) return 'chronicle';
   if (/report its concrete intent/i.test(sys)) return 'preread';
@@ -115,6 +116,8 @@ function answerFor(kind: string, messages: any[]): string {
   switch (kind) {
     case 'echo':
       return JSON.stringify({ events: control.trackerEvents ?? [] });
+    case 'intent':
+      return 'keeps quiet and watches the door.';
     case 'tracker':
       if (/previous output was not valid JSON/i.test(all)) return JSON.stringify({ ops: [{ type: 'time.advance', minutes: 20 }, { type: 'item.add', name: 'Iced Lemon Tea', qty: 1 }] });
       return trackerAnswer(all);

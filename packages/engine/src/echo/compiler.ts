@@ -15,6 +15,7 @@ import { propText } from './props.js';
 import type { QueryUnderstanding } from './query.js';
 import { recallMemories, type RecallHit, type RecallOptions, type RecallResult, type RecallSignals, type RecallState, type SceneCues } from './recall.js';
 import { hashString } from '../util/rng.js';
+import { patternsOf, type MemoryPattern } from './consolidate.js';
 import type { ActorId, Undetermined } from './types.js';
 
 export interface Affordance {
@@ -179,10 +180,22 @@ export function compilePacket(input: CompileInput): ContextPacket {
     lines.push({ section: 'beliefs', text: ho.text, source: ho.id, reason: view.reasons.get(ho.id) ?? 'own belief about others', priority: 4 });
   }
 
-  // Memories with the smallest detail that suffices.
+  // Memories with the smallest detail that suffices. Repeats of a consolidated pattern show once.
+  const patterns = patternsOf(view.units.filter((u) => u.owner === self));
+  const patternOf = new Map<string, MemoryPattern>();
+  for (const pt of patterns) for (const id of pt.unitIds) patternOf.set(id, pt);
+  const shownPatterns = new Set<string>();
+  recall.hits = recall.hits.filter((h) => {
+    const pt = patternOf.get(h.unit.id);
+    if (!pt) return true;
+    if (shownPatterns.has(pt.id)) return false;
+    shownPatterns.add(pt.id);
+    return true;
+  });
   recall.hits.forEach((h, i) => {
     const u = h.unit;
-    const detail = query.exact && u.quote && i < 2 ? `"${u.quote}"` : i < 3 || h.involuntary ? u.l1 : u.l0;
+    const pt = patternOf.get(u.id);
+    const detail = pt ? pt.text : query.exact && u.quote && i < 2 ? `"${u.quote}"` : i < 3 || h.involuntary ? u.l1 : u.l0;
     const drift = u.drift ? ` [as ${n(self)} recalls it now: ${u.drift}]` : '';
     lines.push({ section: 'memories', text: `${detail}${drift} — ${howKnown(u.status, u.via, names)}; ${whyNow(h, names, scene.present)}`, source: u.id, reason: `${view.reasons.get(u.id) ?? 'own memory'}; recalled by ${h.why.join(', ')}`, priority: 9 - Math.min(5, i) });
   });

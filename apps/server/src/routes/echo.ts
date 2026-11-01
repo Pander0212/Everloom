@@ -15,6 +15,8 @@ import {
   addManualEvents,
   addOp,
   atLeast,
+  chatNames,
+  echoPacketFor,
   echoCacheStats,
   echoSettings,
   ECHO_PROFILES,
@@ -37,6 +39,7 @@ const SettingsBody = z.object({
   tunneling: z.boolean().optional(),
   drift: z.boolean().optional(),
   depth: z.union([z.literal(2), z.literal(3)]).optional(),
+  semantic: z.boolean().optional(),
 });
 
 const OpBody = z.discriminatedUnion('kind', [
@@ -188,6 +191,26 @@ export function registerEcho(app: FastifyInstance, ctx: AppContext) {
   app.post('/api/chats/:id/echo/recall', async (req) => {
     const body = parse(z.object({ query: z.string().min(1).max(300), temporal_hint: z.string().max(60).optional(), detail_level: z.enum(['gist', 'account', 'exact']).optional(), max_tokens: z.number().int().min(60).max(400).optional() }).strict(), req.body);
     return searchCharacterMemory(ctx, owner(req), (req.params as { id: string }).id, body);
+  });
+
+  /**
+   * Prefetch: called (debounced) while the player types and right after a reply. Warms the
+   * projection for the active leaf and compiles a packet for the draft, so the real turn finds
+   * everything cached. Returns only timings and size, never content.
+   */
+  app.post('/api/chats/:id/echo/prefetch', async (req) => {
+    const o = owner(req);
+    const chat = getChat(ctx, o, (req.params as { id: string }).id);
+    if (!atLeast(echoSettings(ctx, o, chat).profile, 'fast')) return { on: false };
+    const draft = String((req.body as { draft?: string })?.draft ?? '').slice(0, 2000);
+    const t0 = performance.now();
+    projectionFor(ctx, o, chat);
+    const t1 = performance.now();
+    const msgs = listMessages(ctx, o, chat.id);
+    const speaker = [...msgs].reverse().find((m) => m.role === 'assistant')?.characterId ?? chat.characterId ?? '';
+    const recent = msgs.slice(-3).map((m) => m.swipes[m.swipeId]?.text ?? '').join('\n');
+    const r = await echoPacketFor(ctx, o, chat, { speakerCardId: speaker, recentText: `${recent}\n${draft}`, focus: draft || undefined, seed: `prefetch:${msgs.length}`, chatCharacters: chatNames(ctx, o, chat).characters.map((c) => c.id) });
+    return { on: true, projectionMs: Math.round((t1 - t0) * 100) / 100, packetMs: Math.round((performance.now() - t1) * 100) / 100, tokens: r?.packet.tokens ?? 0 };
   });
 
   app.post('/api/chats/:id/echo/migrate', async (req) => ({ migrated: migrateLegacy(ctx, owner(req), (req.params as { id: string }).id) }));

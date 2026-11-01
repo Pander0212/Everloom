@@ -37,6 +37,9 @@ const EXACT_WORDS = /\b(exactly|word for word|exact words|what (did|had) (\w+ )?
 export function understand(text: string, names: NameIndex, now: number): QueryUnderstanding {
   const low = ` ${text.toLowerCase()} `;
   const entities: string[] = [];
+  // Name words are matched by the entity path only; as plain words they would make every memory
+  // that mentions the person a lexical hit too, and win agreement it did not earn.
+  const nameWords = new Set<string>();
   for (const [id, list] of Object.entries(names.entities)) {
     for (const n of list) {
       const t = n.toLowerCase().trim();
@@ -45,6 +48,7 @@ export function understand(text: string, names: NameIndex, now: number): QueryUn
       const re = (w: string) => new RegExp(`[^\\p{L}\\p{N}]${w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}[^\\p{L}\\p{N}]`, 'u');
       if (re(t).test(low) || (first.length >= 4 && re(first).test(low))) {
         entities.push(id);
+        for (const n2 of list) for (const w of words(n2)) nameWords.add(w);
         break;
       }
     }
@@ -73,7 +77,7 @@ export function understand(text: string, names: NameIndex, now: number): QueryUn
   return {
     text,
     entities,
-    words: [...new Set(words(text))],
+    words: [...new Set(words(text))].filter((w) => !nameWords.has(w)),
     temporal,
     attributes: attributesOf(text),
     exact: EXACT_WORDS.test(text),

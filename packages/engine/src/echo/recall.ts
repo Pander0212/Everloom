@@ -55,6 +55,8 @@ export interface RecallOptions {
   /** Multiplier for contradicted attributes. */
   dampen?: number;
   tunneling?: { enabled: boolean; rate: number; seed: string };
+  /** Drop hits scoring below this share of the best one (default 0.4). */
+  cutoff?: number;
 }
 
 export const DEFAULT_PATH_WEIGHTS: Record<RecallPath, number> = {
@@ -129,7 +131,7 @@ const now = () => (typeof performance !== 'undefined' ? performance.now() : Date
 export function recallMemories(view: AuthorizedView, q: QueryUnderstanding, scene: SceneCues, signals: RecallSignals = {}, state: RecallState = {}, opts: RecallOptions = {}): RecallResult {
   const t0 = now();
   const w = { ...DEFAULT_PATH_WEIGHTS, ...(opts.weights ?? {}) };
-  const k = opts.rrfK ?? 10;
+  const k = opts.rrfK ?? 5;
   const self = view.perspective.accessScope === 'persona-narrator' ? 'player' : view.perspective.actorId;
   const units = view.units.filter((u) => u.owner === self || view.perspective.accessScope === 'omniscient' || view.perspective.accessScope === 'adjudicator');
   const raw: Partial<Record<RecallPath, Map<string, number>>> = {};
@@ -235,13 +237,15 @@ export function recallMemories(view: AuthorizedView, q: QueryUnderstanding, scen
   const floors: Partial<Record<RecallPath, number>> = { lexical: 0.15, semantic: 0.45, entity: 0.2, temporal: 0.5, commitment: 0.5, trigger: 0.4, predictive: 0.5, recency: 0 };
   const fuse = (path: RecallPath, m: Map<string, number>) => {
     const ranked = [...m].filter(([, v]) => v >= (floors[path] ?? 0)).sort((a, b) => b[1] - a[1]);
+    const top = ranked[0]?.[1] || 1;
     ranked.forEach(([id, v], i) => {
       const u = byId.get(id);
       if (!u) return;
       let h = fused.get(id);
       if (!h) fused.set(id, (h = { unit: u, score: 0, paths: {}, agreeing: 0, accessibility: 1, why: [] }));
       h.paths[path] = { rank: i + 1, raw: Math.round(v * 1000) / 1000 };
-      h.score += w[path] / (k + i + 1);
+      // Rank fusion weighted by how strong the match is within its path: a clear #1 stays clear.
+      h.score += (w[path] * (0.4 + 0.6 * Math.min(1, v / top))) / (k + i + 1);
     });
   };
   for (const p of Object.keys(raw) as RecallPath[]) fuse(p, raw[p]!);
@@ -271,7 +275,8 @@ export function recallMemories(view: AuthorizedView, q: QueryUnderstanding, scen
       }
     }
     h.accessibility = accessibility(h.unit, scene.now, state.recalls?.get(h.unit.id));
-    h.score *= (0.6 + 0.4 * h.accessibility) * (1 - 0.4 * Math.max(0, Math.min(1, state.impairedNow ?? 0)));
+    // Accessibility tilts, it never decides: a strong cue still reaches an old memory.
+    h.score *= (0.8 + 0.2 * h.accessibility) * (1 - 0.4 * Math.max(0, Math.min(1, state.impairedNow ?? 0)));
     h.why = (Object.keys(h.paths) as RecallPath[]).filter((p) => p !== 'recency').map((p) => `${p} #${h.paths[p]!.rank}`);
     if (h.dampened) h.why.push(`dampened (${h.dampened})`);
   }
@@ -281,7 +286,9 @@ export function recallMemories(view: AuthorizedView, q: QueryUnderstanding, scen
   const seen = new Set<string>();
   hits = hits.filter((h) => (seen.has(h.unit.eventId) ? false : (seen.add(h.unit.eventId), true)));
   const max = opts.maxResults ?? 6;
-  hits = hits.slice(0, max);
+  // A weak tail is noise, not context: keep what is within reach of the best match.
+  const best = hits[0]?.score ?? 0;
+  hits = hits.filter((h) => h.score >= (opts.cutoff ?? 0.4) * best).slice(0, max);
 
   // Tunneling: a faded memory surfacing through a strong sensory cue. Rare, seeded, marked.
   const tun = opts.tunneling;

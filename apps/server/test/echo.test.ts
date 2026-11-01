@@ -187,4 +187,39 @@ describe('ECHO on the server', () => {
     expect(trackerPrompts.some((s: string) => s.includes('\\"events\\"'))).toBe(true);
     expect(trackerPrompts.some((s: string) => !s.includes('\\"events\\"'))).toBe(true);
   });
+  it('Strict: another character proposes from its own knowledge only, in an isolated call', async () => {
+    const { chat } = await newChat('strict');
+    await say(chat.id, 'Hi', 'Iris nods.', { trackerMemories: [] });
+    // At the bar, Tobias walks in (an NPC standing here).
+    await say(chat.id, 'Who is that?', 'Tobias Moreno walks in.', { trackerOps: [{ type: 'location.move', to: 'The Bar' }, { type: 'npc.upsert', name: 'Tobias Moreno', role: 'Band leader', location: 'The Bar' }], trackerMemories: [] });
+    await waitFor(async () => ((await c.req('GET', `/api/calls?chatId=${chat.id}`)).json.filter((x: any) => x.purpose === 'tracker').length >= 2 ? true : null));
+    const msgs = (await c.req('GET', `/api/chats/${chat.id}/messages`)).json;
+    // A secret only Mara holds.
+    await c.req('POST', `/api/chats/${chat.id}/echo/events`, { messageId: msgs[msgs.length - 1].id, events: [{ type: 'action', actors: ['Mara'], action: 'Mara pocketed the silver key to the strongroom', visibility: 'secret', observers: [{ actor: 'player', place: 'here', sight: true, hearing: 'clear', awake: true, impairment: 0, attention: 1 }], establishes: [{ s: 'strongroom key', p: 'holder', o: 'mara' }] }] });
+    await control({ calls: [] });
+    await c.req('POST', `/api/chats/${chat.id}/messages`, { role: 'user', text: 'I keep my hand on the strongroom key in my pocket.' });
+    await control({ story: 'Iris raises an eyebrow.' });
+    await c.req('POST', `/api/chats/${chat.id}/generate`, { type: 'normal', text: 'Well?' });
+    const calls = (await (await fetch(mock.url.replace('/v1', '/__control'))).json()).calls;
+    const intents = calls.filter((x: any) => x.kind === 'intent');
+    expect(intents.length).toBeGreaterThan(0);
+    for (const i of intents) expect(JSON.stringify(i.body)).not.toContain('silver key');
+    const reply = calls.filter((x: any) => x.kind === 'story').pop();
+    expect(JSON.stringify(reply.body)).toContain('keeps quiet and watches the door');
+  });
+
+  it('semantic recall (optional) scores only the view, and prefetch warms the cache', async () => {
+    const { chat } = await newChat();
+    const emb = await c.req('POST', '/api/connections', { name: 'Emb', provider: 'openai', baseUrl: mock.url, model: 'mock-embed', params: {} });
+    await c.req('PATCH', '/api/settings', { roles: { embeddings: emb.json.id } });
+    await c.req('PATCH', `/api/chats/${chat.id}/echo`, { semantic: true });
+    await say(chat.id, 'Where do the Ravens practise?', 'Iris leans in. "The old chapel, Sundays."', { trackerEvents: rehearsal, trackerMemories: [] });
+    await waitFor(async () => ((await c.req('GET', `/api/calls?chatId=${chat.id}`)).json.some((x: any) => x.purpose === 'echo memory embeddings') ? true : null));
+    const pre = (await c.req('POST', `/api/chats/${chat.id}/echo/prefetch`, { draft: 'about the chapel rehearsal' })).json;
+    expect(pre.on).toBe(true);
+    expect(pre.tokens).toBeGreaterThan(0);
+    expect(JSON.stringify(pre)).not.toContain('chapel');
+    const st = await echoState(chat.id);
+    expect(st.cache.hits + st.cache.incremental).toBeGreaterThan(0);
+  });
 });

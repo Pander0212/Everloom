@@ -21,7 +21,7 @@ import { search } from './search.js';
 import { countTokens } from './tokens.js';
 import { semanticHits } from './semantic.js';
 import { nameOfPerson, recallForScene } from './mem.js';
-import { atLeast, echoPacketFor, echoSettings, loreVisible, projectionFor, actorForCard, type EchoPacketResult } from './echo.js';
+import { atLeast, echoPacketFor, echoSettings, loreVisible, projectionFor, actorForCard, strictProposals, type EchoPacketResult } from './echo.js';
 
 export type GenType = 'normal' | 'swipe' | 'regenerate' | 'continue' | 'impersonate' | 'quiet';
 
@@ -238,7 +238,7 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
   }));
   // ECHO: the speaker's (or the persona's) own context packet, built through the access engine.
   const echoPacket = echoOn
-    ? echoPacketFor(ctx, owner, chat, { speakerCardId: character.id, recentText, focus: lastUser ? textOf(lastUser) : undefined, seed: opts.echoSeed ?? `${chat.id}:${opts.history.length}`, chatCharacters: pc.members.map((m) => m.id) })
+    ? await echoPacketFor(ctx, owner, chat, { speakerCardId: character.id, recentText, focus: lastUser ? textOf(lastUser) : undefined, seed: opts.echoSeed ?? `${chat.id}:${opts.history.length}`, chatCharacters: pc.members.map((m) => m.id) })
     : null;
   // Balanced and Strict: the omniscient per-person knowledge lines are not given to the writer
   // (ECHO's per-perspective packet replaces them). Fast keeps them (no strict isolation guarantee).
@@ -271,6 +271,13 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     // No game: memory is still recalled and injected as the story so far.
     const lines = [...recap, ...recalled.map((r) => `- ${r.text}`), ...(factsBy.world ?? []).map((f) => `- ${f}`), ...Object.entries(factsBy).filter(([k]) => k !== 'world').flatMap(([, v]) => v.map((f) => `- ${f}`))];
     memory = lines.length ? `[Story so far]\n${lines.join('\n')}` : '';
+  }
+  // Strict: other characters' intentions, each decided in isolation from its own knowledge.
+  const proposals = echoOn && echoCfg.profile === 'strict' && opts.type !== 'quiet' && opts.echoSeed ? await strictProposals(ctx, owner, chat, { speakerCardId: character.id, recentText, seed: opts.echoSeed, chatCharacters: pc.members.map((m) => m.id) }) : [];
+  if (proposals.length) {
+    const block = `[ECHO · what the others intend (each decided from their own knowledge; suggestions for the scene)]\n${proposals.map((x) => `- ${x}`).join('\n')}\n[/ECHO]`;
+    if (gameState) gameState = `${gameState}\n\n${block}`;
+    else memory = memory ? `${memory}\n\n${block}` : block;
   }
   if (echoPacket?.packet.text) {
     if (gameState) gameState = `${gameState}\n\n${echoPacket.packet.text}`;

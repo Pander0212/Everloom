@@ -8,3 +8,5 @@ export * from './recall.js';
 export * from './compiler.js';
 export * from './validate.js';
 export * from './extract.js';
+export * from './decide.js';
+export * from './consolidate.js';

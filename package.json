@@ -25,7 +25,8 @@
     "bench:memory": "tsx tests/memory-bench/cli.ts",
     "prepare": "node -e \"try{require('child_process').execSync('git config core.hooksPath scripts/hooks',{stdio:'ignore'})}catch(e){}\"",
     "check:secrets": "node scripts/check-secrets.mjs --all",
-    "bones:automap": "tsx tools/bones/automap.ts"
+    "bones:automap": "tsx tools/bones/automap.ts",
+    "bench:echo": "tsx tests/echo-bench/cli.ts"
   },
   "devDependencies": {
     "@playwright/test": "1.56.1",
