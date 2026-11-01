@@ -8,6 +8,7 @@ import type { PairedInfo } from '../avatar/paired.js';
 import type { CampaignState } from './state.js';
 
 import { INLINE_TAG_RE } from './inline-tags.js';
+import { ECHO_EXTRACTION_PROMPT } from '../echo/extract.js';
 
 export { INLINE_TAG_RE, stripInlineTags } from './inline-tags.js';
 
@@ -26,6 +27,7 @@ export function extractInlineOps(text: string, allowed?: readonly string[]): Val
       const x = readTrackerExtras(v);
       extras.memories.push(...x.memories);
       extras.facts.push(...x.facts);
+      if (x.events) (extras.events ??= []).push(...x.events);
     }
   }
   return { ...validateOps(all, (allowed as OpType[] | undefined) ?? AI_OP_TYPES), ...extras, found };
@@ -50,19 +52,21 @@ export const MEMORY_CONTRACT = `Also record what is worth remembering from the l
 - "facts": standing truths the turn establishes or CHANGES about a person, place or the world (rank, job, home, allegiance, relationship status, a lasting injury). Fields: "about" (a name, or "world"), "key" (a short slot like "rank"), "value", "text" (one sentence), "changed" (true only if the turn shows it changing, e.g. "was knighted").
 Leave both empty when nothing notable happened.`;
 
-export function buildTrackerPrompt(state: CampaignState, messages: TrackerMessage[], opts: { characterNames?: string[]; memory?: boolean; allowed?: readonly string[]; emotes?: readonly EmoteInfo[]; paired?: readonly PairedInfo[] } = {}) {
+export function buildTrackerPrompt(state: CampaignState, messages: TrackerMessage[], opts: { characterNames?: string[]; memory?: boolean; allowed?: readonly string[]; emotes?: readonly EmoteInfo[]; paired?: readonly PairedInfo[]; echo?: boolean } = {}) {
   const memory = opts.memory !== false;
+  // ECHO on: the same call also returns structured events (no extra model call per turn).
+  const ev = memory && opts.echo ? ',"events":[...]' : '';
   // Only the enabled modules' ops are described (a shorter, cheaper prompt).
   const reference = opts.allowed ? opReferenceFor(opts.allowed, { emotes: opts.emotes, paired: opts.paired }) : OP_REFERENCE;
   const timeRule = !opts.allowed || opts.allowed.includes('time.advance') ? '\n- Include a "time.advance" op with the minutes the scene plausibly took (0 if unclear).' : '';
-  const system = `You are the bookkeeper for a roleplay game. Read the latest story turn and output ONLY the state changes it caused, as JSON: {"ops":[...]${memory ? ',"memories":[...],"facts":[...]' : ''}}.
+  const system = `You are the bookkeeper for a roleplay game. Read the latest story turn and output ONLY the state changes it caused, as JSON: {"ops":[...]${memory ? `,"memories":[...],"facts":[...]${ev}` : ''}}.
 Rules:
 - Only record what actually happened in the latest turn. Never repeat changes from earlier turns.
 - Numbers are small and realistic (a meal: hunger -20..-30; a short walk: 5..15 minutes).
 - Use existing names from the state when referring to people, places, items and organizations.${timeRule}
 - If nothing changed, output {"ops":[]${memory ? ',"memories":[],"facts":[]' : ''}}.
 - Output JSON only. No prose, no markdown.
-${reference}${memory ? `\n\n${MEMORY_CONTRACT}` : ''}`;
+${reference}${memory ? `\n\n${MEMORY_CONTRACT}` : ''}${ev ? `\n${ECHO_EXTRACTION_PROMPT}` : ''}`;
   const stateBlock = buildGameStateBlock(state, { budgetTokens: 700 });
   const convo = messages
     .slice(-6)
@@ -74,7 +78,7 @@ ${opts.characterNames?.length ? `\nKnown characters: ${opts.characterNames.join(
 Recent story (the last message is the new turn):
 ${convo}
 
-Return {"ops":[...]${memory ? ',"memories":[...],"facts":[...]' : ''}} for the new turn only.`;
+Return {"ops":[...]${memory ? `,"memories":[...],"facts":[...]${ev}` : ''}} for the new turn only.`;
   return { system, user };
 }
 
@@ -99,6 +103,8 @@ export interface TrackedFact {
 export interface TrackerExtras {
   memories: TrackedMemory[];
   facts: TrackedFact[];
+  /** ECHO: raw structured events (validated by echo.parseEchoEvents). */
+  events?: unknown[];
 }
 
 const str = (v: unknown, max: number) => (typeof v === 'string' ? v.trim().slice(0, max) : typeof v === 'number' ? String(v) : '');
@@ -118,7 +124,7 @@ export function readTrackerExtras(value: unknown): TrackerExtras {
     .map((f: any) => ({ about: str(f.about ?? f.entity, 80), key: str(f.key, 40), value: str(f.value, 200), text: str(f.text, 400), changed: f.changed === true }))
     .filter((f) => f.about && f.key && f.value)
     .slice(0, 6);
-  return { memories, facts };
+  return Array.isArray(v.events) ? { memories, facts, events: v.events.slice(0, 6) } : { memories, facts };
 }
 
 export function parseTrackerOutput(text: string, allowed?: readonly string[]): ValidatedOps & TrackerExtras & { parsed: boolean } {

@@ -21,6 +21,7 @@ import { search } from './search.js';
 import { countTokens } from './tokens.js';
 import { semanticHits } from './semantic.js';
 import { nameOfPerson, recallForScene } from './mem.js';
+import { atLeast, echoPacketFor, echoSettings, loreVisible, projectionFor, actorForCard, type EchoPacketResult } from './echo.js';
 
 export type GenType = 'normal' | 'swipe' | 'regenerate' | 'continue' | 'impersonate' | 'quiet';
 
@@ -108,6 +109,8 @@ export interface BuildOptions {
   happens?: string[];
   /** Storyline rungs at this turn (from the turn tick). */
   threadRungs?: Record<string, number>;
+  /** ECHO: seed for this message + swipe (re-rollable details, involuntary recall). */
+  echoSeed?: string;
 }
 
 export interface BuiltPrompt {
@@ -118,6 +121,8 @@ export interface BuiltPrompt {
   macros: MacroContext;
   wiActivated: Array<{ world: string; uid: number; comment: string }>;
   wiTimed: { sticky: Record<string, number>; cooldown: Record<string, number> };
+  /** ECHO's context packet for this reply (null when ECHO is off for the chat). */
+  echo: EchoPacketResult | null;
 }
 
 export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptContext, opts: BuildOptions): Promise<BuiltPrompt> {
@@ -160,7 +165,15 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
 
   // World info scan
   const books = booksForChat(ctx, owner, chat.id, pc.members.map((m) => m.id));
-  const entries: ScanEntry[] = books.flatMap((b) => Object.values(b.book.entries).map((e) => ({ ...e, world: b.id })));
+  const echoCfg = echoSettings(ctx, owner, chat);
+  const echoOn = atLeast(echoCfg.profile, 'fast');
+  // ECHO lorebook scopes: an entry scoped to a group or to secret holders reaches the prompt only
+  // when the perspective may know it. Unscoped entries are common knowledge (unchanged).
+  const loreProj = echoOn ? projectionFor(ctx, owner, chat).proj : null;
+  const loreActor = echoCfg.narration === 'persona' ? PLAYER : actorForCard(state, character.id);
+  const entries: ScanEntry[] = books
+    .flatMap((b) => Object.values(b.book.entries).map((e) => ({ ...e, world: b.id })))
+    .filter((e) => !echoOn || loreVisible((e as { extensions?: Record<string, unknown> }).extensions?.echo_scope, loreActor, loreProj, echoCfg.narration === 'omniscient'));
   const visible = opts.history.filter((m) => !m.hidden);
   const scanText = visible
     .slice()
@@ -223,6 +236,13 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     heard: r.k.kind === 'heard',
     secretWith: r.m.secret ? r.m.witnesses.filter((w) => w !== PLAYER).map((w) => nameOfPerson(state, w, names)) : undefined,
   }));
+  // ECHO: the speaker's (or the persona's) own context packet, built through the access engine.
+  const echoPacket = echoOn
+    ? echoPacketFor(ctx, owner, chat, { speakerCardId: character.id, recentText, focus: lastUser ? textOf(lastUser) : undefined, seed: opts.echoSeed ?? `${chat.id}:${opts.history.length}`, chatCharacters: pc.members.map((m) => m.id) })
+    : null;
+  // Balanced and Strict: the omniscient per-person knowledge lines are not given to the writer
+  // (ECHO's per-perspective packet replaces them). Fast keeps them (no strict isolation guarantee).
+  if (echoPacket && atLeast(echoCfg.profile, 'balanced')) scene.result.people = [];
   if (state && settings.tracker.injectState && features.on.sceneBlock) {
     const known = search(ctx, owner, recentText, { campaignId: chat.campaignId, kinds: ['fact', 'runin', 'diary'], limit: 4 }).map((h) => (h.title ? `${h.title}: ${h.body}` : h.body));
     const texts = recentPhoneTexts(ctx, owner, chat.campaignId!, state);
@@ -251,6 +271,10 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     // No game: memory is still recalled and injected as the story so far.
     const lines = [...recap, ...recalled.map((r) => `- ${r.text}`), ...(factsBy.world ?? []).map((f) => `- ${f}`), ...Object.entries(factsBy).filter(([k]) => k !== 'world').flatMap(([, v]) => v.map((f) => `- ${f}`))];
     memory = lines.length ? `[Story so far]\n${lines.join('\n')}` : '';
+  }
+  if (echoPacket?.packet.text) {
+    if (gameState) gameState = `${gameState}\n\n${echoPacket.packet.text}`;
+    else memory = memory ? `${memory}\n\n${echoPacket.packet.text}` : echoPacket.packet.text;
   }
 
   const extraRules: string[] = [];
@@ -333,6 +357,7 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     macros,
     wiActivated: wi.activated.map((e) => ({ world: e.world, uid: e.uid, comment: e.comment || e.key.join(', ') })),
     wiTimed: wi.timed,
+    echo: echoPacket,
   };
 }
 

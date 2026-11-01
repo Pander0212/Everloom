@@ -706,4 +706,72 @@ CREATE INDEX studio_characters_owner ON studio_characters(owner_id, updated_at);
 CREATE UNIQUE INDEX studio_characters_link ON studio_characters(owner_id, character_id) WHERE character_id IS NOT NULL;
 `,
   },
+  {
+    version: 14,
+    name: 'echo',
+    sql: `
+-- ECHO: an append-only event log per chat, anchored to message + swipe exactly like op_log. Live
+-- events are those whose message is on the active path with the same swipe; everything else
+-- (beliefs, memories, hypotheses) is a projection rebuilt from them. All of it lives in the
+-- content database, so the Vault encrypts it with everything else.
+CREATE TABLE echo_events (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  chat_id TEXT NOT NULL,
+  message_id TEXT,
+  swipe_id INTEGER,
+  seq REAL NOT NULL,
+  source TEXT NOT NULL,
+  data TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX echo_events_chat ON echo_events(chat_id, seq);
+CREATE INDEX echo_events_message ON echo_events(message_id);
+-- Author edits (pre-decided twists, retractions, suppressions): message-bound or always live.
+CREATE TABLE echo_ops (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  chat_id TEXT NOT NULL,
+  message_id TEXT,
+  swipe_id INTEGER,
+  kind TEXT NOT NULL,
+  data TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX echo_ops_chat ON echo_ops(chat_id);
+-- Recall reconsolidation: which memories a reply recalled (message-bound, so swipes undo it).
+CREATE TABLE echo_recalls (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  chat_id TEXT NOT NULL,
+  message_id TEXT NOT NULL,
+  swipe_id INTEGER NOT NULL,
+  unit_id TEXT NOT NULL,
+  game_time INTEGER NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX echo_recalls_chat ON echo_recalls(chat_id);
+CREATE INDEX echo_recalls_message ON echo_recalls(message_id);
+-- The leakage debugger: what each reply was given, and why each line was authorized.
+CREATE TABLE echo_packets (
+  message_id TEXT NOT NULL,
+  swipe_id INTEGER NOT NULL,
+  owner_id TEXT NOT NULL,
+  chat_id TEXT NOT NULL,
+  data TEXT NOT NULL,
+  created_at INTEGER NOT NULL,
+  PRIMARY KEY (message_id, swipe_id)
+);
+-- The manual editor's audit history (never deleted with the op it describes).
+CREATE TABLE echo_audit (
+  id TEXT PRIMARY KEY,
+  owner_id TEXT NOT NULL,
+  chat_id TEXT NOT NULL,
+  action TEXT NOT NULL,
+  detail TEXT NOT NULL,
+  created_at INTEGER NOT NULL
+);
+CREATE INDEX echo_audit_chat ON echo_audit(chat_id, created_at);
+`,
+  },
 ];

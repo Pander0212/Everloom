@@ -15,6 +15,8 @@ export interface MockControl {
   trackerOps: unknown[] | null;
   trackerMemories: unknown[] | null;
   trackerFacts: unknown[] | null;
+  /** ECHO structured events returned by the tracker (and by a stand-alone ECHO extraction). */
+  trackerEvents: unknown[] | null;
   chronicle: unknown;
   story: string | null;
   delayMs: number;
@@ -23,7 +25,7 @@ export interface MockControl {
   calls: Array<{ path: string; model: string; kind: string; body: any }>;
 }
 
-const control: MockControl = { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, chronicle: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] };
+const control: MockControl = { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, trackerEvents: null, chronicle: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] };
 let takes = 0;
 let brokenServed = false;
 
@@ -54,7 +56,7 @@ function trackerAnswer(prompt: string): string {
   const memories: any[] = control.trackerMemories ? [...control.trackerMemories] : [];
   const facts: any[] = control.trackerFacts ? [...control.trackerFacts] : [];
   if (!control.trackerMemories && /Tobias/.test(story)) memories.push({ text: 'Tobias said the Ravens need a singer by Friday.', about: ['Tobias'], importance: 2 });
-  const json = JSON.stringify({ ops, memories, facts });
+  const json = JSON.stringify(control.trackerEvents ? { ops, memories, facts, events: control.trackerEvents } : { ops, memories, facts });
   switch (control.trackerMode) {
     case 'messy':
       return 'Sure! Here are the changes:\n```json\n' + json.replace(/"type"/g, "'type'").replace(/\]\}$/, ',]}') + '\n```\nLet me know if you need more.';
@@ -77,6 +79,7 @@ function classify(messages: any[]): string {
   const sys = String(messages.find((m) => m.role === 'system')?.content ?? '');
   const all = messages.map((m) => String(m.content)).join('\n');
   if (/bookkeeper for a roleplay game/i.test(sys)) return 'tracker';
+  if (/ECHO extraction for a roleplay story/i.test(sys)) return 'echo';
   if (/summarize stories/i.test(sys)) return 'summary';
   if (/chronicler of a roleplay story/i.test(sys)) return 'chronicle';
   if (/report its concrete intent/i.test(sys)) return 'preread';
@@ -110,6 +113,8 @@ function classify(messages: any[]): string {
 function answerFor(kind: string, messages: any[]): string {
   const all = messages.map((m) => String(m.content)).join('\n');
   switch (kind) {
+    case 'echo':
+      return JSON.stringify({ events: control.trackerEvents ?? [] });
     case 'tracker':
       if (/previous output was not valid JSON/i.test(all)) return JSON.stringify({ ops: [{ type: 'time.advance', minutes: 20 }, { type: 'item.add', name: 'Iced Lemon Tea', qty: 1 }] });
       return trackerAnswer(all);
@@ -285,7 +290,7 @@ export function createMockLlm() {
     if (p === '/__control') {
       Object.assign(control, body);
       if (body.reset) {
-        Object.assign(control, { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, chronicle: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] });
+        Object.assign(control, { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, trackerEvents: null, chronicle: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] });
         takes = 0;
         brokenServed = false;
       }

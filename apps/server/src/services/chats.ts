@@ -7,6 +7,7 @@ import { json } from '../db/index.js';
 import { newId } from '../security/crypto.js';
 import { createCampaign, deleteEntriesFor, forkCampaign, onMessagesDeleted, onSwipeDeleted, rebuildCampaign } from './campaigns.js';
 import { deleteAnchored, forkMemory, memOnMessagesDeleted, memOnSwipeDeleted } from './mem.js';
+import { echoOnMessagesDeleted, echoOnRewrite, echoOnSwipeDeleted, forkEcho, invalidateEcho } from './echo.js';
 import { getCharacter } from './characters.js';
 import { defaultPersona, getPersona } from './personas.js';
 import { getSettings } from './settings.js';
@@ -221,6 +222,7 @@ export function deleteChat(ctx: AppContext, owner: string, id: string) {
     ctx.db.prepare('DELETE FROM messages WHERE chat_id = ?').run(id);
     ctx.db.prepare('DELETE FROM chats WHERE id = ? AND owner_id = ?').run(id, owner);
     ctx.db.prepare('DELETE FROM memories WHERE chat_id = ?').run(id);
+    for (const t of ['echo_events', 'echo_ops', 'echo_recalls', 'echo_packets', 'echo_audit']) ctx.db.prepare(`DELETE FROM ${t} WHERE chat_id = ?`).run(id);
     ctx.db.prepare("DELETE FROM lorebooks WHERE scope = 'chat' AND scope_id = ? AND owner_id = ?").run(id, owner);
     if (chat.campaignId) {
       const others = (ctx.db.prepare('SELECT COUNT(*) AS n FROM chats WHERE campaign_id = ?').get(chat.campaignId) as { n: number }).n;
@@ -228,6 +230,7 @@ export function deleteChat(ctx: AppContext, owner: string, id: string) {
       else ctx.db.prepare('DELETE FROM op_log WHERE campaign_id = ? AND chat_id = ?').run(chat.campaignId, id);
     }
   })();
+  invalidateEcho(id);
   if (chat.campaignId) {
     try {
       rebuildCampaign(ctx, owner, chat.campaignId);
@@ -263,6 +266,7 @@ export function branchChat(ctx: AppContext, owner: string, chatId: string, messa
     forkMemory(ctx, owner, { campaignId: chat.campaignId, chatId }, { campaignId: cid, chatId: newChatId }, map);
     rebuildCampaign(ctx, owner, cid);
   } else forkMemory(ctx, owner, { campaignId: null, chatId }, { campaignId: null, chatId: newChatId }, map);
+  forkEcho(ctx, owner, chatId, newChatId, map);
   return getChat(ctx, owner, newChatId);
 }
 
@@ -301,6 +305,8 @@ export function updateMessage(
     const chat = getChat(ctx, owner, m.chatId);
     if (chat.campaignId) deleteEntriesFor(ctx, chat.campaignId, id, m.swipeId, ['ai']);
     deleteAnchored(ctx, id, m.swipeId, ['turn', 'sim']);
+    echoOnRewrite(ctx, id, m.swipeId);
+    invalidateEcho(m.chatId);
   }
   return { message: getMessage(ctx, owner, id), textChanged };
 }
@@ -327,6 +333,8 @@ export function deleteSwipe(ctx: AppContext, owner: string, id: string, swipeId:
   writeSwipes(ctx, id, swipes, nextId);
   const chat = getChat(ctx, owner, m.chatId);
   memOnSwipeDeleted(ctx, id, swipeId);
+  echoOnSwipeDeleted(ctx, id, swipeId);
+  invalidateEcho(m.chatId);
   if (chat.campaignId) {
     onSwipeDeleted(ctx, chat.campaignId, id, swipeId);
     rebuildCampaign(ctx, owner, chat.campaignId);
@@ -344,10 +352,12 @@ export function deleteMessages(ctx: AppContext, owner: string, id: string, andAf
   ctx.db.transaction(() => {
     onMessagesDeleted(ctx, owner, m.chatId, rows, chat.campaignId);
     memOnMessagesDeleted(ctx, rows.map((r) => r.id));
+    echoOnMessagesDeleted(ctx, rows.map((r) => r.id));
     const ph = rows.map(() => '?').join(',');
     ctx.db.prepare(`DELETE FROM messages WHERE id IN (${ph})`).run(...rows.map((r) => r.id));
   })();
   touchChat(ctx, m.chatId);
+  invalidateEcho(m.chatId);
   if (chat.campaignId) rebuildCampaign(ctx, owner, chat.campaignId);
   return rows.map((r) => r.id);
 }

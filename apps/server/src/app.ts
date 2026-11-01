@@ -44,6 +44,7 @@ import { logSafeError, recordError, setContentFreeLogs } from './services/diagno
 import { backfillMeta } from './services/characters.js';
 import { registerInspector } from './routes/inspector.js';
 import { registerMemory } from './routes/memory.js';
+import { registerEcho } from './routes/echo.js';
 import { registerLibrary } from './routes/library.js';
 import { registerSystem } from './routes/system.js';
 import { decryptWithPassword, encryptWithPassword, isPasswordEncrypted } from './vault/crypto.js';
@@ -175,6 +176,7 @@ export async function buildApp(cfg: Config, opts: { db?: DB; logger?: boolean } 
   registerChats(app, ctx);
   registerGame(app, ctx);
   registerMemory(app, ctx);
+  registerEcho(app, ctx);
   registerInspector(app, ctx);
   registerCharLib(app, ctx);
   registerCss(app, ctx);

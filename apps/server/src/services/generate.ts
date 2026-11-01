@@ -14,6 +14,7 @@ import { buildPrompt, loadPromptContext, type GenType, type PromptContext } from
 import { countTokens } from './tokens.js';
 import { applyTracked, runTrackerPass } from './tracker.js';
 import { deleteAnchored } from './mem.js';
+import { atLeast, echoOnRewrite, echoSettings, invalidateEcho, recordPacket, runEchoExtraction } from './echo.js';
 import { recordCall } from './calls.js';
 import { settingsFor } from './features.js';
 import { getVars, regexForChat, setVars } from './scripts.js';
@@ -159,6 +160,8 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       if (chat.campaignId) {
         deleteEntriesFor(ctx, chat.campaignId, target.id, swipeIndex, ['ai', 'script']);
         deleteAnchored(ctx, target.id, swipeIndex, ['turn', 'sim']);
+        echoOnRewrite(ctx, target.id, swipeIndex);
+        invalidateEcho(chatId);
         rebuildCampaign(ctx, owner, chat.campaignId, input.origin);
       }
       promptHistory = history.slice(0, -1);
@@ -207,6 +210,8 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       dice: tick?.dice,
       happens: tick?.happens,
       threadRungs: tick ? Object.fromEntries(tick.threads.map((t) => [t.id, t.rung])) : undefined,
+      // Seeded per message and swipe: a swipe can re-roll undecided details and involuntary recall.
+      echoSeed: target ? `${target.id}:${swipeIndex}` : `${lastUserMsg?.id ?? chatId}:${promptHistory.length}`,
     });
     lastPrompts.set(chatId, {
       at: Date.now(),
@@ -219,6 +224,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       trimmedHistory: built.assembled.trimmedHistory,
       worldInfo: built.wiActivated,
       scene: built.scene ? { text: built.scene.text, tokens: built.scene.tokens, dropped: built.scene.dropped } : null,
+      echo: built.echo ? { actor: built.echo.actor, scope: built.echo.scope, tokens: built.echo.packet.tokens, text: built.echo.packet.text } : null,
     });
     chat = updateChat(ctx, owner, chatId, { metadata: { wiTimed: built.wiTimed, vars: built.macros.vars as Record<string, string> } });
     // {{setglobalvar}} / {{setcharvar}} in the prompt change those scopes too.
@@ -326,6 +332,7 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
       return;
     }
     save(true);
+    if (built.echo) recordPacket(ctx, owner, chatId, messageId, swipeIndex, built.echo, pc.state?.time.minutes ?? 0);
     const finalText = textOf(getMessage(ctx, owner, messageId));
     const emotion = detectEmotion(finalText);
     const m0 = getMessage(ctx, owner, messageId);
@@ -350,6 +357,8 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
           .finally(() => afterTurn(ctx, owner, chatId));
       }
     } else afterTurn(ctx, owner, chatId);
+    // No tracker pass to read the turn (no game layer): ECHO reads it with one small call of its own.
+    if (!trackerOn && atLeast(echoSettings(ctx, owner, chat).profile, 'fast')) void runEchoExtraction(ctx, owner, chatId, messageId).catch(() => {});
   } finally {
     active.delete(chatId);
   }

@@ -10,6 +10,7 @@ import { getChat, getGroup, getMessage, listMessages, writeSwipes } from './chat
 import { connectionForRole } from './connections.js';
 import { recordUnresolved } from './health.js';
 import { runHearsay, writeTurnMemory, type TurnWriteResult } from './mem.js';
+import { atLeast, echoSettings, writeTurnEcho } from './echo.js';
 import { defaultPersona, getPersona } from './personas.js';
 import { getSettings } from './settings.js';
 
@@ -52,7 +53,7 @@ async function doRun(ctx: AppContext, owner: string, chatId: string, messageId: 
   const { system, user } = buildTrackerPrompt(
     state,
     all.slice(-6).map((m) => ({ name: m.name, role: m.role, text: stripInlineTags(m.swipes[m.swipeId]?.text ?? '') })),
-    { characterNames: characterRefs(ctx, owner).map((c) => c.name).slice(0, 40), memory: settings.world.memory, allowed, ...(() => { const emotes = emotesForChat(ctx, owner, chatCharacterIds(ctx, owner, chat).map((c) => c.id)); return { emotes, paired: emotes.length ? pairedFor(ctx, owner) : [] }; })() },
+    { characterNames: characterRefs(ctx, owner).map((c) => c.name).slice(0, 40), memory: settings.world.memory, echo: atLeast(echoSettings(ctx, owner, chat).profile, 'fast'), allowed, ...(() => { const emotes = emotesForChat(ctx, owner, chatCharacterIds(ctx, owner, chat).map((c) => c.id)); return { emotes, paired: emotes.length ? pairedFor(ctx, owner) : [] }; })() },
   );
   ctx.bus.publish(owner, 'tracker.status', { chatId, messageId, status: 'running' });
   const call = (extra: Array<{ role: 'user' | 'assistant'; content: string }> = []) => {
@@ -134,6 +135,12 @@ export function writeTurnWorld(ctx: AppContext, owner: string, chatId: string, m
       .map((x) => stripInlineTags(x.swipes[x.swipeId]?.text ?? ''))
       .join('\n');
     res = writeTurnMemory(ctx, owner, chat, state, { chatId, messageId, swipeId }, extras, { player: playerName(ctx, owner, chat), characters: cards }, turnText, cards.map((c) => c.id));
+  }
+  // ECHO (when on for this chat): the same reading becomes message-bound events.
+  try {
+    writeTurnEcho(ctx, owner, chatId, messageId, swipeId, extras);
+  } catch (e) {
+    ctx.bus.publish(owner, 'echo.error', { chatId, messageId, error: (e as Error).message });
   }
   if (state && settings.world.hearsay) runHearsay(ctx, owner, chat, state, { chatId, messageId, swipeId }, { maxDistortion: 3, perListener: 2 });
   if (res && (res.memories || res.facts.inserted || res.facts.superseded || res.facts.conflicts)) ctx.bus.publish(owner, 'memory.changed', { chatId, campaignId: chat.campaignId });
