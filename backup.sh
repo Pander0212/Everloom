@@ -3,6 +3,8 @@
 # on the host.
 # All file work happens inside the container (which owns data/), so this runs as your normal user.
 set -euo pipefail
+# Never stop without saying why.
+trap 'echo "Backup stopped unexpectedly (line $LINENO, exit $?)." >&2' ERR
 cd "$(dirname "$0")"
 DOCKER="docker"; docker info >/dev/null 2>&1 || DOCKER="sudo docker"
 mkdir -p backups
@@ -27,7 +29,7 @@ stopped_copy() {
 if $DOCKER compose exec -T everloom true >/dev/null 2>&1; then
   # Running: the server makes the backup itself (it holds the database open, and the vault key when
   # the vault is on), into data/backups; it's then copied out here. Same zip as the app's backups.
-  RESULT="$($DOCKER compose exec -T everloom sh -c 'T="$(cat /data/.control-token 2>/dev/null)"; [ -n "$T" ] && curl -fsS -X POST -H "x-control-token: $T" http://127.0.0.1:8787/api/local/backup' 2>/dev/null || true)"
+  RESULT="$($DOCKER compose exec -T everloom sh -c 'T="$(cat /data/.control-token 2>/dev/null)"; [ -n "$T" ] && curl -fsS --max-time 600 -X POST -H "x-control-token: $T" http://127.0.0.1:8787/api/local/backup' 2>/dev/null || true)"
   NAME="$(printf '%s' "$RESULT" | sed -n 's/.*"name":"\([^"]*\)".*/\1/p')"
   if [ -n "$NAME" ]; then
     OUT="backups/everloom-$STAMP.zip"
@@ -50,5 +52,7 @@ fi
 # Run with sudo: give the archive to whoever owns this folder, like everything else in it.
 [ "$(id -u)" = 0 ] && chown "$(stat -c %u:%g .)" "$OUT" 2>/dev/null || true
 # Keep the 14 newest host backups.
-ls -1t backups/everloom-*.tar.gz backups/everloom-*.zip 2>/dev/null | tail -n +15 | xargs -r rm -f
+# (ls fails when one of the two patterns matches nothing, e.g. only .zip backups exist; with pipefail
+# that used to end the script silently right here, and update.sh with it.)
+{ ls -1t backups/everloom-*.tar.gz backups/everloom-*.zip 2>/dev/null || true; } | tail -n +15 | xargs -r rm -f
 echo "Backup written to $OUT"
