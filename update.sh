@@ -2,6 +2,8 @@
 # Update Everloom: backup → pull → rebuild → migrate → restart → check the new build is running.
 # Run it as your normal user (sudo is used for docker when needed). Running it with sudo also works.
 set -euo pipefail
+# Never stop without saying why.
+trap 'echo "Update stopped unexpectedly (line $LINENO, exit $?). Nothing after this step was done." >&2' ERR
 cd "$(dirname "$0")"
 DOCKER="docker"; docker info >/dev/null 2>&1 || DOCKER="sudo docker"
 
@@ -13,7 +15,10 @@ git_() {
 }
 
 echo "Backing up first…"
-bash backup.sh
+if ! bash backup.sh; then
+  echo "The backup failed, so the update was not started (nothing was changed)." >&2
+  exit 1
+fi
 
 echo "Pulling the latest version…"
 BEFORE="$(git_ rev-parse --short HEAD)"
@@ -35,7 +40,7 @@ $DOCKER compose up -d
 echo "Waiting for Everloom to start…"
 RUNNING=""
 for _ in $(seq 1 60); do
-  RUNNING="$($DOCKER compose exec -T everloom curl -fsS http://127.0.0.1:8787/api/health 2>/dev/null | sed -n 's/.*"build":"\([^"]*\)".*/\1/p' || true)"
+  RUNNING="$($DOCKER compose exec -T everloom curl -fsS --max-time 5 http://127.0.0.1:8787/api/health 2>/dev/null | sed -n 's/.*"build":"\([^"]*\)".*/\1/p' || true)"
   [ -n "$RUNNING" ] && break
   sleep 2
 done
