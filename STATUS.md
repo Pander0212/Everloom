@@ -2,6 +2,41 @@
 
 Snapshot of what's built, what's partial, and how it was tested. Everloom 0.1.0.
 
+## ECHO: epistemic memory (2026-11-01)
+
+Docs: [docs/echo/](docs/echo/) (audit, design with every "quantum" term mapped to code, decisions,
+evaluation, API).
+
+- **Engine** (`packages/engine/src/echo/`): message-bound event log replayed per active branch;
+  perception (salience × awareness, sight/sound/smell, doors, language, disguise, attention);
+  bitemporal facts and historical queries; observations, beliefs with justification-based truth
+  maintenance, testimony and rumor chains, higher-order beliefs (depth 2, 3 configurable),
+  hypotheses biased by personality, lazy canon with constraints and pre-decided twists,
+  commitments and trust, group knowledge; the access engine (the only way to a prompt);
+  multi-path recall with strength-weighted RRF, interference, forgetting curve, reconsolidation
+  and seeded involuntary recall; the context compiler with L0/L1/L2 and rotated affordances;
+  four separate context builders; deterministic validation; belief-conditioned decisions;
+  consolidation of repeated episodes.
+- **Server:** migration 14 (ECHO tables, all inside the Vault's encrypted database); events from the
+  tracker call (no new call; one extraction call for chats without the game layer); validation
+  against the projection before the message; the speaker's or persona's packet in the prompt;
+  lorebook knowledge scopes; Strict mode's isolated proposals; optional semantic recall through the
+  embeddings connection (behind the name shield); prefetch; swipes, edits, regenerations, deletes
+  and branches carry ECHO with them; reversible migration of legacy memories; inspector API.
+- **Web:** Memory sheet › ECHO tab: profile per chat, who knows what (beliefs with sources,
+  suspicions with weights, known unknowns, memories, a moment in the past), undecided details with
+  "decide a twist" behind the spoiler guard, and "What the AI saw" (the leakage debugger).
+- **Off unless chosen**; existing chats are unchanged.
+- **Tests:** Vitest 1324 passed, 8 skipped (baseline 1270): epistemic 1–17, recall 1–12, a
+  property-based leakage test (300 random stories × 6 actors, 0 leaks), cognition, a benchmark
+  pin, the server vertical slice (10); Playwright `echo.spec.ts` on two projects.
+- **Benchmark** (`npm run bench:echo`, 100–5,000 records): ECHO beats recency-only, plain top-k and
+  legacy recall on Recall@3 (92 % vs ≤ 83 %), MRR, precision and staying quiet (100 % vs 0 % for
+  legacy); packets ≈ 85–105 tokens; warm read p95 ≈ 78 ms at 5,000 records on this container.
+- **Not yet:** real-model and VPS measurements, local ONNX embeddings and a reranker, the recall tool
+  inside providers' tool calling, automatic regeneration in Strict, scene planning, relationship
+  graph drawing, campaign-wide ECHO across chats. Details in [docs/echo/EVAL.md](docs/echo/EVAL.md).
+
 ## Character Studio: paper-doll characters (2026-10-20)
 
 Docs: docs/character-studio/ (README, FORMAT v1, making templates, costs); evidence:

@@ -12,6 +12,7 @@ import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { del, get, patch, post } from '@/lib/api';
 import { cx, relativeTime } from '@/lib/format';
 import { toast, toastError } from '@/lib/store';
+import { EchoPanel } from './EchoPanel';
 import { Badge, Button, Dialog, EmptyState, Field, Icon, IconButton, Input, Menu, Segmented, Select, Sheet, Spinner, TabPanel, Tabs, Textarea, useDesktop } from '@/ui';
 
 interface Person {
@@ -151,6 +152,7 @@ export function MemorySheet({ chat, open, onOpenChange }: { chat: ChatDTO; open:
             { value: 'people', label: 'People' },
             { value: 'facts', label: openConflicts ? <span className="flex items-center gap-1.5">Facts <Badge tone="warning">{openConflicts}</Badge></span> : 'Facts' },
             { value: 'summaries', label: 'Summaries', count: d?.summaries.length },
+            { value: 'echo', label: 'ECHO' },
           ]}
         >
           <TabPanel value="timeline">
@@ -186,6 +188,7 @@ export function MemorySheet({ chat, open, onOpenChange }: { chat: ChatDTO; open:
           </TabPanel>
           <TabPanel value="facts">{d ? <FactsView d={d} act={act} /> : <Loading />}</TabPanel>
           <TabPanel value="summaries">{d ? <SummariesView summaries={d.summaries} act={act} /> : <Loading />}</TabPanel>
+          <TabPanel value="echo">{tab === 'echo' ? <EchoPanel chatId={chat.id} /> : null}</TabPanel>
         </Tabs>
       </Sheet>
       <EditMemoryDialog chatId={chat.id} people={d?.people ?? []} target={editing} onClose={() => setEditing(null)} onSaved={refresh} />

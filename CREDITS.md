@@ -301,3 +301,16 @@ Studied for ideas (licences checked in the repositories, commits given); no code
   `samples/gen/studio/` and shared as packs (an all-ages pack and a separate 18+ pack); none is in
   the repository. The repository's own studio pictures are drawn from simple shapes
   (`tools/studio/fixture-pack.ts`).
+
+## ECHO memory (November 2026)
+
+ECHO is written from scratch; it uses ideas, not code, from these:
+
+- **Reciprocal Rank Fusion** — G. V. Cormack, C. L. A. Clarke, S. Büttcher, "Reciprocal Rank Fusion outperforms Condorcet and individual rank learning methods" (SIGIR 2009). ECHO's interference scoring is a strength-weighted variant.
+- **Justification-based truth maintenance** — J. Doyle, "A Truth Maintenance System" (Artificial Intelligence, 1979). ECHO's belief supports and retraction follow the JTMS idea.
+- **HippoRAG** — B. J. Gutiérrez et al., "HippoRAG: Neurobiologically Inspired Long-Term Memory for Large Language Models" (2024): the associative, Personalized-PageRank-style idea behind ECHO's one-hop entity association.
+- **BM25** — S. Robertson and H. Zaragoza, "The Probabilistic Relevance Framework: BM25 and Beyond" (2009).
+- **Forgetting curve and spaced repetition** — H. Ebbinghaus (1885) and the spaced-repetition literature, for accessibility that fades and strengthens with recall.
+- **Bitemporal data** — R. T. Snodgrass, *Developing Time-Oriented Database Applications in SQL* (1999), for valid-from/valid-to facts.
+- **Graphiti** (Zep, Apache-2.0) was evaluated as a temporal knowledge-graph adapter and not used (see `docs/echo/DECISIONS.md`).
+- The three earlier specs ECHO merges (the ECHO epistemic engine, the Quantum Recall Engine and the Narrative Intelligence Engine) are the owner's.
