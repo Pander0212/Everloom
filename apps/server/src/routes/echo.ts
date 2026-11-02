@@ -40,6 +40,9 @@ const SettingsBody = z.object({
   drift: z.boolean().optional(),
   depth: z.union([z.literal(2), z.literal(3)]).optional(),
   semantic: z.boolean().optional(),
+  historyNotes: z.boolean().optional(),
+  guard: z.enum(['off', 'flag', 'repair']).optional(),
+  characterFirst: z.boolean().optional(),
 });
 
 const OpBody = z.discriminatedUnion('kind', [

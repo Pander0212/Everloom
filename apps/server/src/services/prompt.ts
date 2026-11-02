@@ -21,7 +21,7 @@ import { search } from './search.js';
 import { countTokens } from './tokens.js';
 import { semanticHits } from './semantic.js';
 import { nameOfPerson, recallForScene } from './mem.js';
-import { atLeast, echoPacketFor, echoSettings, loreVisible, projectionFor, actorForCard, strictProposals, type EchoPacketResult } from './echo.js';
+import { atLeast, characterFirst, echoPacketFor, echoSettings, historyNotes, loreVisible, projectionFor, actorForCard, strictProposals, type EchoPacketResult } from './echo.js';
 
 export type GenType = 'normal' | 'swipe' | 'regenerate' | 'continue' | 'impersonate' | 'quiet';
 
@@ -280,6 +280,13 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     if (gameState) gameState = `${gameState}\n\n${block}`;
     else memory = memory ? `${memory}\n\n${block}` : block;
   }
+  // Strict+ / character-first: the addressed character's own response, decided in isolation.
+  const first = echoOn && opts.type !== 'quiet' && opts.type !== 'impersonate' && opts.echoSeed && lastUser ? await characterFirst(ctx, owner, chat, { speakerCardId: character.id, focus: textOf(lastUser), history: opts.history, chatCharacters: pc.members.map((m) => m.id), seed: opts.echoSeed }) : null;
+  if (first) {
+    const block = `[ECHO · ${first.name}'s response, decided from what ${first.name} knows. Write it into the scene in your own words; keep its meaning, and keep what ${first.name} does not know unknown.]\n${first.response}\n[/ECHO]`;
+    if (gameState) gameState = `${gameState}\n\n${block}`;
+    else memory = memory ? `${memory}\n\n${block}` : block;
+  }
   if (echoPacket?.packet.text) {
     if (gameState) gameState = `${gameState}\n\n${echoPacket.packet.text}`;
     else memory = memory ? `${memory}\n\n${echoPacket.packet.text}` : echoPacket.packet.text;
@@ -298,11 +305,13 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
   // for its placement, since it is never stored.
   const rules = regexForChat(ctx, owner, chat.id);
   const rx = (text: string, placement: RegexPlacement, depth?: number, includeStored = false) => (rules.length ? applyRegexScripts(text, rules, { placement, target: 'prompt', depth, macros, includeStored }) : text);
+  // ECHO history notes: private moments are marked where they happened (never stored).
+  const notes = echoOn ? historyNotes(ctx, owner, chat, { chatCharacters: pc.members.map((m) => m.id), speakerCardId: character.id }) : new Map<string, string>();
   const history: HistoryMessage[] = visible.map((m, i) => ({
     id: m.id,
     role: m.role === 'user' ? 'user' : m.role === 'system' ? 'system' : 'assistant',
     name: m.name,
-    content: rx(stripInlineTags(m.role === 'user' && isInputMode(m.extra?.inputMode) ? frameInput(m.extra.inputMode, textOf(m)) : textOf(m)), m.role === 'user' ? RegexPlacement.userInput : RegexPlacement.aiOutput, visible.length - 1 - i),
+    content: rx(stripInlineTags(m.role === 'user' && isInputMode(m.extra?.inputMode) ? frameInput(m.extra.inputMode, textOf(m)) : textOf(m)), m.role === 'user' ? RegexPlacement.userInput : RegexPlacement.aiOutput, visible.length - 1 - i) + (notes.has(m.id) ? `\n${notes.get(m.id)}` : ''),
   }));
   if (rules.length) {
     const wiRx = (t: string) => rx(t, RegexPlacement.worldInfo, undefined, true);

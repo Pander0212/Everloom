@@ -17,6 +17,10 @@ export interface MockControl {
   trackerFacts: unknown[] | null;
   /** ECHO structured events returned by the tracker (and by a stand-alone ECHO extraction). */
   trackerEvents: unknown[] | null;
+  /** ECHO guard verdicts, consumed one per guard call (then "no violations"). */
+  guardVerdicts: unknown[][];
+  /** Ops returned to a tracker ledger follow-up. */
+  ledgerOps: unknown[] | null;
   chronicle: unknown;
   story: string | null;
   delayMs: number;
@@ -25,7 +29,7 @@ export interface MockControl {
   calls: Array<{ path: string; model: string; kind: string; body: any }>;
 }
 
-const control: MockControl = { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, trackerEvents: null, chronicle: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] };
+const control: MockControl = { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, trackerEvents: null, guardVerdicts: [], ledgerOps: null, chronicle: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] };
 let takes = 0;
 let brokenServed = false;
 
@@ -81,6 +85,8 @@ function classify(messages: any[]): string {
   if (/bookkeeper for a roleplay game/i.test(sys)) return 'tracker';
   if (/ECHO extraction for a roleplay story/i.test(sys)) return 'echo';
   if (/You decide the intention of a single character/i.test(sys)) return 'intent';
+  if (/You check a roleplay reply for knowledge leaks/i.test(sys)) return 'guard';
+  if (/Write only .+'s immediate response to/i.test(sys)) return 'charfirst';
   if (/summarize stories/i.test(sys)) return 'summary';
   if (/chronicler of a roleplay story/i.test(sys)) return 'chronicle';
   if (/report its concrete intent/i.test(sys)) return 'preread';
@@ -116,9 +122,14 @@ function answerFor(kind: string, messages: any[]): string {
   switch (kind) {
     case 'echo':
       return JSON.stringify({ events: control.trackerEvents ?? [] });
+    case 'guard':
+      return JSON.stringify({ violations: control.guardVerdicts.shift() ?? [] });
+    case 'charfirst':
+      return 'He shrugs. "Didn\'t see a thing, lass. What did you put there?"';
     case 'intent':
       return 'keeps quiet and watches the door.';
     case 'tracker':
+      if (/Your ops missed something the turn shows/i.test(all)) return JSON.stringify({ ops: control.ledgerOps ?? [] });
       if (/previous output was not valid JSON/i.test(all)) return JSON.stringify({ ops: [{ type: 'time.advance', minutes: 20 }, { type: 'item.add', name: 'Iced Lemon Tea', qty: 1 }] });
       return trackerAnswer(all);
     case 'summary':
@@ -293,7 +304,7 @@ export function createMockLlm() {
     if (p === '/__control') {
       Object.assign(control, body);
       if (body.reset) {
-        Object.assign(control, { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, trackerEvents: null, chronicle: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] });
+        Object.assign(control, { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, trackerEvents: null, guardVerdicts: [], ledgerOps: null, chronicle: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] });
         takes = 0;
         brokenServed = false;
       }

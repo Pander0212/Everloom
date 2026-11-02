@@ -1,5 +1,5 @@
 ﻿/** Tracker pass: after an AI message, ask the utility model for JSON ops and apply them. */
-import { AI_OP_TYPES, allowedOpTypes, buildTrackerPrompt, normalizeAvatarOps, parseTrackerOutput, stripInlineTags, TRACKER_REPAIR_PROMPT, type Op, type TrackerExtras } from '@everloom/engine';
+import { AI_OP_TYPES, allowedOpTypes, buildTrackerPrompt, ledgerGaps, ledgerPrompt, normalizeAvatarOps, parseTrackerOutput, stripInlineTags, TRACKER_REPAIR_PROMPT, type Op, type TrackerExtras } from '@everloom/engine';
 import { emotesFor, emotesForChat, pairedFor } from './avatars/service.js';
 import { settingsFor } from './features.js';
 import type { AppContext } from '../context.js';
@@ -56,10 +56,10 @@ async function doRun(ctx: AppContext, owner: string, chatId: string, messageId: 
     { characterNames: characterRefs(ctx, owner).map((c) => c.name).slice(0, 40), memory: settings.world.memory, echo: atLeast(echoSettings(ctx, owner, chat).profile, 'fast'), allowed, ...(() => { const emotes = emotesForChat(ctx, owner, chatCharacterIds(ctx, owner, chat).map((c) => c.id)); return { emotes, paired: emotes.length ? pairedFor(ctx, owner) : [] }; })() },
   );
   ctx.bus.publish(owner, 'tracker.status', { chatId, messageId, status: 'running' });
-  const call = (extra: Array<{ role: 'user' | 'assistant'; content: string }> = [], maxTokens = 1100) => {
+  const call = (extra: Array<{ role: 'user' | 'assistant'; content: string }> = [], maxTokens = 1100, via = conn, purpose?: string) => {
     const messages = [{ role: 'system' as const, content: system }, { role: 'user' as const, content: user }, ...extra];
-    return logged(ctx, owner, conn, { chatId, messageId, purpose: extra.length ? 'tracker (repair)' : 'tracker', role: 'utility' }, promptTokens(messages), () =>
-      completeChat(conn, {
+    return logged(ctx, owner, via, { chatId, messageId, purpose: purpose ?? (extra.length ? 'tracker (repair)' : 'tracker'), role: 'utility' }, promptTokens(messages), () =>
+      completeChat(via, {
         messages,
         overrides: { temperature: 0.2, max_tokens: maxTokens, stream: true, reasoning: false, stop: [] },
         signal: AbortSignal.timeout(90_000),
@@ -95,6 +95,20 @@ async function doRun(ctx: AppContext, owner: string, chatId: string, messageId: 
       /* keep the failed parse */
     }
   }
+  // Still nothing: one try with the main connection when it is a different model (the utility
+  // model may be one that can't do structured output; measured live).
+  if (!parsed.parsed) {
+    const main = connectionForRole(ctx, owner, 'main');
+    if (main && (main.id !== conn.id || main.model !== conn.model)) {
+      try {
+        out = await call([], 2500, main, 'tracker (fallback)');
+        parsed = parseTrackerOutput(out.text, allowed);
+        if (parsed.parsed) ctx.bus.publish(owner, 'tracker.status', { chatId, messageId, status: 'fallback', note: `The tracker model (${conn.model}) returned no usable JSON; the main model (${main.model}) read this turn instead.` });
+      } catch {
+        /* report below */
+      }
+    }
+  }
   if (!parsed.parsed) {
     ctx.bus.publish(owner, 'tracker.status', { chatId, messageId, status: 'error', error: 'Tracker returned no JSON' });
     return { ok: false, summary: [], error: 'Tracker returned no usable JSON' };
@@ -102,6 +116,20 @@ async function doRun(ctx: AppContext, owner: string, chatId: string, messageId: 
   // The message may have been swiped or edited meanwhile; only write if it's still the same text.
   const now = getMessage(ctx, owner, messageId);
   if (now.swipeId !== swipeId || (now.swipes[swipeId]?.text ?? '') !== textAtStart) return { ok: false, summary: [], error: 'Message changed while tracking' };
+  // Ledger check: the turn says money changed hands or something was bought, but no op records it.
+  const turnText = all.slice(-2).map((m) => stripInlineTags(m.swipes[m.swipeId]?.text ?? '')).join('\n');
+  const gaps = allowed.includes('currency.delta') ? ledgerGaps(turnText, parsed.ok) : [];
+  if (gaps.length) {
+    try {
+      const fix = await call([{ role: 'assistant', content: out.text.slice(0, 3000) }, { role: 'user', content: ledgerPrompt(gaps) }], 600, conn, 'tracker (ledger)');
+      const extra = parseTrackerOutput(fix.text, allowed);
+      if (extra.parsed) parsed = { ...parsed, ok: [...parsed.ok, ...extra.ok.filter((o) => o.type === 'currency.delta' || o.type === 'item.add')] };
+    } catch {
+      /* keep what we have */
+    }
+  }
+  const latest = getMessage(ctx, owner, messageId);
+  if (latest.swipeId !== swipeId || (latest.swipes[swipeId]?.text ?? '') !== textAtStart) return { ok: false, summary: [], error: 'Message changed while tracking' };
   const result = applyTracked(ctx, owner, chat.campaignId, chatId, messageId, swipeId, parsed.ok, 'ai', origin, parsed);
   ctx.bus.publish(owner, 'tracker.status', { chatId, messageId, status: 'done', summary: result.summary, memory: result.memory });
   return { ok: true, summary: result.summary, rejected: parsed.rejected.length + result.errors.length, memory: result.memory };

@@ -21,6 +21,8 @@ export interface ExtractContext {
   observers: ObserverState[];
   sourceMessageIds: string[];
   resolve: (name: string) => ActorId | null;
+  /** People only (actors, addressees, owners): may return a provisional id for someone unnamed. */
+  resolveActor?: (name: string) => ActorId | null;
   provenance?: EchoEvent['provenance'];
 }
 
@@ -55,18 +57,19 @@ let counter = 0;
 const evId = (ctx: ExtractContext, i: number) => `ev_${(ctx.messageId ?? 'manual').slice(-12)}_${ctx.swipeId ?? 'n'}_${i}${ctx.messageId ? '' : `_${++counter}`}`;
 
 export function parseEchoEvents(raw: unknown, ctx: ExtractContext): { events: EchoEvent[]; rejected: number } {
+  const who = ctx.resolveActor ?? ctx.resolve;
   const events: EchoEvent[] = [];
   let rejected = 0;
   const list = arr(raw).slice(0, 6);
   list.forEach((v: any, i) => {
     const action = str(v?.action ?? v?.text, 600);
-    const actors = arr(v?.actors ?? v?.who).map((n) => ctx.resolve(str(n, 80))).filter((x): x is string => !!x);
+    const actors = arr(v?.actors ?? v?.who).map((n) => who(str(n, 80))).filter((x): x is string => !!x);
     if (!action || action.length < 6) {
       rejected++;
       return;
     }
     const type: EventType = TYPES.has(v?.type) ? v.type : 'action';
-    const recipients = arr(v?.to).map((n) => ctx.resolve(str(n, 80))).filter((x): x is string => !!x);
+    const recipients = arr(v?.to).map((n) => who(str(n, 80))).filter((x): x is string => !!x);
     const cues: Cue[] = arr(v?.seen)
       .map((c: any) => ({
         channel: (['sight', 'sound', 'smell', 'touch'].includes(c?.channel) ? c.channel : 'sight') as Cue['channel'],
@@ -118,14 +121,14 @@ export function parseEchoEvents(raw: unknown, ctx: ExtractContext): { events: Ec
       schemaVersion: 1,
     };
     const promise = v?.promise;
-    if (promise && str(promise.what) && actors[0]) e.commitment = { id: `${id}:p`, by: actors[0], to: arr(promise.to).map((n) => ctx.resolve(str(n, 80))).filter((x): x is string => !!x), what: str(promise.what, 200) };
+    if (promise && str(promise.what) && actors[0]) e.commitment = { id: `${id}:p`, by: actors[0], to: arr(promise.to).map((n) => who(str(n, 80))).filter((x): x is string => !!x), what: str(promise.what, 200) };
     const feelings = arr(v?.feelings)
-      .map((f: any) => ({ actor: ctx.resolve(str(f?.who, 80)), emotion: str(f?.emotion, 30), intensity: num(f?.intensity, 0.5), toward: f?.toward ? ctx.resolve(str(f.toward, 80)) ?? undefined : undefined }))
+      .map((f: any) => ({ actor: who(str(f?.who, 80)), emotion: str(f?.emotion, 30), intensity: num(f?.intensity, 0.5), toward: f?.toward ? who(str(f.toward, 80)) ?? undefined : undefined }))
       .filter((f) => f.actor && f.emotion) as NonNullable<EchoEvent['emotions']>;
     if (feelings.length) e.emotions = feelings.slice(0, 4);
     const hyps = arr(v?.suspects)
       .map((h: any) => {
-        const owner = ctx.resolve(str(h?.who, 80));
+        const owner = who(str(h?.who, 80));
         const options = arr(h?.options)
           .map((o: any) => {
             const prop = toProp(o, ctx.resolve);

@@ -14,7 +14,7 @@ import { buildPrompt, loadPromptContext, type GenType, type PromptContext } from
 import { countTokens } from './tokens.js';
 import { applyTracked, runTrackerPass } from './tracker.js';
 import { deleteAnchored } from './mem.js';
-import { atLeast, echoOnRewrite, echoSettings, invalidateEcho, recordPacket, runEchoExtraction } from './echo.js';
+import { atLeast, echoOnRewrite, echoSettings, guardReply, invalidateEcho, recordPacket, runEchoExtraction } from './echo.js';
 import { recordCall } from './calls.js';
 import { settingsFor } from './features.js';
 import { getVars, regexForChat, setVars } from './scripts.js';
@@ -56,6 +56,8 @@ export interface GenerateInput {
   /** What the player's text is (Act, Say, Story, Direct); stored on the message, framed in the prompt. */
   mode?: InputMode | null;
   origin?: string;
+  /** Internal: this generation is the ECHO guard's one repair (no further repairs). */
+  guardDepth?: number;
 }
 
 function textOf(m: MessageDTO) {
@@ -97,6 +99,14 @@ export function pickSpeaker(pc: PromptContext, muted: Set<string>, strategy: str
 }
 
 export async function generate(ctx: AppContext, owner: string, chatId: string, input: GenerateInput, emit: (e: GenerateEvent) => void): Promise<void> {
+  let repair: string | null = null;
+  await generateOnce(ctx, owner, chatId, input, emit, (r) => (repair = r));
+  // The guard's one repair: the same swipe, written again with what went wrong.
+  if (repair) await generateOnce(ctx, owner, chatId, { type: 'regenerate', instruction: repair, origin: input.origin, guardDepth: 1 }, emit, () => {});
+}
+
+async function generateOnce(ctx: AppContext, owner: string, chatId: string, input: GenerateInput, emit: (e: GenerateEvent) => void, onRepair: (instruction: string) => void): Promise<void> {
+  let repair: string | null = null;
   if (active.has(chatId)) throw new HttpError(409, 'Already generating in this chat');
   const controller = new AbortController();
   active.set(chatId, controller);
@@ -342,6 +352,19 @@ export async function generate(ctx: AppContext, owner: string, chatId: string, i
     const finalMsg = getMessage(ctx, owner, messageId);
     emit({ type: 'done', messageId, swipeId: swipeIndex, message: finalMsg, error });
     pub('message.updated', { chatId, message: finalMsg });
+
+    // ECHO guard: did a character show knowledge they never perceived? Repair once if so.
+    // The repaired reply is checked too, but only flagged: one rewrite at most.
+    if (built.echo && !error) {
+      const g = await guardReply(ctx, owner, chat, messageId, finalText, { chatCharacters: pc.members.map((m) => m.id), speakerCardId: pc.character.id }).catch(() => null);
+      const fix = input.guardDepth ? null : g?.instruction ?? null;
+      if (g?.violations.length) pub('echo.guard', { chatId, messageId, violations: g.violations, repairing: !!fix });
+      if (fix) repair = fix;
+    }
+    if (repair) {
+      onRepair(repair);
+      return;
+    }
 
     // 7. Game state + memory (after the reply is safely stored), then background memory work,
     // which needs to see this turn's memories.

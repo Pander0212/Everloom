@@ -10,3 +10,4 @@ export * from './validate.js';
 export * from './extract.js';
 export * from './decide.js';
 export * from './consolidate.js';
+export * from './guard.js';

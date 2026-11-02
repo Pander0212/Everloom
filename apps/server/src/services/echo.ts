@@ -48,9 +48,15 @@ export interface EchoSettings {
   depth: 2 | 3;
   /** Semantic recall through the embeddings connection (behind the name shield). */
   semantic: boolean;
+  /** Mark private moments in the chat history the writer sees (Balanced and up). */
+  historyNotes: boolean;
+  /** Check replies for characters knowing what they never perceived: off, flag, or repair (one rewrite). */
+  guard: 'off' | 'flag' | 'repair';
+  /** Strict+: the addressed character answers first, from their own knowledge and history only. */
+  characterFirst: boolean;
 }
 
-export const DEFAULT_ECHO: EchoSettings = { profile: 'off', narration: 'character', budget: 700, tunneling: true, drift: false, depth: 2, semantic: false };
+export const DEFAULT_ECHO: EchoSettings = { profile: 'off', narration: 'character', budget: 700, tunneling: true, drift: false, depth: 2, semantic: false, historyNotes: true, guard: 'repair', characterFirst: false };
 
 export function globalEcho(ctx: AppContext, owner: string): EchoSettings {
   return { ...DEFAULT_ECHO, ...getKv<Partial<EchoSettings>>(ctx, owner, 'echo', {}) };
@@ -71,6 +77,9 @@ function sanitize(s: EchoSettings): EchoSettings {
     drift: s.drift === true,
     depth: s.depth === 3 ? 3 : 2,
     semantic: s.semantic === true,
+    historyNotes: s.historyNotes !== false,
+    guard: s.guard === 'off' || s.guard === 'flag' ? s.guard : 'repair',
+    characterFirst: s.characterFirst === true,
   };
 }
 
@@ -121,6 +130,12 @@ export function nameMap(state: CampaignState | null, names: ChatNames): Record<s
   for (const l of Object.values(state?.locations ?? {})) out[l.id] = l.name;
   return out;
 }
+
+/** Display name of a provisional actor ("anon:one_armed_dwarf" → "the one armed dwarf"). */
+const anonName = (id: string) => `the ${id.slice(5).replace(/_/g, ' ')}`;
+
+/** What text describes an NPC (for merging provisional actors and spotting who is addressed). */
+const npcText = (n: { name: string; aliases?: string[]; role?: string; title?: string; appearance?: string }) => [n.name, ...(n.aliases ?? []), n.role ?? '', n.title ?? '', n.appearance ?? ''].join(' ');
 
 function nameIndex(map: Record<string, string>): echo.NameIndex {
   return { entities: Object.fromEntries(Object.entries(map).filter(([id]) => id !== PLAYER).map(([id, n]) => [id, [n]])) };
@@ -189,12 +204,17 @@ export function projectionFor(ctx: AppContext, owner: string, chat: ChatDTO, opt
   const names = nameMap(state, cn);
   const path = activePath(ctx, chat.id);
   let live = echo.onBranch(allEvents(ctx, chat.id), path);
+  // Someone first met unnamed ("the dwarf") becomes the NPC who fits them once there is one.
+  const provisional = [...new Set(live.flatMap((e) => [...e.actors, ...e.recipients]).filter((a) => a.startsWith('anon:')))];
+  const merged = echo.mergeProvisional(provisional, Object.values(state?.npcs ?? {}).map((n) => ({ id: n.id, text: npcText(n) })));
+  live = echo.remapActors(live, merged);
+  for (const a of provisional) if (!merged.has(a)) names[a] = anonName(a);
   if (opts.excludeMessage) live = live.filter((e) => !(e.messageId === opts.excludeMessage!.id && e.swipeId === opts.excludeMessage!.swipeId));
   const ops = liveOps(ctx, chat.id, path);
   const settings = echoSettings(ctx, owner, chat);
   const leaf = `${echo.leafKey(path)}${opts.excludeMessage ? `-x${opts.excludeMessage.id}:${opts.excludeMessage.swipeId}` : ''}`;
   const cfg: Partial<echo.ProjectorConfig> = { names, maxDepth: settings.depth };
-  const sig = `${JSON.stringify(ops)}|${JSON.stringify(names)}|${settings.depth}`;
+  const sig = `${JSON.stringify(ops)}|${JSON.stringify(names)}|${settings.depth}|${JSON.stringify([...merged])}`;
   const ids = live.map((e) => e.id);
   const tag = (p: echo.Projector) => Object.assign(p, { leaf, storyId: chat.id });
   const c = opts.excludeMessage ? undefined : cache.get(chat.id);
@@ -229,6 +249,28 @@ function deleteEventsFor(ctx: AppContext, messageId: string, swipeId: number, so
 
 // ------------------------------------------------------------------ write path
 
+/** Unnamed people who took part in the last events here: still around. */
+function recentProvisional(ctx: AppContext, chatId: string, locationId: string): string[] {
+  const rows = ctx.db.prepare('SELECT data FROM echo_events WHERE chat_id = ? ORDER BY seq DESC LIMIT 12').all(chatId) as Array<{ data: string }>;
+  const out = new Set<string>();
+  for (const r of rows) {
+    const e = JSON.parse(r.data) as echo.EchoEvent;
+    if ((e.locationId ?? 'scene') !== locationId) continue;
+    for (const a of [...e.actors, ...e.recipients]) if (a.startsWith('anon:')) out.add(a);
+  }
+  return [...out];
+}
+
+/** Who is in the scene now: the world state's present people, plus unnamed people seen here lately. */
+export function presentNow(ctx: AppContext, chat: ChatDTO, state: CampaignState | null, chatCharacters: string[], proj?: echo.Projector): string[] {
+  const base = presentIds(state, chatCharacters);
+  const loc = state?.currentLocationId ?? 'scene';
+  const extra = recentProvisional(ctx, chat.id, loc);
+  // After a merge the provisional id is the NPC (already in base when present).
+  const known = new Set(proj ? proj.units.map((u) => u.owner) : []);
+  return [...new Set([...base, ...extra.filter((a) => !proj || known.has(a))])];
+}
+
 export interface EchoWriteResult {
   events: number;
   rejected: number;
@@ -245,9 +287,10 @@ function extractContext(ctx: AppContext, owner: string, chat: ChatDTO, m: Messag
     occurredAt: state?.time.minutes ?? m.seq * 5,
     recordedAt: Date.now(),
     locationId: state?.currentLocationId ?? 'scene',
-    observers: observersNow(state, chatChars),
+    observers: [...observersNow(state, chatChars), ...recentProvisional(ctx, chat.id, state?.currentLocationId ?? 'scene').map((actor) => ({ actor, place: 'here' as const, sight: true, hearing: 'clear' as const, awake: true, impairment: 0, attention: 0.85 }))],
     sourceMessageIds: [m.id],
     resolve: (n) => personId(state, n, cn),
+    resolveActor: (n) => personId(state, n, cn) ?? echo.provisionalId(n),
     provenance: source,
   };
 }
@@ -402,10 +445,14 @@ const has = (low: string, w: string) => w.length >= 3 && new RegExp(`(^|[^\\p{L}
  * descriptor fits ("the dwarf"). Anything ambiguous gives null.
  */
 export function addressee(state: CampaignState | null, present: string[], text: string): string | null {
-  if (!state || !text) return null;
+  if (!text) return null;
   const low = text.toLowerCase();
+  // Unnamed people ("the dwarf"): their descriptor's last word.
+  const anon = present.filter((a) => a.startsWith('anon:') && has(low, a.slice(5).split('_').pop() ?? ''));
+  if (!state) return anon.length === 1 ? anon[0] : null;
   const npcs = present.map((id) => state.npcs[id]).filter((n): n is NonNullable<typeof n> => !!n);
   const pick = (hits: typeof npcs) => (hits.length === 1 ? hits[0].id : null);
+  if (anon.length === 1 && !npcs.some((n) => has(low, n.name.split(' ')[0]))) return anon[0];
   const byName = npcs.filter((n) => [n.name, n.name.split(' ')[0], ...(n.aliases ?? [])].some((w) => w && w.length >= 3 && has(low, w)));
   if (byName.length) return pick(byName);
   const byRole = npcs.filter((n) => [n.role, n.title].some((w) => w && has(low, w)));
@@ -439,7 +486,8 @@ export async function echoPacketFor(
   // Narrator cards: when the player speaks to one character, the reply is mostly that character,
   // so the packet is THEIR knowledge (the player already knows their own secrets). Measured on live
   // runs: the persona's packet put the player's secret in front of the writer, who then leaked it.
-  const spokenTo = scope === 'persona-narrator' ? addressee(state, presentIds(state, opts.chatCharacters), opts.focus ?? '') : null;
+  const here = presentNow(ctx, chat, state, opts.chatCharacters, proj);
+  const spokenTo = scope === 'persona-narrator' ? addressee(state, here, opts.focus ?? '') : null;
   if (spokenTo) {
     scope = 'actor';
     actor = spokenTo;
@@ -451,7 +499,7 @@ export async function echoPacketFor(
   const loc = state?.currentLocationId ?? 'scene';
   const scene: echo.CompileInput['scene'] = {
     now,
-    present: presentIds(state, opts.chatCharacters),
+    present: here,
     locationId: loc,
     objects: state ? Object.values(state.inventory ?? {}).map((i) => i.name).slice(0, 20) : [],
     sensory: SENSORY.test(opts.focus ?? '') ? [opts.focus!] : [],
@@ -474,6 +522,117 @@ export async function echoPacketFor(
     unaware: scope === 'persona-narrator' ? unawareOf(proj, scene.present.filter((a) => a !== PLAYER && a !== actorForCard(state, opts.speakerCardId)), names) : undefined,
   });
   return { packet, actor, scope, leaf: p.leaf, recalled: packet.recall.hits.map((h) => h.unit.id) };
+}
+
+// ------------------------------------------------------------------ the writer's guard rails
+
+/** Who counts as "others present" for perspective checks: present people except the player and the card's own actor. */
+function othersHere(ctx: AppContext, chat: ChatDTO, p: Projection, chatCharacters: string[], speakerCardId: string): string[] {
+  const narrator = actorForCard(p.state, speakerCardId);
+  return presentNow(ctx, chat, p.state, chatCharacters, p.proj).filter((a) => a !== PLAYER && a !== narrator);
+}
+
+/**
+ * History notes (A): messageId → a perspective note for the writer's copy of the history, for
+ * moments someone present now did not perceive. Never stored; Balanced and up.
+ */
+export function historyNotes(ctx: AppContext, owner: string, chat: ChatDTO, opts: { chatCharacters: string[]; speakerCardId: string }): Map<string, string> {
+  const out = new Map<string, string>();
+  const st = echoSettings(ctx, owner, chat);
+  if (!atLeast(st.profile, 'balanced') || !st.historyNotes) return out;
+  const p = projectionFor(ctx, owner, chat);
+  const others = othersHere(ctx, chat, p, opts.chatCharacters, opts.speakerCardId);
+  if (!others.length) return out;
+  const moments = echo.privateMoments(p.proj, others, p.names);
+  const byMsg = new Map<string, echo.PrivateMoment[]>();
+  for (const m of moments) if (m.messageId) byMsg.set(m.messageId, [...(byMsg.get(m.messageId) ?? []), m]);
+  for (const [id, ms] of byMsg) out.set(id, echo.historyNote(ms, p.names));
+  return out;
+}
+
+export interface GuardResult {
+  violations: Array<{ who: string; fact: number; quote: string }>;
+  instruction: string | null;
+  checked: number;
+}
+
+/**
+ * The reply guard (C): did a character show knowledge of a private moment they never perceived?
+ * A deterministic pre-filter picks candidates; only then does the utility model judge (one small
+ * call). Returns a repair instruction when the setting is "repair". Never the access control
+ * itself — that is the access engine — only a check on what the writer did with the history.
+ */
+export async function guardReply(ctx: AppContext, owner: string, chat: ChatDTO, messageId: string, reply: string, opts: { chatCharacters: string[]; speakerCardId: string }): Promise<GuardResult | null> {
+  const st = echoSettings(ctx, owner, chat);
+  if (!atLeast(st.profile, 'balanced') || st.guard === 'off') return null;
+  // The projection without this reply (its own events aren't written yet anyway).
+  const p = projectionFor(ctx, owner, chat);
+  const others = othersHere(ctx, chat, p, opts.chatCharacters, opts.speakerCardId);
+  if (!others.length) return null;
+  const moments = echo.privateMoments(p.proj, others, p.names).filter((m) => m.messageId !== messageId);
+  const cands = echo.guardCandidates(moments, reply);
+  if (!cands.length) return { violations: [], instruction: null, checked: 0 };
+  const conn = connectionForRole(ctx, owner, 'utility');
+  if (!conn) return null;
+  const messages = echo.guardPrompt(cands, reply, p.names);
+  let text = '';
+  try {
+    text = (await logged(ctx, owner, conn, { chatId: chat.id, messageId, purpose: 'echo guard', role: 'utility' }, promptTokens(messages), () => completeChat(conn, { messages, overrides: { temperature: 0, max_tokens: 400, stream: false, reasoning: false, stop: [] }, signal: AbortSignal.timeout(45_000) }))).text;
+  } catch {
+    return null;
+  }
+  const violations = echo.parseGuard(text);
+  const m = getMessage(ctx, owner, messageId);
+  const extra = { ...m.extra } as Record<string, unknown>;
+  if (violations.length) extra.echoGuard = { violations, at: Date.now() };
+  else delete extra.echoGuard;
+  ctx.db.prepare('UPDATE messages SET extra = ? WHERE id = ?').run(JSON.stringify(extra), messageId);
+  return { violations, instruction: violations.length && st.guard === 'repair' ? echo.repairInstruction(violations, cands) : null, checked: cands.length };
+}
+
+/**
+ * Character-first (B, Strict+): when the player clearly addresses one present character, that
+ * character's response is written first in an isolated call that sees only what they know — their
+ * own packet and the chat history with every moment they did not perceive taken out. The writer
+ * then receives that response, never the character's knowledge or the hidden moments' absence.
+ */
+export async function characterFirst(
+  ctx: AppContext,
+  owner: string,
+  chat: ChatDTO,
+  opts: { speakerCardId: string; focus: string; history: MessageDTO[]; chatCharacters: string[]; seed: string },
+): Promise<{ actor: string; name: string; response: string } | null> {
+  const st = echoSettings(ctx, owner, chat);
+  if (!(st.characterFirst || st.profile === 'strict') || !opts.focus.trim()) return null;
+  const p = projectionFor(ctx, owner, chat);
+  const here = presentNow(ctx, chat, p.state, opts.chatCharacters, p.proj);
+  const who = addressee(p.state, here, opts.focus);
+  if (!who || who === actorForCard(p.state, opts.speakerCardId)) return null;
+  const conn = connectionForRole(ctx, owner, 'main');
+  if (!conn) return null;
+  const name = p.names[who] ?? who;
+  const view = echo.authorize(p.proj, { actorId: who, storyId: chat.id, leaf: p.leaf, accessScope: 'actor' });
+  const now = p.state?.time.minutes ?? p.proj.lastTime + 5;
+  const packet = echo.compilePacket({ view, query: echo.understand(opts.focus, nameIndex(p.names), now), scene: { now, present: here, locationId: p.state?.currentLocationId ?? 'scene' }, names: p.names, budget: 500, hypotheses: true });
+  // The history as this character lived it: moments they did not perceive are left out.
+  const hidden = new Set(echo.privateMoments(p.proj, [who], p.names).map((m) => m.messageId).filter((x): x is string => !!x));
+  const lines = opts.history
+    .filter((m) => !m.hidden)
+    .slice(-14)
+    .map((m) => (hidden.has(m.id) ? `(${m.role === 'user' ? p.chatNames.player : m.name}: something happened here that ${name} did not see or hear)` : `${m.role === 'user' ? p.chatNames.player : m.name}: ${(m.swipes[m.swipeId]?.text ?? '').slice(0, 1200)}`));
+  const npc = p.state?.npcs[who];
+  const persona = npc ? [npc.role && `Role: ${npc.role}`, npc.appearance && `Appearance: ${npc.appearance}`, (npc as { personality?: string }).personality && `Personality: ${(npc as { personality?: string }).personality}`].filter(Boolean).join('\n') : '';
+  const messages = [
+    { role: 'system' as const, content: `You are ${name} in a roleplay story. Write only ${name}'s immediate response to ${p.chatNames.player}: what ${name} says and does, 1–4 sentences, in character. You know ONLY what is shown below — the parts of the conversation you witnessed and your own memories. If something isn't shown, ${name} does not know it: don't guess it right, don't hint at it. No narration of other characters.\n${persona}` },
+    { role: 'user' as const, content: `${packet.text || `(${name} has no relevant memories.)`}\n\nConversation as ${name} witnessed it:\n${lines.join('\n')}\n\n${p.chatNames.player} now: ${opts.focus.slice(0, 1500)}\n\nWrite ${name}'s response.` },
+  ];
+  try {
+    const r = await logged(ctx, owner, conn, { chatId: chat.id, purpose: 'echo character-first', role: 'main' }, promptTokens(messages), () => completeChat(conn, { messages, overrides: { temperature: 0.7, max_tokens: 300, stream: false, reasoning: false, stop: [] }, signal: AbortSignal.timeout(60_000) }));
+    const response = r.text.trim().slice(0, 1500);
+    return response ? { actor: who, name, response } : null;
+  } catch {
+    return null;
+  }
 }
 
 /** For each event: the names of the given people who perceived nothing of it. */
