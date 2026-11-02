@@ -392,6 +392,32 @@ function recentAffordances(ctx: AppContext, chatId: string, path: Map<string, nu
   return rows.filter((r) => path.get(r.message_id) === r.swipe_id).slice(0, 3).flatMap((r) => (JSON.parse(r.data).affordances as string[]) ?? []);
 }
 
+const KINDS = ['dwarf', 'elf', 'half-elf', 'orc', 'goblin', 'gnome', 'halfling', 'troll', 'giant', 'dragon', 'beastkin', 'catgirl', 'fox', 'vampire', 'witch', 'wizard', 'knight', 'priest', 'priestess', 'guard', 'captain', 'merchant', 'bartender', 'innkeeper', 'receptionist', 'blacksmith', 'old man', 'old woman', 'girl', 'boy'];
+const esc = (w: string) => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const has = (low: string, w: string) => w.length >= 3 && new RegExp(`(^|[^\\p{L}])${esc(w.toLowerCase())}($|[^\\p{L}])`, 'u').test(low);
+
+/**
+ * Who the player is talking to, when it is clear: a present NPC named (name, alias, first name),
+ * else one whose role or title is named ("the guildmaster"), else the only present NPC a plain
+ * descriptor fits ("the dwarf"). Anything ambiguous gives null.
+ */
+export function addressee(state: CampaignState | null, present: string[], text: string): string | null {
+  if (!state || !text) return null;
+  const low = text.toLowerCase();
+  const npcs = present.map((id) => state.npcs[id]).filter((n): n is NonNullable<typeof n> => !!n);
+  const pick = (hits: typeof npcs) => (hits.length === 1 ? hits[0].id : null);
+  const byName = npcs.filter((n) => [n.name, n.name.split(' ')[0], ...(n.aliases ?? [])].some((w) => w && w.length >= 3 && has(low, w)));
+  if (byName.length) return pick(byName);
+  const byRole = npcs.filter((n) => [n.role, n.title].some((w) => w && has(low, w)));
+  if (byRole.length) return pick(byRole);
+  for (const k of KINDS) {
+    if (!has(low, k)) continue;
+    const fits = npcs.filter((n) => has(`${n.appearance ?? ''} ${n.role ?? ''} ${n.title ?? ''}`.toLowerCase(), k));
+    if (fits.length) return pick(fits);
+  }
+  return null;
+}
+
 const SENSORY = /\b(smell|smells|scent|aroma|perfume|stench|song|melody|tune|hum|humming|taste|tastes|bells?)\b/i;
 
 /**
@@ -408,8 +434,16 @@ export async function echoPacketFor(
   if (!atLeast(settings.profile, 'fast')) return null;
   const p = projectionFor(ctx, owner, chat);
   const { proj, names, state } = p;
-  const scope: echo.AccessScope = settings.narration === 'persona' ? 'persona-narrator' : settings.narration === 'omniscient' ? 'omniscient' : 'actor';
-  const actor = scope === 'persona-narrator' ? PLAYER : scope === 'omniscient' ? 'narrator' : actorForCard(state, opts.speakerCardId);
+  let scope: echo.AccessScope = settings.narration === 'persona' ? 'persona-narrator' : settings.narration === 'omniscient' ? 'omniscient' : 'actor';
+  let actor = scope === 'persona-narrator' ? PLAYER : scope === 'omniscient' ? 'narrator' : actorForCard(state, opts.speakerCardId);
+  // Narrator cards: when the player speaks to one character, the reply is mostly that character,
+  // so the packet is THEIR knowledge (the player already knows their own secrets). Measured on live
+  // runs: the persona's packet put the player's secret in front of the writer, who then leaked it.
+  const spokenTo = scope === 'persona-narrator' ? addressee(state, presentIds(state, opts.chatCharacters), opts.focus ?? '') : null;
+  if (spokenTo) {
+    scope = 'actor';
+    actor = spokenTo;
+  }
   const view = echo.authorize(proj, { actorId: actor, storyId: chat.id, leaf: p.leaf, accessScope: scope });
   const now = state?.time.minutes ?? proj.lastTime + 5;
   const qText = opts.focus ? `${opts.focus}\n${opts.recentText.slice(-600)}` : opts.recentText.slice(-1500);

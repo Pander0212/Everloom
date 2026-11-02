@@ -49,8 +49,9 @@ try {
       const text = String(done?.message?.swipes?.[done.message.swipeId]?.text ?? '');
       const low = text.toLowerCase();
       const leaked = (probe.replyAvoids ?? []).filter((w) => low.includes(w.toLowerCase()));
-      out.samples.push({ model, i, leaked, text });
-      console.log(`${model} #${i + 1}: ${leaked.length ? `LEAK ${leaked.join(', ')}` : 'clean'}`);
+      const pk = done?.messageId ? (await q('GET', `/api/chats/${chat.id}/echo/packets?messageId=${done.messageId}`)).find((x: any) => x.swipeId === done.message.swipeId) : null;
+      out.samples.push({ model, i, leaked, text, packetActor: pk?.actor ?? null, packetScope: pk?.scope ?? null });
+      console.log(`${model} #${i + 1}: ${leaked.length ? `LEAK ${leaked.join(', ')}` : 'clean'} (packet: ${pk?.actor ?? '-'} / ${pk?.scope ?? '-'})`);
     }
   }
   const pkt = await q('GET', `/api/chats/${chat.id}/echo/packets`);
