@@ -3,7 +3,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 
 const dir = 'tests/live/out';
 const runs = readdirSync(dir)
-  .filter((f) => f.endsWith('.json') && f !== 'extract-compare.json')
+  .filter((f) => f.endsWith('.json') && !/^(extract-compare|ab-|systems-)/.test(f))
   .map((f) => JSON.parse(readFileSync(`${dir}/${f}`, 'utf8')))
   .sort((a, b) => a.script.localeCompare(b.script) || a.model.localeCompare(b.model) || a.profile.localeCompare(b.profile));
 
@@ -48,7 +48,7 @@ for (const r of runs) {
       recs.push(`${rule.label}: n/a`);
       continue;
     }
-    const has = JSON.stringify(actor).toLowerCase().includes(rule.word);
+    const has = new RegExp(`\\b${rule.word}\\b`).test(JSON.stringify(actor).toLowerCase());
     recs.push(`${(rule.must === 'know') === has ? '✅' : '❌'} ${rule.label}`);
   }
   lines.push(`| ${r.script} | ${r.model} | ${r.profile} | ${ok}/${r.turns.length} | ${pct(ms, 50).toFixed(0)}/${pct(ms, 95).toFixed(0)} | ${Math.round(avg(replies.map((c: any) => c.tokensIn)))} | ${Math.round(avg(pk))}/${Math.max(0, ...pk)} | ${pass}/${total} | ${recs.join('<br>')} | ${r.swipe?.restored ? '✅' : '❌'} | ${r.usage.all.in + r.usage.all.out} |`);

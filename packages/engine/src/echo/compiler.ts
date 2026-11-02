@@ -149,8 +149,11 @@ export function compilePacket(input: CompileInput): ContextPacket {
   const notSeen = (eventId: string) => {
     if (!narrator || !input.unaware) return '';
     const who = input.unaware(eventId);
-    return who.length ? ` [${who.join(', ')} did not see or hear this]` : '';
+    if (!who.length) return '';
+    unawareUsed = true;
+    return ` [${who.join(', ')} did not see or hear this and do${who.length === 1 ? 'es' : ''} not know it]`;
   };
+  let unawareUsed = false;
   const lines: PacketLine[] = [];
   const focus = new Set([...query.entities, ...scene.present].filter((x) => x !== self));
   const about = (b: ViewBelief) => focus.has(b.prop.s) || focus.has(b.prop.o) || query.words.some((w) => b.prop.s.includes(w) || b.prop.o.includes(w));
@@ -255,6 +258,9 @@ export function compilePacket(input: CompileInput): ContextPacket {
       lines.push({ section: 'adjudication', text: `${u.label}: not decided yet.${rules ? ` Must stay consistent with the clues (${rules}).` : ''}${pick ? ` If it is revealed now, it is: ${pick}.` : ''}`, source: `undetermined:${u.key}`, reason: u.status === 'predecided' ? 'decided by the author' : 'lazy canon', priority: 7 });
     }
   }
+
+  // The narrator plays everyone: make the boundary explicit when it matters.
+  if (unawareUsed) lines.push({ section: 'constraints', text: 'Someone marked "did not see or hear this" does not know it: they cannot mention, notice or hint at it, unless a character tells them in the scene.', source: 'unaware', reason: 'perspective boundary for the narrator', priority: 9 });
 
   // Budget: drop the lowest priority lines until it fits.
   const render = (ls: PacketLine[]) => {

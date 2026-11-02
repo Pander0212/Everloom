@@ -38,12 +38,9 @@ for (const model of models) {
       await q('POST', `/api/chats/${chat.id}/messages`, { role: 'user', text: t.user });
       const m = await q('POST', `/api/chats/${chat.id}/messages`, { role: 'assistant', text: t.reply });
       if (t.tag) tagged[t.tag] = m.id;
-      for (let i = 0; i < 120; i++) {
-        const calls = await q('GET', `/api/calls?chatId=${chat.id}&messageId=${m.id}`);
-        if (calls.some((x: any) => x.purpose === 'tracker' || x.purpose === 'tracker (repair)')) break;
-        await sleep(1000);
-      }
-      await sleep(300);
+      // Inserted messages are not tracked on their own: read this one now (synchronous).
+      const tr = await c.req('POST', `/api/messages/${m.id}/retrack`);
+      if (tr.status >= 400) console.error(`retrack ${m.id}: ${tr.status} ${tr.body.slice(0, 120)}`);
     }
     await sleep(2000);
     const rows = c.built.ctx.db.prepare('SELECT message_id, data FROM echo_events WHERE chat_id = ?').all(chat.id) as Array<{ message_id: string; data: string }>;

@@ -14,7 +14,8 @@ describe('ECHO live-run fixes', () => {
     ]);
     const view = echo.authorize(p, persp('player', { accessScope: 'persona-narrator' }));
     const pkt = echo.compilePacket({ view, query: echo.understand('Did anyone see what I put in my boot? The key?', { entities: {} }, 50), scene: { now: 50, present: ['player', 'dwarf'], locationId: 'hall' }, names: { dwarf: 'Gravitas Hail', player: 'Rin' }, unaware: () => ['Gravitas Hail'] });
-    expect(pkt.text).toContain('[Gravitas Hail did not see or hear this]');
+    expect(pkt.text).toContain('[Gravitas Hail did not see or hear this and does not know it]');
+    expect(pkt.text).toContain('cannot mention, notice or hint at it');
     // An NPC's own packet never gets such lines (and never the secret).
     const npc = echo.compilePacket({ view: echo.authorize(p, persp('dwarf')), query: echo.understand('the key in the boot', { entities: {} }, 50), scene: { now: 50, present: ['player', 'dwarf'], locationId: 'hall' }, names: {}, unaware: () => ['x'] });
     expect(npc.text).toBe('');
