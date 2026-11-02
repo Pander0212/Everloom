@@ -391,9 +391,48 @@ async function* textgenStream(conn: ResolvedConnection, req: ChatRequest): Async
 
 // ---------------------------------------------------------------- Public API
 
-export function streamChat(conn: ResolvedConnection, req: ChatRequest): AsyncGenerator<StreamChunk> {
-  // Real names go out as stand-ins (safeFetch) and come back restored here, before anyone sees them.
-  return shieldStream(dispatchStream(conn, req));
+export async function* streamChat(conn: ResolvedConnection, req: ChatRequest): AsyncGenerator<StreamChunk> {
+  // A rate limit or a brief outage is retried (waiting as long as the provider asks), but only
+  // before anything arrived: a reply is never duplicated. Measured live: NanoGPT subscriptions allow
+  // 60 requests a minute, and replies failed outright when background work used them up.
+  for (let attempt = 0; ; attempt++) {
+    let started = false;
+    try {
+      // Real names go out as stand-ins (safeFetch) and come back restored here, before anyone sees them.
+      for await (const c of shieldStream(dispatchStream(conn, req))) {
+        started = true;
+        yield c;
+      }
+      return;
+    } catch (e) {
+      const wait = retryDelay(e, attempt);
+      if (started || wait === null || req.signal?.aborted) throw e;
+      await sleepFor(wait, req.signal);
+    }
+  }
+}
+
+/** How long to wait before retrying a failed request, or null when it shouldn't be retried. */
+export function retryDelay(err: unknown, attempt: number): number | null {
+  if (attempt >= 4) return null;
+  const msg = String((err as Error)?.message ?? err);
+  // Permanent refusals are not retried (a key that may not spend, a missing model, a bad request).
+  if (/subscription.only|cannot spend|billing|insufficient|unauthori[sz]ed|forbidden|invalid api key|not found|context length/i.test(msg)) return null;
+  if (!/\b(429|502|503|504|529)\b|too many requests|slow down|rate.?limit|limited to \d+ per|temporarily unavailable|overloaded/i.test(msg)) return null;
+  const asked = Number(msg.match(/(?:try again in|retry after|wait)\s*(\d{1,4})\s*s/i)?.[1]);
+  const ms = Number.isFinite(asked) && asked > 0 ? asked * 1000 : 2000 * 2 ** attempt;
+  // Never hold a reply for more than half a minute per wait.
+  return Math.min(30_000, ms + Math.floor(Math.random() * 500));
+}
+
+function sleepFor(ms: number, signal?: AbortSignal): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(resolve, ms);
+    signal?.addEventListener('abort', () => {
+      clearTimeout(t);
+      reject(signal.reason ?? new Error('Stopped'));
+    }, { once: true });
+  });
 }
 
 function dispatchStream(conn: ResolvedConnection, req: ChatRequest): AsyncGenerator<StreamChunk> {
@@ -479,7 +518,7 @@ export async function embed(conn: ResolvedConnection, texts: string[]): Promise<
     const res = await safeFetch(`${b}/v1beta/models/${model}:batchEmbedContents`, {
       method: 'POST',
       headers: { 'content-type': 'application/json', 'x-goog-api-key': conn.apiKey },
-      body: JSON.stringify({ requests: texts.map((t) => ({ model: `models/${model}`, content: { parts: [{ text: t }] } })) }),
+      body: JSON.stringify({ requests: texts.map((t) => ({ model: `models/${model}`, content: { parts: [{ text: t.slice(0, 6000) }] } })) }),
       timeoutMs: 60_000,
     });
     const j = await readJson(res);
@@ -489,7 +528,8 @@ export async function embed(conn: ResolvedConnection, texts: string[]): Promise<
   const res = await safeFetch(`${b}${conn.provider === 'textgen' ? '/v1' : ''}/embeddings`, {
     method: 'POST',
     headers: openaiHeaders(conn),
-    body: JSON.stringify({ model: conn.params.embeddings_model || conn.model || 'text-embedding-3-small', input: texts }),
+    // Embedding models have small input limits (Gemini: 2,048 tokens): long texts are cut first.
+    body: JSON.stringify({ model: conn.params.embeddings_model || conn.model || 'text-embedding-3-small', input: texts.map((t) => t.slice(0, 6000)) }),
     timeoutMs: 60_000,
   });
   const j = await readJson(res, 50 * 1024 * 1024);

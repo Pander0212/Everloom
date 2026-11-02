@@ -36,7 +36,10 @@ describe('the choke point', () => {
     }
     const fetchTs = readFileSync(path.join(SRC, 'util/fetch.ts'), 'utf8');
     expect(fetchTs).toMatch(/shieldOutbound\(opts\.body/);
-    expect(readFileSync(path.join(SRC, 'llm/providers.ts'), 'utf8')).toMatch(/return shieldStream\(dispatchStream/);
+    // Every chunk of every reply passes through the shield (inside the rate-limit retry loop).
+    const providers = readFileSync(path.join(SRC, 'llm/providers.ts'), 'utf8');
+    expect(providers).toMatch(/for await \(const c of shieldStream\(dispatchStream\(conn, req\)\)\)/);
+    expect(providers.match(/dispatchStream\(/g)).toHaveLength(2); // its definition and that one call
   });
 });
 

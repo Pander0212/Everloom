@@ -19,6 +19,8 @@ export interface MockControl {
   trackerEvents: unknown[] | null;
   /** ECHO guard verdicts, consumed one per guard call (then "no violations"). */
   guardVerdicts: unknown[][];
+  /** Answer this many requests with 429 (rate limit). */
+  rateLimitNext: number;
   /** Ops returned to a tracker ledger follow-up. */
   ledgerOps: unknown[] | null;
   chronicle: unknown;
@@ -29,7 +31,7 @@ export interface MockControl {
   calls: Array<{ path: string; model: string; kind: string; body: any }>;
 }
 
-const control: MockControl = { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, trackerEvents: null, guardVerdicts: [], ledgerOps: null, chronicle: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] };
+const control: MockControl = { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, trackerEvents: null, guardVerdicts: [], ledgerOps: null, rateLimitNext: 0, chronicle: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] };
 let takes = 0;
 let brokenServed = false;
 
@@ -304,7 +306,7 @@ export function createMockLlm() {
     if (p === '/__control') {
       Object.assign(control, body);
       if (body.reset) {
-        Object.assign(control, { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, trackerEvents: null, guardVerdicts: [], ledgerOps: null, chronicle: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] });
+        Object.assign(control, { trackerMode: 'valid', trackerOps: null, trackerMemories: null, trackerFacts: null, trackerEvents: null, guardVerdicts: [], ledgerOps: null, rateLimitNext: 0, chronicle: null, story: null, delayMs: 5, failNext: 0, hangNext: 0, calls: [] });
         takes = 0;
         brokenServed = false;
       }
@@ -313,6 +315,10 @@ export function createMockLlm() {
     if (control.hangNext > 0) {
       control.hangNext--;
       return; // never respond
+    }
+    if (control.rateLimitNext > 0) {
+      control.rateLimitNext--;
+      return sendJson(res, 429, { error: { message: 'Too many requests. Please slow down and try again shortly.' } });
     }
     if (control.failNext > 0) {
       control.failNext--;
