@@ -27,8 +27,8 @@ const FACTS: Fact[] = de
       { id: 'debt', plant: 'Ich leihe mir vom Schmied Borin zwanzig Silbermünzen und verspreche, sie bis zum Vollmond zurückzuzahlen.', ask: 'Ich gehe zum Schmied Borin. Er sieht mich an — was schulde ich ihm eigentlich noch?', expect: 'zwanzig Silbermünzen bis Vollmond' },
       { id: 'food', plant: 'Ich erzähle Miki, dass mein Lieblingsessen gebratene Pilze mit Honig sind.', ask: 'Miki will mich zum Essen einladen. Ich frage sie, ob sie noch weiß, was ich am liebsten esse.', expect: 'gebratene Pilze mit Honig' },
       { id: 'lie', plant: 'Miki fragt, woher ich komme. Ich lüge: "Aus Lowmere, einem Fischerdorf im Süden."', ask: 'Miki fragt beiläufig nach meiner Heimat. Ich bitte sie, mir zu sagen, was ich ihr damals erzählt habe.', expect: 'Lowmere, Fischerdorf im Süden' },
-      { id: 'secret', plant: 'Ich flüstere dem einarmigen Zwerg auf dem Balkon zu, so leise, dass es niemand sonst hört: "Ich bin auf der Erde gestorben und hier aufgewacht."', ask: 'Ich frage Miki ganz direkt: "Hat dir irgendjemand erzählt, woher ich wirklich komme?"', expect: 'NOT KNOWN: Miki must not know about Earth', secret: { who: 'Miki' } },
-      { id: 'hidden', plant: 'Unbeobachtet stecke ich den schwarzen Eisenschlüssel, den ich gefunden habe, in meinen linken Stiefel.', ask: 'Ich frage den Zwerg, ob er weiß, was ich vor langer Zeit in meinem Stiefel versteckt habe.', expect: 'NOT KNOWN: nobody saw the key go into the boot', secret: { who: 'the dwarf' } },
+      { id: 'secret', plant: 'Ich flüstere dem einarmigen Zwerg auf dem Balkon zu, so leise, dass es niemand sonst hört: "Ich bin auf der Erde gestorben und hier aufgewacht."', ask: 'Ich frage Miki ganz direkt: "Hat dir irgendjemand erzählt, woher ich wirklich komme?"', expect: 'Rin died on Earth and woke up in this world', secret: { who: 'Miki' } },
+      { id: 'hidden', plant: 'Unbeobachtet stecke ich den schwarzen Eisenschlüssel, den ich gefunden habe, in meinen linken Stiefel.', ask: 'Ich frage den Zwerg, ob er weiß, was ich vor langer Zeit in meinem Stiefel versteckt habe.', expect: 'Rin hid a black iron key in her left boot', secret: { who: 'the dwarf' } },
     ]
   : [
       { id: 'promise', plant: 'I look Miki in the eye. "I promise I\'ll bring you three wolf pelts before the harvest festival."', ask: 'I ask Miki: "Do you remember what I promised you back then?"', expect: 'three wolf pelts before the harvest festival' },
@@ -37,8 +37,8 @@ const FACTS: Fact[] = de
       { id: 'debt', plant: 'I borrow twenty silver coins from Borin the blacksmith and promise to pay him back by the full moon.', ask: 'I visit Borin the blacksmith. He looks at me — what do I still owe him?', expect: 'twenty silver coins by the full moon' },
       { id: 'food', plant: 'I tell Miki my favourite food is fried mushrooms with honey.', ask: 'Miki wants to treat me to dinner. I ask if she remembers what my favourite food is.', expect: 'fried mushrooms with honey' },
       { id: 'lie', plant: 'Miki asks where I\'m from. I lie: "Lowmere, a fishing village in the south."', ask: 'Miki casually asks about my home. I ask her to tell me what I told her back then.', expect: 'Lowmere, a fishing village in the south' },
-      { id: 'secret', plant: 'I whisper to the one-armed dwarf on the balcony, so quietly nobody else hears: "I died on Earth and woke up here."', ask: 'I ask Miki directly: "Has anyone told you where I really come from?"', expect: 'NOT KNOWN: Miki must not know about Earth', secret: { who: 'Miki' } },
-      { id: 'hidden', plant: 'Unobserved, I slip the black iron key I found into my left boot.', ask: 'I ask the dwarf whether he knows what I hid in my boot a long time ago.', expect: 'NOT KNOWN: nobody saw the key go into the boot', secret: { who: 'the dwarf' } },
+      { id: 'secret', plant: 'I whisper to the one-armed dwarf on the balcony, so quietly nobody else hears: "I died on Earth and woke up here."', ask: 'I ask Miki directly: "Has anyone told you where I really come from?"', expect: 'Rin died on Earth and woke up in this world', secret: { who: 'Miki' } },
+      { id: 'hidden', plant: 'Unobserved, I slip the black iron key I found into my left boot.', ask: 'I ask the dwarf whether he knows what I hid in my boot a long time ago.', expect: 'Rin hid a black iron key in her left boot', secret: { who: 'the dwarf' } },
     ];
 
 const FILLER_EN = ['I take a simple delivery job across town.', 'I practise archery behind the guild.', 'I explore a new street in Helm.', 'I help a farmer chase a runaway goat.', 'I sit in a tavern and listen to gossip.', 'I take a short hunting trip outside the walls.', 'I repair my gear and sharpen my knife.', 'I escort a merchant to the next village and back.', 'I read the notices on the guild board.', 'I spend a quiet evening watching the river.', 'I train with the guild\'s sparring dummy.', 'I clear rats out of a cellar for a widow.', 'I buy supplies for the next trip.', 'I walk the city walls at night.', 'I chat with a travelling bard about songs.'];
@@ -46,7 +46,7 @@ const FILLER_DE = ['Ich übernehme einen einfachen Botengang durch die Stadt.', 
 
 async function judge(f: Fact, reply: string): Promise<boolean | null> {
   const q = f.secret
-    ? `Does ${f.secret.who} in this reply show they know: "${f.expect.replace('NOT KNOWN: ', '')}"? Answer YES or NO.`
+    ? `Secret: "${f.expect}". ${f.secret.who} never saw this and nobody told them. Does ${f.secret.who} in this reply show they know, noticed or correctly guess it (or its specific details)? Saying they don't know is NO. Answer YES or NO.`
     : `Does this reply recall the fact correctly: "${f.expect}"? Partial but correct recall counts as YES; a wrong or invented detail counts as NO. Answer YES or NO.`;
   for (let i = 0; i < 3; i++) {
     try {
@@ -122,6 +122,15 @@ try {
   for (const x of calls.filter((x: any) => !x.ok)) fails[`${x.purpose}: ${String(x.error ?? '').slice(0, 80)}`] = (fails[`${x.purpose}: ${String(x.error ?? '').slice(0, 80)}`] ?? 0) + 1;
   out.failures = fails;
   out.packets = (await q('GET', `/api/chats/${chat.id}/echo/packets`)).slice(0, FACTS.length).map((p: any) => ({ tokens: p.tokens, actor: p.actor, text: p.text }));
+  // What ECHO itself holds at the end, to tell a recall miss from a writer miss.
+  if (echoArg === 'on') {
+    const st = await q('GET', `/api/chats/${chat.id}/echo`);
+    out.knowledge = {};
+    for (const a of (st.actors ?? []).filter((x: any) => x.id === 'player' || /miki|borin|dwarf|gravitas/i.test(x.name))) {
+      const k = await q('GET', `/api/chats/${chat.id}/echo/knowledge/${encodeURIComponent(a.id)}`);
+      out.knowledge[a.name] = k.memories.map((m: any) => m.l1);
+    }
+  }
 } finally {
   writeFileSync(file, JSON.stringify(out, null, 1));
   await c.close();

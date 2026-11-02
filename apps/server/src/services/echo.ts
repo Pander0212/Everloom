@@ -653,7 +653,9 @@ function unawareOf(proj: echo.Projector, people: string[], names: Record<string,
     if (!set) perceivers.set(u.eventId, (set = new Set()));
     set.add(u.owner);
   }
-  return (eventId) => people.filter((a) => !perceivers.get(eventId)?.has(a)).map((a) => names[a] ?? a).slice(0, 4);
+  // Only private moments get the note: someone simply elsewhere during a public moment is no secret
+  // (live: every line carried "the bard, the guard … did not see this").
+  return (eventId) => (proj.events.get(eventId)?.visibility === 'public' ? [] : people.filter((a) => !perceivers.get(eventId)?.has(a)).map((a) => names[a] ?? a).slice(0, 4));
 }
 
 /** After the reply is stored: what it was given (leakage debugger) and what it recalled (reconsolidation). */

@@ -37,4 +37,15 @@ describe('ECHO live-run fixes', () => {
     expect(expandMacros('{{sub}}', { pronouns: pronounsFrom('he/him, a sailor') })).toBe('he');
     expect(expandMacros('{{obj}}', {})).toBe('them');
   });
+  it('a full packet keeps the memory asked about; duplicate promises show once (live long session)', () => {
+    const promises = Array.from({ length: 9 }, (_, i) =>
+      ev({ type: 'promise', actors: ['player'], recipients: ['borin'], action: `Rin promised Borin to repay twenty silver by the full moon (${i})`, commitment: { id: `c${i}`, by: 'player', to: ['borin'], what: i % 3 === 0 ? 'Repay 20 silver to Borin by the full moon' : i % 3 === 1 ? 'Repay twenty silver to Borin by full moon' : `Escort cart number ${i} to Northmill` }, observers: here('player', 'borin') }, i + 2),
+    );
+    const p = echo.project([ev({ actors: ['player'], recipients: ['miki'], type: 'speech', action: 'Rin told Miki her favourite food is fried mushrooms with honey', observers: here('player', 'miki') }, 1), ...promises], { names: { player: 'Rin', miki: 'Miki', borin: 'Borin' } });
+    const pkt = echo.compilePacket({ view: echo.authorize(p, persp('player')), query: echo.understand('Miki asks if I remember what my favourite food is. Borin is here too.', { entities: { miki: ['Miki'], borin: ['Borin'] } }, 999), scene: { now: 999, present: ['player', 'miki', 'borin'], locationId: 'hall' }, names: { player: 'Rin', miki: 'Miki', borin: 'Borin' }, budget: 260 });
+    expect(pkt.text).toContain('mushrooms with honey');
+    expect((pkt.text.match(/promised/g) ?? []).length).toBeLessThanOrEqual(3);
+    expect((pkt.text.match(/Repay 20 silver|Repay twenty silver/g) ?? []).length).toBeLessThanOrEqual(1);
+    expect(pkt.text).not.toContain('may come to mind');
+  });
 });

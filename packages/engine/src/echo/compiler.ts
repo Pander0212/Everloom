@@ -160,7 +160,10 @@ export function compilePacket(input: CompileInput): ContextPacket {
 
   // Hard constraints: the physical scene and what the perspective does not know.
   if (scene.place || scene.time) lines.push({ section: 'constraints', text: `${scene.place ? `At ${scene.place}` : ''}${scene.place && scene.time ? ', ' : ''}${scene.time ?? ''}.`, source: 'scene', reason: 'current scene', priority: 10 });
-  for (const u of view.unknowns.slice(0, 2)) lines.push({ section: 'constraints', text: `${n(self)} is unsure: ${u}`, source: 'unknowns', reason: 'known unknown', priority: 6 });
+  // Known unknowns only when they touch what is being talked about (live: "a woman complaining by the
+  // hearth" filled packets for no reason).
+  const qw = new Set(query.words);
+  for (const u of view.unknowns.filter((x) => contentWordsOf(x).some((w) => qw.has(w))).slice(0, 2)) lines.push({ section: 'constraints', text: `${n(self)} is unsure: ${u}`, source: 'unknowns', reason: 'known unknown', priority: 5 });
 
   // Beliefs: established (first-hand / common) vs told, rumored, inferred — kept separate.
   const relevant = view.beliefs.filter(about).sort((a, b) => b.confidence - a.confidence);
@@ -215,7 +218,7 @@ export function compilePacket(input: CompileInput): ContextPacket {
     const words0 = new Set(contentWordsOf(detail));
     if (shownWords.some((w) => overlap(w, words0) >= 0.6)) return;
     shownWords.push(words0);
-    lines.push({ section: 'memories', text: `${detail}${drift} — ${howKnown(u.status, u.via, names)}; ${whyNow(h, names, scene.present)}${notSeen(u.eventId)}`, source: u.id, reason: `${view.reasons.get(u.id) ?? 'own memory'}; recalled by ${h.why.join(', ')}`, priority: 9 - Math.min(5, i) });
+    lines.push({ section: 'memories', text: `${detail}${drift} — ${howKnown(u.status, u.via, names)}; ${whyNow(h, names, scene.present)}${notSeen(u.eventId)}`, source: u.id, reason: `${view.reasons.get(u.id) ?? 'own memory'}; recalled by ${h.why.join(', ')}`, priority: i < 3 || h.involuntary ? 10 : 7 - Math.min(3, i - 3) });
   });
 
   // Relationships and feelings toward who is here.
@@ -232,16 +235,30 @@ export function compilePacket(input: CompileInput): ContextPacket {
   // A feeling is hot state only while it is fresh (six game hours).
   if (view.emotion && view.emotion.actor === self && view.emotion.intensity >= 0.3 && scene.now - view.emotion.at <= 360) lines.push({ section: 'relations', text: `${n(self)} feels ${view.emotion.emotion}${view.emotion.toward ? ` toward ${n(view.emotion.toward)}` : ''}`, source: `emotion:${self}`, reason: 'own feeling', priority: 5 });
 
-  for (const c of view.commitments) {
+  // Promises: the same promise extracted twice shows once; only those tied to who is here or what is
+  // said; at most three, the most relevant first (live: nine promises crowded out the memories).
+  const shownPromises: Array<{ by: string; words: Set<string> }> = [];
+  const promiseLines: PacketLine[] = [];
+  for (const c of view.commitments.slice().sort((a, b) => b.since - a.since)) {
     if (c.status !== 'open') continue;
     const parties = [c.by, ...c.to];
-    if (!parties.some((p) => focus.has(p)) && !query.words.some((w) => c.what.toLowerCase().includes(w))) continue;
+    const said = query.words.filter((w) => c.what.toLowerCase().includes(w)).length;
+    const named = parties.some((p) => query.entities.includes(p));
+    const here = parties.some((p) => p !== self && scene.present.includes(p));
+    if (!said && !named && !here) continue;
+    const w = new Set(contentWordsOf(c.what));
+    if (shownPromises.some((x) => x.by === c.by && overlap(x.words, w) >= 0.5)) continue;
+    shownPromises.push({ by: c.by, words: w });
     const to = (xs: string[]) => (xs.length ? ` ${xs.map(n).join(', ')}` : '');
     const text = c.by === self ? `${n(self)} promised${to(c.to)}: ${c.what}` : `${n(c.by)} promised${c.to.includes(self) ? ` ${n(self)}` : to(c.to)}: ${c.what}`;
-    lines.push({ section: 'commitments', text: `${text} (open)`, source: `commitment:${c.id}`, reason: view.reasons.get(`commitment:${c.id}`) ?? 'known promise', priority: 8 });
+    promiseLines.push({ section: 'commitments', text: `${text} (open)`, source: `commitment:${c.id}`, reason: view.reasons.get(`commitment:${c.id}`) ?? 'known promise', priority: said || named ? 9 : 6 });
   }
+  lines.push(...promiseLines.sort((a, b) => b.priority - a.priority).slice(0, 3));
 
-  const aff = affordances(view, self, scene.present, names, input.recentAffordances, scene.now).slice(0, 2);
+  // A promise already listed needs no "may come to mind" suggestion as well.
+  const aff = affordances(view, self, scene.present, names, input.recentAffordances, scene.now)
+    .filter((a) => !(a.id.startsWith('promise:') && promiseLines.length))
+    .slice(0, 2);
   for (const a of aff) lines.push({ section: 'affordances', text: a.text, source: a.id, reason: 'derived from memory and feelings', priority: 3 });
 
   if (input.adjudication && (persp.accessScope === 'persona-narrator' || persp.accessScope === 'omniscient' || persp.accessScope === 'adjudicator')) {
