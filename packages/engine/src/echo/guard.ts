@@ -127,13 +127,23 @@ export function repairInstruction(vs: Array<{ who: string; fact: number; quote: 
 
 /** An actor id for someone the story hasn't named yet ("the one-armed dwarf" → anon:one_armed_dwarf). */
 export function provisionalId(phrase: string): string | null {
-  const w = phrase
+  const raw = phrase.trim();
+  // A described person ("the one-armed dwarf") keeps "the"; a name the story used ("Korra") doesn't.
+  const described = /^(the|a|an|that|this|some)\s+/i.test(raw) || raw === raw.toLowerCase();
+  const w = raw
     .toLowerCase()
     .replace(/^(the|a|an|that|this|some)\s+/, '')
     .replace(/[^\p{L}\p{N}\s-]/gu, '')
     .trim();
   if (w.length < 3 || w.split(/\s+/).length > 5) return null;
-  return `anon:${w.replace(/[\s-]+/g, '_')}`;
+  return `anon:${described ? 'the_' : ''}${w.replace(/[\s-]+/g, '_')}`;
+}
+
+/** How a provisional actor is shown: "the one armed dwarf", or the name as the story used it ("Korra"). */
+export function provisionalName(id: string): string {
+  const w = id.slice(5);
+  if (w.startsWith('the_')) return w.replace(/_/g, ' ');
+  return w.split('_').map((x) => x.charAt(0).toUpperCase() + x.slice(1)).join(' ');
 }
 
 /**
@@ -143,7 +153,7 @@ export function provisionalId(phrase: string): string | null {
 export function mergeProvisional(ids: string[], npcs: Array<{ id: string; text: string }>): Map<string, string> {
   const out = new Map<string, string>();
   for (const id of ids) {
-    const want = id.slice(5).split('_').filter((w) => w.length >= 3 && !['old', 'young', 'man', 'woman'].includes(w));
+    const want = id.slice(5).split('_').filter((w) => w.length >= 3 && !['the', 'old', 'young', 'man', 'woman'].includes(w));
     if (!want.length) continue;
     const fits = npcs.filter((n) => {
       const t = ` ${n.text.toLowerCase().replace(/-/g, ' ')} `;

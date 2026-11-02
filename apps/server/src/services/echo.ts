@@ -132,7 +132,7 @@ export function nameMap(state: CampaignState | null, names: ChatNames): Record<s
 }
 
 /** Display name of a provisional actor ("anon:one_armed_dwarf" → "the one armed dwarf"). */
-const anonName = (id: string) => `the ${id.slice(5).replace(/_/g, ' ')}`;
+const anonName = (id: string) => echo.provisionalName(id);
 
 /** What text describes an NPC (for merging provisional actors and spotting who is addressed). */
 const npcText = (n: { name: string; aliases?: string[]; role?: string; title?: string; appearance?: string }) => [n.name, ...(n.aliases ?? []), n.role ?? '', n.title ?? '', n.appearance ?? ''].join(' ');
@@ -449,6 +449,7 @@ export function addressee(state: CampaignState | null, present: string[], text: 
   const low = text.toLowerCase();
   // Unnamed people ("the dwarf"): their descriptor's last word.
   const anon = present.filter((a) => a.startsWith('anon:') && has(low, a.slice(5).split('_').pop() ?? ''));
+  // (works for "anon:the_one_armed_dwarf" → "dwarf" and "anon:korra" → "korra")
   if (!state) return anon.length === 1 ? anon[0] : null;
   const npcs = present.map((id) => state.npcs[id]).filter((n): n is NonNullable<typeof n> => !!n);
   const pick = (hits: typeof npcs) => (hits.length === 1 ? hits[0].id : null);

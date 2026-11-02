@@ -102,15 +102,15 @@ describe('ECHO guard rails on the server', () => {
     await c.req('PATCH', `/api/chats/${chat.id}/echo`, { profile: 'balanced', narration: 'persona', guard: 'off' });
     await control({ story: 'Mara whispers to the one-armed dwarf.', trackerOps: [{ type: 'location.move', to: 'Guild Hall' }], trackerEvents: [{ type: 'speech', actors: ['Mara'], to: ['the one-armed dwarf'], private: true, action: 'Mara whispered to the one-armed dwarf that she died on Earth' }], trackerMemories: [] });
     await c.req('POST', `/api/chats/${chat.id}/generate`, { type: 'normal', text: 'I whisper to the dwarf.' });
-    await waitFor(async () => ((await c.req('GET', `/api/chats/${chat.id}/echo`)).json.actors?.some((a: any) => a.id === 'anon:one_armed_dwarf') ? true : null));
-    expect(JSON.stringify((await c.req('GET', `/api/chats/${chat.id}/echo/knowledge/anon:one_armed_dwarf`)).json.memories)).toContain('Earth');
+    await waitFor(async () => ((await c.req('GET', `/api/chats/${chat.id}/echo`)).json.actors?.some((a: any) => a.id === 'anon:the_one_armed_dwarf') ? true : null));
+    expect(JSON.stringify((await c.req('GET', `/api/chats/${chat.id}/echo/knowledge/anon:the_one_armed_dwarf`)).json.memories)).toContain('Earth');
     // Later he gets a name; his memory goes with him.
     await control({ story: 'The dwarf introduces himself as Gravitas Hail.', trackerOps: [{ type: 'npc.upsert', name: 'Gravitas Hail', appearance: 'A one-armed dwarf', location: 'Guild Hall' }], trackerEvents: [] });
     await c.req('POST', `/api/chats/${chat.id}/generate`, { type: 'normal', text: 'Who are you?' });
     await waitFor(async () => ((await c.req('GET', `/api/chats/${chat.id}/echo`)).json.actors?.some((a: any) => a.name === 'Gravitas Hail') ? true : null));
     const st = (await c.req('GET', `/api/chats/${chat.id}/echo`)).json;
     const g = st.actors.find((a: any) => a.name === 'Gravitas Hail');
-    expect(st.actors.some((a: any) => a.id === 'anon:one_armed_dwarf')).toBe(false);
+    expect(st.actors.some((a: any) => a.id === 'anon:the_one_armed_dwarf')).toBe(false);
     expect(JSON.stringify((await c.req('GET', `/api/chats/${chat.id}/echo/knowledge/${g.id}`)).json.memories)).toContain('Earth');
   });
 });

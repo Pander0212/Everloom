@@ -28,7 +28,10 @@ describe('ECHO guard rails', () => {
   });
 
   it('provisional actors: "the one-armed dwarf" until an NPC fits, then merged', () => {
-    expect(echo.provisionalId('the one-armed dwarf')).toBe('anon:one_armed_dwarf');
+    expect(echo.provisionalId('the one-armed dwarf')).toBe('anon:the_one_armed_dwarf');
+    expect(echo.provisionalId('Korra')).toBe('anon:korra');
+    expect(echo.provisionalName('anon:korra')).toBe('Korra');
+    expect(echo.provisionalName('anon:the_one_armed_dwarf')).toBe('the one armed dwarf');
     const merged = echo.mergeProvisional(['anon:one_armed_dwarf', 'anon:dwarf'], [{ id: 'npc_g', text: 'Gravitas Hail Guildmaster A one-armed dwarf with a grey beard' }, { id: 'npc_m', text: 'Miki receptionist' }]);
     expect(merged.get('anon:one_armed_dwarf')).toBe('npc_g');
     expect(merged.get('anon:dwarf')).toBe('npc_g');
