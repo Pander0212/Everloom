@@ -4,7 +4,7 @@ import {
   type PersonMemoryView, type SceneBlock,
   stripInlineTags, type AssembledPrompt, type CampaignState, type ChatDTO, type CharacterDTO, type HistoryMessage, type MacroContext,
   type MessageDTO, type PersonaDTO, type ScanEntry, type Settings, type FeatureSet,
-  applyRegexScripts, expandMacros, fillCard, frameInput, isInputMode, messageVarsAt, RegexPlacement, type VarMap,
+  applyRegexScripts, expandMacros, fillCard, pronounsFrom, frameInput, isInputMode, messageVarsAt, RegexPlacement, type VarMap,
 } from '@everloom/engine';
 import { settingsFor } from './features.js';
 import type { AppContext } from '../context.js';
@@ -140,6 +140,7 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     groupNotMuted: isGroup ? pc.members.map((m) => m.name).join(', ') : character.name,
     notChar: [pc.userName, ...others].join(', '),
     persona: persona?.description ?? '',
+    pronouns: pronounsFrom(persona?.description),
     description: card.description,
     personality: card.personality,
     scenario: card.scenario,

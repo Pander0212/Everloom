@@ -36,6 +36,8 @@ declare const AUTHORIZED: unique symbol;
 
 export interface ViewBelief {
   id: string;
+  /** The event the belief came from. */
+  eventId: string;
   prop: Prop;
   text: string;
   status: EpistemicStatus;
@@ -111,7 +113,7 @@ export function authorize(proj: Projector & Partial<LeafTagged>, persp: Perspect
     if (!privileged && b.owner !== actor) continue;
     if (!live(b.since, b.until)) continue;
     if (b.until === null && b.status === 'out' && at === Infinity) continue;
-    const vb: ViewBelief = { id: b.id, prop: b.prop, text: b.text, status: STATUS_OF[b.mode], confidence: b.confidence, via: b.via, contested: !!b.contested };
+    const vb: ViewBelief = { id: b.id, eventId: b.eventId, prop: b.prop, text: b.text, status: STATUS_OF[b.mode], confidence: b.confidence, via: b.via, contested: !!b.contested };
     if (privileged) vb.truth = proj.isCanonical(b.prop) ? 'true' : proj.factAt(b.prop.s, b.prop.p).some((f) => contradicts(f, b.prop)) ? 'false' : 'unknown';
     beliefs.push(vb);
     reasons.set(b.id, privileged ? `${persp.accessScope} view` : `${proj.name(actor)}'s own belief (${b.mode}${b.via.length ? ` via ${b.via.map((x) => proj.name(x)).join(' → ')}` : ''})`);

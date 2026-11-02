@@ -15,7 +15,38 @@ export interface GameMacroSource {
   level?: number;
 }
 
+export interface Pronouns {
+  sub: string;
+  obj: string;
+  poss: string;
+  possP: string;
+  ref: string;
+}
+
+const PRONOUNS: Record<'she' | 'he' | 'they', Pronouns> = {
+  she: { sub: 'she', obj: 'her', poss: 'her', possP: 'hers', ref: 'herself' },
+  he: { sub: 'he', obj: 'him', poss: 'his', possP: 'his', ref: 'himself' },
+  they: { sub: 'they', obj: 'them', poss: 'their', possP: 'theirs', ref: 'themselves' },
+};
+
+/**
+ * The persona's pronouns for {{sub}}/{{obj}}/{{poss}}/{{poss_p}}/{{ref}} (macros many cards use).
+ * Stated pronouns ("she/her") win; otherwise a clear word in the description; otherwise they/them.
+ */
+export function pronounsFrom(description: string | null | undefined): Pronouns {
+  const d = ` ${(description ?? '').toLowerCase()} `;
+  const stated = d.match(/\b(she|he|they)\s*\/\s*(her|him|them)\b/);
+  if (stated) return PRONOUNS[stated[1] as 'she' | 'he' | 'they'];
+  const she = (d.match(/\b(woman|girl|female|lady|she|her|herself)\b/g) ?? []).length;
+  const he = (d.match(/\b(man|boy|male|gentleman|he|him|himself)\b/g) ?? []).length;
+  if (she > he) return PRONOUNS.she;
+  if (he > she) return PRONOUNS.he;
+  return PRONOUNS.they;
+}
+
 export interface MacroContext {
+  /** The persona's pronouns (default they/them). */
+  pronouns?: Pronouns;
   user?: string;
   char?: string;
   group?: string;
@@ -130,6 +161,11 @@ export function expandMacros(text: string, ctx: MacroContext = {}): string {
     const simple: Record<string, string | number | undefined> = {
       user: ctx.user ?? 'User',
       char: ctx.char ?? '',
+      sub: (ctx.pronouns ?? PRONOUNS.they).sub,
+      obj: (ctx.pronouns ?? PRONOUNS.they).obj,
+      poss: (ctx.pronouns ?? PRONOUNS.they).poss,
+      poss_p: (ctx.pronouns ?? PRONOUNS.they).possP,
+      ref: (ctx.pronouns ?? PRONOUNS.they).ref,
       group: ctx.group ?? ctx.char ?? '',
       charifnotgroup: ctx.group ? ctx.group : ctx.char ?? '',
       groupnotmuted: ctx.groupNotMuted ?? ctx.group ?? ctx.char ?? '',

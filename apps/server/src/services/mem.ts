@@ -37,6 +37,7 @@ import { newId, sha256 } from '../security/crypto.js';
 import { logged } from './calls.js';
 import { connectionForRole } from './connections.js';
 import { ftsQuery } from './search.js';
+import { embeddingsPaused, noteEmbeddingFailure } from './embed-guard.js';
 
 // ------------------------------------------------------------------ scope and liveness
 
@@ -575,7 +576,7 @@ function cosine(a: ArrayLike<number>, b: ArrayLike<number>): number {
 /** Embed memories that have no vector yet. Background work; skipped cleanly without a connection. */
 export async function embedPending(ctx: AppContext, owner: string, scope: MemScope, chatId: string | null): Promise<number> {
   const conn = connectionForRole(ctx, owner, 'embeddings');
-  if (!conn) return 0;
+  if (!conn || embeddingsPaused(conn.id)) return 0;
   const model = conn.params.embeddings_model || conn.model;
   const w = scopeSql(scope, 'i');
   const rows = ctx.db
@@ -585,7 +586,13 @@ export async function embedPending(ctx: AppContext, owner: string, scope: MemSco
   const up = ctx.db.prepare('INSERT INTO mem_vectors (item_id, owner_id, model, hash, vector) VALUES (?, ?, ?, ?, ?) ON CONFLICT(item_id) DO UPDATE SET model = excluded.model, hash = excluded.hash, vector = excluded.vector');
   for (let i = 0; i < rows.length; i += 64) {
     const batch = rows.slice(i, i + 64);
-    const vectors = await logged(ctx, owner, conn, { chatId, purpose: 'memory embeddings', role: 'embeddings' }, batch.reduce((n, r) => n + Math.ceil(r.text.length / 4), 0), () => embed(conn, batch.map((r) => r.text)), () => '');
+    let vectors: number[][];
+    try {
+      vectors = await logged(ctx, owner, conn, { chatId, purpose: 'memory embeddings', role: 'embeddings' }, batch.reduce((n, r) => n + Math.ceil(r.text.length / 4), 0), () => embed(conn, batch.map((r) => r.text)), () => '');
+    } catch (e) {
+      noteEmbeddingFailure(conn.id, e);
+      throw e;
+    }
     ctx.db.transaction(() => batch.forEach((r, j) => vectors[j] && up.run(r.id, owner, model, sha256(model + r.text), toBlob(vectors[j]))))();
   }
   return rows.length;
@@ -594,7 +601,7 @@ export async function embedPending(ctx: AppContext, owner: string, scope: MemSco
 async function semanticScores(ctx: AppContext, owner: string, chatId: string, ids: string[], query: string, timeoutMs: number): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   const conn = connectionForRole(ctx, owner, 'embeddings');
-  if (!conn || !query.trim() || !ids.length) return out;
+  if (!conn || !query.trim() || !ids.length || embeddingsPaused(conn.id)) return out;
   const model = conn.params.embeddings_model || conn.model;
   const rows = ctx.db.prepare(`SELECT item_id, vector FROM mem_vectors WHERE model = ? AND item_id IN (${ids.map(() => '?').join(',')})`).all(model, ...ids) as Array<{ item_id: string; vector: Buffer }>;
   if (!rows.length) return out;
@@ -605,7 +612,8 @@ async function semanticScores(ctx: AppContext, owner: string, chatId: string, id
     ]);
     if (!q) return out;
     for (const r of rows) out.set(r.item_id, cosine(q, fromBlob(r.vector)));
-  } catch {
+  } catch (e) {
+    noteEmbeddingFailure(conn.id, e);
     /* no semantic signal this turn */
   }
   return out;

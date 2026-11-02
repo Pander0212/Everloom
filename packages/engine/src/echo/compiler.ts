@@ -73,6 +73,11 @@ export interface CompileInput {
   hypotheses?: boolean;
   /** Undecided world details + a seed for re-rollable suggestions (narrator builders only). */
   adjudication?: { slots: Undetermined[]; possible: (key: string) => string[]; seed: string };
+  /**
+   * Narrator builders: who of the people present did NOT perceive an event (names). The narrator
+   * already knows the event; this only says who must not act on it, so it reveals nothing new.
+   */
+  unaware?: (eventId: string) => string[];
 }
 
 const approxTokens = (s: string) => Math.ceil(s.length / 4);
@@ -140,6 +145,12 @@ export function compilePacket(input: CompileInput): ContextPacket {
   const count = input.countTokens ?? approxTokens;
   const budget = input.budget ?? 700;
   const recall = recallMemories(view, query, scene, input.signals, input.state, input.recall);
+  const narrator = persp.accessScope === 'persona-narrator';
+  const notSeen = (eventId: string) => {
+    if (!narrator || !input.unaware) return '';
+    const who = input.unaware(eventId);
+    return who.length ? ` [${who.join(', ')} did not see or hear this]` : '';
+  };
   const lines: PacketLine[] = [];
   const focus = new Set([...query.entities, ...scene.present].filter((x) => x !== self));
   const about = (b: ViewBelief) => focus.has(b.prop.s) || focus.has(b.prop.o) || query.words.some((w) => b.prop.s.includes(w) || b.prop.o.includes(w));
@@ -156,7 +167,7 @@ export function compilePacket(input: CompileInput): ContextPacket {
     if (seen.has(key)) continue;
     seen.add(key);
     const first = b.status === 'experienced' || b.status === 'common';
-    lines.push({ section: first ? 'established' : 'beliefs', text: beliefLine(b, names), source: b.id, reason: view.reasons.get(b.id) ?? 'own belief', priority: first ? 7 : 6 });
+    lines.push({ section: first ? 'established' : 'beliefs', text: `${beliefLine(b, names)}${notSeen(b.eventId)}`, source: b.id, reason: view.reasons.get(b.id) ?? 'own belief', priority: first ? 7 : 6 });
   }
   for (const t of view.doubted.filter((t) => focus.has(t.speaker) || focus.has(t.claim.prop.s)).slice(0, 2)) {
     lines.push({ section: 'beliefs', text: `${n(t.speaker)} claimed: ${t.claim.text} (${n(self)} doubts it)`, source: t.id, reason: view.reasons.get(t.id) ?? 'heard it', priority: 5 });
@@ -192,12 +203,16 @@ export function compilePacket(input: CompileInput): ContextPacket {
     shownPatterns.add(pt.id);
     return true;
   });
+  const shownWords: Array<Set<string>> = [];
   recall.hits.forEach((h, i) => {
     const u = h.unit;
     const pt = patternOf.get(u.id);
     const detail = pt ? pt.text : query.exact && u.quote && i < 2 ? `"${u.quote}"` : i < 3 || h.involuntary ? u.l1 : u.l0;
     const drift = u.drift ? ` [as ${n(self)} recalls it now: ${u.drift}]` : '';
-    lines.push({ section: 'memories', text: `${detail}${drift} — ${howKnown(u.status, u.via, names)}; ${whyNow(h, names, scene.present)}`, source: u.id, reason: `${view.reasons.get(u.id) ?? 'own memory'}; recalled by ${h.why.join(', ')}`, priority: 9 - Math.min(5, i) });
+    const words0 = new Set(contentWordsOf(detail));
+    if (shownWords.some((w) => overlap(w, words0) >= 0.6)) return;
+    shownWords.push(words0);
+    lines.push({ section: 'memories', text: `${detail}${drift} — ${howKnown(u.status, u.via, names)}; ${whyNow(h, names, scene.present)}${notSeen(u.eventId)}`, source: u.id, reason: `${view.reasons.get(u.id) ?? 'own memory'}; recalled by ${h.why.join(', ')}`, priority: 9 - Math.min(5, i) });
   });
 
   // Relationships and feelings toward who is here.
@@ -218,7 +233,8 @@ export function compilePacket(input: CompileInput): ContextPacket {
     if (c.status !== 'open') continue;
     const parties = [c.by, ...c.to];
     if (!parties.some((p) => focus.has(p)) && !query.words.some((w) => c.what.toLowerCase().includes(w))) continue;
-    const text = c.by === self ? `${n(self)} promised ${c.to.map(n).join(', ')}: ${c.what}` : `${n(c.by)} promised ${c.to.includes(self) ? n(self) : c.to.map(n).join(', ')}: ${c.what}`;
+    const to = (xs: string[]) => (xs.length ? ` ${xs.map(n).join(', ')}` : '');
+    const text = c.by === self ? `${n(self)} promised${to(c.to)}: ${c.what}` : `${n(c.by)} promised${c.to.includes(self) ? ` ${n(self)}` : to(c.to)}: ${c.what}`;
     lines.push({ section: 'commitments', text: `${text} (open)`, source: `commitment:${c.id}`, reason: view.reasons.get(`commitment:${c.id}`) ?? 'known promise', priority: 8 });
   }
 
@@ -248,7 +264,7 @@ export function compilePacket(input: CompileInput): ContextPacket {
       const these = ls.filter((l) => l.section === sec);
       if (!these.length) continue;
       parts.push(`${HEADINGS[sec].replace('{name}', n(self))}:`);
-      for (const l of these) parts.push(`- ${l.text}`);
+      for (const l of these) parts.push(`- ${humanize(l.text, names)}`);
     }
     parts.push('[/ECHO]');
     return parts.join('\n');
@@ -291,3 +307,23 @@ export const buildAdjudicatorContext = (a: BuildContextArgs) => build('adjudicat
 
 export type { Violation };
 export { propText };
+
+/** Ids and slot names never reach the writer: "npc_gravitas_hail asked_about" → "Gravitas Hail asked about". */
+export function humanize(text: string, names: Record<string, string>): string {
+  let out = text;
+  for (const id of Object.keys(names).sort((a, b) => b.length - a.length)) {
+    if (!id || !names[id]) continue;
+    const esc = id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    out = out.replace(new RegExp(`(?<![\\p{L}\\p{N}_:])${esc}(?![\\p{L}\\p{N}_])`, 'gu'), names[id]);
+  }
+  return out.replace(/(\p{L})_(?=\p{L})/gu, '$1 ');
+}
+
+function contentWordsOf(text: string): string[] {
+  return (text.toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) ?? []);
+}
+function overlap(a: Set<string>, b: Set<string>): number {
+  let i = 0;
+  for (const x of a) if (b.has(x)) i++;
+  return i / (a.size + b.size - i || 1);
+}

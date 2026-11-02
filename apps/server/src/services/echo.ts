@@ -15,6 +15,7 @@ import { echo, formatClock, PLAYER, type CampaignState, type ChatDTO, type Messa
 import { HttpError, type AppContext } from '../context.js';
 import { completeChat, embed } from '../llm/providers.js';
 import { sha256 } from '../security/crypto.js';
+import { embeddingsPaused, noteEmbeddingFailure } from './embed-guard.js';
 import { newId } from '../security/crypto.js';
 import { getState } from './campaigns.js';
 import { logged, promptTokens } from './calls.js';
@@ -435,8 +436,21 @@ export async function echoPacketFor(
     recentAffordances: recentAffordances(ctx, chat.id, p.path),
     hypotheses: atLeast(settings.profile, 'balanced'),
     adjudication: scope === 'actor' ? undefined : { slots: [...proj.undetermined.values()], possible: (k) => proj.possible(k), seed: opts.seed },
+    // The narrator plays everyone: say who present did NOT perceive what the persona knows.
+    unaware: scope === 'persona-narrator' ? unawareOf(proj, scene.present.filter((a) => a !== PLAYER && a !== actorForCard(state, opts.speakerCardId)), names) : undefined,
   });
   return { packet, actor, scope, leaf: p.leaf, recalled: packet.recall.hits.map((h) => h.unit.id) };
+}
+
+/** For each event: the names of the given people who perceived nothing of it. */
+function unawareOf(proj: echo.Projector, people: string[], names: Record<string, string>): (eventId: string) => string[] {
+  const perceivers = new Map<string, Set<string>>();
+  for (const u of proj.units) {
+    let set = perceivers.get(u.eventId);
+    if (!set) perceivers.set(u.eventId, (set = new Set()));
+    set.add(u.owner);
+  }
+  return (eventId) => people.filter((a) => !perceivers.get(eventId)?.has(a)).map((a) => names[a] ?? a).slice(0, 4);
 }
 
 /** After the reply is stored: what it was given (leakage debugger) and what it recalled (reconsolidation). */
@@ -515,12 +529,18 @@ function cosine(a: ArrayLike<number>, b: ArrayLike<number>): number {
 export async function enrichVectors(ctx: AppContext, owner: string, chat: ChatDTO): Promise<number> {
   if (!echoSettings(ctx, owner, chat).semantic) return 0;
   const conn = connectionForRole(ctx, owner, 'embeddings');
-  if (!conn) return 0;
+  if (!conn || embeddingsPaused(conn.id)) return 0;
   const model = String(conn.params.embeddings_model || conn.model);
   const { proj } = projectionFor(ctx, owner, chat);
   const todo = [...new Set(proj.units.map((u) => u.l1))].filter((t) => !vectors.has(keyOf(model, t))).slice(0, 64);
   if (!todo.length) return 0;
-  const out = await logged(ctx, owner, conn, { chatId: chat.id, purpose: 'echo memory embeddings', role: 'embeddings' }, Math.ceil(todo.join(' ').length / 4), () => embed(conn, todo), () => '');
+  let out: number[][];
+  try {
+    out = await logged(ctx, owner, conn, { chatId: chat.id, purpose: 'echo memory embeddings', role: 'embeddings' }, Math.ceil(todo.join(' ').length / 4), () => embed(conn, todo), () => '');
+  } catch (e) {
+    noteEmbeddingFailure(conn.id, e);
+    return 0;
+  }
   todo.forEach((t, i) => out[i] && vectors.set(keyOf(model, t), new Float32Array(out[i])));
   return todo.length;
 }
@@ -528,7 +548,7 @@ export async function enrichVectors(ctx: AppContext, owner: string, chat: ChatDT
 async function semanticSignals(ctx: AppContext, owner: string, chatId: string, view: echo.AuthorizedView, actor: string, query: string, timeoutMs = 1200): Promise<Map<string, number>> {
   const out = new Map<string, number>();
   const conn = connectionForRole(ctx, owner, 'embeddings');
-  if (!conn || !query.trim()) return out;
+  if (!conn || !query.trim() || embeddingsPaused(conn.id)) return out;
   const model = String(conn.params.embeddings_model || conn.model);
   const mine = view.units.filter((u) => u.owner === actor && vectors.has(keyOf(model, u.l1)));
   if (!mine.length) return out;
@@ -538,7 +558,8 @@ async function semanticSignals(ctx: AppContext, owner: string, chatId: string, v
       new Promise<number[][]>((_, rej) => setTimeout(() => rej(new Error('embedding timeout')), timeoutMs)),
     ]);
     if (q) for (const u of mine) out.set(u.id, cosine(q, vectors.get(keyOf(model, u.l1))!));
-  } catch {
+  } catch (e) {
+    noteEmbeddingFailure(conn.id, e);
     /* no semantic signal this turn */
   }
   return out;

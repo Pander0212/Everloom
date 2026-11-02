@@ -39,3 +39,4 @@ everloom-anatomy-pack/
 samples/gen/
 tools/**/__pycache__/
 __pycache__/
+tests/live/out/
