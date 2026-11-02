@@ -118,6 +118,9 @@ try {
   const calls = await q('GET', `/api/calls?chatId=${chat.id}&limit=5000`);
   const sum = (p?: string) => calls.filter((x: any) => !p || x.purpose === p).reduce((a: any, x: any) => ({ n: a.n + 1, tokens: a.tokens + (x.tokensIn ?? 0) + (x.tokensOut ?? 0), failed: a.failed + (x.ok ? 0 : 1) }), { n: 0, tokens: 0, failed: 0 });
   out.usage = { all: sum(), reply: sum('reply'), tracker: sum('tracker'), guard: sum('echo guard') };
+  const fails: Record<string, number> = {};
+  for (const x of calls.filter((x: any) => !x.ok)) fails[`${x.purpose}: ${String(x.error ?? '').slice(0, 80)}`] = (fails[`${x.purpose}: ${String(x.error ?? '').slice(0, 80)}`] ?? 0) + 1;
+  out.failures = fails;
   out.packets = (await q('GET', `/api/chats/${chat.id}/echo/packets`)).slice(0, FACTS.length).map((p: any) => ({ tokens: p.tokens, actor: p.actor, text: p.text }));
 } finally {
   writeFileSync(file, JSON.stringify(out, null, 1));
