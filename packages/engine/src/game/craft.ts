@@ -192,7 +192,20 @@ ${here ? `The player is at ${here}.\n` : ''}Idea: ${idea.trim() || '(anything th
 export function parseRecipeSuggestion(text: string, discipline: Discipline) {
   const j = extractJson<Record<string, unknown>>(text);
   if (!j.ok || !j.value || typeof j.value !== 'object') throw new Error('The model did not return a recipe');
-  const parsed = OpSchemas3['recipe.add'].safeParse({ ...j.value, type: 'recipe.add', discipline, source: 'ai' });
+  // Models often add a field that doesn't apply (an equipment "slot" on a cooked meal). An invalid
+  // optional field is dropped and the recipe checked again; a missing required one still fails.
+  const value: Record<string, unknown> = JSON.parse(JSON.stringify({ ...j.value, type: 'recipe.add', discipline, source: 'ai' }));
+  let parsed = OpSchemas3['recipe.add'].safeParse(value);
+  for (let tries = 0; !parsed.success && tries < 6; tries++) {
+    const issue = parsed.error.issues[0];
+    if (!issue?.path.length || issue.code === 'invalid_type' && /required|undefined/i.test(issue.message)) break;
+    let at: any = value;
+    for (const k of issue.path.slice(0, -1)) at = at?.[k as string];
+    const last = issue.path[issue.path.length - 1] as string;
+    if (!at || typeof at !== 'object' || !(last in at)) break;
+    delete at[last];
+    parsed = OpSchemas3['recipe.add'].safeParse(value);
+  }
   if (!parsed.success) throw new Error(`The suggested recipe was incomplete: ${parsed.error.issues[0]?.path.join('.')} ${parsed.error.issues[0]?.message}`);
   return parsed.data;
 }

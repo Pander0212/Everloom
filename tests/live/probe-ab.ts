@@ -32,7 +32,7 @@ try {
   await q('POST', '/api/personas', { name: script.persona.name, description: script.persona.description, isDefault: true });
   const card = (await c.req('POST', '/api/characters/import', readFileSync(cardPath), { 'content-type': 'image/png' })).json;
   const chat = await q('POST', '/api/chats', { characterId: card.id });
-  await q('PATCH', `/api/chats/${chat.id}/echo`, { profile: echoArg === 'on' ? 'balanced' : 'off', narration: script.narration });
+  await q('PATCH', `/api/chats/${chat.id}/echo`, { profile: echoArg === 'on' ? 'balanced' : echoArg === 'strict' ? 'strict' : 'off', narration: script.narration });
   for (const t of run.turns.slice(0, idx)) {
     await q('POST', `/api/chats/${chat.id}/messages`, { role: 'user', text: t.user });
     const m = await q('POST', `/api/chats/${chat.id}/messages`, { role: 'assistant', text: t.reply, characterId: card.id });

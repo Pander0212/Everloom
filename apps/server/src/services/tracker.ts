@@ -56,12 +56,12 @@ async function doRun(ctx: AppContext, owner: string, chatId: string, messageId: 
     { characterNames: characterRefs(ctx, owner).map((c) => c.name).slice(0, 40), memory: settings.world.memory, echo: atLeast(echoSettings(ctx, owner, chat).profile, 'fast'), allowed, ...(() => { const emotes = emotesForChat(ctx, owner, chatCharacterIds(ctx, owner, chat).map((c) => c.id)); return { emotes, paired: emotes.length ? pairedFor(ctx, owner) : [] }; })() },
   );
   ctx.bus.publish(owner, 'tracker.status', { chatId, messageId, status: 'running' });
-  const call = (extra: Array<{ role: 'user' | 'assistant'; content: string }> = []) => {
+  const call = (extra: Array<{ role: 'user' | 'assistant'; content: string }> = [], maxTokens = 1100) => {
     const messages = [{ role: 'system' as const, content: system }, { role: 'user' as const, content: user }, ...extra];
     return logged(ctx, owner, conn, { chatId, messageId, purpose: extra.length ? 'tracker (repair)' : 'tracker', role: 'utility' }, promptTokens(messages), () =>
       completeChat(conn, {
         messages,
-        overrides: { temperature: 0.2, max_tokens: 1100, stream: true, reasoning: false, stop: [] },
+        overrides: { temperature: 0.2, max_tokens: maxTokens, stream: true, reasoning: false, stop: [] },
         signal: AbortSignal.timeout(90_000),
       }),
     );
@@ -74,6 +74,16 @@ async function doRun(ctx: AppContext, owner: string, chatId: string, messageId: 
     return { ok: false, summary: [], error: (e as Error).message };
   }
   let parsed = parseTrackerOutput(out.text, allowed);
+  // Thinking models can spend the whole budget thinking and answer nothing (seen live with
+  // MiniMax M3.1 Flash and GLM 5.3 Flash): ask once more with room to finish, before any repair.
+  if (!parsed.parsed && !out.text.trim() && out.reasoning?.trim()) {
+    try {
+      out = await call([], 4000);
+      parsed = parseTrackerOutput(out.text, allowed);
+    } catch {
+      /* fall through to the repair */
+    }
+  }
   if (!parsed.parsed) {
     try {
       const retry = await call([
