@@ -75,6 +75,8 @@ try {
   }
   const st = await q('GET', `/api/chats/${chat.id}/echo`);
   out.present = st.actors;
+  // The story is read; the samples are swipes of one reply, so no tracker or chronicle work per sample.
+  await q('PATCH', '/api/settings', { tracker: { mode: 'off' }, world: { chronicler: false, consolidate: false, social: false, preRead: false } });
   console.log(`replayed ${idx} turns; actors: ${st.actors.map((a: any) => a.name).join(', ')}`);
   // The probe message, then all samples as swipes of one reply.
   let first = true;
