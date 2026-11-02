@@ -21,12 +21,14 @@ const SECRETS: Record<string, { who: string; secret: string }> = {
   'korra:probe-secret': { who: 'Bolin', secret: 'Tamsin overheard masked Equalists planning to sabotage the arena lights during Saturday\'s match' },
 };
 const sec = SECRETS[`${run.script}:${tag}`];
-const VARIANTS: Array<{ name: string; echo: Record<string, unknown> }> = [
+const ALL_VARIANTS: Array<{ name: string; echo: Record<string, unknown> }> = [
   { name: 'off', echo: { profile: 'off' } },
   { name: 'notes', echo: { profile: 'balanced', historyNotes: true, guard: 'off', characterFirst: false } },
   { name: 'guard', echo: { profile: 'balanced', historyNotes: true, guard: 'repair', characterFirst: false } },
   { name: 'strict', echo: { profile: 'strict', historyNotes: true, guard: 'repair', characterFirst: true } },
 ];
+// LEAK_VARIANTS=guard,strict runs only those; LEAK_TAG names the output file (e.g. "v2").
+const VARIANTS = process.env.LEAK_VARIANTS ? ALL_VARIANTS.filter((v) => process.env.LEAK_VARIANTS!.split(',').includes(v.name)) : ALL_VARIANTS;
 
 async function judge(reply: string): Promise<boolean | null> {
   const body = {
@@ -59,7 +61,7 @@ const q = async (m: string, u: string, b?: unknown) => {
   return r.json;
 };
 const out: any = { run: run.runId, tag, n: Number(nArg), models, samples: [], present: null };
-const file = `tests/live/out/leak-${run.script}-${tag}.json`;
+const file = `tests/live/out/leak-${run.script}-${tag}${process.env.LEAK_TAG ? `-${process.env.LEAK_TAG}` : ''}.json`;
 try {
   const conns: Record<string, string> = {};
   for (const m of [...new Set([run.utility, ...models])]) conns[m] = (await q('POST', '/api/connections', { name: m, provider: 'openai', baseUrl: BASE, model: m, apiKey: KEY, params: { max_tokens: 700, context_size: 32768, temperature: 0.8 } })).id;

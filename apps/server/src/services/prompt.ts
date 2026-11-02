@@ -111,6 +111,8 @@ export interface BuildOptions {
   threadRungs?: Record<string, number>;
   /** ECHO: seed for this message + swipe (re-rollable details, involuntary recall). */
   echoSeed?: string;
+  /** ECHO guard repair: history messages shown as a neutral note instead of their text. */
+  redact?: Record<string, string>;
 }
 
 export interface BuiltPrompt {
@@ -311,7 +313,7 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
     id: m.id,
     role: m.role === 'user' ? 'user' : m.role === 'system' ? 'system' : 'assistant',
     name: m.name,
-    content: rx(stripInlineTags(m.role === 'user' && isInputMode(m.extra?.inputMode) ? frameInput(m.extra.inputMode, textOf(m)) : textOf(m)), m.role === 'user' ? RegexPlacement.userInput : RegexPlacement.aiOutput, visible.length - 1 - i) + (notes.has(m.id) ? `\n${notes.get(m.id)}` : ''),
+    content: opts.redact?.[m.id] ?? rx(stripInlineTags(m.role === 'user' && isInputMode(m.extra?.inputMode) ? frameInput(m.extra.inputMode, textOf(m)) : textOf(m)), m.role === 'user' ? RegexPlacement.userInput : RegexPlacement.aiOutput, visible.length - 1 - i) + (notes.has(m.id) ? `\n${notes.get(m.id)}` : ''),
   }));
   if (rules.length) {
     const wiRx = (t: string) => rx(t, RegexPlacement.worldInfo, undefined, true);

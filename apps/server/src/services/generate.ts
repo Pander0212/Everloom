@@ -58,6 +58,8 @@ export interface GenerateInput {
   origin?: string;
   /** Internal: this generation is the ECHO guard's one repair (no further repairs). */
   guardDepth?: number;
+  /** Internal: history messages the repair must not see. */
+  redact?: Record<string, string>;
 }
 
 function textOf(m: MessageDTO) {
@@ -99,14 +101,15 @@ export function pickSpeaker(pc: PromptContext, muted: Set<string>, strategy: str
 }
 
 export async function generate(ctx: AppContext, owner: string, chatId: string, input: GenerateInput, emit: (e: GenerateEvent) => void): Promise<void> {
-  let repair: string | null = null;
+  let repair: { instruction: string; redact: Record<string, string> } | null = null;
   await generateOnce(ctx, owner, chatId, input, emit, (r) => (repair = r));
-  // The guard's one repair: the same swipe, written again with what went wrong.
-  if (repair) await generateOnce(ctx, owner, chatId, { type: 'regenerate', instruction: repair, origin: input.origin, guardDepth: 1 }, emit, () => {});
+  // The guard's one repair: the same swipe, written again with what went wrong, without the leaked moments.
+  const fix = repair as { instruction: string; redact: Record<string, string> } | null;
+  if (fix) await generateOnce(ctx, owner, chatId, { type: 'regenerate', instruction: fix.instruction, redact: fix.redact, origin: input.origin, guardDepth: 1 }, emit, () => {});
 }
 
-async function generateOnce(ctx: AppContext, owner: string, chatId: string, input: GenerateInput, emit: (e: GenerateEvent) => void, onRepair: (instruction: string) => void): Promise<void> {
-  let repair: string | null = null;
+async function generateOnce(ctx: AppContext, owner: string, chatId: string, input: GenerateInput, emit: (e: GenerateEvent) => void, onRepair: (r: { instruction: string; redact: Record<string, string> }) => void): Promise<void> {
+  let repair: { instruction: string; redact: Record<string, string> } | null = null;
   if (active.has(chatId)) throw new HttpError(409, 'Already generating in this chat');
   const controller = new AbortController();
   active.set(chatId, controller);
@@ -222,6 +225,7 @@ async function generateOnce(ctx: AppContext, owner: string, chatId: string, inpu
       threadRungs: tick ? Object.fromEntries(tick.threads.map((t) => [t.id, t.rung])) : undefined,
       // Seeded per message and swipe: a swipe can re-roll undecided details and involuntary recall.
       echoSeed: target ? `${target.id}:${swipeIndex}` : `${lastUserMsg?.id ?? chatId}:${promptHistory.length}`,
+      redact: input.redact,
     });
     lastPrompts.set(chatId, {
       at: Date.now(),
@@ -359,7 +363,7 @@ async function generateOnce(ctx: AppContext, owner: string, chatId: string, inpu
       const g = await guardReply(ctx, owner, chat, messageId, finalText, { chatCharacters: pc.members.map((m) => m.id), speakerCardId: pc.character.id }).catch(() => null);
       const fix = input.guardDepth ? null : g?.instruction ?? null;
       if (g?.violations.length) pub('echo.guard', { chatId, messageId, violations: g.violations, repairing: !!fix });
-      if (fix) repair = fix;
+      if (fix && g) repair = { instruction: fix, redact: g.redact };
     }
     if (repair) {
       onRepair(repair);

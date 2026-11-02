@@ -555,6 +555,8 @@ export interface GuardResult {
   violations: Array<{ who: string; fact: number; quote: string }>;
   instruction: string | null;
   checked: number;
+  /** For the repair: history messages to replace with a neutral note (the moments the violator missed). */
+  redact: Record<string, string>;
 }
 
 /**
@@ -572,7 +574,7 @@ export async function guardReply(ctx: AppContext, owner: string, chat: ChatDTO, 
   if (!others.length) return null;
   const moments = echo.privateMoments(p.proj, others, p.names).filter((m) => m.messageId !== messageId);
   const cands = echo.guardCandidates(moments, reply);
-  if (!cands.length) return { violations: [], instruction: null, checked: 0 };
+  if (!cands.length) return { violations: [], instruction: null, checked: 0, redact: {} };
   const conn = connectionForRole(ctx, owner, 'utility');
   if (!conn) return null;
   const messages = echo.guardPrompt(cands, reply, p.names);
@@ -588,7 +590,14 @@ export async function guardReply(ctx: AppContext, owner: string, chat: ChatDTO, 
   if (violations.length) extra.echoGuard = { violations, at: Date.now() };
   else delete extra.echoGuard;
   ctx.db.prepare('UPDATE messages SET extra = ? WHERE id = ?').run(JSON.stringify(extra), messageId);
-  return { violations, instruction: violations.length && st.guard === 'repair' ? echo.repairInstruction(violations, cands) : null, checked: cands.length };
+  // The rewrite doesn't see the moments it leaked (measured live: with them still in the history,
+  // the rewrite often leaked again). Only the repair; normal turns keep the full history.
+  const redact: Record<string, string> = {};
+  for (const v of violations) {
+    const c = cands[v.fact - 1] ?? cands[0];
+    if (c?.moment.messageId) redact[c.moment.messageId] = `(${c.moment.perceivers.map((x) => p.names[x] ?? x).join(', ')} did something here that ${v.who} did not see; leave it out of this reply.)`;
+  }
+  return { violations, instruction: violations.length && st.guard === 'repair' ? echo.repairInstruction(violations, cands) : null, checked: cands.length, redact };
 }
 
 /**

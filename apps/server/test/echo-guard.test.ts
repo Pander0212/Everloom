@@ -56,6 +56,8 @@ describe('ECHO guard rails on the server', () => {
     expect(mine.filter((x) => x.kind === 'story')).toHaveLength(2);
     const rewrite = mine.filter((x) => x.kind === 'story').pop();
     expect(JSON.stringify(rewrite.body)).toContain('Gravitas Hail cannot know');
+    // The rewrite does not see the moment it leaked: that message is a neutral note.
+    expect(JSON.stringify(rewrite.body)).toContain('did something here that Gravitas Hail did not see');
     // Only one message (the same swipe was rewritten), and the guard's finding is on it.
     const msgs = (await c.req('GET', `/api/chats/${chat.id}/messages`)).json;
     expect(msgs[msgs.length - 1].swipes).toHaveLength(1);
