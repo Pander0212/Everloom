@@ -81,13 +81,17 @@ export interface GuardCandidate {
  */
 export function guardCandidates(moments: PrivateMoment[], reply: string): GuardCandidate[] {
   const text = new Set(words(reply));
+  // "I noticed … your boot" leaks with one of the moment's words: perception words lower the bar.
+  const perceives = PERCEIVE.test(reply);
   const out: GuardCandidate[] = [];
   for (const m of moments) {
     const hits = m.terms.filter((t) => text.has(t));
-    if (hits.length >= 2 || hits.some((h) => h.length >= 8)) out.push({ moment: m, hits });
+    if (hits.length >= 2 || hits.some((h) => h.length >= 8) || (perceives && hits.length >= 1)) out.push({ moment: m, hits });
   }
   return out.slice(0, 4);
 }
+
+const PERCEIVE = /\b(notic(?:e|ed|ing)|saw|seen|see you|spott(?:ed|ing)|caught|watched|witness(?:ed)?|overheard|heard you|know what you|i know about|bemerkt|gesehen|beobachtet|mitbekommen)\b/i;
 
 /** The judge's prompt (utility model). Returns JSON {"violations":[{"who","moment","quote"}]}. */
 export function guardPrompt(cands: GuardCandidate[], reply: string, names: Record<string, string>): Array<{ role: 'system' | 'user'; content: string }> {

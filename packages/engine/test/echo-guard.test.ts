@@ -23,6 +23,9 @@ describe('ECHO guard rails', () => {
     const ms = echo.privateMoments(story(), ['dwarf'], names);
     expect(echo.guardCandidates(ms, '"Aye. Black iron, old work. I noticed it in your boot."')).toHaveLength(1);
     expect(echo.guardCandidates(ms, 'The dwarf shrugs and orders another ale.')).toHaveLength(0);
+    // Found live: one word of the moment plus a perception word is enough to check.
+    expect(echo.guardCandidates(ms, '"Aye, I noticed. You fiddled with your boot by the door."')).toHaveLength(1);
+    expect(echo.guardCandidates(ms, 'He laces his boot and leaves.')).toHaveLength(0);
     expect(echo.parseGuard('{"violations":[{"who":"Gravitas","fact":1,"quote":"I noticed"}]}')).toEqual([{ who: 'Gravitas', fact: 1, quote: 'I noticed' }]);
     expect(echo.repairInstruction([{ who: 'Gravitas', fact: 1, quote: 'I noticed' }], echo.guardCandidates(ms, 'black iron boot'))).toContain('Gravitas cannot know');
   });
