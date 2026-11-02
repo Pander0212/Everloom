@@ -136,3 +136,10 @@ What this shows, plainly:
 - **Writer:** GLM 5.3 or MiniMax M3 held secrets best on Guildbound (13/13 probes); DeepSeek v4 Pro
   and Qwen 3.5 397B are close. Avoid GLM 5.3 Flash and MiniMax M3.1 Flash as the tracker.
 - **Embeddings:** not available on a subscription-only key; leave semantic recall off.
+
+## Re-measurement after the thinking-model tracker fix
+
+| Model | Before | After | Notes |
+|---|---|---|---|
+| MiniMax M3.1 Flash | 0/4, 0 events, 20 repairs | 5/8, 8 events, 15 repairs, 52 s/turn | better, still not usable as the tracker (missed promise, lie, hidden object) |
+| GLM 5.3 Flash | 2/7, 2 events, 20 repairs | not measured | the run was stopped by the session's time limit |
