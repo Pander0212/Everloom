@@ -1,6 +1,6 @@
 /** Builds the full prompt for a chat turn. Shared by generation and the prompt inspector. */
 import {
-  AI_OP_TYPES, allowedOpTypes, assemblePrompt, PLAYER, buildSceneBlock, checkWorldInfo, createRng, formatClock, formatDate, inlineInstruction, seedFrom, storySoFar,
+  AI_OP_TYPES, allowedOpTypes, assemblePrompt, echo, PLAYER, buildSceneBlock, checkWorldInfo, createRng, formatClock, formatDate, inlineInstruction, seedFrom, storySoFar,
   type PersonMemoryView, type SceneBlock,
   stripInlineTags, type AssembledPrompt, type CampaignState, type ChatDTO, type CharacterDTO, type HistoryMessage, type MacroContext,
   type MessageDTO, type PersonaDTO, type ScanEntry, type Settings, type FeatureSet,
@@ -309,6 +309,12 @@ export async function buildPrompt(ctx: AppContext, owner: string, pc: PromptCont
   const rx = (text: string, placement: RegexPlacement, depth?: number, includeStored = false) => (rules.length ? applyRegexScripts(text, rules, { placement, target: 'prompt', depth, macros, includeStored }) : text);
   // ECHO history notes: private moments are marked where they happened (never stored).
   const notes = echoOn ? historyNotes(ctx, owner, chat, { chatCharacters: pc.members.map((m) => m.id), speakerCardId: character.id }) : new Map<string, string>();
+  // ECHO's notes are English: in another language they must not pull the writer along.
+  const langLine = echoOn ? echo.languageLine(echo.storyLanguage(recentText)) : '';
+  if (langLine && (echoPacket?.packet.text || notes.size || first)) {
+    if (gameState) gameState = `${gameState}\n\n${langLine}`;
+    else memory = memory ? `${memory}\n\n${langLine}` : langLine;
+  }
   const history: HistoryMessage[] = visible.map((m, i) => ({
     id: m.id,
     role: m.role === 'user' ? 'user' : m.role === 'system' ? 'system' : 'assistant',

@@ -11,3 +11,4 @@ export * from './extract.js';
 export * from './decide.js';
 export * from './consolidate.js';
 export * from './guard.js';
+export * from './language.js';
