@@ -143,3 +143,69 @@ What this shows, plainly:
 |---|---|---|---|
 | MiniMax M3.1 Flash | 0/4, 0 events, 20 repairs | 5/8, 8 events, 15 repairs, 52 s/turn | better, still not usable as the tracker (missed promise, lie, hidden object) |
 | GLM 5.3 Flash | 2/7, 2 events, 20 repairs | not measured | the run was stopped by the session's time limit |
+
+---
+
+# Round 2 (2026-11-02/03): the fixes, measured
+
+Built from the proposal after round 1 (all on `main`, all with tests):
+
+| | What | Why (round 1) |
+|---|---|---|
+| A | **History notes** — private moments are marked in the writer's copy of the history, where they happened | secrets in the visible history leaked |
+| C | **Reply guard** — a deterministic pre-filter, then a small judge call; `repair` rewrites the same swipe once, without the leaked moment in its history; the rewrite is flag-checked | same |
+| B | **Character-first** (Strict) — the addressed character answers first in an isolated call that sees only their own packet and the history minus what they missed | same |
+| D | **Provisional actors** — "the one-armed dwarf" is an actor before he has a name; merged into the NPC who fits (head word + stems) | unnamed people knew nothing |
+| E | **Ledger check** — a payment or purchase the tracker missed is asked for (English and German) | bow bought, coins never paid |
+| F | **Tracker fallback** — the main model reads the turn when the utility model returns no JSON | thinking Flash models |
+| — | **Rate-limit retries** — 429/503 "slow down" answers are retried before a reply starts, waiting as asked | 20+ of 138 replies failed |
+| — | **Embedding pauses** — refusals and rate limits pause embeddings; inputs cut to 6,000 characters | ElectronHub 429 "try again in 157 s", Gemini 2,048-token limit |
+| — | **Packet hygiene** — top memories first; duplicate promises once, max 3; perspective notes only for private moments; unrelated "unsure" lines dropped | 9 promises crowded out the memory asked about |
+
+## Long sessions — the real test of long-term memory
+
+138 turns on the Guildbound card, **8k context** (everything planted in turns 2–9 left the visible
+history ~120 turns before it was asked), English, 0 failed replies after the retry fix. Eight
+questions: a promise, a pet's name, a scar's origin, a debt, a favourite food, a lie (believed by
+Miki), a secret (Miki must not know), a hidden object (nobody saw it). Judged by GLM 5.3.
+
+| Writer | Legacy memory | ECHO before packet hygiene | **ECHO after** |
+|---|---|---|---|
+| DeepSeek v4.1 Flash 1017 | 4 / 8 | 5 / 8 | **7 / 8** |
+| GLM 5.3 | 7 / 8 | 7 / 8 | **8 / 8** |
+| Together | 11 / 16 | 12 / 16 | **15 / 16** |
+
+After the fix, every passed question had the memory in the packet (from the addressed character's
+view where someone was spoken to); the one miss (DeepSeek, the promise) had it in the packet and
+the writer didn't use it. **16 questions is a small sample: a strong signal, not proof.** An earlier
+run showing ECHO 8/8 vs legacy 3/8 is discarded: 20+ replies had failed on rate limits.
+
+## Secrets in the visible history — A/B, 24 samples per cell (3 models × 8)
+
+Same story state for every variant within a round (replayed once); judged by GLM 5.3.
+
+| Variant | Guildbound, round 1 | Guildbound, round 2 ⁴ | Korra, round 1 |
+|---|---|---|---|
+| ECHO off | 19/24 (79 %) | — | 3/24 |
+| + history notes (A) | 12/24 (50 %) | — | 2/24 |
+| + reply guard with repair (C) | 10/24 (42 %) | 11/24 (46 %) | **0/24** |
+| Strict: character-first (B) | 7/24 (29 %) | 14/24 (58 %) | **0/24** |
+
+4. After the repair stopped seeing the leaked moment and the pre-filter learned perception words;
+   a new replay of the same story.
+
+Plainly: when the secret is **word for word in the visible history** and the player **asks the
+character directly about it**, ECHO's measures cut leaks from ~80 % to roughly 30–55 %, and to
+~0 % on the Korra probe. The differences *between* the variants are within the noise of 24
+samples (the strict cell moved from 29 % to 58 % between two replays of the same story). The guard
+catches what it checks; the rewrite still sometimes leaks.
+
+## Still open
+
+- Secrets visible in the history and asked about directly: reduced, not solved.
+- Tracker extraction sometimes records a hidden action as public (then an NPC "knows" it).
+- Ledger check and tracker fallback are unit-tested; not yet re-measured live.
+- Semantic recall through ElectronHub: its rate limit (one request per few minutes) makes it
+  unusable per turn; Everloom now pauses instead of failing.
+
+Token use (NanoGPT key, both rounds): 29.1 M of the 40 M limit at the time of writing; $0.
