@@ -20,3 +20,5 @@ makes it matter, without growing the prompt with the story.
 | [DECISIONS.md](DECISIONS.md) | Decisions and their reasons |
 | [EVAL.md](EVAL.md) | Test results, benchmark, latency, what is not done |
 | [API.md](API.md) | HTTP endpoints |
+| [LIVE.md](LIVE.md) | Live tests with real models (two rounds) |
+| [NEXT.md](NEXT.md) | Plan for the next steps (not started) |
