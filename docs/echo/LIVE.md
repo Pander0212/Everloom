@@ -180,6 +180,19 @@ view where someone was spoken to); the one miss (DeepSeek, the promise) had it i
 the writer didn't use it. **16 questions is a small sample: a strong signal, not proof.** An earlier
 run showing ECHO 8/8 vs legacy 3/8 is discarded: 20+ replies had failed on rate limits.
 
+### German control (DeepSeek v4.1 Flash 1017, 118 turns, 8k context)
+
+| | Legacy memory | ECHO, first run | **ECHO with the language fix** |
+|---|---|---|---|
+| Questions | 7 / 8 | 5 / 8 | **8 / 8** |
+| Language of the replies | German | **switched to English** | German throughout |
+
+ECHO's packet and history notes are English; without a hint they pulled the writer out of German.
+Everloom now detects the story's language and adds one line asking to keep writing in it.
+
+Across all clean long sessions after the fixes (English ×2 writers, German ×1): **ECHO 23 / 24,
+legacy memory 18 / 24.**
+
 ## Secrets in the visible history — A/B, 24 samples per cell (3 models × 8)
 
 Same story state for every variant within a round (replayed once); judged by GLM 5.3.
@@ -208,4 +221,4 @@ catches what it checks; the rewrite still sometimes leaks.
 - Semantic recall through ElectronHub: its rate limit (one request per few minutes) makes it
   unusable per turn; Everloom now pauses instead of failing.
 
-Token use (NanoGPT key, both rounds): 29.1 M of the 40 M limit at the time of writing; $0.
+Token use (NanoGPT key, both rounds): 33.8 M of the 40 M limit; $0.
