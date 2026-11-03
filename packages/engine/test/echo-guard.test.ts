@@ -38,6 +38,10 @@ describe('ECHO guard rails', () => {
     const merged = echo.mergeProvisional(['anon:one_armed_dwarf', 'anon:dwarf'], [{ id: 'npc_g', text: 'Gravitas Hail Guildmaster A one-armed dwarf with a grey beard' }, { id: 'npc_m', text: 'Miki receptionist' }]);
     expect(merged.get('anon:one_armed_dwarf')).toBe('npc_g');
     expect(merged.get('anon:dwarf')).toBe('npc_g');
+    // Live: the NPC's description said "a dwarf missing his left arm", not "one-armed".
+    expect(echo.mergeProvisional(['anon:the_one_armed_dwarf'], [{ id: 'npc_g', text: 'Gravitas Hail Guildmaster a grey dwarf missing his left arm' }]).get('anon:the_one_armed_dwarf')).toBe('npc_g');
+    // Two dwarves: ambiguous, no merge.
+    expect(echo.mergeProvisional(['anon:the_dwarf'], [{ id: 'a', text: 'a dwarf smith' }, { id: 'b', text: 'a dwarf guard' }]).size).toBe(0);
     const p = echo.project(echo.remapActors([ev({ type: 'speech', actors: ['player'], recipients: ['anon:one_armed_dwarf'], visibility: 'private', action: 'Rin whispered she died on Earth', observers: here('player') }, 1)], merged));
     expect(p.units.map((u) => u.owner).sort()).toEqual(['npc_g', 'player']);
   });

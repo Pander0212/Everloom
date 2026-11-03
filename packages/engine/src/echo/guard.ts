@@ -159,9 +159,16 @@ export function mergeProvisional(ids: string[], npcs: Array<{ id: string; text: 
   for (const id of ids) {
     const want = id.slice(5).split('_').filter((w) => w.length >= 3 && !['the', 'old', 'young', 'man', 'woman'].includes(w));
     if (!want.length) continue;
+    // The head word ("dwarf") must fit; of the other descriptors, half is enough (the story's own
+    // description of the NPC rarely repeats "one-armed" word for word; seen live).
+    const head = want[want.length - 1];
+    const rest = want.slice(0, -1);
     const fits = npcs.filter((n) => {
       const t = ` ${n.text.toLowerCase().replace(/-/g, ' ')} `;
-      return want.every((w) => t.includes(w));
+      if (!t.includes(head)) return false;
+      // Stems, so "armed" fits "arm" and "scarred" fits "scar".
+      const stem = (w: string) => w.slice(0, Math.max(3, w.length - 2));
+      return !rest.length || rest.filter((w) => t.includes(stem(w))).length * 2 >= rest.length;
     });
     if (fits.length === 1) out.set(id, fits[0].id);
   }
