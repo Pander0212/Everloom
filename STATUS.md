@@ -2,6 +2,22 @@
 
 Snapshot of what's built, what's partial, and how it was tested. Everloom 0.1.0.
 
+## Everloom Immersive preset (2026-11-03)
+
+A roleplay preset for private adult interactive fiction, added once to every account (editable,
+deletable; never made active on its own): narrator rules (never write for the player, characters
+with their own will, consistent world, characters only know what they perceived), content freedom
+for adult fiction with two fixed limits (nothing sexual involving minors; no real-world harmful
+instructions), a writing-style block with a list of stock phrases to avoid, and a short reminder
+right after the history. A card's own system prompt or post-history instructions still win
+(`{{original}}` keeps the reminder). Code: `packages/engine/src/prompt/immersive.ts`; tests:
+`apps/server/test/immersive-preset.test.ts`.
+
+Live A/B on the Guildbound card (8 turns incl. a fight, a romance scene and an OOC question,
+blind pairwise judge, `tests/live/preset-ab.ts`): Immersive won 5–3 with DeepSeek v4.1 Flash and
+5–3 with GLM 5.3; no refusals or disclaimers with either preset; OOC answered briefly, then the
+scene went on. 8 turns per model is a small sample.
+
 ## ECHO: epistemic memory (2026-11-01)
 
 Docs: [docs/echo/](docs/echo/) (audit, design with every "quantum" term mapped to code, decisions,

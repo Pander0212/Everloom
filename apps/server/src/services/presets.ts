@@ -1,15 +1,27 @@
-import { DEFAULT_PRESET, type PresetDTO, type PromptPreset } from '@everloom/engine';
+import { DEFAULT_PRESET, IMMERSIVE_PRESET_NAME, immersivePreset, type PresetDTO, type PromptPreset } from '@everloom/engine';
 import { HttpError, type AppContext } from '../context.js';
 import { json } from '../db/index.js';
 import { newId } from '../security/crypto.js';
-import { getSettings } from './settings.js';
+import { getKv, getSettings, setKv } from './settings.js';
 
 function toDTO(r: any): PresetDTO {
   const preset = json<PromptPreset>(r.data, DEFAULT_PRESET);
   return { id: r.id, name: r.name, kind: 'prompt', preset: { ...DEFAULT_PRESET, ...preset, formats: { ...DEFAULT_PRESET.formats, ...(preset.formats ?? {}) }, name: r.name }, updatedAt: r.updated_at };
 }
 
+/**
+ * Built-in presets are added to each account once, as ordinary presets the owner can edit or
+ * delete (a deleted one doesn't come back). Never changes the active preset.
+ */
+export function seedBuiltinPresets(ctx: AppContext, owner: string) {
+  if (getKv<boolean>(ctx, owner, 'preset-seed:immersive-v1', false)) return;
+  const exists = ctx.db.prepare("SELECT 1 FROM presets WHERE owner_id = ? AND kind = 'prompt' AND name = ?").get(owner, IMMERSIVE_PRESET_NAME);
+  if (!exists) savePreset(ctx, owner, IMMERSIVE_PRESET_NAME, immersivePreset());
+  setKv(ctx, owner, 'preset-seed:immersive-v1', true);
+}
+
 export function listPresets(ctx: AppContext, owner: string): PresetDTO[] {
+  seedBuiltinPresets(ctx, owner);
   return (ctx.db.prepare("SELECT * FROM presets WHERE owner_id = ? AND kind = 'prompt' ORDER BY name").all(owner) as any[]).map(toDTO);
 }
 

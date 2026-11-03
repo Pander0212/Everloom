@@ -82,3 +82,4 @@ export { keyBackground } from './puppet/key.js';
 export * from './rig/index.js';
 export * as echo from './echo/index.js';
 export * from './game/ledger.js';
+export * from './prompt/immersive.js';
